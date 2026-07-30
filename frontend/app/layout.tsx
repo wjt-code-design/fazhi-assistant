@@ -6,6 +6,12 @@ export const metadata = {
   description: "基于公开法律条文的智能问答。仅供参考，不构成正式法律意见。",
 };
 
+export const viewport = {
+  width: "device-width",
+  initialScale: 1,
+  themeColor: "#15202e",
+};
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="zh-CN">

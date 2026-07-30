@@ -24,8 +24,9 @@ vectorstore = Chroma(
 retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
 # 3. LLM — GLM-4.7-Flash 走 OpenAI 兼容协议（可用环境变量 LLM_MODEL 切换模型）
+LLM_MODEL = os.getenv("LLM_MODEL", "glm-4.7-flash")
 llm = ChatOpenAI(
-    model=os.getenv("LLM_MODEL", "glm-4.7-flash"),
+    model=LLM_MODEL,
     api_key=os.getenv("ZHIPUAI_API_KEY"),
     base_url="https://open.bigmodel.cn/api/paas/v4/",
     streaming=True,

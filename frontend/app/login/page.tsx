@@ -1,5 +1,5 @@
 "use client";
-import { useState, useEffect, FormEvent } from "react";
+import { useState, useEffect, FormEvent, CSSProperties } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { Logo, Spinner } from "@/components/ui";
@@ -57,21 +57,39 @@ export default function LoginPage() {
 
   return (
     <main className="min-h-screen flex flex-col md:flex-row">
-      {/* 左侧品牌区（桌面 55%，深底 + 细线网格 + 巨型 §） */}
-      <section className="brand-panel relative md:w-[55%] flex flex-col justify-between overflow-hidden px-8 py-8 md:px-14 md:py-12 min-h-[140px] md:min-h-screen">
-        <span className="section-mark absolute -right-12 top-1/2 -translate-y-1/2 hidden text-[22rem] text-white md:block">
+      {/* 左侧品牌区（桌面 55%，深底 + 朱红微光 + 细线网格 + 漂浮巨型 §） */}
+      <section className="brand-panel relative flex min-h-[160px] flex-col justify-between overflow-hidden px-8 py-8 md:min-h-screen md:w-[55%] md:px-14 md:py-12">
+        <span className="section-mark section-mark-float absolute -right-12 top-1/2 hidden text-[22rem] text-white md:block">
           §
         </span>
         <Logo dark />
         <div className="relative hidden md:block">
-          <h1 className="font-serif text-[2.5rem] font-bold leading-tight tracking-tight text-white">
+          <p className="page-enter mb-5 inline-flex items-center gap-2 rounded-full border border-white/15 px-3.5 py-1.5 text-xs tracking-wider text-white/60" style={{ "--stagger": "80ms" } as CSSProperties}>
+            <span className="pulse-dot" />
+            基于公开法律条文 · RAG 检索增强
+          </p>
+          <h1 className="page-enter font-serif text-[2.75rem] font-bold leading-[1.25] tracking-tight text-white" style={{ "--stagger": "160ms" } as CSSProperties}>
             法律智慧，
             <br />
             触手可及。
           </h1>
-          <p className="mt-5 max-w-md text-[0.9375rem] leading-[1.7] text-white/60">
-            基于公开法律条文的智能问答。引用出处清晰，回答严谨克制，300 字内直达要点。
+          <p className="page-enter mt-5 max-w-md text-[0.9375rem] leading-[1.8] text-white/60" style={{ "--stagger": "240ms" } as CSSProperties}>
+            引用出处清晰，回答严谨克制，300 字内直达要点。
           </p>
+          <div className="page-enter mt-8 flex items-center gap-6 text-xs tracking-wide text-white/45" style={{ "--stagger": "320ms" } as CSSProperties}>
+            <span className="flex items-center gap-1.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+              条文可溯源
+            </span>
+            <span className="flex items-center gap-1.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+              严谨克制
+            </span>
+            <span className="flex items-center gap-1.5">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              流式秒回
+            </span>
+          </div>
         </div>
         <p className="relative hidden text-xs tracking-wide text-white/40 md:block">
           仅供参考 · 不构成正式法律意见
@@ -80,20 +98,19 @@ export default function LoginPage() {
 
       {/* 右侧表单区（45%） */}
       <section className="flex flex-1 items-center justify-center px-6 py-12 md:py-0">
-        <div className="page-enter w-full max-w-[380px]">
-          <div className="mb-10 flex justify-center md:hidden">
+        <div className="w-full max-w-[380px]">
+          <div className="page-enter mb-10 flex justify-center md:hidden">
             <Logo />
           </div>
-
-          <h2 className="font-serif text-[1.375rem] font-semibold tracking-[-0.01em] text-ink">
+          <h2 className="page-enter font-serif text-[1.5rem] font-semibold tracking-[-0.01em] text-ink" style={{ "--stagger": "60ms" } as CSSProperties}>
             {mode === "login" ? "欢迎回来" : "创建账号"}
           </h2>
-          <p className="mt-1 text-sm text-slate">
+          <p className="page-enter mt-1.5 text-sm text-slate" style={{ "--stagger": "120ms" } as CSSProperties}>
             {mode === "login" ? "登录后开始提问" : "注册后即可免费使用"}
           </p>
 
           {/* 登录 / 注册 切换（底部划线式） */}
-          <div className="tabs mt-8">
+          <div className="page-enter tabs mt-8" style={{ "--stagger": "180ms" } as CSSProperties}>
             <button
               type="button"
               className={`tab flex-1 ${mode === "login" ? "active" : ""}`}
@@ -116,7 +133,7 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <form onSubmit={onSubmit} className="card mt-6 border-l-[3px] border-l-vermilion p-8">
+          <form onSubmit={onSubmit} className="page-enter card mt-6 border-l-[3px] border-l-vermilion p-8" style={{ "--stagger": "240ms" } as CSSProperties}>
             <div className="mb-5">
               <label htmlFor="username" className="field-label">
                 用户名
@@ -147,7 +164,7 @@ export default function LoginPage() {
               />
             </div>
             {mode === "register" && (
-              <div className="mb-5">
+              <div className="mb-5 fade-in">
                 <label htmlFor="confirm" className="field-label">
                   确认密码
                 </label>
@@ -163,15 +180,15 @@ export default function LoginPage() {
                 />
               </div>
             )}
-
             {error && (
-              <p className="mb-4 rounded bg-[#fee2e2] px-3 py-2 text-sm text-error">{error}</p>
+              <p className="scale-in mb-4 flex items-center gap-2 rounded-lg border border-[#f3c8c8] bg-[#fdecec] px-3.5 py-2.5 text-sm text-error">
+                <svg className="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                {error}
+              </p>
             )}
-
             <button type="submit" disabled={busy} className="btn btn-primary w-full">
               {busy ? <Spinner /> : mode === "login" ? "登 录" : "创建账号"}
             </button>
-
             <p className="mt-6 text-center text-xs leading-relaxed text-slate">
               本工具回答仅供参考，具体问题请咨询执业律师
             </p>

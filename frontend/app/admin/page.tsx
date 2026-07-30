@@ -1,16 +1,16 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { api } from "@/lib/api";
-import { Logo, Spinner, StatCard, Badge, SectionTitle, EmptyState } from "@/components/ui";
+import { Logo, Spinner, StatCard, Badge, SectionTitle, EmptyState, Skeleton } from "@/components/ui";
 
 type Section = "stats" | "users" | "knowledge" | "upload" | "conversations";
-
 interface Stats {
   user_count: number;
   conversation_count: number;
   knowledge_count: number;
+  llm_model: string;
 }
 interface UserRow {
   id: number;
@@ -32,6 +32,24 @@ interface ConvRow {
   created_at: string;
 }
 
+const ICONS: Record<Section, ReactNode> = {
+  stats: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+  ),
+  users: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+  ),
+  knowledge: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>
+  ),
+  upload: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+  ),
+  conversations: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+  ),
+};
+
 const NAV: { key: Section; label: string }[] = [
   { key: "stats", label: "系统统计" },
   { key: "users", label: "用户管理" },
@@ -45,7 +63,6 @@ export default function AdminPage() {
   const { user, loading, logout } = useAuth();
   const [section, setSection] = useState<Section>("stats");
   const [sidebarOpen, setSidebarOpen] = useState(false);
-
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [knowledge, setKnowledge] = useState<KnowledgeDoc[]>([]);
@@ -114,18 +131,18 @@ export default function AdminPage() {
   return (
     <div className="flex h-screen overflow-hidden">
       {sidebarOpen && (
-        <div className="fixed inset-0 z-20 bg-ink/40 md:hidden" onClick={() => setSidebarOpen(false)} />
+        <div className="fade-in fixed inset-0 z-20 bg-ink/50 backdrop-blur-[2px] md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* 侧导航 */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-[240px] flex-col border-r border-mist bg-white transition-transform duration-200 md:static md:translate-x-0 ${
+        className={`fixed inset-y-0 left-0 z-30 flex w-[240px] flex-col border-r border-mist bg-paper shadow-2xl transition-transform duration-300 ease-out md:static md:translate-x-0 md:shadow-none ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex items-center justify-between px-5 py-5">
           <Logo size="sm" />
-          <button className="text-slate md:hidden" onClick={() => setSidebarOpen(false)} aria-label="关闭菜单">
+          <button className="rounded-md p-1 text-slate transition-colors hover:bg-mist md:hidden" onClick={() => setSidebarOpen(false)} aria-label="关闭菜单">
             ✕
           </button>
         </div>
@@ -139,22 +156,28 @@ export default function AdminPage() {
                 setSidebarOpen(false);
               }}
             >
+              <span className={section === n.key ? "text-vermilion" : "text-slate/70"}>{ICONS[n.key]}</span>
               {n.label}
             </button>
           ))}
         </nav>
         <div className="border-t border-mist px-5 py-4">
-          <button onClick={() => router.push("/chat")} className="mb-2 w-full text-left text-sm text-vermilion hover:underline">
+          <button onClick={() => router.push("/chat")} className="mb-2 w-full text-left text-sm text-vermilion transition-opacity hover:opacity-75">
             ← 返回问答
           </button>
-          <div className="flex items-center justify-between">
-            <span className="truncate text-sm text-slate">{user.username}</span>
+          <div className="flex items-center justify-between gap-2">
+            <span className="flex min-w-0 items-center gap-2 text-sm text-slate">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-semibold text-white">
+                {user.username.slice(0, 1).toUpperCase()}
+              </span>
+              <span className="truncate">{user.username}</span>
+            </span>
             <button
               onClick={() => {
                 logout();
                 router.replace("/login");
               }}
-              className="text-xs text-slate hover:text-ink"
+              className="shrink-0 rounded-md px-2 py-1 text-xs text-slate transition-colors hover:bg-mist hover:text-ink"
             >
               退出
             </button>
@@ -164,24 +187,24 @@ export default function AdminPage() {
 
       {/* 内容区 */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="h-[2px] bg-vermilion" />
-        <header className="flex items-center gap-3 border-b border-mist bg-white px-5 py-3.5 md:px-8">
-          <button className="text-xl leading-none text-ink md:hidden" onClick={() => setSidebarOpen(true)} aria-label="打开菜单">
+        <div className="h-[3px] bg-gradient-to-r from-vermilion via-vermilion-deep to-gold" />
+        <header className="header-blur sticky top-0 z-10 flex items-center gap-3 border-b border-mist px-5 py-3.5 md:px-8">
+          <button className="rounded-md p-1 text-xl leading-none text-ink transition-colors hover:bg-mist md:hidden" onClick={() => setSidebarOpen(true)} aria-label="打开菜单">
             ☰
           </button>
           <h1 className="font-serif text-lg font-semibold tracking-tight">
             {NAV.find((n) => n.key === section)?.label}
           </h1>
-          <Badge kind="accent">管理员</Badge>
+          <Badge kind="accent" dot>管理员</Badge>
         </header>
 
         <main className="flex-1 overflow-y-auto px-5 py-8 md:px-8">
           <div key={section} className="page-enter mx-auto max-w-5xl">
             {loadingData && (
               <div className="space-y-4">
-                <div className="skeleton h-28" />
-                <div className="skeleton h-28" />
-                <div className="skeleton h-28" />
+                <Skeleton className="h-28" />
+                <Skeleton className="h-28" />
+                <Skeleton className="h-28" />
               </div>
             )}
 
@@ -189,16 +212,35 @@ export default function AdminPage() {
             {!loadingData && section === "stats" && stats && (
               <div>
                 <SectionTitle>运行概览</SectionTitle>
-                <div className="mt-6 grid grid-cols-1 gap-4 md:grid-cols-3">
-                  <div className="md:col-span-2">
-                    <StatCard label="累计提问（对话数）" value={stats.conversation_count} />
+                <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3">
+                  <div className="sm:col-span-2">
+                    <StatCard
+                      label="累计提问（对话数）"
+                      value={stats.conversation_count}
+                      icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>}
+                    />
                   </div>
-                  <StatCard label="注册用户" value={stats.user_count} />
-                  <StatCard label="知识库条目" value={stats.knowledge_count} />
-                  <div className="stat-card md:col-span-2">
+                  <StatCard
+                    label="注册用户"
+                    value={stats.user_count}
+                    icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>}
+                  />
+                  <StatCard
+                    label="知识库条目"
+                    value={stats.knowledge_count}
+                    icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>}
+                  />
+                  <div className="stat-card sm:col-span-2">
                     <div className="stat-value text-vermilion">§</div>
-                    <div className="stat-label">基于公开法律条文 · 可通过"文件上传"持续扩充</div>
+                    <div className="stat-label">基于公开法律条文 · 可通过「文件上传」持续扩充</div>
                   </div>
+                </div>
+                <div className="card mt-4 flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                  <div>
+                    <div className="stat-label">当前大模型（仅管理员可见）</div>
+                    <div className="mt-1 font-serif text-lg font-semibold text-ink">{stats.llm_model}</div>
+                  </div>
+                  <span className="text-xs text-slate">可在 backend/.env 的 LLM_MODEL 修改</span>
                 </div>
               </div>
             )}
@@ -221,9 +263,16 @@ export default function AdminPage() {
                     {users.map((u) => (
                       <tr key={u.id}>
                         <td>{u.id}</td>
-                        <td className="font-medium">{u.username}</td>
+                        <td>
+                          <span className="flex items-center gap-2 font-medium">
+                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-mist text-xs font-semibold text-ink">
+                              {u.username.slice(0, 1).toUpperCase()}
+                            </span>
+                            {u.username}
+                          </span>
+                        </td>
                         <td>{u.role === "admin" ? <Badge kind="accent">管理员</Badge> : <Badge>用户</Badge>}</td>
-                        <td>{u.is_active ? <Badge kind="success">正常</Badge> : <Badge kind="error">已禁用</Badge>}</td>
+                        <td>{u.is_active ? <Badge kind="success" dot>正常</Badge> : <Badge kind="error" dot>已禁用</Badge>}</td>
                         <td className="whitespace-nowrap text-slate">
                           {u.created_at ? new Date(u.created_at).toLocaleString("zh-CN") : "-"}
                         </td>
@@ -245,7 +294,9 @@ export default function AdminPage() {
             {/* ===== 知识库 ===== */}
             {!loadingData && section === "knowledge" && (
               <div className="space-y-3">
-                <p className="text-sm text-slate">共 {knowledge.length} 条知识片段（含种子条文与上传内容）</p>
+                <p className="text-sm text-slate">
+                  共 <span className="font-serif font-semibold text-ink">{knowledge.length}</span> 条知识片段（含种子条文与上传内容）
+                </p>
                 {knowledge.map((k) => (
                   <div key={k.id} className="card card-hover law-border-l px-5 py-4">
                     <div className="flex items-start justify-between gap-4">
@@ -263,7 +314,7 @@ export default function AdminPage() {
                     </div>
                   </div>
                 ))}
-                {knowledge.length === 0 && <EmptyState title="知识库为空" />}
+                {knowledge.length === 0 && <EmptyState title="知识库为空" hint="通过「文件上传」添加法律条文，问答时即可检索引用" />}
               </div>
             )}
 
@@ -271,7 +322,7 @@ export default function AdminPage() {
             {!loadingData && section === "upload" && (
               <div>
                 <SectionTitle>上传法律知识文件</SectionTitle>
-                <p className="mt-2 max-w-2xl text-sm leading-relaxed text-slate">
+                <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate">
                   支持 .txt / .md / .pdf。文件内容会被切分并加入知识库，此后的提问即可检索并引用其中内容（RAG
                   知识库扩充，非模型训练）。
                 </p>
@@ -286,21 +337,33 @@ export default function AdminPage() {
                   <p className="font-serif text-5xl text-vermilion">§</p>
                   <p className="mt-3 font-medium text-ink">
                     {uploading ? (
-                      <>
-                        正在入库 <Spinner className="ml-1 text-vermilion" />
-                      </>
+                      <span className="inline-flex items-center gap-2">
+                        正在入库 <Spinner className="text-vermilion" />
+                      </span>
                     ) : (
                       "点击选择文件"
                     )}
                   </p>
                   <p className="mt-1 text-xs text-slate">单个文件 · 建议纯文本法律条文</p>
+                  <div className="mt-4 flex items-center justify-center gap-2">
+                    {[".txt", ".md", ".pdf"].map((ext) => (
+                      <span key={ext} className="rounded-md border border-mist bg-parchment px-2 py-0.5 text-xs text-slate">
+                        {ext}
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 {uploadMsg && (
                   <p
-                    className={`mt-4 rounded px-4 py-3 text-sm ${
-                      uploadMsg.ok ? "bg-[#d1fae5] text-jade" : "bg-[#fee2e2] text-error"
+                    className={`scale-in mt-4 flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${
+                      uploadMsg.ok
+                        ? "border-[#b7e2cd] bg-[#e8f6ee] text-jade"
+                        : "border-[#f3c8c8] bg-[#fdecec] text-error"
                     }`}
                   >
+                    <svg className="mt-0.5 shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      {uploadMsg.ok ? <path d="M20 6L9 17l-5-5"/> : <><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></>}
+                    </svg>
                     {uploadMsg.text}
                   </p>
                 )}

@@ -16,9 +16,12 @@ export default function Home() {
   }, [loading, user, router]);
 
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center gap-5">
-      <Logo size="lg" />
+    <main className="flex min-h-screen flex-col items-center justify-center gap-6">
+      <div className="scale-in">
+        <Logo size="lg" />
+      </div>
       <Spinner className="h-6 w-6 text-vermilion" />
+      <p className="fade-in text-xs tracking-[0.2em] text-slate/70">正在进入法智…</p>
     </main>
   );
 }

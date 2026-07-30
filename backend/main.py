@@ -15,7 +15,7 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy.orm import Session
 
-from rag_chain import rag_chain
+from rag_chain import rag_chain, LLM_MODEL
 from database import SessionLocal, init_db, get_db
 from models import User, Conversation
 from schemas import RegisterIn, LoginIn, UserUpdateIn, KnowledgeAddIn
@@ -165,6 +165,7 @@ def admin_stats(db: Session = Depends(get_db), _admin: User = Depends(require_ad
         "user_count": db.query(User).count(),
         "conversation_count": db.query(Conversation).count(),
         "knowledge_count": count_docs(),
+        "llm_model": LLM_MODEL,
     }
 
 
