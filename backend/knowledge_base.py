@@ -1,5 +1,10 @@
 import json
 import os
+
+# 建库/种子阶段需联网下载模型（缓存缺失时）；显式关闭离线模式，覆盖 rag_chain 的运行期离线默认。
+os.environ["HF_HUB_OFFLINE"] = "0"
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+
 from langchain_core.documents import Document
 from rag_chain import vectorstore
 
@@ -28,6 +33,10 @@ def build(json_path: str = DATA_PATH):
                 "article": l["article_number"],
                 "category": l.get("category", ""),
                 "origin": "seed",
+                # 时效种子（阶段1占位，阶段5治理；None/缺失 coerce 成空串，Chroma 不接受 None）
+                "effective_from": l.get("effective_from") or "",
+                "effective_to": l.get("effective_to") or "",
+                "status": l.get("status") or "现行",
             },
         )
         for l in laws

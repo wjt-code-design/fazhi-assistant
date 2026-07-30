@@ -19,10 +19,15 @@ venv/
 backend/chroma_db/
 chroma_db/
 
+# ===== 用户上传/生成的媒体（用户数据，绝不提交）=====
+backend/media/
+media/
+
 # ===== Node / 前端 =====
 node_modules/
 .next/
 out/
+*.tsbuildinfo
 
 # ===== 其他 =====
 *.log

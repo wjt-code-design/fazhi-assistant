@@ -1,0 +1,23 @@
+[
+  {
+    "id": 1,
+    "question": "劳动合同试用期最长多久？",
+    "expected_sources": ["劳动合同法"],
+    "expected_articles": ["第十九条"],
+    "expected_keywords": ["六个月"]
+  },
+  {
+    "id": 2,
+    "question": "网购七天无理由退货有法律依据吗？",
+    "expected_sources": ["消费者权益保护法"],
+    "expected_articles": ["第二十五条"],
+    "expected_keywords": ["七日", "退货"]
+  },
+  {
+    "id": 3,
+    "question": "民事权利的诉讼时效是几年？",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第一百八十八条"],
+    "expected_keywords": ["三年"]
+  }
+]

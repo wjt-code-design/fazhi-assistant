@@ -1,5 +1,6 @@
 from datetime import datetime
-from typing import Optional
+from typing import List, Optional
+
 from pydantic import BaseModel, Field
 
 
@@ -36,14 +37,54 @@ class UserUpdateIn(BaseModel):
     is_active: Optional[bool] = None
 
 
+# ===== 问答（多轮 + 多模态，向后兼容旧 question 字段） =====
+class ChatIn(BaseModel):
+    question: Optional[str] = Field(default=None, max_length=2000)  # 旧客户端兼容
+    content: Optional[str] = Field(default=None, max_length=4000)  # 文本（优先）
+    conversation_id: Optional[int] = None  # 续聊；空=新建
+    image: Optional[str] = Field(default=None, description="data URL 或 http URL；base64 不写库")
+
+
+# ===== 会话 / 消息 =====
+class MessageOut(BaseModel):
+    id: int
+    role: str
+    content: str
+    image_ref: Optional[str] = None
+    thumb_ref: Optional[str] = None
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class ConversationListItem(BaseModel):
+    id: int
+    title: str
+    preview: str
+    message_count: int
+    has_image: bool
+    last_active_at: Optional[datetime] = None
+    created_at: datetime
+
+
+class ConversationDetail(BaseModel):
+    id: int
+    title: str
+    summary: str
+    messages: List[MessageOut]
+
+
 # ===== 统计 =====
 class StatsOut(BaseModel):
     user_count: int
     conversation_count: int
     knowledge_count: int
+    llm_model: str
+    qa_pending: int = 0
 
 
-# ===== 对话审查 =====
+# ===== 对话审查（旧） =====
 class ConversationOut(BaseModel):
     id: int
     username: str
@@ -57,3 +98,32 @@ class KnowledgeAddIn(BaseModel):
     title: str = Field(..., min_length=1)
     article: str = ""
     content: str = Field(..., min_length=1)
+    # 时效种子（阶段1占位，阶段5治理）
+    effective_from: Optional[str] = None
+    effective_to: Optional[str] = None
+    status: Optional[str] = None
+
+
+class KnowledgeTestIn(BaseModel):
+    query: str = Field(..., min_length=1, max_length=500)
+
+
+# ===== 受控沉淀 =====
+class QaCandidateOut(BaseModel):
+    id: int
+    question: str
+    answer: str
+    grounded_score: float
+    evidence: str
+    status: str
+    created_at: Optional[datetime] = None
+
+
+class QaDecisionIn(BaseModel):
+    decision: str = Field(..., pattern="^(approved|rejected)$")
+
+
+# ===== 模型在线切换 =====
+class LlmSwitchIn(BaseModel):
+    text_model: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    vision_model: Optional[str] = Field(default=None, min_length=1, max_length=64)

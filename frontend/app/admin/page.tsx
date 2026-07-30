@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { api } from "@/lib/api";
+import { api, adminApi } from "@/lib/api";
 import { Logo, Spinner, StatCard, Badge, SectionTitle, EmptyState, Skeleton } from "@/components/ui";
 
 type Section = "stats" | "users" | "knowledge" | "upload" | "conversations";
@@ -11,6 +11,8 @@ interface Stats {
   conversation_count: number;
   knowledge_count: number;
   llm_model: string;
+  vision_model?: string;
+  qa_pending?: number;
 }
 interface UserRow {
   id: number;
@@ -30,6 +32,22 @@ interface ConvRow {
   question: string;
   answer: string;
   created_at: string;
+}
+interface QaCandidate {
+  id: number;
+  question: string;
+  answer: string;
+  grounded_score: number;
+  evidence: string;
+  status: string;
+  created_at?: string;
+}
+interface KnowledgeHit {
+  chunk: string;
+  source: string;
+  article: string;
+  origin: string;
+  score: number;
 }
 
 const ICONS: Record<Section, ReactNode> = {
@@ -71,6 +89,13 @@ export default function AdminPage() {
   const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [candidates, setCandidates] = useState<QaCandidate[]>([]);
+  const [testQuery, setTestQuery] = useState("");
+  const [testResults, setTestResults] = useState<KnowledgeHit[] | null>(null);
+  const [testing, setTesting] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  const [textModel, setTextModel] = useState("");
+  const [visionModel, setVisionModel] = useState("");
 
   // 仅管理员可进
   useEffect(() => {
@@ -87,7 +112,12 @@ export default function AdminPage() {
     const loaders: Record<Section, () => Promise<unknown>> = {
       stats: () => api.get<Stats>("/api/admin/stats").then(setStats),
       users: () => api.get<UserRow[]>("/api/admin/users").then(setUsers),
-      knowledge: () => api.get<KnowledgeDoc[]>("/api/admin/knowledge").then(setKnowledge),
+      knowledge: async () => {
+        const k = await api.get<KnowledgeDoc[]>("/api/admin/knowledge");
+        setKnowledge(k);
+        const c = await adminApi.qaCandidates().catch(() => [] as QaCandidate[]);
+        setCandidates(c);
+      },
       conversations: () => api.get<ConvRow[]>("/api/admin/conversations").then(setConvs),
       upload: () => Promise.resolve(),
     };
@@ -125,6 +155,44 @@ export default function AdminPage() {
       setUploadMsg({ ok: false, text: e instanceof Error ? e.message : "上传失败" });
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function runKnowledgeTest() {
+    const q = testQuery.trim();
+    if (!q) return;
+    setTesting(true);
+    try {
+      const r = await adminApi.knowledgeTest(q);
+      setTestResults(r);
+    } catch {
+      setTestResults([]);
+    } finally {
+      setTesting(false);
+    }
+  }
+
+  async function decideCand(id: number, decision: "approved" | "rejected") {
+    await adminApi.qaDecision(id, decision);
+    setCandidates((list) => list.filter((c) => c.id !== id));
+  }
+
+  async function applySwitch() {
+    const body: { text_model?: string; vision_model?: string } = {};
+    if (textModel.trim()) body.text_model = textModel.trim();
+    if (visionModel.trim()) body.vision_model = visionModel.trim();
+    if (!body.text_model && !body.vision_model) return;
+    setSwitching(true);
+    try {
+      await adminApi.llmSwitch(body);
+      const s = await adminApi.stats();
+      setStats(s);
+      setTextModel("");
+      setVisionModel("");
+    } catch {
+      /* ignore */
+    } finally {
+      setSwitching(false);
     }
   }
 
@@ -235,12 +303,26 @@ export default function AdminPage() {
                     <div className="stat-label">基于公开法律条文 · 可通过「文件上传」持续扩充</div>
                   </div>
                 </div>
-                <div className="card mt-4 flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-                  <div>
-                    <div className="stat-label">当前大模型（仅管理员可见）</div>
-                    <div className="mt-1 font-serif text-lg font-semibold text-ink">{stats.llm_model}</div>
+                <div className="card mt-4 space-y-3 px-5 py-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <div className="stat-label">当前大模型（仅管理员可见）</div>
+                      <div className="mt-1 text-sm text-ink">
+                        文本：<span className="font-serif font-semibold">{stats.llm_model}</span>
+                        <span className="mx-2 text-slate">·</span>
+                        视觉：<span className="font-serif font-semibold">{stats.vision_model || "-"}</span>
+                      </div>
+                    </div>
+                    <Badge kind="accent" dot>待审沉淀 {stats.qa_pending ?? 0}</Badge>
                   </div>
-                  <span className="text-xs text-slate">可在 backend/.env 的 LLM_MODEL 修改</span>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
+                    <input className="input" placeholder="新文本模型，如 glm-4.7-flash" value={textModel} onChange={(e) => setTextModel(e.target.value)} />
+                    <input className="input" placeholder="新视觉模型，如 glm-4.6v-flash" value={visionModel} onChange={(e) => setVisionModel(e.target.value)} />
+                    <button className="btn btn-primary" onClick={applySwitch} disabled={switching}>
+                      {switching ? <Spinner /> : "应用切换"}
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate">在线热切换，无需重启；留空表示不改动该槽位。亦可改 backend/.env 的 LLM_MODEL / VISION_MODEL。</p>
                 </div>
               </div>
             )}
@@ -315,6 +397,67 @@ export default function AdminPage() {
                   </div>
                 ))}
                 {knowledge.length === 0 && <EmptyState title="知识库为空" hint="通过「文件上传」添加法律条文，问答时即可检索引用" />}
+
+                {/* 检索测试 */}
+                <div className="card mt-4 px-5 py-4">
+                  <SectionTitle>检索测试</SectionTitle>
+                  <p className="mt-2 text-sm text-slate">输入一个问题，查看当前知识库会命中哪些片段及相关度（验证上传/种子是否生效）。</p>
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      className="input flex-1"
+                      placeholder="例如：试用期最长多久"
+                      value={testQuery}
+                      onChange={(e) => setTestQuery(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && runKnowledgeTest()}
+                    />
+                    <button className="btn btn-primary" onClick={runKnowledgeTest} disabled={testing}>
+                      {testing ? <Spinner /> : "测试"}
+                    </button>
+                  </div>
+                  {testResults && (
+                    <div className="mt-3 space-y-2">
+                      {testResults.length === 0 && <p className="text-sm text-slate">无命中。</p>}
+                      {testResults.map((h, i) => (
+                        <div key={i} className="rounded-lg border border-mist bg-parchment px-3 py-2">
+                          <div className="flex items-center gap-2 text-xs text-slate">
+                            <Badge kind="accent">相关度 {h.score}</Badge>
+                            <span>《{h.source}》{h.article}</span>
+                            <span className="text-slate/70">· {h.origin}</span>
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-sm text-ink">{h.chunk}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* 受控沉淀待审 */}
+                <div className="card mt-4 px-5 py-4">
+                  <SectionTitle>受控沉淀 · 待审</SectionTitle>
+                  <p className="mt-2 text-sm text-slate">高有据且带引用的问答会自动进入此处，采纳后写入"已确认问答"，今后相似问题可直接复用。</p>
+                  {candidates.filter((c) => c.status === "pending").length === 0 && <p className="mt-3 text-sm text-slate">暂无待审候选。</p>}
+                  <div className="mt-3 space-y-2">
+                    {candidates
+                      .filter((c) => c.status === "pending")
+                      .map((c) => (
+                        <div key={c.id} className="rounded-lg border border-mist bg-parchment px-3 py-3">
+                          <div className="flex items-center gap-2 text-xs text-slate">
+                            <Badge kind="accent">有据分 {c.grounded_score}</Badge>
+                          </div>
+                          <p className="mt-1 text-sm font-medium text-ink">问：{c.question}</p>
+                          <p className="mt-1 line-clamp-3 text-sm text-slate">答：{c.answer}</p>
+                          <div className="mt-2 flex gap-2">
+                            <button className="btn btn-primary !px-3 !py-1 text-xs" onClick={() => decideCand(c.id, "approved")}>
+                              采纳入库
+                            </button>
+                            <button className="btn btn-secondary !px-3 !py-1 text-xs" onClick={() => decideCand(c.id, "rejected")}>
+                              否决
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
               </div>
             )}
 

@@ -1,60 +1,43 @@
+"""RAG 基础设施：嵌入 + 向量库 + 文档格式化 + 链工厂。
+
+- LLM 不再在此模块单例化，改由 llm_registry 按"是否带图"路由（文本/视觉）。
+- 链的输入为 main 组装好的 messages 列表（含 system/历史/带图或纯文本的最终 human），
+  以便视觉模型接收 image_url content 数组。
+"""
 import os
-from langchain_openai import ChatOpenAI
+
+# 运行期默认离线用本地缓存，避免对 huggingface.co 的在线校验（部分环境 SSL 校验失败）。
+# 缓存缺失需回退在线时走 HF_ENDPOINT 镜像；建库/种子脚本会显式置 HF_HUB_OFFLINE=0 覆盖此默认。
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
-from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
-from langchain_core.runnables import RunnablePassthrough
 
-# 路径锚定到本文件所在目录，避免换个目录启动就找不到数据库
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# 1. Embeddings — BGE-base-zh 本地运行（比 large 更快更省，法律条文场景质量足够；数据量大时可升级回 large）
+# 1. Embeddings — BGE-base-zh 本地（CPU）
 embeddings = HuggingFaceEmbeddings(
     model_name="BAAI/bge-base-zh-v1.5",
     model_kwargs={"device": "cpu"},
 )
 
-# 2. Vector store — Chroma 持久化到本地目录
+# 2. Vector store — Chroma 持久化
 vectorstore = Chroma(
     persist_directory=os.path.join(BASE_DIR, "chroma_db"),
     embedding_function=embeddings,
     collection_name="legal_provisions",
 )
-retriever = vectorstore.as_retriever(search_kwargs={"k": 3})
 
-# 3. LLM — GLM-4.7-Flash 走 OpenAI 兼容协议（可用环境变量 LLM_MODEL 切换模型）
-LLM_MODEL = os.getenv("LLM_MODEL", "glm-4.7-flash")
-llm = ChatOpenAI(
-    model=LLM_MODEL,
-    api_key=os.getenv("ZHIPUAI_API_KEY"),
-    base_url="https://open.bigmodel.cn/api/paas/v4/",
-    streaming=True,
-)
 
-# 4. Prompt
-prompt = ChatPromptTemplate.from_template("""你是一名专业的法律咨询助手。请根据以下法律条文回答用户问题。
+def format_docs(docs) -> str:
+    return "\n\n".join(
+        f"[{d.metadata.get('source', '')} {d.metadata.get('article', '')}] {d.page_content}"
+        for d in docs
+    )
 
-相关法律条文：
-{context}
 
-用户问题：{question}
-
-要求：
-1. 只依据上述条文回答，不编造
-2. 引用时标注来源（如"根据《劳动合同法》第十九条"）
-3. 条文不足时说明"根据现有资料无法完整回答"
-4. 回答控制在 300 字以内
-
-回答：""")
-
-# 5. RAG Chain (LCEL 管道)
-def format_docs(docs):
-    return "\n\n".join(f"[{d.metadata.get('source', '')} {d.metadata.get('article', '')}] {d.page_content}" for d in docs)
-
-rag_chain = (
-    {"context": retriever | format_docs, "question": RunnablePassthrough()}
-    | prompt
-    | llm
-    | StrOutputParser()
-)
+def make_chain(llm):
+    """输入 = 已组装的 messages 列表；输出 = str 流（StrOutputParser 取 content）。"""
+    return llm | StrOutputParser()

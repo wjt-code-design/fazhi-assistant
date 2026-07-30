@@ -66,23 +66,36 @@ export const api = {
     request<T>(path, { method: "POST", body: formData }),
 };
 
-/**
- * 流式问答（SSE）。复用经实测正确的解析逻辑：
- * stream:true 解码避免汉字被切断；按 "\n\n" 切完整事件；JSON 解析 content/error。
- */
+// ==================== 流式问答（多轮 + 多模态） ====================
+export interface ChatPayload {
+  conversationId?: number | null;
+  content?: string;
+  image?: string; // data URL
+}
+export interface ChatMeta {
+  conversation_id?: number;
+  sources?: { source: string; article: string }[];
+}
+
 export async function streamChat(
-  question: string,
+  payload: ChatPayload,
   onChunk: (text: string) => void,
+  onMeta: (meta: ChatMeta) => void,
   onError: (msg: string) => void
 ): Promise<void> {
   const token = getToken();
+  const body: Record<string, unknown> = {};
+  if (payload.content !== undefined) body.content = payload.content;
+  if (payload.conversationId != null) body.conversation_id = payload.conversationId;
+  if (payload.image) body.image = payload.image;
+
   const res = await fetch(`${API_URL}/api/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
-    body: JSON.stringify({ question }),
+    body: JSON.stringify(body),
   });
 
   if (!res.ok || !res.body) {
@@ -110,12 +123,54 @@ export async function streamChat(
       const line = part.trim();
       if (!line.startsWith("data: ") || line.includes("[DONE]")) continue;
       try {
-        const payload = JSON.parse(line.slice(6));
-        if (payload.error) onError(payload.error);
-        else if (payload.content) onChunk(payload.content);
+        const p = JSON.parse(line.slice(6));
+        if (p.error) onError(p.error);
+        else if (typeof p.content === "string") onChunk(p.content);
+        if (p.conversation_id !== undefined || p.sources !== undefined) {
+          onMeta({ conversation_id: p.conversation_id, sources: p.sources });
+        }
       } catch {
         /* ignore malformed chunk */
       }
     }
   }
+}
+
+// ==================== 会话 ====================
+export const convApi = {
+  list: () => api.get<any[]>("/api/conversations"),
+  detail: (id: number) => api.get<any>(`/api/conversations/${id}`),
+  create: () => api.post<{ id: number }>("/api/conversations"),
+  rename: (id: number, title: string) =>
+    api.patch<any>(`/api/conversations/${id}?title=${encodeURIComponent(title)}`),
+  remove: (id: number) => api.delete<any>(`/api/conversations/${id}`),
+};
+
+// ==================== 管理员扩展 ====================
+export const adminApi = {
+  stats: () => api.get<any>("/api/admin/stats"),
+  knowledgeTest: (query: string) => api.post<any[]>("/api/admin/knowledge/test", { query }),
+  qaCandidates: (status?: string) =>
+    api.get<any[]>(`/api/admin/qa/candidates${status ? `?status=${status}` : ""}`),
+  qaDecision: (id: number, decision: "approved" | "rejected") =>
+    api.post<any>(`/api/admin/qa/${id}/decision`, { decision }),
+  llmSwitch: (b: { text_model?: string; vision_model?: string }) =>
+    api.post<any>("/api/admin/llm", b),
+};
+
+// ==================== 受鉴权媒体（历史图片，Blob 缓存） ====================
+const mediaCache = new Map<string, string>();
+export async function loadMediaSrc(ref: string): Promise<string | null> {
+  if (!ref) return null;
+  const hit = mediaCache.get(ref);
+  if (hit) return hit;
+  const token = getToken();
+  const res = await fetch(`${API_URL}/api/media/${ref}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  mediaCache.set(ref, url);
+  return url;
 }

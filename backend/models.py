@@ -1,5 +1,5 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Float
 from sqlalchemy.orm import relationship
 from database import Base
 
@@ -15,16 +15,64 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    conversations = relationship("Conversation", back_populates="user")
+    conversations = relationship(
+        "Conversation", back_populates="user", cascade="all, delete-orphan"
+    )
 
 
 class Conversation(Base):
     __tablename__ = "conversations"
 
     id = Column(Integer, primary_key=True, index=True)
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
-    question = Column(Text, nullable=False)
-    answer = Column(Text, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    # 旧字段保留：新多轮流程里存"首轮/预览"，兼容旧列表接口
+    question = Column(Text, default="")
+    answer = Column(Text, default="")
+    # 多轮 + 压缩
+    title = Column(String(200), default="")
+    summary = Column(Text, default="")  # 增量滚动摘要
+    message_count = Column(Integer, default=0)
+    summary_upto = Column(Integer, default=0)  # 增量压缩指针：已被摘要覆盖的最旧消息条数
+    last_active_at = Column(DateTime, default=datetime.utcnow)
     created_at = Column(DateTime, default=datetime.utcnow)
 
     user = relationship("User", back_populates="conversations")
+    messages = relationship(
+        "Message",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="Message.created_at",
+    )
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(
+        Integer, ForeignKey("conversations.id"), nullable=False, index=True
+    )
+    # user / assistant / system
+    role = Column(String(16), nullable=False)
+    content = Column(Text, default="")
+    image_ref = Column(String(500), nullable=True)  # 存盘相对路径（相对 backend/）
+    thumb_ref = Column(String(500), nullable=True)
+    token_est = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    conversation = relationship("Conversation", back_populates="messages")
+
+
+class QaCandidate(Base):
+    """受控沉淀待审：高有据问答先入此表，管理员采纳后才写入 qa_pairs 向量集合。"""
+
+    __tablename__ = "qa_candidates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    grounded_score = Column(Float, default=0.0)  # 命中分（top1 相似度等）
+    evidence = Column(Text, default="")  # 命中来源（JSON 串）
+    # pending / approved / rejected
+    status = Column(String(16), default="pending", index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)

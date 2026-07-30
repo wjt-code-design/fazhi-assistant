@@ -25,5 +25,7 @@ def get_db():
 
 
 def init_db():
-    """建表（幂等）。"""
-    Base.metadata.create_all(bind=engine)
+    """建表 + 幂等补列（见 migrations.run_migrations）。"""
+    from migrations import run_migrations
+
+    run_migrations()
