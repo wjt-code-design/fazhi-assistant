@@ -5,6 +5,11 @@ __pycache__/
 venv/
 .venv/
 
+# ===== 数据库（含用户数据，绝不提交）=====
+*.db
+*.sqlite
+*.sqlite3
+
 # ===== 环境变量（含密钥，绝不提交）=====
 .env
 .env.local

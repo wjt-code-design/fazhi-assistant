@@ -13,3 +13,9 @@ sentence-transformers>=2.5,<3.0
 pydantic>=2.6,<3.0
 python-dotenv>=1.0,<2.0
 slowapi>=0.1.9,<0.2
+# 认证 / 数据库 / 文件上传
+pyjwt>=2.8,<3.0
+bcrypt>=4.0,<6.0
+sqlalchemy>=2.0,<3.0
+python-multipart>=0.0.9
+pypdf>=4.0,<6.0

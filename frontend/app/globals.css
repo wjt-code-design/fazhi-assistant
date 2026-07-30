@@ -1,3 +1,289 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+:root {
+  --ink: #1a2332;
+  --parchment: #f5f2eb;
+  --slate: #4a5568;
+  --vermilion: #c53d2d;
+  --vermilion-deep: #a8331f;
+  --jade: #2d6a4f;
+  --mist: #e8e4dd;
+  --error: #b91c1c;
+  --font-serif: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif;
+  --font-sans: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+  }
+  body {
+    background-color: var(--parchment);
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  ::selection {
+    background: rgba(197, 61, 45, 0.18);
+  }
+}
+
+/* ================= 动效 ================= */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+
+@layer components {
+  /* ===== 签名母题：法律红竖线 ===== */
+  .law-border-l {
+    border-left: 3px solid var(--vermilion);
+    padding-left: 1rem;
+  }
+
+  /* ===== 签名母题：大号装饰 § ===== */
+  .section-mark {
+    font-family: var(--font-serif);
+    color: currentColor;
+    opacity: 0.05;
+    line-height: 0.9;
+    user-select: none;
+    pointer-events: none;
+  }
+
+  /* ===== 页面进入 ===== */
+  .page-enter {
+    animation: fadeInUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+  }
+
+  /* ===== 卡片 ===== */
+  .card {
+    background: #fff;
+    border: 1px solid var(--mist);
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(26, 35, 50, 0.06);
+  }
+  .card-hover {
+    transition: box-shadow 0.2s ease, transform 0.2s ease;
+  }
+  .card-hover:hover {
+    box-shadow: 0 2px 8px rgba(26, 35, 50, 0.1);
+  }
+
+  /* ===== 按钮 ===== */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.5rem;
+    border-radius: 6px;
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.25;
+    cursor: pointer;
+    transition: background-color 0.15s ease, color 0.15s ease,
+      border-color 0.15s ease, transform 0.1s ease, opacity 0.15s ease;
+    user-select: none;
+  }
+  .btn:active { transform: scale(0.97); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+
+  .btn-primary { background-color: var(--vermilion); color: #fff; border: 1px solid var(--vermilion); }
+  .btn-primary:hover:not(:disabled) { background-color: var(--vermilion-deep); border-color: var(--vermilion-deep); }
+
+  .btn-secondary { background-color: transparent; color: var(--ink); border: 1px solid var(--mist); }
+  .btn-secondary:hover:not(:disabled) { background-color: var(--mist); }
+
+  .btn-danger { background-color: transparent; color: var(--error); border: 1px solid var(--error); }
+  .btn-danger:hover:not(:disabled) { background-color: var(--error); color: #fff; }
+
+  .btn-ghost-dark { background-color: transparent; color: rgba(255,255,255,0.8); border: 1px solid rgba(255,255,255,0.2); }
+  .btn-ghost-dark:hover:not(:disabled) { background-color: rgba(255,255,255,0.08); color: #fff; }
+
+  /* ===== 输入框 ===== */
+  .input {
+    width: 100%;
+    background: #fff;
+    border: 1px solid var(--mist);
+    border-radius: 6px;
+    padding: 0.625rem 1rem;
+    font-size: 0.9375rem;
+    color: var(--ink);
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--vermilion);
+    box-shadow: 0 0 0 3px rgba(197, 61, 45, 0.08);
+  }
+  .input::placeholder { color: var(--slate); opacity: 0.55; }
+
+  .field-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--slate);
+    margin-bottom: 0.375rem;
+  }
+
+  /* ===== 标签页（底部划线式）===== */
+  .tabs { display: flex; border-bottom: 1px solid var(--mist); }
+  .tab {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--slate);
+    border-bottom: 2px solid transparent;
+    background: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 0.15s ease, border-color 0.15s ease;
+  }
+  .tab:hover { color: var(--ink); }
+  .tab.active { color: var(--ink); border-bottom-color: var(--vermilion); }
+
+  /* ===== 数据表格 ===== */
+  .law-table { width: 100%; border-collapse: collapse; }
+  .law-table th {
+    background: var(--ink);
+    color: #fff;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    padding: 0.75rem 1rem;
+    text-align: left;
+  }
+  .law-table th:first-child { border-top-left-radius: 6px; }
+  .law-table th:last-child { border-top-right-radius: 6px; }
+  .law-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--mist);
+    font-size: 0.9375rem;
+    color: var(--ink);
+  }
+  .law-table tbody tr:nth-child(even) td { background: var(--parchment); }
+  .law-table tbody tr { transition: background-color 0.15s ease; }
+  .law-table tbody tr:hover td { background: var(--mist); }
+
+  /* ===== 统计卡片 ===== */
+  .stat-card {
+    background: #fff;
+    border: 1px solid var(--mist);
+    border-left: 3px solid var(--vermilion);
+    border-radius: 6px;
+    padding: 1.5rem;
+    box-shadow: 0 1px 3px rgba(26, 35, 50, 0.06);
+  }
+  .stat-value {
+    font-family: var(--font-serif);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.2;
+  }
+  .stat-label {
+    font-size: 0.8125rem;
+    color: var(--slate);
+    letter-spacing: 0.04em;
+    margin-top: 0.25rem;
+  }
+
+  /* ===== 徽章 ===== */
+  .badge {
+    display: inline-block;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.125rem 0.5rem;
+    border-radius: 9999px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .badge-success { background: #d1fae5; color: var(--jade); }
+  .badge-error   { background: #fee2e2; color: var(--error); }
+  .badge-neutral { background: var(--mist); color: var(--slate); }
+  .badge-accent  { background: rgba(197,61,45,0.1); color: var(--vermilion-deep); }
+
+  /* ===== 登录页深底品牌区（细线网格，不用渐变）===== */
+  .brand-panel {
+    background-color: var(--ink);
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+  }
+
+  /* ===== 骨架屏 ===== */
+  .skeleton {
+    background: linear-gradient(90deg, var(--mist) 25%, #f0ece5 50%, var(--mist) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 4px;
+  }
+
+  /* ===== 流式输出光标 ===== */
+  .streaming-cursor::after {
+    content: "▎";
+    color: var(--vermilion);
+    animation: blink 0.8s step-end infinite;
+    margin-left: 2px;
+  }
+
+  /* ===== 侧栏对话项 ===== */
+  .chat-item {
+    border-left: 3px solid transparent;
+    padding: 0.625rem 0.875rem;
+    border-radius: 0 6px 6px 0;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+  }
+  .chat-item:hover { background-color: rgba(255, 255, 255, 0.06); border-left-color: var(--slate); }
+  .chat-item.active { background-color: rgba(255, 255, 255, 0.08); border-left-color: var(--vermilion); }
+
+  /* ===== 管理后台侧导航项 ===== */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 1rem;
+    border-radius: 6px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--slate);
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    transition: background-color 0.15s ease, color 0.15s ease;
+  }
+  .nav-item:hover { background-color: var(--parchment); color: var(--ink); }
+  .nav-item.active {
+    background-color: var(--mist);
+    color: var(--ink);
+    box-shadow: inset 3px 0 0 var(--vermilion);
+  }
+
+  /* ===== 文件上传区 ===== */
+  .upload-zone {
+    border: 2px dashed var(--slate);
+    border-radius: 6px;
+    padding: 2.5rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s ease, background-color 0.2s ease;
+  }
+  .upload-zone:hover { border-color: var(--vermilion); background-color: rgba(197, 61, 45, 0.03); }
+}
