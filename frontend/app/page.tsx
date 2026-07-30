@@ -20,7 +20,7 @@ export default function Home() {
       <div className="scale-in">
         <Logo size="lg" />
       </div>
-      <Spinner className="h-6 w-6 text-vermilion" />
+      <Spinner className="h-6 w-6 text-accent" />
       <p className="fade-in text-xs tracking-[0.2em] text-slate/70">正在进入法智…</p>
     </main>
   );

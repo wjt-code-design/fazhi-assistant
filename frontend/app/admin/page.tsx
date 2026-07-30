@@ -156,13 +156,13 @@ export default function AdminPage() {
                 setSidebarOpen(false);
               }}
             >
-              <span className={section === n.key ? "text-vermilion" : "text-slate/70"}>{ICONS[n.key]}</span>
+              <span className={section === n.key ? "text-accent" : "text-slate/70"}>{ICONS[n.key]}</span>
               {n.label}
             </button>
           ))}
         </nav>
         <div className="border-t border-mist px-5 py-4">
-          <button onClick={() => router.push("/chat")} className="mb-2 w-full text-left text-sm text-vermilion transition-opacity hover:opacity-75">
+          <button onClick={() => router.push("/chat")} className="mb-2 w-full text-left text-sm text-accent transition-opacity hover:opacity-75">
             ← 返回问答
           </button>
           <div className="flex items-center justify-between gap-2">
@@ -187,7 +187,7 @@ export default function AdminPage() {
 
       {/* 内容区 */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <div className="h-[3px] bg-gradient-to-r from-vermilion via-vermilion-deep to-gold" />
+        <div className="grad-bar h-[3px]" />
         <header className="header-blur sticky top-0 z-10 flex items-center gap-3 border-b border-mist px-5 py-3.5 md:px-8">
           <button className="rounded-md p-1 text-xl leading-none text-ink transition-colors hover:bg-mist md:hidden" onClick={() => setSidebarOpen(true)} aria-label="打开菜单">
             ☰
@@ -231,7 +231,7 @@ export default function AdminPage() {
                     icon={<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>}
                   />
                   <div className="stat-card sm:col-span-2">
-                    <div className="stat-value text-vermilion">§</div>
+                    <div className="stat-value text-accent">§</div>
                     <div className="stat-label">基于公开法律条文 · 可通过「文件上传」持续扩充</div>
                   </div>
                 </div>
@@ -334,11 +334,11 @@ export default function AdminPage() {
                     className="hidden"
                     onChange={(e) => onUpload(e.target.files)}
                   />
-                  <p className="font-serif text-5xl text-vermilion">§</p>
+                  <p className="font-serif text-5xl text-accent">§</p>
                   <p className="mt-3 font-medium text-ink">
                     {uploading ? (
                       <span className="inline-flex items-center gap-2">
-                        正在入库 <Spinner className="text-vermilion" />
+                        正在入库 <Spinner className="text-accent" />
                       </span>
                     ) : (
                       "点击选择文件"

@@ -5,17 +5,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        ink: "#15202e", // 深蓝黑，主文字/深色区域
-        "ink-2": "#1e2c3f", // 深色面板第二层次
-        parchment: "#f7f4ed", // 微暖纸色，页面底
-        paper: "#fdfcf9", // 卡片底（近白微暖）
-        slate: "#54627a", // 蓝调灰，次要文字/边框
-        vermilion: "#c2402f", // 印章朱红，强调/CTA
-        "vermilion-deep": "#a23223", // 朱红加深（hover）
-        jade: "#2d6a4f", // 墨绿，成功/正向
-        mist: "#e8e3d9", // 分割线/浅灰底
-        error: "#b91c1c", // 错误语义
-        gold: "#b08d57", // 点缀金，仅细节
+        ink: "#1a2332", // 冷深蓝黑 · 主文字 / 深色区域
+        "ink-2": "#243044", // 深色面板第二层次
+        parchment: "#f4f6f9", // 冷云灰 · 页面底
+        paper: "#ffffff", // 卡片底
+        slate: "#64748b", // 冷灰蓝 · 次要文字 / 边框
+        accent: "#0284c7", // 青蓝 · 单色强调（细节）
+        "accent-deep": "#0369a1", // 青蓝加深（hover）
+        jade: "#2d6a4f", // 墨绿 · 成功 / 正向
+        mist: "#e2e8f0", // 冷灰 · 分割线 / 浅灰底
+        error: "#dc2626", // 错误语义
+        cool: "#38bdf8", // 冷青 · 极细点缀（替代旧 gold）
       },
       fontFamily: {
         serif: ['"Songti SC"', '"STSong"', '"SimSun"', '"Noto Serif CJK SC"', "serif"],
@@ -25,8 +25,8 @@ const config: Config = {
         DEFAULT: "8px",
       },
       boxShadow: {
-        card: "0 1px 2px rgba(21,32,46,.04), 0 2px 8px rgba(21,32,46,.05)",
-        lift: "0 2px 6px rgba(21,32,46,.05), 0 10px 24px -8px rgba(21,32,46,.12)",
+        card: "0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.05)",
+        lift: "0 2px 6px rgba(15,23,42,.05), 0 10px 24px -8px rgba(15,23,42,.12)",
       },
       transitionTimingFunction: {
         "ease-out-expo": "cubic-bezier(0.22, 1, 0.36, 1)",

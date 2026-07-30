@@ -50,7 +50,7 @@ export default function LoginPage() {
   if (loading) {
     return (
       <main className="min-h-screen flex items-center justify-center">
-        <Spinner className="h-8 w-8 text-vermilion" />
+        <Spinner className="h-8 w-8 text-accent" />
       </main>
     );
   }
@@ -133,7 +133,7 @@ export default function LoginPage() {
             </button>
           </div>
 
-          <form onSubmit={onSubmit} className="page-enter card mt-6 border-l-[3px] border-l-vermilion p-8" style={{ "--stagger": "240ms" } as CSSProperties}>
+          <form onSubmit={onSubmit} className="page-enter card mt-6 border-l-[3px] border-l-accent p-8" style={{ "--stagger": "240ms" } as CSSProperties}>
             <div className="mb-5">
               <label htmlFor="username" className="field-label">
                 用户名

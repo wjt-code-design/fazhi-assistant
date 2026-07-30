@@ -52,7 +52,7 @@ export function StatCard({ label, value, icon }: { label: string; value: ReactNo
         <div className="stat-label">{label}</div>
       </div>
       {icon && (
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[rgba(194,64,47,0.08)] text-vermilion">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[rgba(2,132,199,0.10)] text-accent">
           {icon}
         </span>
       )}
@@ -75,7 +75,7 @@ export function EmptyState({ title, hint }: { title: string; hint?: string }) {
 export function SectionTitle({ children }: { children: ReactNode }) {
   return (
     <h2 className="flex items-center gap-3 font-serif text-[1.375rem] font-semibold leading-snug tracking-[-0.01em] text-ink">
-      <span className="inline-block h-5 w-1 rounded-full bg-vermilion" />
+      <span className="inline-block h-5 w-1 rounded-full bg-accent" />
       {children}
     </h2>
   );

@@ -134,13 +134,13 @@ export default function ChatPage() {
         </div>
         <div className="border-t border-white/10 px-5 py-4">
           {user.role === "admin" && (
-            <button onClick={() => router.push("/admin")} className="mb-2 w-full text-left text-sm text-vermilion transition-colors hover:text-white">
+            <button onClick={() => router.push("/admin")} className="mb-2 w-full text-left text-sm text-accent transition-colors hover:text-white">
               管理后台 →
             </button>
           )}
           <div className="flex items-center justify-between gap-2">
             <span className="flex min-w-0 items-center gap-2 text-sm text-white/70">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-vermilion/90 text-xs font-semibold text-white">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/90 text-xs font-semibold text-white">
                 {user.username.slice(0, 1).toUpperCase()}
               </span>
               <span className="truncate">{user.username}</span>

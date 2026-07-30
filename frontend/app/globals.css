@@ -4,35 +4,41 @@
 
 /* ============================================================
    法智 · 设计系统
-   基调：法律文书的庄重 × 现代编辑器的轻盈
+   主题：冷云灰 + 青蓝渐变 · 现代 SaaS 感
+   规则：青蓝渐变只用于填充型元素（主按钮 / 印章 Logo / 顶栏进度条）；
+        细节（左竖线 / 焦点环 / 呼吸点 / 徽章）用单色 --accent。
    ============================================================ */
 
 :root {
-  /* ---------- 色彩 ---------- */
-  --ink: #15202e; /* 深蓝黑 · 主文字 / 深色区域 */
-  --ink-2: #1e2c3f; /* 深色面板第二层次 */
-  --parchment: #f7f4ed; /* 微暖纸色 · 页面底 */
-  --paper: #fdfcf9; /* 卡片底（近白微暖） */
-  --slate: #54627a; /* 蓝调灰 · 次要文字 */
-  --vermilion: #c2402f; /* 印章朱红 · 主强调 */
-  --vermilion-deep: #a23223; /* 朱红加深（hover） */
-  --vermilion-tint: rgba(194, 64, 47, 0.08);
+  /* ---------- 色彩：冷云灰 + 青蓝 ---------- */
+  --ink: #1a2332; /* 文字 / 深色气泡 / 深色侧栏 */
+  --ink-2: #243044; /* 深色面板第二层次 */
+  --parchment: #f4f6f9; /* 冷云灰 · 页面底 */
+  --paper: #ffffff; /* 卡片底 */
+  --slate: #64748b; /* 冷灰蓝 · 次要文字 */
+  --accent: #0284c7; /* 青蓝 · 单色强调（细节） */
+  --accent-deep: #0369a1; /* 青蓝加深（hover / 强调文字） */
+  --accent-tint: rgba(2, 132, 199, 0.1);
   --jade: #2d6a4f; /* 墨绿 · 成功语义 */
   --jade-tint: #ddf0e6;
-  --mist: #e8e3d9; /* 分割线 / 浅灰底 */
-  --error: #b91c1c;
+  --mist: #e2e8f0; /* 冷灰 · 边框 / 分割线 */
+  --mist-2: #f1f5f9; /* 更浅冷灰 · 表格 hover */
+  --error: #dc2626; /* 错误语义 */
   --error-tint: #fdecec;
-  --gold: #b08d57; /* 点缀金 · 仅细节处使用 */
+
+  /* 青蓝渐变 · 仅填充型元素 */
+  --grad: linear-gradient(135deg, #06b6d4 0%, #2563eb 100%);
+  --grad-hover: linear-gradient(135deg, #0891b2 0%, #1d4ed8 100%);
 
   /* ---------- 字体 ---------- */
   --font-serif: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif;
   --font-sans: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
 
-  /* ---------- 阴影（分层低饱和，避免脏灰） ---------- */
-  --shadow-xs: 0 1px 2px rgba(21, 32, 46, 0.05);
-  --shadow-sm: 0 1px 2px rgba(21, 32, 46, 0.04), 0 2px 8px rgba(21, 32, 46, 0.05);
-  --shadow-md: 0 2px 6px rgba(21, 32, 46, 0.05), 0 10px 24px -8px rgba(21, 32, 46, 0.12);
-  --shadow-lg: 0 4px 12px rgba(21, 32, 46, 0.06), 0 20px 44px -12px rgba(21, 32, 46, 0.18);
+  /* ---------- 阴影（中性冷灰，无暖调） ---------- */
+  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 8px rgba(15, 23, 42, 0.05);
+  --shadow-md: 0 2px 6px rgba(15, 23, 42, 0.05), 0 10px 24px -8px rgba(15, 23, 42, 0.12);
+  --shadow-lg: 0 4px 12px rgba(15, 23, 42, 0.06), 0 20px 44px -12px rgba(15, 23, 42, 0.18);
 
   /* ---------- 动效曲线 ---------- */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -53,10 +59,10 @@
     font-feature-settings: "tnum"; /* 数字等宽，表格/统计对齐更整齐 */
   }
   ::selection {
-    background: rgba(194, 64, 47, 0.16);
+    background: rgba(2, 132, 199, 0.18);
   }
 
-  /* ---------- 统一滚动条（性能友好，纯 CSS） ---------- */
+  /* ---------- 统一滚动条（冷灰） ---------- */
   ::-webkit-scrollbar {
     width: 10px;
     height: 10px;
@@ -65,27 +71,27 @@
     background: transparent;
   }
   ::-webkit-scrollbar-thumb {
-    background: #d6cfc1;
+    background: #cbd5e1;
     border-radius: 8px;
     border: 3px solid var(--parchment);
   }
   ::-webkit-scrollbar-thumb:hover {
-    background: #c2b9a7;
+    background: #94a3b8;
   }
   /* 深色侧栏内的滚动条 */
   aside ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.14);
+    background: rgba(255, 255, 255, 0.16);
     border-color: transparent;
   }
 
-  /* ---------- 键盘可达性：统一焦点环 ---------- */
+  /* ---------- 键盘可达性：青蓝焦点环 ---------- */
   :focus-visible {
-    outline: 2px solid var(--vermilion);
+    outline: 2px solid var(--accent);
     outline-offset: 2px;
     border-radius: 4px;
   }
 
-  /* ---------- 尊重系统减少动效偏好（无障碍 + 性能） ---------- */
+  /* ---------- 尊重系统减少动效偏好 ---------- */
   @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -128,14 +134,14 @@
   30%           { transform: translateY(-4px); opacity: 1; }
 }
 @keyframes pulseDot {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(45, 106, 79, 0.35); }
-  50%      { box-shadow: 0 0 0 5px rgba(45, 106, 79, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.4); }
+  50%      { box-shadow: 0 0 0 5px rgba(2, 132, 199, 0); }
 }
 
 @layer components {
-  /* ===== 签名母题：法律红竖线 ===== */
+  /* ===== 签名母题：青蓝左竖线（细节，单色） ===== */
   .law-border-l {
-    border-left: 3px solid var(--vermilion);
+    border-left: 3px solid var(--accent);
     padding-left: 1rem;
   }
 
@@ -175,7 +181,7 @@
   }
   .card-hover:hover {
     transform: translateY(-2px);
-    border-color: #ddd6c8;
+    border-color: #cbd5e1;
     box-shadow: var(--shadow-md);
   }
 
@@ -208,16 +214,17 @@
     opacity: 0.5;
     cursor: not-allowed;
   }
+  /* 主按钮 = 填充型 → 青蓝渐变（透明边框，避免 border-image 破圆角） */
   .btn-primary {
-    background-color: var(--vermilion);
+    background: var(--grad);
     color: #fff;
-    border: 1px solid var(--vermilion);
-    box-shadow: 0 1px 2px rgba(162, 50, 35, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+    border: 1px solid transparent;
+    box-shadow: 0 1px 2px rgba(37, 99, 235, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
   .btn-primary:hover:not(:disabled) {
-    background-color: var(--vermilion-deep);
-    border-color: var(--vermilion-deep);
-    box-shadow: 0 4px 14px -4px rgba(162, 50, 35, 0.45);
+    background: var(--grad-hover);
+    border-color: transparent;
+    box-shadow: 0 6px 18px -6px rgba(37, 99, 235, 0.5);
   }
   .btn-secondary {
     background-color: transparent;
@@ -230,13 +237,13 @@
   .btn-danger {
     background-color: transparent;
     color: var(--error);
-    border: 1px solid rgba(185, 28, 28, 0.45);
+    border: 1px solid rgba(220, 38, 38, 0.45);
   }
   .btn-danger:hover:not(:disabled) {
     background-color: var(--error);
     border-color: var(--error);
     color: #fff;
-    box-shadow: 0 4px 12px -4px rgba(185, 28, 28, 0.4);
+    box-shadow: 0 4px 12px -4px rgba(220, 38, 38, 0.4);
   }
   .btn-ghost-dark {
     background-color: rgba(255, 255, 255, 0.05);
@@ -262,12 +269,12 @@
       background-color 150ms ease;
   }
   .input:hover:not(:disabled):not(:focus) {
-    border-color: #d5cebf;
+    border-color: #cbd5e1;
   }
   .input:focus {
     outline: none;
-    border-color: var(--vermilion);
-    box-shadow: 0 0 0 3px var(--vermilion-tint);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-tint);
   }
   .input:disabled {
     background: var(--parchment);
@@ -308,7 +315,7 @@
   }
   .tab.active {
     color: var(--ink);
-    border-bottom-color: var(--vermilion);
+    border-bottom-color: var(--accent);
   }
 
   /* ===== 数据表格 ===== */
@@ -341,17 +348,17 @@
     transition: background-color 150ms ease;
   }
   .law-table tbody tr:hover td {
-    background: #efe9dd;
+    background: var(--mist-2);
   }
   .law-table tbody tr:last-child td {
     border-bottom: none;
   }
 
-  /* ===== 统计卡片 ===== */
+  /* ===== 统计卡片（左竖线 = 细节，单色） ===== */
   .stat-card {
     background: var(--paper);
     border: 1px solid var(--mist);
-    border-left: 3px solid var(--vermilion);
+    border-left: 3px solid var(--accent);
     border-radius: 10px;
     padding: 1.5rem;
     box-shadow: var(--shadow-sm);
@@ -391,13 +398,13 @@
   .badge-success { background: var(--jade-tint); color: var(--jade); }
   .badge-error   { background: var(--error-tint); color: var(--error); }
   .badge-neutral { background: var(--mist); color: var(--slate); }
-  .badge-accent  { background: var(--vermilion-tint); color: var(--vermilion-deep); }
+  .badge-accent  { background: var(--accent-tint); color: var(--accent-deep); }
 
-  /* ===== 登录页深底品牌区（细线网格 + 顶部微光） ===== */
+  /* ===== 登录页深底品牌区（冷青微光 + 细线网格） ===== */
   .brand-panel {
     background-color: var(--ink);
     background-image:
-      radial-gradient(ellipse 60% 45% at 20% 0%, rgba(194, 64, 47, 0.16), transparent 70%),
+      radial-gradient(ellipse 60% 45% at 20% 0%, rgba(34, 211, 238, 0.16), transparent 70%),
       linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
       linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
     background-size: 100% 100%, 40px 40px, 40px 40px;
@@ -407,9 +414,9 @@
     animation: floatY 9s ease-in-out infinite;
   }
 
-  /* ===== 骨架屏 ===== */
+  /* ===== 骨架屏（冷灰） ===== */
   .skeleton {
-    background: linear-gradient(90deg, var(--mist) 25%, #f2ede3 50%, var(--mist) 75%);
+    background: linear-gradient(90deg, var(--mist) 25%, #eef2f7 50%, var(--mist) 75%);
     background-size: 200% 100%;
     animation: shimmer 1.5s ease-in-out infinite;
     border-radius: 8px;
@@ -418,7 +425,7 @@
   /* ===== 流式输出光标 ===== */
   .streaming-cursor::after {
     content: "▎";
-    color: var(--vermilion);
+    color: var(--accent);
     animation: blink 0.8s step-end infinite;
     margin-left: 2px;
   }
@@ -434,7 +441,7 @@
     width: 5px;
     height: 5px;
     border-radius: 50%;
-    background: var(--vermilion);
+    background: var(--accent);
     animation: typingDot 1.2s ease-in-out infinite;
   }
   .typing-dots i:nth-child(2) { animation-delay: 0.15s; }
@@ -454,7 +461,7 @@
   }
   .chat-item.active {
     background-color: rgba(255, 255, 255, 0.09);
-    border-left-color: var(--vermilion);
+    border-left-color: var(--accent);
   }
 
   /* ===== 管理后台侧导航项 ===== */
@@ -481,12 +488,12 @@
   .nav-item.active {
     background-color: var(--mist);
     color: var(--ink);
-    box-shadow: inset 3px 0 0 var(--vermilion);
+    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   /* ===== 文件上传区 ===== */
   .upload-zone {
-    border: 2px dashed #b9b0a0;
+    border: 2px dashed #cbd5e1;
     border-radius: 12px;
     padding: 2.75rem 1.5rem;
     text-align: center;
@@ -496,29 +503,34 @@
       box-shadow 250ms var(--ease-out), transform 250ms var(--ease-out);
   }
   .upload-zone:hover {
-    border-color: var(--vermilion);
-    background-color: rgba(194, 64, 47, 0.03);
+    border-color: var(--accent);
+    background-color: rgba(2, 132, 199, 0.04);
     box-shadow: var(--shadow-md);
     transform: translateY(-2px);
   }
 
-  /* ===== 顶栏毛玻璃 ===== */
+  /* ===== 顶栏毛玻璃（冷白） ===== */
   .header-blur {
-    background: rgba(253, 252, 249, 0.85);
+    background: rgba(248, 250, 252, 0.82);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
   }
 
-  /* ===== 在线状态呼吸点 ===== */
+  /* ===== 顶栏进度条 = 填充型 → 青蓝渐变 ===== */
+  .grad-bar {
+    background: var(--grad);
+  }
+
+  /* ===== 在线/品牌呼吸点 = 细节 → 单色青蓝 ===== */
   .pulse-dot {
     width: 7px;
     height: 7px;
     border-radius: 50%;
-    background: var(--jade);
+    background: var(--accent);
     animation: pulseDot 2s ease-in-out infinite;
   }
 
-  /* ===== 聊天气泡 ===== */
+  /* ===== 聊天气泡（AI 左线 = 细节，单色） ===== */
   .bubble-user {
     background: var(--ink);
     color: #fff;
@@ -528,23 +540,23 @@
   .bubble-ai {
     background: var(--paper);
     border: 1px solid var(--mist);
-    border-left: 3px solid var(--vermilion);
+    border-left: 3px solid var(--accent);
     border-radius: 4px 14px 14px 14px;
     box-shadow: var(--shadow-sm);
   }
 
-  /* ===== 印章式 Logo 方块 ===== */
+  /* ===== 印章式 Logo 方块 = 填充型 → 青蓝渐变 ===== */
   .logo-seal {
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    background: var(--vermilion);
+    background: var(--grad);
     color: #fff;
     border-radius: 6px;
     font-family: var(--font-serif);
     font-weight: 700;
     line-height: 1;
-    box-shadow: 0 2px 6px -1px rgba(162, 50, 35, 0.4), inset 0 0 0 1.5px rgba(255, 255, 255, 0.25);
+    box-shadow: 0 2px 8px -2px rgba(37, 99, 235, 0.45), inset 0 0 0 1.5px rgba(255, 255, 255, 0.28);
     transition: transform 200ms var(--ease-spring);
   }
   .logo-seal:hover {
