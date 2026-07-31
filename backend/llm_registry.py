@@ -1,10 +1,14 @@
 """模型注册表：文本/视觉分槽 + 线程安全在线热切换 + 关闭思考 + 重试。
 
 探针结论（已实测，勿改回猜测）：
-- 关思考的正确写法：model_kwargs={"extra_body": {"thinking": {"type": "disabled"}}}
-  （enable_thinking=False 无效；不关则两模型默认思考，content 可能被思考占满）。
+- 关思考参数写法：model_kwargs={"extra_body": {"thinking": {"type": "disabled"}}}；
+  但该参数在 glm-4.7-flash 上**不可靠**：实测间歇性返回空 content（答案进了 reasoning_content），
+  空答率约 50%，故默认 disable_thinking=False（让模型思考，管道只读 content，答案稳定）；
+  确需提速可在已验证的模型上把配置改回 True。enable_thinking=False 无效，勿用。
 - 视觉(glm-4.6v-flash)+流式 可用；图片须为合规尺寸（太小会被智谱 1210 拒绝）。
 - 会偶发 429(1305)，故用 openai 客户端内置 max_retries 重试 429/5xx/连接错误。
+- glm 系列偶发"空生成"（content/reasoning 皆空，间歇/突发，免费额度/限流下更易发生）；
+  已由 rag_chain.stream_with_retry 做多配置轮换重试缓解，仍空则返回友好错误。生产建议换更稳定模型档位。
 """
 import os
 import threading
@@ -20,13 +24,13 @@ DEFAULT_SLOTS: Dict[str, Dict[str, Any]] = {
     "text": {
         "model": os.getenv("LLM_MODEL", "glm-4.7-flash"),
         "capabilities": ["text"],
-        "disable_thinking": True,
+        "disable_thinking": False,  # 关思考在 glm-4.7-flash 上不可靠（间歇空答），默认让模型思考
         "timeout": 120,
     },
     "vision": {
         "model": os.getenv("VISION_MODEL", "glm-4.6v-flash"),
         "capabilities": ["text", "vision"],
-        "disable_thinking": True,
+        "disable_thinking": False,  # 同上：追求可靠而非极限速度
         "timeout": 120,
         "max_image_mb": 5,
         "max_px": 6000,
@@ -69,6 +73,13 @@ class LLMRegistry:
     def choose(self, has_image: bool) -> ChatOpenAI:
         """能力路由：带图走 vision，否则 text。"""
         return self.get("vision" if has_image else "text")
+
+    def variant(self, kind: str, disable_thinking: bool) -> ChatOpenAI:
+        """按给定"是否关思考"构建该槽位的临时实例（用于空答重试的配置轮换）。"""
+        with self._lock:
+            cfg = dict(self._slots.get(kind, self._slots["text"]))
+            cfg["disable_thinking"] = disable_thinking
+            return _build(cfg)
 
     def vision_cfg(self) -> Dict[str, Any]:
         with self._lock:

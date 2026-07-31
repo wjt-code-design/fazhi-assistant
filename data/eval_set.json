@@ -19,5 +19,26 @@
     "expected_sources": ["民法典"],
     "expected_articles": ["第一百八十八条"],
     "expected_keywords": ["三年"]
+  },
+  {
+    "id": 4,
+    "question": "刑法第十三条讲了什么？",
+    "expected_sources": ["刑法"],
+    "expected_articles": ["第十三条"],
+    "expected_keywords": ["犯罪"]
+  },
+  {
+    "id": 5,
+    "question": "醉酒驾驶会被吊销驾照吗？",
+    "expected_sources": ["道路交通安全法"],
+    "expected_articles": ["第九十一条"],
+    "expected_keywords": ["吊销"]
+  },
+  {
+    "id": 6,
+    "question": "一个民事合同要有效，需要满足哪些条件？",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第一百四十三条"],
+    "expected_keywords": ["民事行为能力"]
   }
 ]

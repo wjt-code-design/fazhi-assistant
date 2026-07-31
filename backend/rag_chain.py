@@ -5,6 +5,7 @@
   以便视觉模型接收 image_url content 数组。
 """
 import os
+import asyncio
 
 # 运行期默认离线用本地缓存，避免对 huggingface.co 的在线校验（部分环境 SSL 校验失败）。
 # 缓存缺失需回退在线时走 HF_ENDPOINT 镜像；建库/种子脚本会显式置 HF_HUB_OFFLINE=0 覆盖此默认。
@@ -41,3 +42,22 @@ def format_docs(docs) -> str:
 def make_chain(llm):
     """输入 = 已组装的 messages 列表；输出 = str 流（StrOutputParser 取 content）。"""
     return llm | StrOutputParser()
+
+
+async def stream_with_retry(make_chain_fn, messages, configs):
+    """流式生成 + 空答多配置重试（异步生成器，边收边 yield，真流式）。
+
+    make_chain_fn(i, disabled) -> 可 astream 的链；configs = [(disabled, wait_seconds), ...]。
+    依次尝试：首个产生非空内容即返回；全部为空则 yield 结束后返回（调用方据此判定为空）。
+    """
+    for i, (disabled, wait) in enumerate(configs):
+        chain = make_chain_fn(i, disabled)
+        chunks = []
+        async for piece in chain.astream(messages):
+            if piece:
+                chunks.append(piece)
+                yield piece
+        if "".join(chunks):
+            return
+        if wait:
+            await asyncio.sleep(wait)

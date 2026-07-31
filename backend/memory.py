@@ -44,9 +44,12 @@ def load_context(db: Session, conv: Conversation) -> Tuple[str, List[Message]]:
 
 
 def needs_compress(conv: Conversation, recent: List[Message]) -> bool:
-    if (conv.message_count or 0) <= TURN_THRESHOLD:
-        return False
-    return char_count(conv.summary, recent) > CHAR_THRESHOLD or (conv.message_count or 0) > TURN_THRESHOLD
+    """双阈值触发：轮次超 TURN_THRESHOLD 或 (摘要+近文) 字符超 CHAR_THRESHOLD。
+
+    是否真有可压缩的旧消息，由 compress() 内的 _gap_messages 判定；为空则 no-op，不会空耗 LLM。
+    """
+    mc = conv.message_count or 0
+    return mc > TURN_THRESHOLD or char_count(conv.summary, recent) > CHAR_THRESHOLD
 
 
 def _gap_messages(db: Session, conv: Conversation) -> List[Message]:

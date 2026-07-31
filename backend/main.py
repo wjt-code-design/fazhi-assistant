@@ -1,5 +1,4 @@
 import os
-import re
 import json
 from datetime import datetime
 
@@ -16,7 +15,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-from rag_chain import format_docs, make_chain
+from rag_chain import format_docs, make_chain, stream_with_retry
 from database import SessionLocal, init_db, get_db
 from models import User, Conversation, Message, QaCandidate
 from schemas import (
@@ -30,15 +29,13 @@ from llm_registry import registry
 from memory import load_context, recent_messages, needs_compress, compress, rewrite_query
 from retrieval import retrieve, grounded_top_score, retrieve_for_test
 from multimodal import validate_image, persist_image, build_vision_content, describe_image, MEDIA_DIR
+from curation import should_curate
 
 # 启动期强校验
 if not os.getenv("JWT_SECRET"):
     raise RuntimeError("缺少 JWT_SECRET，请在 .env 中设置")
 
 init_db()
-
-# 引用标记正则：用于受控沉淀的"有据"判定
-CITATION_RE = re.compile(r"《[^》]+》\s*第[一二三四五六七八九十百零0-9]+条|根据《[^》]+》")
 
 SYSTEM_BASE = (
     "你是一名专业的法律咨询助手。请严格依据提供的法律条文与对话上下文回答用户问题。\n"
@@ -223,13 +220,12 @@ def _post(pre: dict, answer: str):
 
         # 受控沉淀：高有据 + 含引用 + 非空答 → 入待审
         grounded = grounded_top_score(pre["rewritten"])
-        has_citation = bool(CITATION_RE.search(answer or ""))
         q = pre["user_text"] or pre["rewritten"]
-        if grounded >= 0.6 and has_citation and len(answer or "") > 20 and q:
+        if q and should_curate(grounded, answer):
             ks.create_candidate(db, q, answer, grounded, json.dumps(pre["sources"], ensure_ascii=False))
 
         # 增量压缩
-        recent = recent_messages(db, conv)
+        recent = recent_messages(db, conv.id)
         if needs_compress(conv, recent):
             compress(db, conv, registry.get("text"))
     finally:
@@ -250,20 +246,31 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
         raise HTTPException(status_code=400, detail=str(ve))
 
     messages = _build_messages(pre)
-    llm = registry.choose(has_image=bool(pre["image"]))
-    chain = make_chain(llm)
+    kind = "vision" if pre["image"] else "text"
 
     async def stream():
-        chunks = []
         try:
-            async for piece in chain.astream(messages):
-                if piece:
-                    chunks.append(piece)
+            # glm 系列偶发"空生成"（content/reasoning 皆空，间歇/突发），多配置轮换重试降低失败率
+            def make_chain_fn(_i, disabled):
+                llm = registry.get(kind) if _i == 0 else registry.variant(kind, disabled)
+                return make_chain(llm)
+
+            chunks = []
+            async for piece in stream_with_retry(make_chain_fn, messages, [(False, 0.0), (True, 0.5), (False, 0.5)]):
+                chunks.append(piece)
                 yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"
             answer = "".join(chunks)
+            if not answer:
+                # 防御：多配置重试仍空则明确告知，而非静默无输出
+                yield f"data: {json.dumps({'error': '模型暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
-            await run_in_threadpool(_post, pre, answer)
+            if answer:
+                try:
+                    await run_in_threadpool(_post, pre, answer)
+                except Exception as e:
+                    # 已发出 [DONE]，此后异常只记日志，不再向客户端追加事件
+                    print(f"[chat-post] {e}", flush=True)
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
 

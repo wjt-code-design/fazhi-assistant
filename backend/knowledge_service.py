@@ -19,6 +19,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy.orm import Session
 
 from rag_chain import vectorstore, embeddings, BASE_DIR
+import retrieval
 from models import QaCandidate
 
 _ALLOWED_EXT = {".txt", ".md", ".pdf"}
@@ -114,11 +115,13 @@ def add_text(
         meta.update({k: v for k, v in extra_meta.items() if v not in (None, "")})
     docs = [Document(page_content=c, metadata=meta) for c in chunks]
     vectorstore.add_documents(docs)
+    retrieval.invalidate()
     return len(docs)
 
 
 def delete_doc(doc_id: str):
     _collection().delete(ids=[doc_id])
+    retrieval.invalidate()
 
 
 def list_docs():
