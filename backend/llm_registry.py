@@ -1,14 +1,10 @@
-"""模型注册表：文本/视觉分槽 + 线程安全在线热切换 + 关闭思考 + 重试。
+"""模型注册表：单一全模态模型（文字+图片由同一模型处理）+ 线程安全在线热切换。
 
-探针结论（已实测，勿改回猜测）：
-- 关思考参数写法：model_kwargs={"extra_body": {"thinking": {"type": "disabled"}}}；
-  但该参数在 glm-4.7-flash 上**不可靠**：实测间歇性返回空 content（答案进了 reasoning_content），
-  空答率约 50%，故默认 disable_thinking=False（让模型思考，管道只读 content，答案稳定）；
-  确需提速可在已验证的模型上把配置改回 True。enable_thinking=False 无效，勿用。
-- 视觉(glm-4.6v-flash)+流式 可用；图片须为合规尺寸（太小会被智谱 1210 拒绝）。
-- 会偶发 429(1305)，故用 openai 客户端内置 max_retries 重试 429/5xx/连接错误。
-- glm 系列偶发"空生成"（content/reasoning 皆空，间歇/突发，免费额度/限流下更易发生）；
-  已由 rag_chain.stream_with_retry 做多配置轮换重试缓解，仍空则返回友好错误。生产建议换更稳定模型档位。
+探针结论（阿里云百炼 compatible-mode，qwen3.5-omni-plus-2026-03-15，已实测勿改回猜测）：
+- 纯文本 / 流式 / 带图（OpenAI 兼容 content 数组）均可用；langchain 流式正常（无 stream_options 400）。
+- 接受 extra_body={"thinking": {"type": "disabled"}}（不 400）；但 disable_thinking 默认 False（不传），
+  仅在空答重试的 variant 中会用到。
+- 会偶发限流/空答，故保留 max_retries=3 与空答重试。
 """
 import os
 import threading
@@ -16,91 +12,68 @@ from typing import Any, Dict, Optional
 
 from langchain_openai import ChatOpenAI
 
-BASE_URL = os.getenv("ZHIPUAI_BASE_URL", "https://open.bigmodel.cn/api/paas/v4/")
-API_KEY = os.getenv("ZHIPUAI_API_KEY", "")
+BASE_URL = os.getenv("LLM_BASE_URL", "")
+API_KEY = os.getenv("LLM_API_KEY") or os.getenv("ZHIPUAI_API_KEY", "")
 
-# 槽位默认配置；reload 可覆盖 model
-DEFAULT_SLOTS: Dict[str, Dict[str, Any]] = {
-    "text": {
-        "model": os.getenv("LLM_MODEL", "glm-4.7-flash"),
-        "capabilities": ["text"],
-        "disable_thinking": False,  # 关思考在 glm-4.7-flash 上不可靠（间歇空答），默认让模型思考
-        "timeout": 120,
-    },
-    "vision": {
-        "model": os.getenv("VISION_MODEL", "glm-4.6v-flash"),
-        "capabilities": ["text", "vision"],
-        "disable_thinking": False,  # 同上：追求可靠而非极限速度
-        "timeout": 120,
-        "max_image_mb": 5,
-        "max_px": 6000,
-        "min_px": 10,
-        "formats": ["image/jpeg", "image/png"],
-    },
+DEFAULT_CFG: Dict[str, Any] = {
+    "model": os.getenv("LLM_MODEL", "qwen3.5-omni-plus-2026-03-15"),
+    "base_url": BASE_URL,
+    "api_key": API_KEY,
+    "capabilities": ["text", "vision"],  # 全模态
+    "disable_thinking": False,  # 默认不传额外参数
+    "timeout": 120,
 }
 
 
-def _build(slot_cfg: Dict[str, Any]) -> ChatOpenAI:
+def _build(cfg: Dict[str, Any]) -> ChatOpenAI:
+    if not cfg.get("api_key") or not cfg.get("base_url"):
+        raise RuntimeError("缺少 LLM_API_KEY / LLM_BASE_URL，请在 backend/.env 配置")
     model_kwargs: Dict[str, Any] = {}
-    if slot_cfg.get("disable_thinking"):
+    if cfg.get("disable_thinking"):
         model_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     return ChatOpenAI(
-        model=slot_cfg["model"],
-        api_key=API_KEY,
-        base_url=BASE_URL,
+        model=cfg["model"],
+        api_key=cfg["api_key"],
+        base_url=cfg["base_url"],
         streaming=True,
         model_kwargs=model_kwargs,
-        timeout=slot_cfg.get("timeout", 120),
-        max_retries=3,  # openai 客户端内置：重试 429/5xx/连接/超时
+        timeout=cfg.get("timeout", 120),
+        max_retries=3,
     )
 
 
 class LLMRegistry:
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._slots: Dict[str, Dict[str, Any]] = {k: dict(v) for k, v in DEFAULT_SLOTS.items()}
-        self._llms: Dict[str, ChatOpenAI] = {}
-        self._build_all()
+        self._cfg: Dict[str, Any] = dict(DEFAULT_CFG)
+        self._llm: Optional[ChatOpenAI] = None
+        self._build()
 
-    def _build_all(self) -> None:
-        for name, cfg in self._slots.items():
-            self._llms[name] = _build(cfg)
-
-    def get(self, kind: str = "text") -> ChatOpenAI:
+    def _build(self) -> None:
         with self._lock:
-            return self._llms.get(kind) or self._llms["text"]
+            self._llm = _build(self._cfg)
 
-    def choose(self, has_image: bool) -> ChatOpenAI:
-        """能力路由：带图走 vision，否则 text。"""
-        return self.get("vision" if has_image else "text")
-
-    def variant(self, kind: str, disable_thinking: bool) -> ChatOpenAI:
-        """按给定"是否关思考"构建该槽位的临时实例（用于空答重试的配置轮换）。"""
+    def get(self) -> ChatOpenAI:
         with self._lock:
-            cfg = dict(self._slots.get(kind, self._slots["text"]))
+            return self._llm
+
+    def variant(self, disable_thinking: bool) -> ChatOpenAI:
+        """按给定"是否关思考"构建临时实例（用于空答重试；阿里云接受该参数）。"""
+        with self._lock:
+            cfg = dict(self._cfg)
             cfg["disable_thinking"] = disable_thinking
             return _build(cfg)
 
-    def vision_cfg(self) -> Dict[str, Any]:
+    def config(self) -> Dict[str, Any]:
         with self._lock:
-            return dict(self._slots["vision"])
+            return {"model": self._cfg["model"], "capabilities": list(self._cfg["capabilities"])}
 
-    def config(self) -> Dict[str, Dict[str, Any]]:
-        """对外展示用：仅返回 model + capabilities（不含密钥/内部参数）。"""
+    def reload(self, model: Optional[str] = None) -> Dict[str, Any]:
+        """在线热切换（单模型）。进行中流式仍持有旧实例引用，不受影响。"""
         with self._lock:
-            return {
-                k: {"model": v["model"], "capabilities": list(v["capabilities"])}
-                for k, v in self._slots.items()
-            }
-
-    def reload(self, text_model: Optional[str] = None, vision_model: Optional[str] = None) -> Dict[str, Dict[str, Any]]:
-        """在线热切换：加锁重建缓存实例。进行中的流式仍持有旧实例引用，不受影响。"""
-        with self._lock:
-            if text_model:
-                self._slots["text"]["model"] = text_model
-            if vision_model:
-                self._slots["vision"]["model"] = vision_model
-            self._build_all()
+            if model:
+                self._cfg["model"] = model
+            self._build()
             return self.config()
 
 

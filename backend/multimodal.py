@@ -1,7 +1,7 @@
 """多模态：图片校验 / 存盘 / 缩略图 / 视觉 content 构造 / 图像→文本描述桥接。
 
-探针结论：智谱对过小图片返回 1210，故校验尺寸下限；base64 不写库，只存盘。
-视觉模型仅用于"看图产描述/要点"（检索桥接）与"带图作答"，文本模型不看图。
+说明：单一全模态模型负责"看图产描述/要点"（检索桥接）与"带图作答"；
+base64 不写库，只存盘；过小图片会被部分平台拒绝，故校验尺寸下限。
 """
 import base64
 import io
@@ -18,6 +18,13 @@ MEDIA_DIR = os.path.join(BASE, "media")
 os.makedirs(MEDIA_DIR, exist_ok=True)
 
 _DATA_URL_RE = re.compile(r"^data:(image/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$", re.S)
+
+IMAGE_LIMITS = {
+    "max_image_mb": 5,
+    "max_px": 6000,
+    "min_px": 10,
+    "formats": ["image/jpeg", "image/png"],
+}
 
 
 def _abs(rel: str) -> str:
@@ -38,15 +45,16 @@ def _decode_data_url(data_url: str) -> Tuple[str, bytes]:
     return mime, raw
 
 
-def validate_image(image: Optional[str], cfg: dict) -> Optional[str]:
-    """校验格式/大小/尺寸；通过返回原 data URL，无图返回 None。"""
+def validate_image(image: Optional[str]) -> Optional[str]:
+    """校验格式/大小/尺寸（用 IMAGE_LIMITS）；通过返回原 data URL，无图返回 None。"""
     if not image:
         return None
+    cfg = IMAGE_LIMITS
     mime, raw = _decode_data_url(image)
-    formats = cfg.get("formats", ["image/jpeg", "image/png"])
+    formats = cfg["formats"]
     if mime not in formats:
         raise ValueError(f"图片类型 {mime} 不支持，请用 JPEG/PNG")
-    max_mb = cfg.get("max_image_mb", 5)
+    max_mb = cfg["max_image_mb"]
     if len(raw) > max_mb * 1024 * 1024:
         raise ValueError(f"图片过大（>{max_mb}MB）")
     try:
@@ -59,7 +67,7 @@ def validate_image(image: Optional[str], cfg: dict) -> Optional[str]:
     min_px = cfg.get("min_px", 10)
     max_px = cfg.get("max_px", 6000)
     if w < min_px or h < min_px:
-        raise ValueError(f"图片太小（边长需 ≥ {min_px}px，否则智谱会拒绝）")
+        raise ValueError(f"图片太小（边长需 ≥ {min_px}px，否则部分平台会拒绝）")
     if w > max_px or h > max_px:
         raise ValueError(f"图片过大（边长需 ≤ {max_px}px）")
     return image

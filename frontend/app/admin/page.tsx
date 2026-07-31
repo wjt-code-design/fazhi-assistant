@@ -11,7 +11,6 @@ interface Stats {
   conversation_count: number;
   knowledge_count: number;
   llm_model: string;
-  vision_model?: string;
   qa_pending?: number;
 }
 interface UserRow {
@@ -95,7 +94,6 @@ export default function AdminPage() {
   const [testing, setTesting] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [textModel, setTextModel] = useState("");
-  const [visionModel, setVisionModel] = useState("");
 
   // 仅管理员可进
   useEffect(() => {
@@ -178,17 +176,14 @@ export default function AdminPage() {
   }
 
   async function applySwitch() {
-    const body: { text_model?: string; vision_model?: string } = {};
-    if (textModel.trim()) body.text_model = textModel.trim();
-    if (visionModel.trim()) body.vision_model = visionModel.trim();
-    if (!body.text_model && !body.vision_model) return;
+    const model = textModel.trim();
+    if (!model) return;
     setSwitching(true);
     try {
-      await adminApi.llmSwitch(body);
+      await adminApi.llmSwitch({ model });
       const s = await adminApi.stats();
       setStats(s);
       setTextModel("");
-      setVisionModel("");
     } catch {
       /* ignore */
     } finally {
@@ -306,23 +301,18 @@ export default function AdminPage() {
                 <div className="card mt-4 space-y-3 px-5 py-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <div className="stat-label">当前大模型（仅管理员可见）</div>
-                      <div className="mt-1 text-sm text-ink">
-                        文本：<span className="font-serif font-semibold">{stats.llm_model}</span>
-                        <span className="mx-2 text-slate">·</span>
-                        视觉：<span className="font-serif font-semibold">{stats.vision_model || "-"}</span>
-                      </div>
+                      <div className="stat-label">当前模型（仅管理员可见）</div>
+                      <div className="mt-1 font-serif text-base font-semibold text-ink">{stats.llm_model}</div>
                     </div>
                     <Badge kind="accent" dot>待审沉淀 {stats.qa_pending ?? 0}</Badge>
                   </div>
-                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_1fr_auto]">
-                    <input className="input" placeholder="新文本模型，如 glm-4.7-flash" value={textModel} onChange={(e) => setTextModel(e.target.value)} />
-                    <input className="input" placeholder="新视觉模型，如 glm-4.6v-flash" value={visionModel} onChange={(e) => setVisionModel(e.target.value)} />
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-[1fr_auto]">
+                    <input className="input" placeholder="新模型名，如 qwen3.5-omni-plus-2026-03-15" value={textModel} onChange={(e) => setTextModel(e.target.value)} />
                     <button className="btn btn-primary" onClick={applySwitch} disabled={switching}>
                       {switching ? <Spinner /> : "应用切换"}
                     </button>
                   </div>
-                  <p className="text-xs text-slate">在线热切换，无需重启；留空表示不改动该槽位。亦可改 backend/.env 的 LLM_MODEL / VISION_MODEL。</p>
+                  <p className="text-xs text-slate">在线热切换（运行期生效，重启回配置默认，仅同提供商模型 id）；换提供商/网关请改 backend/.env 并重启。</p>
                 </div>
               </div>
             )}

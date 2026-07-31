@@ -154,7 +154,7 @@ export const adminApi = {
     api.get<any[]>(`/api/admin/qa/candidates${status ? `?status=${status}` : ""}`),
   qaDecision: (id: number, decision: "approved" | "rejected") =>
     api.post<any>(`/api/admin/qa/${id}/decision`, { decision }),
-  llmSwitch: (b: { text_model?: string; vision_model?: string }) =>
+  llmSwitch: (b: { model?: string }) =>
     api.post<any>("/api/admin/llm", b),
 };
 

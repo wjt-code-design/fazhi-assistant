@@ -123,5 +123,4 @@ class QaDecisionIn(BaseModel):
 
 # ===== 模型在线切换 =====
 class LlmSwitchIn(BaseModel):
-    text_model: Optional[str] = Field(default=None, min_length=1, max_length=64)
-    vision_model: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    model: Optional[str] = Field(default=None, min_length=1, max_length=64)

@@ -34,6 +34,8 @@ from curation import should_curate
 # 启动期强校验
 if not os.getenv("JWT_SECRET"):
     raise RuntimeError("缺少 JWT_SECRET，请在 .env 中设置")
+if not os.getenv("LLM_API_KEY") or not os.getenv("LLM_BASE_URL"):
+    raise RuntimeError("缺少 LLM_API_KEY / LLM_BASE_URL，请在 backend/.env 配置")
 
 init_db()
 
@@ -166,14 +168,14 @@ def _pre(user_id: int, conversation_id, text: str, image):
         image_rel = thumb_rel = None
         desc = ""
         if image:
-            validate_image(image, registry.vision_cfg())  # 失败抛 ValueError
+            validate_image(image)  # 失败抛 ValueError（单一全模态模型）
             image_rel, thumb_rel = persist_image(image)
-            desc = describe_image(registry.get("vision"), image, text or "")
+            desc = describe_image(registry.get(), image, text or "")
 
         raw_query = " ".join(p for p in [text or "", desc] if p).strip()
         if not raw_query:
             raw_query = "请描述并分析图片中的法律相关内容"
-        rewritten = rewrite_query(registry.get("text"), recent, raw_query) if recent_ser else raw_query
+        rewritten = rewrite_query(registry.get(), recent, raw_query) if recent_ser else raw_query
 
         docs = retrieve(rewritten, k=4)
         context = format_docs(docs)
@@ -227,14 +229,14 @@ def _post(pre: dict, answer: str):
         # 增量压缩
         recent = recent_messages(db, conv.id)
         if needs_compress(conv, recent):
-            compress(db, conv, registry.get("text"))
+            compress(db, conv, registry.get())
     finally:
         db.close()
 
 
-def _invoke_llm(kind: str, messages) -> str:
+def _invoke_llm(messages) -> str:
     """非流式兜底：流式不兼容/空答时，用同一模型 invoke 一次拿完整答案（部分模型非流式更稳）。"""
-    llm = registry.get(kind)
+    llm = registry.get()
     resp = llm.invoke(messages)
     return resp.content if resp else ""
 
@@ -253,13 +255,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
         raise HTTPException(status_code=400, detail=str(ve))
 
     messages = _build_messages(pre)
-    kind = "vision" if pre["image"] else "text"
 
     async def stream():
         try:
             # glm 系列偶发"空生成"（content/reasoning 皆空，间歇/突发），多配置轮换重试降低失败率
             def make_chain_fn(_i, disabled):
-                llm = registry.get(kind) if _i == 0 else registry.variant(kind, disabled)
+                llm = registry.get() if _i == 0 else registry.variant(disabled)
                 return make_chain(llm)
 
             chunks = []
@@ -270,7 +271,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             if not answer:
                 # 流式可能不兼容/被限流：回退一次非流式调用
                 try:
-                    fb = await run_in_threadpool(_invoke_llm, kind, messages)
+                    fb = await run_in_threadpool(_invoke_llm, messages)
                     answer = clean_answer(fb)
                     if answer:
                         yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"
@@ -280,7 +281,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 answer = clean_answer(answer)
             if not answer:
                 # 防御：流式+非流式都空则明确告知（含模型名，便于排查/切换）
-                model_name = registry.config()[kind]["model"]
+                model_name = registry.config()["model"]
                 yield f"data: {json.dumps({'error': f'模型 {model_name} 暂时无响应，请稍后重试或换个模型'}, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
@@ -379,8 +380,7 @@ def admin_stats(db: Session = Depends(get_db), _admin: User = Depends(require_ad
         "user_count": db.query(User).count(),
         "conversation_count": db.query(Conversation).count(),
         "knowledge_count": ks.count_docs(),
-        "llm_model": registry.config()["text"]["model"],
-        "vision_model": registry.config()["vision"]["model"],
+        "llm_model": registry.config()["model"],
         "qa_pending": db.query(QaCandidate).filter(QaCandidate.status == "pending").count(),
     }
 
@@ -499,7 +499,7 @@ def admin_qa_decision(cand_id: int, body: QaDecisionIn, db: Session = Depends(ge
 @app.post("/api/admin/llm")
 @limiter.limit("10/minute")
 async def admin_llm_switch(request: Request, body: LlmSwitchIn, _admin: User = Depends(require_admin)):
-    if not body.text_model and not body.vision_model:
-        raise HTTPException(status_code=400, detail="请至少提供 text_model 或 vision_model")
-    cfg = registry.reload(text_model=body.text_model, vision_model=body.vision_model)
+    if not body.model:
+        raise HTTPException(status_code=400, detail="请提供 model")
+    cfg = registry.reload(model=body.model)
     return cfg
