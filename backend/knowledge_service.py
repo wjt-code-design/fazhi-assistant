@@ -113,6 +113,11 @@ def add_text(
         meta["file_hash"] = file_hash_value
     if extra_meta:
         meta.update({k: v for k, v in extra_meta.items() if v not in (None, "")})
+    # 时效三键归一化（阶段5）：强制存在，空值写 ""，status 缺省"现行"。
+    # 理由：Chroma where 对缺失键的 $eq/$ne 语义不可靠，缺键会破坏时效过滤（见计划 D1）。
+    meta["effective_from"] = (extra_meta or {}).get("effective_from") or ""
+    meta["effective_to"] = (extra_meta or {}).get("effective_to") or ""
+    meta["status"] = (extra_meta or {}).get("status") or "现行"
     docs = [Document(page_content=c, metadata=meta) for c in chunks]
     vectorstore.add_documents(docs)
     retrieval.invalidate()
@@ -138,7 +143,9 @@ def list_docs():
     return out
 
 
-def count_docs() -> int:
+def count_docs(status: Optional[str] = None) -> int:
+    if status:
+        return len(_collection().get(where={"status": status})["ids"])
     return _collection().count()
 
 

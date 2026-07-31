@@ -1,7 +1,8 @@
+import re
 from datetime import datetime
 from typing import List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 
 # ===== 认证 =====
@@ -96,10 +97,17 @@ class KnowledgeAddIn(BaseModel):
     title: str = Field(..., min_length=1)
     article: str = ""
     content: str = Field(..., min_length=1)
-    # 时效种子（阶段1占位，阶段5治理）
+    # 时效字段（阶段5）：日期必须为 YYYY-MM-DD 或空，保证字典序比较可靠
     effective_from: Optional[str] = None
     effective_to: Optional[str] = None
     status: Optional[str] = None
+
+    @field_validator("effective_from", "effective_to")
+    @classmethod
+    def _date_or_empty(cls, v: Optional[str]) -> Optional[str]:
+        if v and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
+            raise ValueError("日期格式必须为 YYYY-MM-DD")
+        return v
 
 
 class KnowledgeTestIn(BaseModel):

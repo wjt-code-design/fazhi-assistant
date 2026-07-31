@@ -10,6 +10,7 @@ interface Stats {
   user_count: number;
   conversation_count: number;
   knowledge_count: number;
+  knowledge_expired?: number;
   llm_model: string;
   qa_pending?: number;
 }
@@ -23,7 +24,7 @@ interface UserRow {
 interface KnowledgeDoc {
   id: string;
   content: string;
-  metadata: { source?: string; article?: string; origin?: string };
+  metadata: { source?: string; article?: string; origin?: string; status?: string; effective_from?: string; effective_to?: string };
 }
 interface ConvRow {
   id: number;
@@ -46,6 +47,9 @@ interface KnowledgeHit {
   source: string;
   article: string;
   origin: string;
+  status?: string;
+  effective_from?: string;
+  effective_to?: string;
   score: number;
 }
 interface AuditRow {
@@ -78,6 +82,13 @@ const ICONS: Record<Section, ReactNode> = {
   ),
 };
 
+/** 条文时效状态徽章（阶段5） */
+function StatusBadge({ status }: { status?: string }) {
+  if (status === "已废止") return <Badge kind="error">已废止</Badge>;
+  if (status === "即将施行") return <Badge kind="accent">即将施行</Badge>;
+  return <Badge kind="success">现行</Badge>;
+}
+
 const NAV: { key: Section; label: string }[] = [
   { key: "stats", label: "系统统计" },
   { key: "users", label: "用户管理" },
@@ -107,6 +118,16 @@ export default function AdminPage() {
   const [switching, setSwitching] = useState(false);
   const [textModel, setTextModel] = useState("");
   const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [addForm, setAddForm] = useState({
+    title: "",
+    article: "",
+    content: "",
+    status: "现行",
+    effective_from: "",
+    effective_to: "",
+  });
+  const [addMsg, setAddMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [adding, setAdding] = useState(false);
 
   // 仅管理员可进
   useEffect(() => {
@@ -148,6 +169,33 @@ export default function AdminPage() {
   async function deleteKnowledge(id: string) {
     await api.delete(`/api/admin/knowledge/${id}`);
     setKnowledge((list) => list.filter((x) => x.id !== id));
+  }
+
+  async function submitAdd() {
+    if (!addForm.title.trim() || !addForm.content.trim()) {
+      setAddMsg({ ok: false, text: "法律名称与条文内容必填" });
+      return;
+    }
+    setAdding(true);
+    setAddMsg(null);
+    try {
+      await adminApi.addKnowledge({
+        title: addForm.title.trim(),
+        article: addForm.article.trim(),
+        content: addForm.content.trim(),
+        effective_from: addForm.effective_from || undefined,
+        effective_to: addForm.effective_to || undefined,
+        status: addForm.status,
+      });
+      setAddMsg({ ok: true, text: `已入库「${addForm.title.trim()}」，稍后即可被检索引用。` });
+      setAddForm({ title: "", article: "", content: "", status: "现行", effective_from: "", effective_to: "" });
+      const k = await api.get<KnowledgeDoc[]>("/api/admin/knowledge");
+      setKnowledge(k);
+    } catch (e) {
+      setAddMsg({ ok: false, text: e instanceof Error ? e.message : "添加失败" });
+    } finally {
+      setAdding(false);
+    }
   }
 
   async function onUpload(files: FileList | null) {
@@ -317,6 +365,9 @@ export default function AdminPage() {
                     <div>
                       <div className="stat-label">当前模型（仅管理员可见）</div>
                       <div className="mt-1 font-serif text-base font-semibold text-ink">{stats.llm_model}</div>
+                      <p className="mt-1 text-xs text-slate">
+                        知识库共 {stats.knowledge_count} 条 · 已废止 {stats.knowledge_expired ?? 0} 条
+                      </p>
                     </div>
                     <Badge kind="accent" dot>待审沉淀 {stats.qa_pending ?? 0}</Badge>
                   </div>
@@ -380,6 +431,65 @@ export default function AdminPage() {
             {/* ===== 知识库 ===== */}
             {!loadingData && section === "knowledge" && (
               <div className="space-y-3">
+                {/* 手动添加条文（阶段5：含时效字段） */}
+                <div className="card px-5 py-4">
+                  <SectionTitle>手动添加条文</SectionTitle>
+                  <p className="mt-2 text-sm text-slate">逐条录入条文原文与时效信息（YYYY-MM-DD），用于快速补充知识库。</p>
+                  <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_160px_1fr_1fr]">
+                    <input
+                      className="input"
+                      placeholder="法律名称，如 劳动法"
+                      value={addForm.title}
+                      onChange={(e) => setAddForm((f) => ({ ...f, title: e.target.value }))}
+                    />
+                    <input
+                      className="input"
+                      placeholder="条号，如 第三条"
+                      value={addForm.article}
+                      onChange={(e) => setAddForm((f) => ({ ...f, article: e.target.value }))}
+                    />
+                    <select
+                      className="input"
+                      value={addForm.status}
+                      onChange={(e) => setAddForm((f) => ({ ...f, status: e.target.value }))}
+                    >
+                      <option value="现行">现行</option>
+                      <option value="已废止">已废止</option>
+                      <option value="即将施行">即将施行</option>
+                    </select>
+                    <div className="flex gap-2">
+                      <input
+                        type="date"
+                        className="input"
+                        value={addForm.effective_from}
+                        onChange={(e) => setAddForm((f) => ({ ...f, effective_from: e.target.value }))}
+                        title="施行日期"
+                      />
+                      <input
+                        type="date"
+                        className="input"
+                        value={addForm.effective_to}
+                        onChange={(e) => setAddForm((f) => ({ ...f, effective_to: e.target.value }))}
+                        title="废止日期"
+                      />
+                    </div>
+                  </div>
+                  <textarea
+                    className="input mt-3 min-h-[96px]"
+                    placeholder="条文原文（请粘贴权威原文，一字不差）"
+                    value={addForm.content}
+                    onChange={(e) => setAddForm((f) => ({ ...f, content: e.target.value }))}
+                  />
+                  <div className="mt-3 flex items-center gap-3">
+                    <button className="btn btn-primary" onClick={submitAdd} disabled={adding}>
+                      {adding ? <Spinner /> : "添加入库"}
+                    </button>
+                    {addMsg && (
+                      <span className={`text-sm ${addMsg.ok ? "text-jade" : "text-error"}`}>{addMsg.text}</span>
+                    )}
+                  </div>
+                </div>
+
                 <p className="text-sm text-slate">
                   共 <span className="font-serif font-semibold text-ink">{knowledge.length}</span> 条知识片段（含种子条文与上传内容）
                 </p>
@@ -390,8 +500,21 @@ export default function AdminPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className="font-serif font-semibold text-ink">{k.metadata?.source || "未命名"}</span>
                           {k.metadata?.article && <span className="text-sm text-slate">{k.metadata.article}</span>}
-                          {k.metadata?.origin === "upload" ? <Badge kind="accent">上传</Badge> : <Badge>种子</Badge>}
+                          <StatusBadge status={k.metadata?.status} />
+                          {k.metadata?.origin === "upload" ? (
+                            <Badge kind="accent">上传</Badge>
+                          ) : k.metadata?.origin === "import" ? (
+                            <Badge kind="neutral">导入</Badge>
+                          ) : (
+                            <Badge>种子</Badge>
+                          )}
                         </div>
+                        {(k.metadata?.effective_from || k.metadata?.effective_to) && (
+                          <p className="mt-1 text-xs text-slate">
+                            {k.metadata?.effective_from ? `${k.metadata.effective_from} 起` : ""}
+                            {k.metadata?.effective_to ? `  ${k.metadata.effective_to} 止` : ""}
+                          </p>
+                        )}
                         <p className="mt-2 line-clamp-2 text-sm leading-relaxed text-slate">{k.content}</p>
                       </div>
                       <button className="btn btn-danger shrink-0 !px-3 !py-1 text-xs" onClick={() => deleteKnowledge(k.id)}>
@@ -425,6 +548,7 @@ export default function AdminPage() {
                         <div key={i} className="rounded-lg border border-mist bg-parchment px-3 py-2">
                           <div className="flex items-center gap-2 text-xs text-slate">
                             <Badge kind="accent">相关度 {h.score}</Badge>
+                            <StatusBadge status={h.status} />
                             <span>《{h.source}》{h.article}</span>
                             <span className="text-slate/70">· {h.origin}</span>
                           </div>

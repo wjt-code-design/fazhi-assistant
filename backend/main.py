@@ -434,6 +434,7 @@ def admin_stats(db: Session = Depends(get_db), _admin: User = Depends(require_ad
         "user_count": db.query(User).count(),
         "conversation_count": db.query(Conversation).count(),
         "knowledge_count": ks.count_docs(),
+        "knowledge_expired": ks.count_docs(status="已废止"),
         "llm_model": registry.config()["model"],
         "qa_pending": db.query(QaCandidate).filter(QaCandidate.status == "pending").count(),
     }
@@ -491,9 +492,10 @@ def admin_knowledge(_admin: User = Depends(require_admin)):
 
 
 @app.post("/api/admin/knowledge")
-def admin_add_knowledge(body: KnowledgeAddIn, _admin: User = Depends(require_admin)):
+def admin_add_knowledge(body: KnowledgeAddIn, admin: User = Depends(require_admin)):
     extra = {"effective_from": body.effective_from, "effective_to": body.effective_to, "status": body.status or "现行"}
     n = ks.add_text(body.content, source=body.title, article=body.article, origin="manual", extra_meta=extra)
+    log_audit(admin.id, "knowledge.add", target=f"{body.title} {body.article}".strip(), detail=f"chunks={n}")
     return {"added_chunks": n}
 
 

@@ -1,0 +1,17 @@
+{
+  "_comment": "法智知识库批量导入模板。复制本文件为 data/laws_extra.json 后填写（脚本忽略 _comment 与未知键）。",
+  "_comment2": "字段：title=法律名称(必填) article_number=条号(必填) category=分类(建议) content=条文原文(必填，请填权威原文，一字不差) status=现行/已废止/即将施行(默认现行) effective_from=施行日期(YYYY-MM-DD，可空) effective_to=废止日期(YYYY-MM-DD，可空)。",
+  "_comment3": "注意：若 (title, article_number) 与 data/laws.json 的种子条文重复，脚本会警告并跳过——那种内容应直接改 laws.json 后重建。",
+  "_comment4": "导入幂等：同 (title, article_number) 重复导入会替换旧内容，不会翻倍。",
+  "entries": [
+    {
+      "title": "（示例法律名称，请替换）",
+      "article_number": "第X条",
+      "category": "（分类）",
+      "content": "（示例：请在此粘贴条文权威原文，一字不差）",
+      "status": "现行",
+      "effective_from": "",
+      "effective_to": ""
+    }
+  ]
+}

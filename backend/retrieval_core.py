@@ -13,6 +13,27 @@ from langchain_core.documents import Document
 
 RRF_K = 60
 
+# 时效状态白名单（导入/手动添加校验用）
+STATUS_WHITELIST = ("现行", "已废止", "即将施行")
+
+
+def is_valid_by_time(meta: dict, today: str) -> bool:
+    """条文时效判定（阶段5）：status 非已废止 且 已生效 且 未过废止日。
+
+    today: 'YYYY-MM-DD'（ISO 字典序即时间序）；空串/缺失键视为无该限制。
+    边界语义：effective_from == today 当日生效，effective_to == today 当日仍有效。
+    此函数是向量池、BM25、grounded 打分的唯一共用谓词。
+    """
+    if meta.get("status") == "已废止":
+        return False
+    ef = (meta.get("effective_from") or "").strip()
+    et = (meta.get("effective_to") or "").strip()
+    if ef and ef > today:
+        return False  # 尚未施行
+    if et and et < today:
+        return False  # 已过废止日
+    return True
+
 
 def tokenize(text: str) -> List[str]:
     """中文分词（jieba），过滤空白与纯空白片段。"""
@@ -66,7 +87,12 @@ def build_bm25(docs: List[Document]) -> Optional[BM25Okapi]:
 
 
 def bm25_top(
-    bm25: BM25Okapi, docs: List[Document], query: str, n: int, category: Optional[str] = None
+    bm25: BM25Okapi,
+    docs: List[Document],
+    query: str,
+    n: int,
+    category: Optional[str] = None,
+    valid: Optional[callable] = None,
 ) -> List[Tuple[Document, float]]:
     scores = bm25.get_scores(tokenize(query))
     order = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
@@ -74,6 +100,8 @@ def bm25_top(
     for i in order:
         d = docs[i]
         if category and d.metadata.get("category") != category:
+            continue
+        if valid and not valid(d.metadata):
             continue
         out.append((d, float(scores[i])))
         if len(out) >= n:

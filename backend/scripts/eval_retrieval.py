@@ -9,6 +9,10 @@ import json
 import os
 import sys
 
+# 评测阶段需联网下载模型（缓存缺失时）；显式关闭离线模式，覆盖 rag_chain 的运行期离线默认。
+os.environ["HF_HUB_OFFLINE"] = "0"
+os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
+
 HERE = os.path.dirname(os.path.abspath(__file__))
 BACKEND = os.path.dirname(HERE)
 sys.path.insert(0, BACKEND)

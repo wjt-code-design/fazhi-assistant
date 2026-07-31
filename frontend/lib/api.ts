@@ -149,6 +149,14 @@ export const convApi = {
 // ==================== 管理员扩展 ====================
 export const adminApi = {
   stats: () => api.get<any>("/api/admin/stats"),
+  addKnowledge: (b: {
+    title: string;
+    article: string;
+    content: string;
+    effective_from?: string;
+    effective_to?: string;
+    status?: string;
+  }) => api.post<any>("/api/admin/knowledge", b),
   knowledgeTest: (query: string) => api.post<any[]>("/api/admin/knowledge/test", { query }),
   qaCandidates: (status?: string) =>
     api.get<any[]>(`/api/admin/qa/candidates${status ? `?status=${status}` : ""}`),
