@@ -19,10 +19,12 @@ os.makedirs(MEDIA_DIR, exist_ok=True)
 
 _DATA_URL_RE = re.compile(r"^data:(image/[a-zA-Z0-9.+-]+);base64,([A-Za-z0-9+/=\s]+)$", re.S)
 
+from settings import settings
+
 IMAGE_LIMITS = {
-    "max_image_mb": 5,
-    "max_px": 6000,
-    "min_px": 10,
+    "max_image_mb": settings.image_max_mb,
+    "max_px": settings.image_max_px,
+    "min_px": settings.image_min_px,
     "formats": ["image/jpeg", "image/png"],
 }
 

@@ -6,19 +6,17 @@
   仅在空答重试的 variant 中会用到。
 - 会偶发限流/空答，故保留 max_retries=3 与空答重试。
 """
-import os
 import threading
 from typing import Any, Dict, Optional
 
 from langchain_openai import ChatOpenAI
 
-BASE_URL = os.getenv("LLM_BASE_URL", "")
-API_KEY = os.getenv("LLM_API_KEY") or os.getenv("ZHIPUAI_API_KEY", "")
+from settings import settings
 
 DEFAULT_CFG: Dict[str, Any] = {
-    "model": os.getenv("LLM_MODEL", "qwen3.5-omni-plus-2026-03-15"),
-    "base_url": BASE_URL,
-    "api_key": API_KEY,
+    "model": settings.llm_model,
+    "base_url": settings.llm_base_url,
+    "api_key": settings.api_key,
     "capabilities": ["text", "vision"],  # 全模态
     "disable_thinking": False,  # 默认不传额外参数
     "timeout": 120,

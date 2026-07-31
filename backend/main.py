@@ -1,6 +1,10 @@
 import os
 import json
+import socket
+import time
+from contextlib import asynccontextmanager
 from datetime import datetime
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -9,13 +13,13 @@ load_dotenv()
 
 from fastapi import FastAPI, Request, Depends, HTTPException, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
 from fastapi.concurrency import run_in_threadpool
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, text
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-from rag_chain import format_docs, make_chain, stream_with_retry, clean_answer
+from rag_chain import format_docs, make_chain, stream_with_retry, clean_answer, vectorstore
 from database import SessionLocal, init_db, get_db
 from models import User, Conversation, Message, QaCandidate
 from schemas import (
@@ -30,11 +34,13 @@ from memory import load_context, recent_messages, needs_compress, compress, rewr
 from retrieval import retrieve, grounded_top_score, retrieve_for_test
 from multimodal import validate_image, persist_image, build_vision_content, describe_image, MEDIA_DIR
 from curation import should_curate
+from settings import settings
+from observability import RequestIdMiddleware, setup_logging, log_account
 
 # 启动期强校验
-if not os.getenv("JWT_SECRET"):
+if not settings.jwt_secret:
     raise RuntimeError("缺少 JWT_SECRET，请在 .env 中设置")
-if not os.getenv("LLM_API_KEY") or not os.getenv("LLM_BASE_URL"):
+if not settings.api_key or not settings.llm_base_url:
     raise RuntimeError("缺少 LLM_API_KEY / LLM_BASE_URL，请在 backend/.env 配置")
 
 init_db()
@@ -54,7 +60,13 @@ from slowapi.errors import RateLimitExceeded
 
 limiter = Limiter(key_func=get_remote_address)
 
-app = FastAPI(title="AI 法律咨询小助手")
+@asynccontextmanager
+async def lifespan(_app):
+    setup_logging(settings.log_level)
+    yield
+
+
+app = FastAPI(title="AI 法律咨询小助手", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(
@@ -63,12 +75,45 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(RequestIdMiddleware)  # 纯 ASGI，不缓冲流式 body
 
 
 # ==================== 健康检查 ====================
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
+
+
+@app.get("/healthz")
+def healthz():
+    """深度就绪检查：DB + 向量库 + 模型主机连通（不发起真实 LLM 调用，不耗 token）。"""
+    checks = {"db": False, "vector": False, "llm_host": False}
+    db = SessionLocal()
+    try:
+        db.execute(text("SELECT 1"))
+        checks["db"] = True
+    except Exception:
+        pass
+    finally:
+        db.close()
+    try:
+        vectorstore._collection.count()
+        checks["vector"] = True
+    except Exception:
+        pass
+    try:
+        u = urlparse(settings.llm_base_url)
+        host = u.hostname
+        port = u.port or (443 if u.scheme == "https" else 80)
+        with socket.create_connection((host, port), timeout=3):
+            checks["llm_host"] = True
+    except Exception:
+        pass
+    ok = checks["db"] and checks["vector"]  # llm_host 为软检查（主机可达≠key 有效）
+    return JSONResponse(
+        status_code=200 if ok else 503,
+        content={"status": "ok" if ok else "degraded", **checks},
+    )
 
 
 # ==================== 认证 ====================
@@ -247,6 +292,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
     text = (body.content if body.content is not None else body.question) or ""
     text = text.strip()
     image = body.image
+    t0 = time.perf_counter()
     if not text and not image:
         raise HTTPException(status_code=400, detail="请输入问题或上传图片")
     try:
@@ -283,6 +329,14 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 # 防御：流式+非流式都空则明确告知（含模型名，便于排查/切换）
                 model_name = registry.config()["model"]
                 yield f"data: {json.dumps({'error': f'模型 {model_name} 暂时无响应，请稍后重试或换个模型'}, ensure_ascii=False)}\n\n"
+            log_account(
+                model=registry.config()["model"],
+                ms=round((time.perf_counter() - t0) * 1000, 1),
+                ok=bool(answer),
+                conv_id=pre["conv_id"],
+                user_id=user.id,
+                q_len=len(text),
+            )
             yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
             if answer:

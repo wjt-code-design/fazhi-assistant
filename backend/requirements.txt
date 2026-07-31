@@ -15,6 +15,7 @@ python-dotenv>=1.0,<2.0
 slowapi>=0.1.9,<0.2
 rank-bm25>=0.2.2,<0.3
 jieba>=0.42,<0.43
+pydantic-settings>=2.2,<3
 # 认证 / 数据库 / 文件上传
 pyjwt>=2.8,<3.0
 bcrypt>=4.0,<6.0

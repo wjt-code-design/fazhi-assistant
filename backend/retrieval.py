@@ -15,8 +15,10 @@ from langchain_core.documents import Document
 from rag_chain import vectorstore, embeddings
 import retrieval_core as rc
 
-RETRIEVAL_RERANK = os.getenv("RETRIEVAL_RERANK", "0") == "1"
-HYBRID = os.getenv("RETRIEVAL_HYBRID", "1") == "1"
+from settings import settings
+
+RETRIEVAL_RERANK = settings.feature_rerank
+HYBRID = settings.feature_hybrid
 BM25_K_MULT = 2
 
 _cache = rc.LRU()
