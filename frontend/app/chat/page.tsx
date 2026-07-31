@@ -375,7 +375,7 @@ export default function ChatPage() {
                 </svg>
               </button>
               <input
-                className="input flex-1 !rounded-full !py-3"
+                className="input flex-1 !rounded-[6px] !py-3"
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
@@ -388,7 +388,7 @@ export default function ChatPage() {
               <button
                 type="submit"
                 disabled={streaming || (!input.trim() && !pendingImage)}
-                className="btn btn-primary h-11 w-11 shrink-0 !rounded-full !p-0"
+                className="btn btn-primary h-11 w-11 shrink-0 !rounded-[6px] !p-0"
                 aria-label="发送"
               >
                 {streaming ? (

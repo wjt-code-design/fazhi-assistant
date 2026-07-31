@@ -327,9 +327,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             else:
                 answer = clean_answer(answer)
             if not answer:
-                # 防御：流式+非流式都空则明确告知（含模型名，便于排查/切换）
-                model_name = registry.config()["model"]
-                yield f"data: {json.dumps({'error': f'模型 {model_name} 暂时无响应，请稍后重试或换个模型'}, ensure_ascii=False)}\n\n"
+                # 防御：流式+非流式都空则明确告知。模型名不暴露给普通用户，仅在调用记账日志出现
+                yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
             log_account(
                 model=registry.config()["model"],
                 ms=round((time.perf_counter() - t0) * 1000, 1),

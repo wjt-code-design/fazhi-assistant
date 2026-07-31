@@ -22,7 +22,7 @@ const config: Config = {
         sans: ['"PingFang SC"', '"Microsoft YaHei"', '"Hiragino Sans GB"', '"Noto Sans CJK SC"', "sans-serif"],
       },
       borderRadius: {
-        DEFAULT: "8px",
+        DEFAULT: "6px",
       },
       boxShadow: {
         card: "0 1px 2px rgba(15,23,42,.04), 0 2px 8px rgba(15,23,42,.05)",
