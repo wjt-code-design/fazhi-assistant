@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, FormEvent, ClipboardEvent, DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { streamChat, convApi, loadMediaSrc, ChatMeta } from "@/lib/api";
+import { streamChat, convApi, loadMediaSrc, ChatMeta, feedbackApi } from "@/lib/api";
 import { Logo, Spinner, EmptyState } from "@/components/ui";
 
 interface Msg {
@@ -60,6 +60,9 @@ export default function ChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  const [corrFor, setCorrFor] = useState<number | null>(null);
+  const [corrText, setCorrText] = useState("");
+  const [fbDone, setFbDone] = useState<Record<number, "up" | "down">>({});
 
   useEffect(() => {
     if (!loading) {
@@ -189,6 +192,26 @@ export default function ChatPage() {
     loadHistory();
   }
 
+  async function sendFeedback(i: number, rating: "up" | "down", correction?: string) {
+    const ai = messages[i];
+    const prev = messages[i - 1];
+    const question = prev && prev.role === "user" ? (prev.content === "[图片]" ? "[图片]" : prev.content) : "";
+    try {
+      await feedbackApi.post({
+        conversation_id: conversationId,
+        question: question || "(无)",
+        answer: ai.content,
+        rating,
+        correction: correction || undefined,
+      });
+      setFbDone((s) => ({ ...s, [i]: rating }));
+      setCorrFor(null);
+      setCorrText("");
+    } catch {
+      /* ignore */
+    }
+  }
+
   return (
     <div className="flex h-screen overflow-hidden">
       {sidebarOpen && (
@@ -298,6 +321,24 @@ export default function ChatPage() {
                           ""
                         ))}
                     </div>
+                    {!streaming && m.content && (
+                      <div className="mt-2">
+                        <div className="flex items-center gap-2 text-slate">
+                          <button type="button" onClick={() => sendFeedback(i, "up")} disabled={!!fbDone[i]} className={`rounded px-1.5 text-sm transition-colors ${fbDone[i] === "up" ? "text-jade" : "hover:text-ink"}`} aria-label="有帮助" title="有帮助">👍</button>
+                          <button type="button" onClick={() => setCorrFor(corrFor === i ? null : i)} disabled={!!fbDone[i]} className={`rounded px-1.5 text-sm transition-colors ${fbDone[i] === "down" ? "text-error" : "hover:text-ink"}`} aria-label="不准确" title="不准确 / 纠错">👎</button>
+                          {fbDone[i] && <span className="text-xs text-jade">已记录，谢谢反馈</span>}
+                        </div>
+                        {corrFor === i && (
+                          <div className="mt-2 space-y-2">
+                            <textarea className="input min-h-[64px]" placeholder="可选：写出你认为正确的答案或指出错误…" value={corrText} onChange={(e) => setCorrText(e.target.value)} />
+                            <div className="flex gap-2">
+                              <button type="button" onClick={() => sendFeedback(i, "down", corrText)} className="btn btn-primary !px-3 !py-1 text-xs">提交纠错</button>
+                              <button type="button" onClick={() => sendFeedback(i, "down", "")} className="btn btn-secondary !px-3 !py-1 text-xs">仅标记不准</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
               )

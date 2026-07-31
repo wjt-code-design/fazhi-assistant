@@ -89,3 +89,18 @@ class AuditLog(Base):
     target = Column(String(255), default="")
     detail = Column(Text, default="")
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Feedback(Base):
+    """用户对某条 AI 回答的反馈（点赞/踩 + 可选纠错），用于沉淀与评测。"""
+
+    __tablename__ = "feedbacks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=True, index=True)
+    question = Column(Text, default="")  # 被评价的用户问题快照
+    answer = Column(Text, default="")  # 被评价的 AI 回答快照
+    rating = Column(String(8), nullable=False)  # up / down
+    correction = Column(Text, default="")  # 用户纠错/期望答案（可选）
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -21,11 +21,11 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from rag_chain import format_docs, make_chain, stream_with_retry, clean_answer, vectorstore
 from database import SessionLocal, init_db, get_db
-from models import User, Conversation, Message, QaCandidate, AuditLog
+from models import User, Conversation, Message, QaCandidate, AuditLog, Feedback
 from schemas import (
     RegisterIn, LoginIn, UserUpdateIn, KnowledgeAddIn, KnowledgeTestIn,
     ChatIn, MessageOut, ConversationListItem, ConversationDetail,
-    QaDecisionIn, LlmSwitchIn,
+    QaDecisionIn, LlmSwitchIn, FeedbackIn,
 )
 from auth import hash_password, verify_password, create_token, get_current_user, require_admin
 import knowledge_service as ks
@@ -583,4 +583,36 @@ def admin_audit(limit: int = 100, db: Session = Depends(get_db), _admin: User = 
             "created_at": a.created_at.isoformat() if a.created_at else None,
         }
         for a, uname in rows
+    ]
+
+
+# ==================== 用户反馈（点赞/踩/纠错） ====================
+@app.post("/api/feedback")
+def post_feedback(body: FeedbackIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    fb = Feedback(
+        user_id=user.id, conversation_id=body.conversation_id,
+        question=body.question, answer=body.answer,
+        rating=body.rating, correction=body.correction or "",
+    )
+    db.add(fb)
+    db.commit()
+    db.refresh(fb)
+    # 负反馈或带纠错 → 进受控沉淀待审，供管理员采纳"修正后的答案"（点赞不自动入库，避免污染）
+    if body.rating == "down" or (body.correction and body.correction.strip()):
+        propose = (body.correction or "").strip() or body.answer
+        ks.create_candidate(db, body.question, propose, 0.0, f"feedback:{body.rating}")
+    return {"id": fb.id}
+
+
+@app.get("/api/admin/feedback")
+def admin_feedback(limit: int = 100, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    rows = db.query(Feedback).order_by(Feedback.created_at.desc()).limit(min(max(limit, 1), 500)).all()
+    return [
+        {
+            "id": f.id, "user_id": f.user_id, "conversation_id": f.conversation_id,
+            "question": f.question, "answer": f.answer, "rating": f.rating,
+            "correction": f.correction,
+            "created_at": f.created_at.isoformat() if f.created_at else None,
+        }
+        for f in rows
     ]

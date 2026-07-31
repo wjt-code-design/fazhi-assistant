@@ -107,3 +107,41 @@ def test_admin_audit_records_action_and_forbids_user(client):
     client.post("/api/auth/register", json={"username": "normuser", "password": "password123"})
     ntok = client.post("/api/auth/login", json={"username": "normuser", "password": "password123"}).json()["token"]
     assert client.get("/api/admin/audit", headers={"Authorization": f"Bearer {ntok}"}).status_code == 403
+
+
+def test_feedback_down_creates_candidate_up_does_not(client):
+    from database import SessionLocal
+    from models import User
+    from auth import hash_password
+
+    db = SessionLocal()
+    try:
+        db.add(User(username="adminfb", password_hash=hash_password("password123"), role="admin"))
+        db.commit()
+    finally:
+        db.close()
+
+    client.post("/api/auth/register", json={"username": "fbuser", "password": "password123"})
+    tok = client.post("/api/auth/login", json={"username": "fbuser", "password": "password123"}).json()["token"]
+    headers = {"Authorization": f"Bearer {tok}"}
+    atok = client.post("/api/auth/login", json={"username": "adminfb", "password": "password123"}).json()["token"]
+    ah = {"Authorization": f"Bearer {atok}"}
+
+    before = len(client.get("/api/admin/qa/candidates", params={"status": "pending"}, headers=ah).json())
+    r = client.post(
+        "/api/feedback", headers=headers,
+        json={"question": "试用期多久", "answer": "错误的回答", "rating": "down", "correction": "应为六个月"},
+    )
+    assert r.status_code == 200
+    after = client.get("/api/admin/qa/candidates", params={"status": "pending"}, headers=ah).json()
+    assert len(after) == before + 1
+    assert after[0]["answer"] == "应为六个月"
+
+    b2 = len(client.get("/api/admin/qa/candidates", params={"status": "pending"}, headers=ah).json())
+    assert client.post("/api/feedback", headers=headers, json={"question": "x", "answer": "y", "rating": "up"}).status_code == 200
+    assert len(client.get("/api/admin/qa/candidates", params={"status": "pending"}, headers=ah).json()) == b2
+
+    fbs = client.get("/api/admin/feedback", headers=ah).json()
+    assert any(f["rating"] == "down" and f["correction"] == "应为六个月" for f in fbs)
+
+    assert client.post("/api/feedback", json={"question": "a", "answer": "b", "rating": "up"}).status_code in (401, 403)

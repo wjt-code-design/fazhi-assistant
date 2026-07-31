@@ -160,6 +160,16 @@ export const adminApi = {
     api.get<any[]>(`/api/admin/audit${limit ? `?limit=${limit}` : ""}`),
 };
 
+export const feedbackApi = {
+  post: (b: {
+    conversation_id?: number | null;
+    question: string;
+    answer: string;
+    rating: "up" | "down";
+    correction?: string;
+  }) => api.post<{ id: number }>("/api/feedback", b),
+};
+
 // ==================== 受鉴权媒体（历史图片，Blob 缓存） ====================
 const mediaCache = new Map<string, string>();
 export async function loadMediaSrc(ref: string): Promise<string | null> {

@@ -124,3 +124,22 @@ class QaDecisionIn(BaseModel):
 # ===== 模型在线切换 =====
 class LlmSwitchIn(BaseModel):
     model: Optional[str] = Field(default=None, min_length=1, max_length=64)
+
+
+class FeedbackIn(BaseModel):
+    conversation_id: Optional[int] = None
+    question: str = Field(..., min_length=1, max_length=4000)
+    answer: str = Field(..., min_length=1, max_length=8000)
+    rating: str = Field(..., pattern="^(up|down)$")
+    correction: Optional[str] = Field(default=None, max_length=8000)
+
+
+class FeedbackOut(BaseModel):
+    id: int
+    user_id: Optional[int] = None
+    conversation_id: Optional[int] = None
+    question: str
+    answer: str
+    rating: str
+    correction: str
+    created_at: Optional[datetime] = None
