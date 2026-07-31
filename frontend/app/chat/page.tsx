@@ -11,7 +11,6 @@ interface Msg {
   imageDataURL?: string; // 本轮刚发送的本地预览
   imgRef?: string; // 历史：原图相对路径
   thumbRef?: string; // 历史：缩略图相对路径
-  sources?: { source: string; article: string }[];
 }
 
 interface ConvItem {
@@ -177,13 +176,6 @@ export default function ChatPage() {
           setConversationId(meta.conversation_id);
           setActiveId(meta.conversation_id);
         }
-        if (meta.sources && meta.sources.length) {
-          setMessages((m) => {
-            const copy = [...m];
-            copy[copy.length - 1] = { ...copy[copy.length - 1], sources: meta.sources };
-            return copy;
-          });
-        }
       },
       (err) => {
         setMessages((m) => {
@@ -306,15 +298,6 @@ export default function ChatPage() {
                           ""
                         ))}
                     </div>
-                    {m.sources && m.sources.length > 0 && (
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {m.sources.map((s, j) => (
-                          <span key={j} className="rounded-md border border-mist bg-parchment px-2 py-0.5 text-xs text-slate">
-                            《{s.source}》{s.article}
-                          </span>
-                        ))}
-                      </div>
-                    )}
                   </div>
                 </div>
               )
