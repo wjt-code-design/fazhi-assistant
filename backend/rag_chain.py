@@ -6,6 +6,7 @@
 """
 import os
 import asyncio
+import re
 
 # 运行期默认离线用本地缓存，避免对 huggingface.co 的在线校验（部分环境 SSL 校验失败）。
 # 缓存缺失需回退在线时走 HF_ENDPOINT 镜像；建库/种子脚本会显式置 HF_HUB_OFFLINE=0 覆盖此默认。
@@ -61,3 +62,13 @@ async def stream_with_retry(make_chain_fn, messages, configs):
             return
         if wait:
             await asyncio.sleep(wait)
+
+
+_THINK_RE = re.compile(r"<think>.*?</think>", re.S)
+
+
+def clean_answer(text: str) -> str:
+    """去掉模型内联的 <think>...</think> 推理块（thinking 模型可能把思考混进正文）。"""
+    if not text:
+        return text
+    return _THINK_RE.sub("", text).strip()

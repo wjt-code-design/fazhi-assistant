@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-from rag_chain import format_docs, make_chain, stream_with_retry
+from rag_chain import format_docs, make_chain, stream_with_retry, clean_answer
 from database import SessionLocal, init_db, get_db
 from models import User, Conversation, Message, QaCandidate
 from schemas import (
@@ -232,6 +232,13 @@ def _post(pre: dict, answer: str):
         db.close()
 
 
+def _invoke_llm(kind: str, messages) -> str:
+    """非流式兜底：流式不兼容/空答时，用同一模型 invoke 一次拿完整答案（部分模型非流式更稳）。"""
+    llm = registry.get(kind)
+    resp = llm.invoke(messages)
+    return resp.content if resp else ""
+
+
 @app.post("/api/chat")
 @limiter.limit("60/minute")
 async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
@@ -261,8 +268,20 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"
             answer = "".join(chunks)
             if not answer:
-                # 防御：多配置重试仍空则明确告知，而非静默无输出
-                yield f"data: {json.dumps({'error': '模型暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
+                # 流式可能不兼容/被限流：回退一次非流式调用
+                try:
+                    fb = await run_in_threadpool(_invoke_llm, kind, messages)
+                    answer = clean_answer(fb)
+                    if answer:
+                        yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"
+                except Exception:
+                    answer = ""
+            else:
+                answer = clean_answer(answer)
+            if not answer:
+                # 防御：流式+非流式都空则明确告知（含模型名，便于排查/切换）
+                model_name = registry.config()[kind]["model"]
+                yield f"data: {json.dumps({'error': f'模型 {model_name} 暂时无响应，请稍后重试或换个模型'}, ensure_ascii=False)}\n\n"
             yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
             yield "data: [DONE]\n\n"
             if answer:

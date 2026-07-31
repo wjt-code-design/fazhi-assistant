@@ -141,3 +141,13 @@ def test_stream_with_retry_all_empty_returns_nothing():
         return [p async for p in stream_with_retry(lambda _i, _d: FakeChain(), [], [(False, 0.0), (True, 0.5)])]
 
     assert asyncio.run(collect()) == []
+
+
+# ---------- 剥除 thinking 模型内联 <think> 块 ----------
+def test_clean_answer_strips_think_blocks():
+    from rag_chain import clean_answer
+
+    assert clean_answer("<think>先分析一下。</think>答案是六个月。") == "答案是六个月。"
+    assert clean_answer("答案是六个月。") == "答案是六个月。"
+    assert clean_answer("<think>\n用户想要试用期时长\n</think>回答：六个月") == "回答：六个月"
+    assert clean_answer("") == ""
