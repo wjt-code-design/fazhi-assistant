@@ -78,3 +78,32 @@ def test_chat_streams_persists_and_request_id(client, monkeypatch):
 def test_admin_403_for_normal_user(client):
     tok = _login(client, username="user2")
     assert client.get("/api/admin/stats", headers={"Authorization": f"Bearer {tok}"}).status_code == 403
+
+
+def test_admin_audit_records_action_and_forbids_user(client):
+    from database import SessionLocal
+    from models import User
+    from auth import hash_password
+
+    db = SessionLocal()
+    try:
+        db.add(User(username="adminx", password_hash=hash_password("password123"), role="admin"))
+        db.commit()
+    finally:
+        db.close()
+
+    tok = client.post("/api/auth/login", json={"username": "adminx", "password": "password123"}).json()["token"]
+    headers = {"Authorization": f"Bearer {tok}"}
+
+    cur = client.get("/api/admin/stats", headers=headers).json()["llm_model"]
+    assert client.post("/api/admin/llm", json={"model": cur}, headers=headers).status_code == 200
+
+    rows = client.get("/api/admin/audit", headers=headers).json()
+    actions = [x["action"] for x in rows]
+    assert "llm.switch" in actions
+    assert rows[0]["admin"] == "adminx"
+
+    # 非管理员禁止访问审计
+    client.post("/api/auth/register", json={"username": "normuser", "password": "password123"})
+    ntok = client.post("/api/auth/login", json={"username": "normuser", "password": "password123"}).json()["token"]
+    assert client.get("/api/admin/audit", headers={"Authorization": f"Bearer {ntok}"}).status_code == 403

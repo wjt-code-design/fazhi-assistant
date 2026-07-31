@@ -21,7 +21,7 @@ from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
 from rag_chain import format_docs, make_chain, stream_with_retry, clean_answer, vectorstore
 from database import SessionLocal, init_db, get_db
-from models import User, Conversation, Message, QaCandidate
+from models import User, Conversation, Message, QaCandidate, AuditLog
 from schemas import (
     RegisterIn, LoginIn, UserUpdateIn, KnowledgeAddIn, KnowledgeTestIn,
     ChatIn, MessageOut, ConversationListItem, ConversationDetail,
@@ -36,6 +36,7 @@ from multimodal import validate_image, persist_image, build_vision_content, desc
 from curation import should_curate
 from settings import settings
 from observability import RequestIdMiddleware, setup_logging, log_account
+from audit import log_audit
 
 # 启动期强校验
 if not settings.jwt_secret:
@@ -461,6 +462,7 @@ def admin_update_user(user_id: int, body: UserUpdateIn, db: Session = Depends(ge
     if body.is_active is not None:
         user.is_active = body.is_active
     db.commit()
+    log_audit(_admin.id, "user.toggle", target=user_id, detail=f"is_active={body.is_active}")
     return {"id": user.id, "username": user.username, "is_active": user.is_active}
 
 
@@ -499,6 +501,7 @@ def admin_add_knowledge(body: KnowledgeAddIn, _admin: User = Depends(require_adm
 @app.delete("/api/admin/knowledge/{doc_id}")
 def admin_delete_knowledge(doc_id: str, _admin: User = Depends(require_admin)):
     ks.delete_doc(doc_id)
+    log_audit(_admin.id, "knowledge.delete", target=doc_id)
     return {"deleted": doc_id}
 
 
@@ -526,7 +529,9 @@ async def admin_upload(request: Request, file: UploadFile = File(...), admin: Us
         preview = retrieve_for_test(first_line[:200], k=3)
         return {"filename": file.filename, "added_chunks": n, "preview": preview}
 
-    return await run_in_threadpool(_do)
+    res = await run_in_threadpool(_do)
+    log_audit(admin.id, "knowledge.upload", target=res["filename"], detail=f"chunks={res['added_chunks']}")
+    return res
 
 
 @app.post("/api/admin/knowledge/test")
@@ -546,6 +551,7 @@ def admin_qa_decision(cand_id: int, body: QaDecisionIn, db: Session = Depends(ge
     r = ks.decide_candidate(db, cand_id, body.decision)
     if not r:
         raise HTTPException(status_code=404, detail="候选不存在")
+    log_audit(_admin.id, f"qa.{body.decision}", target=cand_id)
     return {"id": r.id, "status": r.status}
 
 
@@ -556,4 +562,25 @@ async def admin_llm_switch(request: Request, body: LlmSwitchIn, _admin: User = D
     if not body.model:
         raise HTTPException(status_code=400, detail="请提供 model")
     cfg = registry.reload(model=body.model)
+    log_audit(_admin.id, "llm.switch", target=body.model)
     return cfg
+
+
+# ==================== 管理员：操作审计 ====================
+@app.get("/api/admin/audit")
+def admin_audit(limit: int = 100, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    rows = (
+        db.query(AuditLog, User.username)
+        .outerjoin(User, AuditLog.admin_id == User.id)
+        .order_by(AuditLog.created_at.desc())
+        .limit(min(max(limit, 1), 500))
+        .all()
+    )
+    return [
+        {
+            "id": a.id, "admin": uname or "-", "action": a.action,
+            "target": a.target, "detail": a.detail,
+            "created_at": a.created_at.isoformat() if a.created_at else None,
+        }
+        for a, uname in rows
+    ]

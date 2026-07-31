@@ -76,3 +76,16 @@ class QaCandidate(Base):
     # pending / approved / rejected
     status = Column(String(16), default="pending", index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AuditLog(Base):
+    """管理员操作审计日志（best-effort 记录，独立会话写入）。"""
+
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    action = Column(String(64), nullable=False)  # e.g. llm.switch / knowledge.upload / qa.approve / user.toggle
+    target = Column(String(255), default="")
+    detail = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)

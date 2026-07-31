@@ -156,6 +156,8 @@ export const adminApi = {
     api.post<any>(`/api/admin/qa/${id}/decision`, { decision }),
   llmSwitch: (b: { model?: string }) =>
     api.post<any>("/api/admin/llm", b),
+  audit: (limit?: number) =>
+    api.get<any[]>(`/api/admin/audit${limit ? `?limit=${limit}` : ""}`),
 };
 
 // ==================== 受鉴权媒体（历史图片，Blob 缓存） ====================

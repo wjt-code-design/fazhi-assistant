@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { api, adminApi } from "@/lib/api";
 import { Logo, Spinner, StatCard, Badge, SectionTitle, EmptyState, Skeleton } from "@/components/ui";
 
-type Section = "stats" | "users" | "knowledge" | "upload" | "conversations";
+type Section = "stats" | "users" | "knowledge" | "upload" | "conversations" | "audit";
 interface Stats {
   user_count: number;
   conversation_count: number;
@@ -48,6 +48,14 @@ interface KnowledgeHit {
   origin: string;
   score: number;
 }
+interface AuditRow {
+  id: number;
+  admin: string;
+  action: string;
+  target: string;
+  detail: string;
+  created_at?: string;
+}
 
 const ICONS: Record<Section, ReactNode> = {
   stats: (
@@ -65,6 +73,9 @@ const ICONS: Record<Section, ReactNode> = {
   conversations: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
   ),
+  audit: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
+  ),
 };
 
 const NAV: { key: Section; label: string }[] = [
@@ -73,6 +84,7 @@ const NAV: { key: Section; label: string }[] = [
   { key: "knowledge", label: "知识库" },
   { key: "upload", label: "文件上传" },
   { key: "conversations", label: "对话审查" },
+  { key: "audit", label: "操作日志" },
 ];
 
 export default function AdminPage() {
@@ -94,6 +106,7 @@ export default function AdminPage() {
   const [testing, setTesting] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [textModel, setTextModel] = useState("");
+  const [audit, setAudit] = useState<AuditRow[]>([]);
 
   // 仅管理员可进
   useEffect(() => {
@@ -117,6 +130,7 @@ export default function AdminPage() {
         setCandidates(c);
       },
       conversations: () => api.get<ConvRow[]>("/api/admin/conversations").then(setConvs),
+      audit: () => adminApi.audit().then(setAudit),
       upload: () => Promise.resolve(),
     };
     loaders[section]()
@@ -529,6 +543,37 @@ export default function AdminPage() {
                   </tbody>
                 </table>
                 {convs.length === 0 && <EmptyState title="暂无对话记录" />}
+              </div>
+            )}
+
+            {/* ===== 操作日志 ===== */}
+            {!loadingData && section === "audit" && (
+              <div className="card overflow-x-auto">
+                <table className="law-table">
+                  <thead>
+                    <tr>
+                      <th>时间</th>
+                      <th>管理员</th>
+                      <th>操作</th>
+                      <th>对象</th>
+                      <th>详情</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {audit.map((a) => (
+                      <tr key={a.id}>
+                        <td className="whitespace-nowrap text-slate">
+                          {a.created_at ? new Date(a.created_at).toLocaleString("zh-CN") : "-"}
+                        </td>
+                        <td className="font-medium">{a.admin}</td>
+                        <td><Badge kind="accent">{a.action}</Badge></td>
+                        <td className="max-w-[180px] truncate text-slate">{a.target}</td>
+                        <td className="max-w-[260px] truncate text-slate">{a.detail}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                {audit.length === 0 && <EmptyState title="暂无操作记录" />}
               </div>
             )}
           </div>
