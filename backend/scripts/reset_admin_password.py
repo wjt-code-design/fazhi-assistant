@@ -9,6 +9,10 @@ import argparse
 import os
 import sys
 
+HERE = os.path.dirname(os.path.abspath(__file__))
+BACKEND = os.path.dirname(HERE)
+sys.path.insert(0, BACKEND)
+
 from dotenv import load_dotenv
 
 load_dotenv()
