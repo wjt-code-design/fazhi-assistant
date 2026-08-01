@@ -30,7 +30,7 @@ CHUNK_MAX = 800      # 条文超过此长度触发句切
 SENT_CHUNK = 500     # 句切 chunk 大小
 SENT_OVERLAP = 60
 MIN_ARTICLE = 10     # 短于此的「条文」视为 TOC 残留/误识别，丢弃
-TOC_MAX_SKIP = 200   # 目录跳过安全上限（防无退出条件的文档被整篇跳过）
+TOC_MAX_SKIP = 500   # 目录跳过安全上限（防无退出条件的文档被整篇跳过；重复标题退出为主机制）
 
 _PARA_SPLITTER = RecursiveCharacterTextSplitter(
     chunk_size=600, chunk_overlap=80, separators=["\n\n", "\n", "。", "；", ". ", " ", ""]
@@ -47,21 +47,27 @@ class Chunk:
 
 
 def _strip_toc(lines: List[str]) -> List[str]:
-    """剔除目录页区域：遇「目 录」行进入 TOC 态，跳过条目行，直到正文标记/长内容行退出。
+    """剔除目录页区域：遇「目 录」行进入 TOC 态，跳过条目行。
 
-    正文的章节标题（如「第一章 总则」）与 TOC 条目形态相同，需**向前看**判断：
-    其后紧跟长内容行（>60 字且含句号）视为正文标题，退出 TOC 并保留该行。
+    退出条件（按可靠性排序）：
+    1. **章节标题重复出现** = 正文开始（TOC 里的「第一章 总则」在正文必然再次出现，
+       这是最可靠的结构信号——比"长内容行"启发式稳，短条文（如第一条仅 50 字）不会被吞）。
+    2. 「正文」显式标记。
+    3. 长内容行（>60 字且含句号）——兜底（目录行通常很短）。
+    4. TOC_MAX_SKIP 安全上限（防止无退出条件的文档被整篇跳过）。
     """
     out: List[str] = []
     i, n = 0, len(lines)
     in_toc = False
     skipped = 0
+    seen_headings = set()
     while i < n:
         line = lines[i]
         s = line.strip()
         if not in_toc:
             if TOC_RE.match(s):
                 in_toc = True
+                seen_headings.clear()
                 i += 1
                 continue
             out.append(line)
@@ -78,21 +84,38 @@ def _strip_toc(lines: List[str]) -> List[str]:
             out.append(line)
             i += 1
             continue
+        if CHAPTER_RE.match(s) or FREE_CHAPTER_RE.match(s):
+            if s in seen_headings:
+                in_toc = False  # 章节标题重复出现 = 正文开始
+                out.append(line)
+                i += 1
+                continue
+            seen_headings.add(s)
+            # 仍是首次出现的目录条目；向后看长内容行（无重复标题文档的兜底）
+            j = i + 1
+            while j < n and not lines[j].strip():
+                j += 1
+            if j < n and len(lines[j].strip()) > 60 and "。" in lines[j]:
+                in_toc = False
+                out.append(line)
+                i += 1
+                continue
+            i += 1
+            continue
+        if ARTICLE_RE.match(s):
+            if len(s) > 60 and "。" in s:
+                in_toc = False  # 目录里出现完整条文 = 正文开始
+                out.append(line)
+                i += 1
+                continue
+            i += 1  # 目录条目（短行）：跳过
+            continue
+        # 其他行（目录标题/页码/说明）：长内容行退出，短行跳过
         if len(s) > 60 and "。" in s:
             in_toc = False
             out.append(line)
             i += 1
             continue
-        if CHAPTER_RE.match(s) or FREE_CHAPTER_RE.match(s):
-            j = i + 1
-            while j < n and not lines[j].strip():
-                j += 1
-            if j < n and len(lines[j].strip()) > 60 and "。" in lines[j]:
-                in_toc = False  # 正文章节标题：退出 TOC 并保留
-                out.append(line)
-                i += 1
-                continue
-        # 目录条目行：跳过
         i += 1
     return out
 

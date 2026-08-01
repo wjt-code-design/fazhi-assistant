@@ -26,6 +26,8 @@ from retrieval_core import STATUS_WHITELIST  # noqa: E402
 DEFAULT_INPUT = os.path.join(BACKEND, "..", "data", "laws_extra.json")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _REQUIRED = ("title", "article_number", "content")
+# 占位符拦截：防止「忘了替换原文」就导入（新手流程保护）
+_PLACEHOLDER_RE = re.compile(r"请粘贴|条文原文，一字不差|【[^】]*原文[^】]*】|（条文原文|请替换|示例法律名称")
 
 
 def validate_entry(e: dict) -> list:
@@ -33,6 +35,10 @@ def validate_entry(e: dict) -> list:
     for k in _REQUIRED:
         if not (e.get(k) or "").strip():
             errors.append(f"缺少必填字段 {k}")
+    content = (e.get("content") or "").strip()
+    title = (e.get("title") or "").strip()
+    if _PLACEHOLDER_RE.search(content) or _PLACEHOLDER_RE.search(title):
+        errors.append("content/title 仍为占位符，请粘贴真实条文原文")
     status = (e.get("status") or "现行").strip()
     if status not in STATUS_WHITELIST:
         errors.append(f"status 必须是 {'/'.join(STATUS_WHITELIST)}，当前为 {status!r}")

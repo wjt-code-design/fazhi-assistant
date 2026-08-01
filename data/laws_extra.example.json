@@ -4,14 +4,14 @@
   "_comment3": "注意：若 (title, article_number) 与 data/laws.json 的种子条文重复，脚本会警告并跳过——那种内容应直接改 laws.json 后重建。",
   "_comment4": "导入幂等：同 (title, article_number) 重复导入会替换旧内容，不会翻倍。",
   "entries": [
-    {
-      "title": "（示例法律名称，请替换）",
-      "article_number": "第X条",
-      "category": "（分类）",
-      "content": "（示例：请在此粘贴条文权威原文，一字不差）",
-      "status": "现行",
-      "effective_from": "",
-      "effective_to": ""
-    }
+      {
+        "title": "劳动法",
+        "article_number": "第三条",
+        "category": "劳动法",
+        "content": "（条文原文，一字不差）",
+        "status": "现行",
+        "effective_from": "1995-01-01",
+        "effective_to": ""
+      }
   ]
 }

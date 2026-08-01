@@ -7,6 +7,7 @@
 """
 import math
 import os
+import re
 import threading
 from datetime import date
 from typing import List, Optional, Tuple
@@ -18,9 +19,95 @@ import retrieval_core as rc
 
 from settings import settings
 
+# ---- 条号直查路由（阶段7.2）：《法名》第X条 / 法名第X条 → 精确查找，零嵌入零检索 ----
+_ART_FULL_RE = re.compile(
+    r"《([^》]{1,24}?)》\s*(第[零〇○一二三四五六七八九十百千万0-9０-９]+条(?:之[一二三四五六七八九十百千万0-9０-９]+)?)"
+)
+_ART_NO_BRACKET_RE = re.compile(
+    r"(?<!《)([一-龥]{1,13}?(?:法|典|条例|规定|办法))"
+    r"\s*(第[零〇○一二三四五六七八九十百千万0-9０-９]+条(?:之[一二三四五六七八九十百千万0-9０-９]+)?)"
+)
+_PREFIX_CN = "中华人民共和国"
+
+_CN_DIGITS = "零一二三四五六七八九"  # 下标即数字值（d=1 → 一）
+
+
+def _num_to_cn(n: int) -> str:
+    """阿拉伯数字条号 → 中文条号（1→一, 10→十, 19→十九, 108→一百零八, 1260→一千二百六十）。"""
+    if n == 0:
+        return "零"
+    s = str(n)
+    length = len(s)
+    out = []
+    for i, ch in enumerate(s):
+        d = int(ch)
+        pos = length - i - 1
+        if d == 0:
+            if out and out[-1] != "零" and any(int(c) != 0 for c in s[i + 1:]):
+                out.append("零")
+            continue
+        if pos == 1 and d == 1 and i == 0 and length > 1:
+            pass  # 十位为 1 且为首位：不写前导「一」（13=十三，不是一十三）
+        else:
+            out.append(_CN_DIGITS[d])
+        if pos % 4 == 1:
+            out.append("十")
+        elif pos % 4 == 2:
+            out.append("百")
+        elif pos % 4 == 3:
+            out.append("千")
+        elif pos == 4:
+            out.append("万")
+    return "".join(out)
+
+
+def _normalize_article(art: str) -> str:
+    """条号归一：〇→零（«第一百〇一条» 与 «第一百零一条» 视为同一）；阿拉伯数字转中文。"""
+    m = re.match(r"^第([零〇○一二三四五六七八九十百千万0-9０-９]+)条(之[一二三四五六七八九十百千万0-9０-９]+)?$", art)
+    if not m:
+        return art
+    num = m.group(1).replace("〇", "零").replace("○", "零")
+    if num.isdigit():
+        num = _num_to_cn(int(num))
+    tail = m.group(2) or ""
+    if tail:
+        tail = tail.replace("〇", "零").replace("○", "零")
+        if tail[1:].isdigit():
+            tail = "之" + _num_to_cn(int(tail[1:]))
+    return "第" + num + "条" + tail
+
+
+def parse_article_query(query: str):
+    """识别「《劳动法》第三条」「中华人民共和国劳动合同法第十九条」「刑法第13条」→ (source, article) 或 None。"""
+    m = _ART_FULL_RE.search(query) or _ART_NO_BRACKET_RE.search(query)
+    if not m:
+        return None
+    name = m.group(1).strip()
+    if name.startswith(_PREFIX_CN):
+        name = name[len(_PREFIX_CN):]
+    return name, _normalize_article(m.group(2))
+
+
+def exact_article_lookup(source: str, article: str, cutoff: Optional[str] = None) -> List[Document]:
+    """精确条号查找（含时效过滤，与检索同口径）。返回匹配 Document 列表。"""
+    cutoff = cutoff or date.today().isoformat()
+    data = vectorstore._collection.get(
+        where={"$and": [{"source": source}, {"article": article}]},
+        include=["documents", "metadatas"],
+    )
+    docs = []
+    for i in range(len(data["ids"])):
+        meta = data["metadatas"][i]
+        if not rc.is_valid_by_time(meta, cutoff):
+            continue
+        docs.append(Document(page_content=data["documents"][i], metadata=meta))
+    return docs
+
 RETRIEVAL_RERANK = settings.feature_rerank
 HYBRID = settings.feature_hybrid
-BM25_K_MULT = 2
+# 池放大倍数：千级语料下小池会丢掉相关条文（RRF 需要条文同时进双池才有融合分）。
+# 实测：k=4 时池=8，相关条文排第 6/10 位会掉出 top-4；池=16 后恢复。
+BM25_K_MULT = 4
 # 向量池放大倍数：先取大池，Python 侧按时效谓词过滤后再取 top-n（阶段5）。
 # 原因：chromadb 0.4.24 的 where 不支持字符串日期比较，过滤必须留在 Python 侧。
 VECTOR_POOL_MULT = 4
@@ -152,7 +239,14 @@ def retrieve(
     category: Optional[str] = None,
     cutoff: Optional[str] = None,
 ) -> List[Document]:
-    """兼容旧调用：默认走混合检索。cutoff 缺省为今天。"""
+    """兼容旧调用。条号直查路由优先（《法名》第X条 → 精确查找，确定性命中）；
+    未识别或未命中则回退混合检索。cutoff 缺省为今天。"""
+    parsed = parse_article_query(query)
+    if parsed:
+        source, article = parsed
+        exact = exact_article_lookup(source, article, cutoff)
+        if exact:
+            return exact
     return hybrid_retrieve(query, k, category, cutoff)
 
 

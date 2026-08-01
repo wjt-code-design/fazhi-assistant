@@ -32,3 +32,7 @@ out/
 # ===== 其他 =====
 *.log
 .DS_Store
+
+# 法律批量导入产物（可再生成）
+data/laws_raw/
+data/laws_clean/
