@@ -1,6 +1,7 @@
 [
   {
     "id": 1,
+    "type": "语义适用",
     "question": "劳动合同试用期最长多久？",
     "expected_sources": ["劳动合同法"],
     "expected_articles": ["第十九条"],
@@ -8,6 +9,7 @@
   },
   {
     "id": 2,
+    "type": "语义适用",
     "question": "网购七天无理由退货有法律依据吗？",
     "expected_sources": ["消费者权益保护法"],
     "expected_articles": ["第二十五条"],
@@ -15,6 +17,7 @@
   },
   {
     "id": 3,
+    "type": "语义适用",
     "question": "民事权利的诉讼时效是几年？",
     "expected_sources": ["民法典"],
     "expected_articles": ["第一百八十八条"],
@@ -22,6 +25,7 @@
   },
   {
     "id": 4,
+    "type": "条号检索",
     "question": "刑法第十三条讲了什么？",
     "expected_sources": ["刑法"],
     "expected_articles": ["第十三条"],
@@ -29,6 +33,7 @@
   },
   {
     "id": 5,
+    "type": "语义适用",
     "question": "醉酒驾驶会被吊销驾照吗？",
     "expected_sources": ["道路交通安全法"],
     "expected_articles": ["第九十一条"],
@@ -36,9 +41,186 @@
   },
   {
     "id": 6,
+    "type": "语义适用",
     "question": "一个民事合同要有效，需要满足哪些条件？",
     "expected_sources": ["民法典"],
     "expected_articles": ["第一百四十三条"],
     "expected_keywords": ["民事行为能力"]
+  },
+  {
+    "id": 7,
+    "type": "语义适用",
+    "question": "建立劳动关系应当订立书面劳动合同吗？",
+    "expected_sources": ["劳动合同法"],
+    "expected_articles": ["第十条"],
+    "expected_keywords": ["书面"]
+  },
+  {
+    "id": 8,
+    "type": "语义适用",
+    "question": "经济补偿按工作年限每满一年支付几个月工资？",
+    "expected_sources": ["劳动合同法"],
+    "expected_articles": ["第四十七条"],
+    "expected_keywords": ["一个月工资"]
+  },
+  {
+    "id": 9,
+    "type": "语义适用",
+    "question": "自然人之间的借款合同什么时候成立？",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第六百七十九条"],
+    "expected_keywords": ["提供借款"]
+  },
+  {
+    "id": 10,
+    "type": "语义适用",
+    "question": "遗产的法定继承顺序是什么？",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第一千一百二十七条"],
+    "expected_keywords": ["第一顺序"]
+  },
+  {
+    "id": 11,
+    "type": "跨法混淆",
+    "question": "正当防卫明显超过必要限度造成重大损害怎么处理？",
+    "expected_sources": ["刑法"],
+    "expected_articles": ["第二十条"],
+    "expected_keywords": ["正当防卫"]
+  },
+  {
+    "id": 12,
+    "type": "语义适用",
+    "question": "盗窃公私财物数额较大的处几年有期徒刑？",
+    "expected_sources": ["刑法"],
+    "expected_articles": ["第二百六十四条"],
+    "expected_keywords": ["盗窃"]
+  },
+  {
+    "id": 13,
+    "type": "语义适用",
+    "question": "电商经营者搭售商品应如何提示消费者？",
+    "expected_sources": ["电子商务法"],
+    "expected_articles": ["第十九条"],
+    "expected_keywords": ["搭售"]
+  },
+  {
+    "id": 14,
+    "type": "语义适用",
+    "question": "行政处罚中哪些情形当事人有权要求听证？",
+    "expected_sources": ["行政处罚法"],
+    "expected_articles": ["第六十三条"],
+    "expected_keywords": ["听证"]
+  },
+  {
+    "id": 15,
+    "type": "语义适用",
+    "question": "网络服务提供者接到侵权通知后应采取什么措施？",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第一千一百九十五条"],
+    "expected_keywords": ["通知"]
+  },
+  {
+    "id": 16,
+    "type": "跨法混淆",
+    "question": "机动车交通事故先由交强险赔偿的法律依据是什么？",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第一千二百一十三条"],
+    "expected_keywords": ["强制保险"]
+  },
+  {
+    "id": 17,
+    "type": "语义适用",
+    "question": "用人单位超一个月不签书面劳动合同要支付什么？",
+    "expected_sources": ["劳动合同法"],
+    "expected_articles": ["第八十二条"],
+    "expected_keywords": ["二倍"]
+  },
+  {
+    "id": 18,
+    "type": "条号检索",
+    "question": "在道路上醉酒驾驶机动车构成什么罪？",
+    "expected_sources": ["刑法"],
+    "expected_articles": ["第一百三十三条之一"],
+    "expected_keywords": ["醉酒"]
+  },
+  {
+    "id": 19,
+    "type": "语义适用",
+    "question": "处理敏感个人信息需要取得单独同意吗？",
+    "expected_sources": ["个人信息保护法"],
+    "expected_articles": ["第二十九条"],
+    "expected_keywords": ["单独同意"]
+  },
+  {
+    "id": 20,
+    "type": "语义适用",
+    "question": "申请行政复议的期限一般是多久？",
+    "expected_sources": ["行政复议法"],
+    "expected_articles": ["第二十条"],
+    "expected_keywords": ["六十日"]
+  },
+  {
+    "id": 21,
+    "type": "跨法混淆",
+    "question": "股东未按期足额缴纳出资应当承担什么责任？",
+    "expected_sources": ["公司法"],
+    "expected_articles": ["第四十九条"],
+    "expected_keywords": ["出资"]
+  },
+  {
+    "id": 22,
+    "type": "条号检索",
+    "question": "中华人民共和国的一切权力属于谁？",
+    "expected_sources": ["宪法（1982年）"],
+    "expected_articles": ["第二条"],
+    "expected_keywords": ["人民"]
+  },
+  {
+    "id": 23,
+    "type": "语义适用",
+    "question": "刑事案件中证明被告人有罪的举证责任由谁承担？",
+    "expected_sources": ["刑事诉讼法"],
+    "expected_articles": ["第五十一条"],
+    "expected_keywords": ["公诉案件"]
+  },
+  {
+    "id": 24,
+    "type": "语义适用",
+    "question": "民事诉讼当事人对自己提出的主张有责任提供什么？",
+    "expected_sources": ["民事诉讼法"],
+    "expected_articles": ["第六十七条"],
+    "expected_keywords": ["证据"]
+  },
+  {
+    "id": 25,
+    "type": "语义适用",
+    "question": "注册商标的有效期是多少年？",
+    "expected_sources": ["商标法"],
+    "expected_articles": ["第三十九条"],
+    "expected_keywords": ["十年"]
+  },
+  {
+    "id": 26,
+    "type": "语义适用",
+    "question": "生产经营单位主要负责人对安全生产工作负什么责？",
+    "expected_sources": ["安全生产法"],
+    "expected_articles": ["第五条"],
+    "expected_keywords": ["全面负责"]
+  },
+  {
+    "id": 27,
+    "type": "语义适用",
+    "question": "保险事故中被保险人向保险人请求赔偿的诉讼时效是多久？",
+    "expected_sources": ["保险法"],
+    "expected_articles": ["第二十六条"],
+    "expected_keywords": ["二年"]
+  },
+  {
+    "id": 28,
+    "type": "跨法混淆",
+    "question": "未成年人的父母是其监护人吗？",
+    "expected_sources": ["未成年人保护法"],
+    "expected_articles": ["第七条"],
+    "expected_keywords": ["监护"]
   }
 ]

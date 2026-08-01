@@ -1,0 +1,86 @@
+[
+  {
+    "id": "n1",
+    "category": "out_of_kb",
+    "question": "工伤保险条例里规定的工伤认定标准是什么？",
+    "expected_behavior": "拒答并说明：涉及行政法规《工伤保险条例》，当前库仅收录法律层级，建议查阅该条例原文",
+    "note": "行政法规未收录（COVERAGE 缺口2）"
+  },
+  {
+    "id": "n2",
+    "category": "out_of_kb",
+    "question": "最高人民法院关于民间借贷的司法解释对利率上限怎么规定？",
+    "expected_behavior": "拒答并说明：涉及司法解释，当前库未收录，建议查阅《民间借贷司法解释》原文",
+    "note": "司法解释未收录（COVERAGE 缺口1，最大缺口）"
+  },
+  {
+    "id": "n3",
+    "category": "out_of_kb",
+    "question": "劳动合同法实施条例对无固定期限合同有哪些细化规定？",
+    "expected_behavior": "拒答并说明：涉及行政法规《劳动合同法实施条例》，未收录；可改问《劳动合同法》本身的规定",
+    "note": "行政法规未收录"
+  },
+  {
+    "id": "n4",
+    "category": "abolished",
+    "question": "根据合同法第五十二条，合同无效的情形有哪些？",
+    "expected_behavior": "说明《合同法》已被《民法典》取代废止，现行依据为《民法典》合同编（如第144/146/153/154条）",
+    "note": "废止法错误前提；库中刻意不收合同法，防引用过期条文"
+  },
+  {
+    "id": "n5",
+    "category": "abolished",
+    "question": "婚姻法规定的夫妻共同财产怎么分割？",
+    "expected_behavior": "说明《婚姻法》已废止，现行依据为《民法典》婚姻家庭编（第1062条等）",
+    "note": "废止法错误前提"
+  },
+  {
+    "id": "n6",
+    "category": "underspecified",
+    "question": "这个合法吗？",
+    "expected_behavior": "反问澄清：请说明具体行为/场景（缺少主体与事实，无法判断）",
+    "note": "模糊：缺主体+缺事实（UAEval4RAG underspecified）"
+  },
+  {
+    "id": "n7",
+    "category": "underspecified",
+    "question": "我想咨询一下法律问题。",
+    "expected_behavior": "反问澄清：请描述具体遇到的问题（范围过宽，无检索线索）",
+    "note": "模糊：范围过宽"
+  },
+  {
+    "id": "n8",
+    "category": "underspecified",
+    "question": "他这样做法违反第几条？",
+    "expected_behavior": "反问澄清：请说明『他』的具体行为及涉及哪部法律（代词无指代）",
+    "note": "模糊：代词无指代"
+  },
+  {
+    "id": "n9",
+    "category": "chitchat",
+    "question": "你好！",
+    "expected_behavior": "简短问候并引导回法律咨询主题，不回答法律问题",
+    "note": "闲聊短接（阶段7 chat 带）"
+  },
+  {
+    "id": "n10",
+    "category": "chitchat",
+    "question": "今天天气怎么样？",
+    "expected_behavior": "礼貌说明本助手只提供法律咨询，引导提出法律问题",
+    "note": "非法律闲聊"
+  },
+  {
+    "id": "n11",
+    "category": "out_of_kb",
+    "question": "某地方法院对这类案件的判决倾向是什么？",
+    "expected_behavior": "说明本库为条文库，不含裁判文书/判例，无法提供判决倾向",
+    "note": "案例/裁判文书未收录（COVERAGE 缺口5）"
+  },
+  {
+    "id": "n12",
+    "category": "out_of_kb",
+    "question": "网络借贷信息中介机构业务活动的部门规章有哪些要求？",
+    "expected_behavior": "拒答并说明：涉及部门规章，当前库未收录",
+    "note": "部门规章未收录（COVERAGE 缺口3）"
+  }
+]
