@@ -1,0 +1,36 @@
+"""意图分类（Step A）：把「元问题/学习辅助/作弊索取」从真实法律咨询里分流。
+
+纯函数，无外部依赖（测试不拖入 FastAPI/DB）。修复「考试题」误判：
+查询含「考试/做题」曾被检索召回刑法284条之一（考试作弊罪）+ 欺凌条文并堆砌，
+根因是元问题被当成法律问题去检索——应先识别意图，元问题不走条文检索。
+
+标签：
+- cheating_request：明确索取试题答案/代考/卖答案/泄题 → 拒绝 + 释法
+- study_aid：法学生做题/理解法条/学术分析 → 学习辅助框架（不堆检索条文）
+- legal_query：真实场景法律咨询 → 正常 RAG（默认）
+"""
+
+import re
+
+# 作弊索取：出现即判 cheating（优先级最高，压过 study 措辞）
+_CHEATING_KEYWORDS = ("代考", "泄题", "枪手", "透题", "卖答案", "买答案")
+# 「索取答案」双向语序：给/要/求/发…答案，或 答案…给/发/告诉
+_ANSWER_SEEK_RE = re.compile(r"(给|要|求|发|买|卖|来|告诉).{0,8}答案|答案.{0,6}(给|发|告诉)")
+
+# 学习辅助强标记（出现即判，歧义小）：明确的题型/身份/做题动作
+_STUDY_STRONG = (
+    "选择题", "场景题", "案例分析题", "考试题", "这道题",
+    "做题", "解题", "法学生", "备考", "学习辅助",
+)
+# 「帮我做/分析/理解/讲解 + 学习对象(题/法条/这道/选择/场景)」——
+# 必须有学习对象，避免把「帮我分析我这个纠纷」这类真实咨询误判为学习辅助
+_STUDY_HELP_RE = re.compile(r"帮我(做|分析|理解|讲解).{0,6}(题|法条|这道|选择|场景)")
+
+
+def classify_intent(text: str) -> str:
+    t = (text or "").strip()
+    if any(k in t for k in _CHEATING_KEYWORDS) or _ANSWER_SEEK_RE.search(t):
+        return "cheating_request"
+    if any(k in t for k in _STUDY_STRONG) or _STUDY_HELP_RE.search(t):
+        return "study_aid"
+    return "legal_query"

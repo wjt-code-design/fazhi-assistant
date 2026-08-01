@@ -32,7 +32,15 @@ from auth import hash_password, verify_password, create_token, get_current_user,
 import knowledge_service as ks
 from llm_registry import registry
 from memory import load_context, recent_messages, needs_compress, compress, rewrite_query
-from retrieval import retrieve, grounded_top_score, retrieve_for_test, citation_verify
+from retrieval import retrieve, grounded_top_score, retrieve_for_test, citation_verify, exact_article_lookup
+from intent import classify_intent
+
+
+def _cheating_docs():
+    """作弊路径定向检索考试作弊相关条文，使释法引用有据（避免通用检索召回无关条文）。"""
+    docs = exact_article_lookup("刑法", "第二百八十四条之一")  # 组织考试作弊罪
+    docs += exact_article_lookup("治安管理处罚法", "第二十七条")
+    return docs
 from multimodal import validate_image, persist_image, build_vision_content, describe_image, MEDIA_DIR
 from curation import should_curate
 from settings import settings
@@ -53,7 +61,30 @@ SYSTEM_BASE = (
     "1. 只依据提供的条文与上下文，不编造；条文不足时说明“根据现有资料无法完整回答”。\n"
     "2. 引用时标注来源（如“根据《劳动合同法》第十九条”）。\n"
     "3. 回答控制在 300 字以内。\n"
-    "4. 本答复仅供参考，不构成正式法律意见。"
+    "4. 避免绝对化措辞（如“一定/必然/绝对/100%”）；法律适用常有不确定性，宜用“可能/存在风险/需结合具体案情”。\n"
+    "5. 遇灰色地带或法律解释存在分歧时，开头标注“存在法律不确定性”，可简要并列不同解读及倾向，不替用户拍板。\n"
+    "6. 本答复仅供参考，不构成正式法律意见。"
+)
+
+# 学习辅助意图（Step A）：法学生做题/理解法条，引导推理而非给答案键
+SYSTEM_STUDY = (
+    "你是一名法律学习辅助助手。用户是法学生或法律学习者，希望理解、分析题目或法条，而非索取现成答案。\n"
+    "要求：\n"
+    "1. 作为学习辅助：可拆解法律关系、锁定争议焦点、逐选项分析对错依据、指出易混考点，引导用户自行推理。\n"
+    "2. 不直接给出“答案键”或代写（学术诚信）。\n"
+    "3. 若用户只表达意图（如“能帮我做考试题吗”）而未给出具体题目，先简要说明你能如何帮忙，并邀请其把题干与选项发来。\n"
+    "4. 只引用与该问题真正相关的条文并标注来源，绝不堆砌无关法条。\n"
+    "5. 本内容仅供学习参考，请核对条文原文。"
+)
+
+# 作弊索取意图（Step A）：拒绝协助 + 释明法律后果
+SYSTEM_CHEATING = (
+    "你是一名法律咨询助手。用户似乎在寻求获取考试答案、代考、买卖试题等违背学术诚信与法律的行为。\n"
+    "要求：\n"
+    "1. 明确、礼貌地拒绝协助作弊、代考、买卖答案。\n"
+    "2. 可依据检索条文说明相关法律后果（如组织考试作弊可能涉及《刑法》第二百八十四条之一），引用须标注来源、只用相关条文。\n"
+    "3. 引导用户通过正当途径学习备考。\n"
+    "4. 本答复仅供参考。"
 )
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
@@ -180,7 +211,13 @@ def get_media(filepath: str, _user: User = Depends(get_current_user)):
 
 # ==================== 问答编排（多轮 + 多模态 + 异步压缩 + 受控沉淀） ====================
 def _build_messages(pre: dict) -> list:
-    sys_text = SYSTEM_BASE
+    intent = pre.get("intent", "legal_query")
+    if intent == "study_aid":
+        sys_text = SYSTEM_STUDY
+    elif intent == "cheating_request":
+        sys_text = SYSTEM_CHEATING
+    else:
+        sys_text = SYSTEM_BASE
     if pre["summary"]:
         sys_text += f"\n\n【此前对话摘要】\n{pre['summary']}"
     history = []
@@ -228,9 +265,18 @@ def _pre(user_id: int, conversation_id, text: str, image):
             raw_query = "请描述并分析图片中的法律相关内容"
         rewritten = rewrite_query(registry.get(), recent, raw_query) if recent_ser else raw_query
 
-        docs = retrieve(rewritten, k=4)
+        # 意图分流（Step A）：学习辅助/元问题不做条文检索，避免「考试题」被误检索成作弊罪条文堆砌
+        intent = classify_intent(text or raw_query)
+        if intent == "study_aid":
+            docs = []
+            qa_hit = None
+        elif intent == "cheating_request":
+            docs = _cheating_docs()
+            qa_hit = None
+        else:
+            docs = retrieve(rewritten, k=4)
+            qa_hit = ks.search_qa(rewritten)
         context = format_docs(docs)
-        qa_hit = ks.search_qa(rewritten)
         sources = [
             {
                 "source": d.metadata.get("source", ""),
@@ -260,7 +306,7 @@ def _pre(user_id: int, conversation_id, text: str, image):
         return dict(
             conv_id=conv.id, summary=summary, recent=recent_ser, context=context,
             qa_hit=qa_hit, sources=sources, image=image, user_text=text or "",
-            image_rel=image_rel, thumb_rel=thumb_rel, rewritten=rewritten,
+            image_rel=image_rel, thumb_rel=thumb_rel, rewritten=rewritten, intent=intent,
         )
     finally:
         db.close()
