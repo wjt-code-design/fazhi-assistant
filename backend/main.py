@@ -77,6 +77,13 @@ SYSTEM_STUDY = (
     "5. 本内容仅供学习参考，请核对条文原文。"
 )
 
+# 输出格式规则（所有意图统一）：禁用 LaTeX 数学记号，普通文本聊天里 $...$ 会原样显示
+OUTPUT_FORMAT_RULE = (
+    "\n\n【输出格式】\n"
+    "不要使用 LaTeX 数学记号（如 $\\neq$、$\\le$ 之类带 $ 的公式），不要出现 $ 包裹的符号；"
+    "需要表达不等/比较等时，直接用普通字符（如 ≠、≤、≥），或用中文（如“不等于”“小于等于”）。"
+)
+
 # 图片分析轻量提示（Step D）：omni 原生读图，此处只规范输出结构与追问缺失信息，不做死板模板
 IMAGE_GUIDANCE = (
     "\n\n【图片分析要求】用户提供了图片：\n"
@@ -227,6 +234,7 @@ def _build_messages(pre: dict) -> list:
         sys_text = SYSTEM_CHEATING
     else:
         sys_text = SYSTEM_BASE
+    sys_text += OUTPUT_FORMAT_RULE
     if pre.get("image"):
         sys_text += IMAGE_GUIDANCE
     if pre["summary"]:
