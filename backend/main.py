@@ -77,6 +77,15 @@ SYSTEM_STUDY = (
     "5. 本内容仅供学习参考，请核对条文原文。"
 )
 
+# 图片分析轻量提示（Step D）：omni 原生读图，此处只规范输出结构与追问缺失信息，不做死板模板
+IMAGE_GUIDANCE = (
+    "\n\n【图片分析要求】用户提供了图片：\n"
+    "1. 先客观描述图中与法律相关的关键事实（文字内容/权利主体/客体/使用方式）。\n"
+    "2. 逐一指出涉及的法律问题并引用条文依据（只用检索到的相关条文）。\n"
+    "3. 对无法从图中确定的关键信息（如使用目的系商用或个人分享、是否已获授权），主动说明或追问。\n"
+    "4. 结论措辞留有余地，不绝对化。"
+)
+
 # 作弊索取意图（Step A）：拒绝协助 + 释明法律后果
 SYSTEM_CHEATING = (
     "你是一名法律咨询助手。用户似乎在寻求获取考试答案、代考、买卖试题等违背学术诚信与法律的行为。\n"
@@ -218,6 +227,8 @@ def _build_messages(pre: dict) -> list:
         sys_text = SYSTEM_CHEATING
     else:
         sys_text = SYSTEM_BASE
+    if pre.get("image"):
+        sys_text += IMAGE_GUIDANCE
     if pre["summary"]:
         sys_text += f"\n\n【此前对话摘要】\n{pre['summary']}"
     history = []
