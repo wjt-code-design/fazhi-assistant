@@ -110,25 +110,49 @@ def _norm_source(name: str) -> str:
     return name[len(_PREFIX_CN):] if name.startswith(_PREFIX_CN) else name
 
 
-def citation_verify(answer: str, sources: List[dict]) -> List[str]:
-    """防假引用（优化路线 B0.1）：抽取答案中所有《法名》第X条，与检索返回的 sources 比对。
+def _source_key(name: str) -> str:
+    """KB 源名归一（用于存在性比对）：去「中华人民共和国」前缀 + 去尾部（年份/版本）括注。
 
-    返回**异常引用**列表（引用了未出现在检索结果中的法条 = 疑似模型凭记忆编造）。
-    sources 每项含 {source, article}。法名/条号均归一化后比对（全称=简称、〇=零）。
+    必须处理「宪法（1982年）」：库存源名带括注，用户引「宪法」，不去括注会匹配不上 → 宪法引用全误报。
     """
-    ok_set = {(_norm_source(s.get("source", "")), _normalize_article(s.get("article", ""))) for s in sources}
-    bad = []
+    name = _norm_source(name)
+    return re.sub(r"（[^）]*）\s*$", "", name).strip()
+
+
+def article_in_kb(source: str, article: str) -> bool:
+    """条号是否存在于知识库（防假引用的存在性判据，不依赖本轮检索，以用户上传的库为准）。
+
+    按归一化 article 查库，再按 _source_key 容忍源名差异（如宪法括注）；
+    source+article 双重匹配，跨法编造（如电子商务法第1260条）会被正确判 False。
+    """
+    art = _normalize_article(article)
+    data = vectorstore._collection.get(where={"article": art}, include=["metadatas"])
+    sk = _source_key(source)
+    return any(_source_key((m or {}).get("source", "")) == sk for m in data["metadatas"])
+
+
+def extract_citations(answer: str) -> List[tuple]:
+    """抽取答案中所有《法名》第X条，按 (_source_key, _normalize_article) 去重，
+    返回 [(raw_name, raw_article, literal)]（保留首次出现的原文写法）。纯函数。"""
+    seen, out = set(), []
     for m in _ART_FULL_RE.finditer(answer):
-        key = (_norm_source(m.group(1)), _normalize_article(m.group(2)))
-        if key not in ok_set:
-            bad.append(m.group(0))
-    # 去重保序
-    seen, uniq = set(), []
-    for b in bad:
-        if b not in seen:
-            seen.add(b)
-            uniq.append(b)
-    return uniq
+        key = (_source_key(m.group(1)), _normalize_article(m.group(2)))
+        if key not in seen:
+            seen.add(key)
+            out.append((m.group(1), m.group(2), m.group(0)))
+    return out
+
+
+def citation_verify(answer: str, in_kb=None) -> List[str]:
+    """防假引用（优化路线 B0.1）：抽取答案中所有《法名》第X条，凡**不存在于知识库**者
+    判为疑似编造，返回其原文写法（按归一化 key 去重：全称/简称、中文/阿拉伯数字合并）。
+
+    判据是「知识库存在性」而非「本轮检索范围」——后者会误伤正确但未检索到的引用
+    （study_aid 不检索、legal_query 引用未进 top-k 的真实条文）。in_kb 可注入便于测试，
+    默认查真实知识库。
+    """
+    in_kb = in_kb or article_in_kb
+    return [literal for (name, art, literal) in extract_citations(answer) if not in_kb(name, art)]
 
 RETRIEVAL_RERANK = settings.feature_rerank
 HYBRID = settings.feature_hybrid

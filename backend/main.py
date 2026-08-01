@@ -395,11 +395,11 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     answer = ""
             else:
                 answer = clean_answer(answer)
-            # 引用校验（优化路线 B0.1，防假引用）：答案引用了检索范围外的法条 → 追加核对提示并记账
+            # 引用校验（优化路线 B0.1，防假引用）：答案引用了知识库中不存在的法条 → 追加核对提示并记账
             if answer:
-                bad_cites = citation_verify(answer, pre.get("sources") or [])
+                bad_cites = citation_verify(answer)
                 if bad_cites:
-                    note = "\n\n> 注：回答中引用的 " + "、".join(bad_cites) + " 未在本次检索范围内，建议核对条文原文。"
+                    note = "\n\n> 注：回答中引用的 " + "、".join(bad_cites) + " 未在知识库中检索到，建议核对条文原文。"
                     answer += note
                     yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
                     log_account(kind="citation_anomaly", conv_id=pre["conv_id"], user_id=user.id, detail=";".join(bad_cites)[:300])

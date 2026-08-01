@@ -17,47 +17,70 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 import retrieval as R
 
 
-# ---------------- citation_verify ----------------
-def test_citation_all_in_sources():
-    sources = [{"source": "劳动法", "article": "第三条"}, {"source": "民法典", "article": "第一百八十八条"}]
-    answer = "根据《劳动法》第三条和《民法典》第一百八十八条，得出结论。"
-    assert R.citation_verify(answer, sources) == []
+# ---------------- extract_citations（去重，纯函数） ----------------
+def test_extract_dedup_fullname_and_abbreviation():
+    # 同一条文全称+简称 → 去重为 1，保留首次原文写法
+    answer = "根据《中华人民共和国民法典》第一百八十二条以及《民法典》第一百八十二条的规定……"
+    cites = R.extract_citations(answer)
+    assert len(cites) == 1
+    assert cites[0][2] == "《中华人民共和国民法典》第一百八十二条"
 
 
-def test_citation_detects_hallucination():
-    sources = [{"source": "劳动法", "article": "第三条"}]
-    answer = "依据《劳动法》第三条，另见《刑法》第二百三十二条（编造的）。"
-    bad = R.citation_verify(answer, sources)
-    assert bad == ["《刑法》第二百三十二条"]
+def test_extract_dedup_chinese_and_arabic_numeral():
+    # 中文数字 + 阿拉伯数字同一条 → 去重为 1（数字归一）
+    answer = "《刑法》第二十条与《刑法》第20条都规定了正当防卫……"
+    assert len(R.extract_citations(answer)) == 1
 
 
-def test_citation_fullname_equals_shortname():
-    # 答案用全称，sources 用简称 → 视为同一，不报异常
-    sources = [{"source": "劳动合同法", "article": "第十九条"}]
-    answer = "见《中华人民共和国劳动合同法》第十九条。"
-    assert R.citation_verify(answer, sources) == []
+def test_extract_no_citations():
+    assert R.extract_citations("这个问题的答案如下……") == []
 
 
-def test_citation_zero_variant_normalized():
-    # 〇 与 零 归一后相同
-    sources = [{"source": "民法典", "article": "第一百零一条"}]
-    answer = "依据《民法典》第一百〇一条。"
-    assert R.citation_verify(answer, sources) == []
+# ---------------- citation_verify（知识库存在性校验，可注入 in_kb） ----------------
+def test_verify_in_kb_not_flagged():
+    in_kb = lambda name, art: R._normalize_article(art) in {"第十三条", "第二十条"}
+    assert R.citation_verify("依据《刑法》第十三条和第二十条。", in_kb) == []
 
 
-def test_citation_no_citations():
-    assert R.citation_verify("这个问题的答案如下……", [{"source": "刑法", "article": "第十三条"}]) == []
+def test_verify_not_in_kb_flagged():
+    in_kb = lambda name, art: False
+    assert R.citation_verify("依据《刑法》第九百九十九条。", in_kb) == ["《刑法》第九百九十九条"]
 
 
-def test_citation_empty_sources():
-    bad = R.citation_verify("根据《劳动法》第三条。", [])
-    assert bad == ["《劳动法》第三条"]
+def test_verify_mixed():
+    in_kb = lambda name, art: R._normalize_article(art) == "第十三条"
+    bad = R.citation_verify("《刑法》第十三条真实，《刑法》第九百九十九条编造。", in_kb)
+    assert bad == ["《刑法》第九百九十九条"]
 
 
-def test_citation_dedup():
-    sources = [{"source": "劳动法", "article": "第三条"}]
-    answer = "《刑法》第十三条，再说一次《刑法》第十三条。"
-    assert R.citation_verify(answer, sources) == ["《刑法》第十三条"]
+def test_verify_dedup_fullname_abbreviation():
+    # 全称+简称都不在库 → 只报一次
+    in_kb = lambda name, art: False
+    assert len(R.citation_verify("《中华人民共和国刑法》第二十条、《刑法》第二十条。", in_kb)) == 1
+
+
+def test_source_key_handles_xianfa_bracket():
+    # 宪法（1982年）括注：去前缀+去括注后与「宪法」匹配
+    assert R._source_key("宪法（1982年）") == "宪法"
+    assert R._source_key("中华人民共和国宪法（1982年）") == "宪法"
+    kb_sources = {"宪法"}  # 已去括注的库存源名
+    in_kb = lambda name, art: R._source_key(name) in kb_sources
+    assert R.citation_verify("《宪法》第二条。", in_kb) == []
+
+
+def test_verify_cross_law_fabrication():
+    # 跨法编造：第1260条只在民法典，挂到电子商务法名下 → 判不在库
+    kb = {("民法典", "第一千二百六十条")}
+    in_kb = lambda name, art: (R._source_key(name), R._normalize_article(art)) in kb
+    assert R.citation_verify("《电子商务法》第一千二百六十条。", in_kb) == ["《电子商务法》第一千二百六十条"]
+    assert R.citation_verify("《民法典》第一千二百六十条。", in_kb) == []
+
+
+# ---------------- citation_verify 真实知识库集成（默认 in_kb=article_in_kb） ----------------
+def test_verify_against_real_kb():
+    assert R.citation_verify("依据《刑法》第十三条。") == []  # 在库 → 不报
+    assert R.citation_verify("依据《刑法》第九百九十九条。") == ["《刑法》第九百九十九条"]  # 不存在 → 报
+    assert R.citation_verify("《宪法》第二条规定国家性质。") == []  # 宪法括注边界 → 在库不报
 
 
 # ---------------- _num_to_cn ----------------
