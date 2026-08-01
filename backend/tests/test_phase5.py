@@ -87,7 +87,7 @@ def test_admin_knowledge_add_contract_with_time_fields(monkeypatch):
             r = c.post("/api/admin/knowledge", json=body, headers=headers)
             assert r.status_code == 200, r.text
             assert r.json()["added_chunks"] >= 1
-            docs = c.get("/api/admin/knowledge", headers=headers).json()
+            docs = c.get("/api/admin/knowledge?source=test_phase5_tmp", headers=headers).json()["items"]
             mine = [d for d in docs if d["metadata"].get("source") == "test_phase5_tmp"]
             assert mine, "手动添加后应能在知识库列表查到"
             md = mine[0]["metadata"]

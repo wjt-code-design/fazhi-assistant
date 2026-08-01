@@ -22,7 +22,7 @@ import chunking
 import retrieval
 from models import QaCandidate
 
-_ALLOWED_EXT = {".txt", ".md", ".pdf"}
+_ALLOWED_EXT = {".txt", ".md", ".pdf", ".docx"}
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 # 受控沉淀采纳后的"已确认问答"集合：用 question 做向量，便于问题空间匹配复用
@@ -54,12 +54,22 @@ def validate_upload(filename: str, raw: bytes) -> str:
         raise ValueError("缺少文件名")
     ext = os.path.splitext(filename)[1].lower()
     if ext not in _ALLOWED_EXT:
-        raise ValueError(f"不支持的文件类型 {ext or '(无)'}，仅支持 txt/md/pdf")
+        raise ValueError(f"不支持的文件类型 {ext or '(无)'}，仅支持 txt/md/pdf/docx")
     if len(raw) > _MAX_UPLOAD_BYTES:
         raise ValueError(f"文件过大（>{_MAX_UPLOAD_BYTES // (1024 * 1024)}MB）")
     if ext == ".pdf":
         if not raw.startswith(b"%PDF"):
             raise ValueError("不是有效的 PDF 文件（魔数校验失败）")
+    elif ext == ".docx":
+        if not raw.startswith(b"PK"):
+            raise ValueError("不是有效的 docx（应为 zip 容器，魔数校验失败）")
+        try:
+            import zipfile
+
+            if "word/document.xml" not in zipfile.ZipFile(io.BytesIO(raw)).namelist():
+                raise ValueError("不是有效的 docx（缺少 word/document.xml）")
+        except zipfile.BadZipFile:
+            raise ValueError("docx 容器损坏，无法解析")
     else:
         try:
             raw.decode("utf-8")
@@ -72,13 +82,17 @@ def validate_upload(filename: str, raw: bytes) -> str:
 
 
 def parse_uploaded(filename: str, raw: bytes) -> str:
-    """从上传文件提取纯文本。txt/md 按编码读取，pdf 用 pypdf。"""
+    """从上传文件提取纯文本。txt/md 按编码读取，pdf 用 pypdf，docx 用 docx_utils。"""
     ext = os.path.splitext(filename)[1].lower()
     if ext == ".pdf":
         from pypdf import PdfReader
 
         reader = PdfReader(io.BytesIO(raw))
         text = "\n".join((page.extract_text() or "") for page in reader.pages)
+    elif ext == ".docx":
+        from docx_utils import extract
+
+        text, _warnings = extract(raw, filename)
     else:
         try:
             text = raw.decode("utf-8")
@@ -165,18 +179,27 @@ def delete_doc(doc_id: str):
     retrieval.invalidate()
 
 
-def list_docs():
-    data = _collection().get(include=["documents", "metadatas"])
-    out = []
-    for i, doc_id in enumerate(data["ids"]):
-        out.append(
-            {
-                "id": doc_id,
-                "content": data["documents"][i],
-                "metadata": (data["metadatas"][i] if data["metadatas"] else {}),
-            }
-        )
-    return out
+def list_docs(limit: int = 50, offset: int = 0, source: Optional[str] = None):
+    """分页返回知识片段：{"items": [...], "total": N}。
+
+    用 Chroma 原生 limit/offset（不全量拉取）——千级语料下避免一次序列化全部文档拖垮管理后台。
+    source 可选：按法律名精确过滤（管理员按法名筛查 / 测试定位用）。
+    """
+    col = _collection()
+    limit = max(1, min(int(limit), 500))
+    offset = max(0, int(offset))
+    where = {"source": source} if source else None
+    total = len(col.get(where=where)["ids"]) if where else col.count()
+    data = col.get(include=["documents", "metadatas"], limit=limit, offset=offset, where=where)
+    items = [
+        {
+            "id": data["ids"][i],
+            "content": data["documents"][i],
+            "metadata": (data["metadatas"][i] if data["metadatas"] else {}),
+        }
+        for i in range(len(data["ids"]))
+    ]
+    return {"items": items, "total": total}
 
 
 def count_docs(status: Optional[str] = None) -> int:

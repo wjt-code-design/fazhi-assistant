@@ -26,6 +26,11 @@ interface KnowledgeDoc {
   content: string;
   metadata: { source?: string; article?: string; origin?: string; status?: string; effective_from?: string; effective_to?: string };
 }
+interface KnowledgePage {
+  items: KnowledgeDoc[];
+  total: number;
+}
+const K_PAGE_SIZE = 50;
 interface ConvRow {
   id: number;
   username: string;
@@ -106,6 +111,8 @@ export default function AdminPage() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [users, setUsers] = useState<UserRow[]>([]);
   const [knowledge, setKnowledge] = useState<KnowledgeDoc[]>([]);
+  const [knowledgeTotal, setKnowledgeTotal] = useState(0);
+  const [kPage, setKPage] = useState(0);
   const [convs, setConvs] = useState<ConvRow[]>([]);
   const [loadingData, setLoadingData] = useState(false);
   const [uploadMsg, setUploadMsg] = useState<{ ok: boolean; text: string } | null>(null);
@@ -152,8 +159,11 @@ export default function AdminPage() {
       stats: () => api.get<Stats>("/api/admin/stats").then(setStats),
       users: () => api.get<UserRow[]>("/api/admin/users").then(setUsers),
       knowledge: async () => {
-        const k = await api.get<KnowledgeDoc[]>("/api/admin/knowledge");
-        setKnowledge(k);
+        const k = await api.get<KnowledgePage>(
+          `/api/admin/knowledge?limit=${K_PAGE_SIZE}&offset=${kPage * K_PAGE_SIZE}`
+        );
+        setKnowledge(k.items);
+        setKnowledgeTotal(k.total);
         const c = await adminApi.qaCandidates().catch(() => [] as QaCandidate[]);
         setCandidates(c);
       },
@@ -164,7 +174,7 @@ export default function AdminPage() {
     loaders[section]()
       .catch(() => {})
       .finally(() => setLoadingData(false));
-  }, [section, user]);
+  }, [section, user, kPage]);
 
   if (loading || !user || user.role !== "admin") return null;
 
@@ -196,8 +206,11 @@ export default function AdminPage() {
       });
       setAddMsg({ ok: true, text: `已入库「${addForm.title.trim()}」，稍后即可被检索引用。` });
       setAddForm({ title: "", article: "", content: "", status: "现行", effective_from: "", effective_to: "" });
-      const k = await api.get<KnowledgeDoc[]>("/api/admin/knowledge");
-      setKnowledge(k);
+      const k = await api.get<KnowledgePage>(
+        `/api/admin/knowledge?limit=${K_PAGE_SIZE}&offset=${kPage * K_PAGE_SIZE}`
+      );
+      setKnowledge(k.items);
+      setKnowledgeTotal(k.total);
     } catch (e) {
       setAddMsg({ ok: false, text: e instanceof Error ? e.message : "添加失败" });
     } finally {
@@ -510,7 +523,7 @@ export default function AdminPage() {
                 </div>
 
                 <p className="text-sm text-slate">
-                  共 <span className="font-serif font-semibold text-ink">{knowledge.length}</span> 条知识片段（含种子条文与上传内容）
+                  共 <span className="font-serif font-semibold text-ink">{knowledgeTotal}</span> 条知识片段（含种子条文与上传内容，分页显示）
                 </p>
                 {knowledge.map((k) => (
                   <div key={k.id} className="card card-hover law-border-l px-5 py-4">
@@ -543,6 +556,25 @@ export default function AdminPage() {
                   </div>
                 ))}
                 {knowledge.length === 0 && <EmptyState title="知识库为空" hint="通过「文件上传」添加法律条文，问答时即可检索引用" />}
+                {knowledgeTotal > K_PAGE_SIZE && (
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="text-sm text-slate">
+                      第 {kPage * K_PAGE_SIZE + 1}–{Math.min((kPage + 1) * K_PAGE_SIZE, knowledgeTotal)} 条 / 共 {knowledgeTotal} 条
+                    </span>
+                    <div className="flex gap-2">
+                      <button className="btn btn-outline" disabled={kPage === 0} onClick={() => setKPage((p) => Math.max(0, p - 1))}>
+                        上一页
+                      </button>
+                      <button
+                        className="btn btn-outline"
+                        disabled={(kPage + 1) * K_PAGE_SIZE >= knowledgeTotal}
+                        onClick={() => setKPage((p) => p + 1)}
+                      >
+                        下一页
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {/* 检索测试 */}
                 <div className="card mt-4 px-5 py-4">
@@ -613,14 +645,14 @@ export default function AdminPage() {
               <div>
                 <SectionTitle>上传法律知识文件</SectionTitle>
                 <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate">
-                  支持 .txt / .md / .pdf。文件内容会被切分并加入知识库，此后的提问即可检索并引用其中内容（RAG
+                  支持 .txt / .md / .pdf / .docx。文件内容会被切分并加入知识库，此后的提问即可检索并引用其中内容（RAG
                   知识库扩充，非模型训练）。
                 </p>
                 <div className="upload-zone mt-6" onClick={() => fileRef.current?.click()}>
                   <input
                     ref={fileRef}
                     type="file"
-                    accept=".txt,.md,.pdf"
+                    accept=".txt,.md,.pdf,.docx"
                     className="hidden"
                     onChange={(e) => onUpload(e.target.files)}
                   />
@@ -636,7 +668,7 @@ export default function AdminPage() {
                   </p>
                   <p className="mt-1 text-xs text-slate">单个文件 · 建议纯文本法律条文</p>
                   <div className="mt-4 flex items-center justify-center gap-2">
-                    {[".txt", ".md", ".pdf"].map((ext) => (
+                    {[".txt", ".md", ".pdf", ".docx"].map((ext) => (
                       <span key={ext} className="rounded-md border border-mist bg-parchment px-2 py-0.5 text-xs text-slate">
                         {ext}
                       </span>

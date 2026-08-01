@@ -32,7 +32,7 @@ from auth import hash_password, verify_password, create_token, get_current_user,
 import knowledge_service as ks
 from llm_registry import registry
 from memory import load_context, recent_messages, needs_compress, compress, rewrite_query
-from retrieval import retrieve, grounded_top_score, retrieve_for_test
+from retrieval import retrieve, grounded_top_score, retrieve_for_test, citation_verify
 from multimodal import validate_image, persist_image, build_vision_content, describe_image, MEDIA_DIR
 from curation import should_curate
 from settings import settings
@@ -334,6 +334,14 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     answer = ""
             else:
                 answer = clean_answer(answer)
+            # 引用校验（优化路线 B0.1，防假引用）：答案引用了检索范围外的法条 → 追加核对提示并记账
+            if answer:
+                bad_cites = citation_verify(answer, pre.get("sources") or [])
+                if bad_cites:
+                    note = "\n\n> 注：回答中引用的 " + "、".join(bad_cites) + " 未在本次检索范围内，建议核对条文原文。"
+                    answer += note
+                    yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
+                    log_account(kind="citation_anomaly", conv_id=pre["conv_id"], user_id=user.id, detail=";".join(bad_cites)[:300])
             if not answer:
                 # 防御：流式+非流式都空则明确告知。模型名不暴露给普通用户，仅在调用记账日志出现
                 yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
@@ -495,8 +503,8 @@ def admin_conversations(limit: int = 50, offset: int = 0, db: Session = Depends(
 
 # ==================== 管理员：知识库 ====================
 @app.get("/api/admin/knowledge")
-def admin_knowledge(_admin: User = Depends(require_admin)):
-    return ks.list_docs()
+def admin_knowledge(limit: int = 50, offset: int = 0, source: str = None, _admin: User = Depends(require_admin)):
+    return ks.list_docs(limit=limit, offset=offset, source=source)
 
 
 @app.post("/api/admin/knowledge")

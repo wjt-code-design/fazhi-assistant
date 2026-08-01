@@ -103,6 +103,33 @@ def exact_article_lookup(source: str, article: str, cutoff: Optional[str] = None
         docs.append(Document(page_content=data["documents"][i], metadata=meta))
     return docs
 
+
+def _norm_source(name: str) -> str:
+    """法名归一：去「中华人民共和国」前缀，便于答案引用与 sources 对齐。"""
+    name = (name or "").strip()
+    return name[len(_PREFIX_CN):] if name.startswith(_PREFIX_CN) else name
+
+
+def citation_verify(answer: str, sources: List[dict]) -> List[str]:
+    """防假引用（优化路线 B0.1）：抽取答案中所有《法名》第X条，与检索返回的 sources 比对。
+
+    返回**异常引用**列表（引用了未出现在检索结果中的法条 = 疑似模型凭记忆编造）。
+    sources 每项含 {source, article}。法名/条号均归一化后比对（全称=简称、〇=零）。
+    """
+    ok_set = {(_norm_source(s.get("source", "")), _normalize_article(s.get("article", ""))) for s in sources}
+    bad = []
+    for m in _ART_FULL_RE.finditer(answer):
+        key = (_norm_source(m.group(1)), _normalize_article(m.group(2)))
+        if key not in ok_set:
+            bad.append(m.group(0))
+    # 去重保序
+    seen, uniq = set(), []
+    for b in bad:
+        if b not in seen:
+            seen.add(b)
+            uniq.append(b)
+    return uniq
+
 RETRIEVAL_RERANK = settings.feature_rerank
 HYBRID = settings.feature_hybrid
 # 池放大倍数：千级语料下小池会丢掉相关条文（RRF 需要条文同时进双池才有融合分）。
