@@ -128,6 +128,13 @@ export default function AdminPage() {
   });
   const [addMsg, setAddMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [adding, setAdding] = useState(false);
+  const [previewText, setPreviewText] = useState("");
+  const [preview, setPreview] = useState<{
+    mode: string;
+    count: number;
+    chunks: { article: string; chapter: string; chars: number; content: string }[];
+  } | null>(null);
+  const [previewing, setPreviewing] = useState(false);
 
   // 仅管理员可进
   useEffect(() => {
@@ -215,6 +222,18 @@ export default function AdminPage() {
       setUploadMsg({ ok: false, text: e instanceof Error ? e.message : "上传失败" });
     } finally {
       setUploading(false);
+    }
+  }
+
+  async function runPreview() {
+    if (!previewText.trim()) return;
+    setPreviewing(true);
+    try {
+      setPreview(await adminApi.previewChunk(previewText));
+    } catch {
+      setPreview(null);
+    } finally {
+      setPreviewing(false);
     }
   }
 
@@ -638,6 +657,46 @@ export default function AdminPage() {
                     {uploadMsg.text}
                   </p>
                 )}
+
+                {/* 切分预览（阶段6）：结构化切分不写库，核对条号边界 */}
+                <div className="card mt-4 px-5 py-4">
+                  <SectionTitle>切分预览</SectionTitle>
+                  <p className="mt-2 text-sm text-slate">
+                    粘贴文档正文，预览结构化切分结果（按「第X条」边界、章节前缀、目录页跳过）。确认无误再上传正式入库。
+                  </p>
+                  <textarea
+                    className="input mt-3 min-h-[120px]"
+                    placeholder="粘贴法律文档正文…"
+                    value={previewText}
+                    onChange={(e) => setPreviewText(e.target.value)}
+                  />
+                  <div className="mt-3 flex items-center gap-3">
+                    <button className="btn btn-primary" onClick={runPreview} disabled={previewing || !previewText.trim()}>
+                      {previewing ? <Spinner /> : "预览切分"}
+                    </button>
+                    {preview && (
+                      <span className={`text-sm ${preview.mode === "structured" ? "text-jade" : "text-slate"}`}>
+                        {preview.mode === "structured"
+                          ? `结构化切分：${preview.count} 个片段`
+                          : `未识别到条号边界，回退段落切分：${preview.count} 个片段`}
+                      </span>
+                    )}
+                  </div>
+                  {preview && preview.chunks.length > 0 && (
+                    <div className="mt-3 space-y-2">
+                      {preview.chunks.map((c, i) => (
+                        <div key={i} className="rounded-lg border border-mist bg-parchment px-3 py-2">
+                          <div className="flex items-center gap-2 text-xs text-slate">
+                            {c.article && <Badge kind="accent">{c.article}</Badge>}
+                            {c.chapter && <span>{c.chapter}</span>}
+                            <span>{c.chars} 字</span>
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-sm text-ink">{c.content}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
 

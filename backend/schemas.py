@@ -114,6 +114,10 @@ class KnowledgeTestIn(BaseModel):
     query: str = Field(..., min_length=1, max_length=500)
 
 
+class PreviewChunkIn(BaseModel):
+    text: str = Field(..., min_length=1, max_length=200_000)
+
+
 # ===== 受控沉淀 =====
 class QaCandidateOut(BaseModel):
     id: int

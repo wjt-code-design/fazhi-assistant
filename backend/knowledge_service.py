@@ -15,20 +15,15 @@ from typing import Optional
 
 from langchain_core.documents import Document
 from langchain_chroma import Chroma
-from langchain_text_splitters import RecursiveCharacterTextSplitter
 from sqlalchemy.orm import Session
 
 from rag_chain import vectorstore, embeddings, BASE_DIR
+import chunking
 import retrieval
 from models import QaCandidate
 
 _ALLOWED_EXT = {".txt", ".md", ".pdf"}
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
-
-_seed_splitter = RecursiveCharacterTextSplitter(chunk_size=400, chunk_overlap=60)
-_upload_splitter = RecursiveCharacterTextSplitter(
-    chunk_size=600, chunk_overlap=80, separators=["\n\n", "\n", "。", "；", ". ", " ", ""]
-)
 
 # 受控沉淀采纳后的"已确认问答"集合：用 question 做向量，便于问题空间匹配复用
 _qa_store = Chroma(
@@ -92,6 +87,35 @@ def parse_uploaded(filename: str, raw: bytes) -> str:
     return text.strip()
 
 
+def add_chunks(
+    pairs: list,
+    source: str,
+    origin: str,
+    extra_meta: Optional[dict] = None,
+    file_hash_value: Optional[str] = None,
+) -> int:
+    """写入多 chunk（每 chunk 独立 metadata，如 article/chapter），返回写入数。
+
+    调用方负责幂等（查重/替换）；本函数只负责写库 + 失效缓存。
+    时效三键归一化（阶段5）在此统一处理：空值写 ""，status 缺省"现行"
+    （Chroma where 对缺失键语义不可靠，缺键会破坏时效过滤）。
+    """
+    base = {"source": source, "origin": origin}
+    if file_hash_value:
+        base["file_hash"] = file_hash_value
+    if extra_meta:
+        base.update({k: v for k, v in extra_meta.items() if v not in (None, "")})
+    base["effective_from"] = (extra_meta or {}).get("effective_from") or ""
+    base["effective_to"] = (extra_meta or {}).get("effective_to") or ""
+    base["status"] = (extra_meta or {}).get("status") or "现行"
+    docs = [Document(page_content=c, metadata={**base, **m}) for c, m in pairs if (c or "").strip()]
+    if not docs:
+        return 0
+    vectorstore.add_documents(docs)
+    retrieval.invalidate()
+    return len(docs)
+
+
 def add_text(
     content: str,
     source: str,
@@ -100,28 +124,40 @@ def add_text(
     extra_meta: Optional[dict] = None,
     file_hash_value: Optional[str] = None,
 ) -> int:
-    """切片入库，返回写入切片数。同 file_hash 重传会先替换旧切片。"""
+    """切片入库，返回写入切片数。
+
+    - upload：走结构化切分（条号边界/章节前缀/目录跳过，见 chunking.split_law_document）；
+      同 file_hash 重传先替换旧切片。
+    - manual/import：单条条文切分；按 (source, article) 幂等——重复添加=更新而非堆积。
+    - seed：knowledge_base.build 直写，不走本函数。
+    """
     if file_hash_value:
         try:
             _collection().delete(where={"file_hash": file_hash_value})
         except Exception:
             pass
-    splitter = _upload_splitter if origin == "upload" else _seed_splitter
-    chunks = splitter.split_text(content)
-    meta = {"source": source, "article": article, "origin": origin}
-    if file_hash_value:
-        meta["file_hash"] = file_hash_value
-    if extra_meta:
-        meta.update({k: v for k, v in extra_meta.items() if v not in (None, "")})
-    # 时效三键归一化（阶段5）：强制存在，空值写 ""，status 缺省"现行"。
-    # 理由：Chroma where 对缺失键的 $eq/$ne 语义不可靠，缺键会破坏时效过滤（见计划 D1）。
-    meta["effective_from"] = (extra_meta or {}).get("effective_from") or ""
-    meta["effective_to"] = (extra_meta or {}).get("effective_to") or ""
-    meta["status"] = (extra_meta or {}).get("status") or "现行"
-    docs = [Document(page_content=c, metadata=meta) for c in chunks]
-    vectorstore.add_documents(docs)
-    retrieval.invalidate()
-    return len(docs)
+    if origin == "upload":
+        chunks = chunking.split_law_document(content)
+        pairs = [
+            (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")})
+            for c in chunks
+        ]
+    else:
+        if origin in ("manual", "import") and article:
+            try:
+                stale = _collection().get(
+                    where={"$and": [{"source": source}, {"article": article}]}
+                )["ids"]
+                if stale:
+                    _collection().delete(ids=stale)
+            except Exception:
+                pass
+        chunks = chunking.split_article_text(content, article=article)
+        pairs = [
+            (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")})
+            for c in chunks
+        ]
+    return add_chunks(pairs, source=source, origin=origin, extra_meta=extra_meta, file_hash_value=file_hash_value)
 
 
 def delete_doc(doc_id: str):

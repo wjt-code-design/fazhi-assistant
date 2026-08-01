@@ -98,8 +98,7 @@ def main():
         if args.dry_run:
             print(f"  将替换 {len(stale)} 旧片段 + 新增：{title} {article}")
             continue
-        if stale:
-            vectorstore._collection.delete(ids=stale)
+        # 旧片段删除由 add_text(origin="import") 内部按 (source, article) 幂等处理
         extra = {
             "category": e.get("category", ""),
             "effective_from": (e.get("effective_from") or "").strip(),

@@ -23,10 +23,11 @@ from rag_chain import format_docs, make_chain, stream_with_retry, clean_answer, 
 from database import SessionLocal, init_db, get_db
 from models import User, Conversation, Message, QaCandidate, AuditLog, Feedback
 from schemas import (
-    RegisterIn, LoginIn, UserUpdateIn, KnowledgeAddIn, KnowledgeTestIn,
+    RegisterIn, LoginIn, UserUpdateIn, KnowledgeAddIn, KnowledgeTestIn, PreviewChunkIn,
     ChatIn, MessageOut, ConversationListItem, ConversationDetail,
     QaDecisionIn, LlmSwitchIn, FeedbackIn,
 )
+import chunking
 from auth import hash_password, verify_password, create_token, get_current_user, require_admin
 import knowledge_service as ks
 from llm_registry import registry
@@ -227,7 +228,14 @@ def _pre(user_id: int, conversation_id, text: str, image):
         context = format_docs(docs)
         qa_hit = ks.search_qa(rewritten)
         sources = [
-            {"source": d.metadata.get("source", ""), "article": d.metadata.get("article", "")}
+            {
+                "source": d.metadata.get("source", ""),
+                "article": d.metadata.get("article", ""),
+                # 时效快照（阶段6）：供受控沉淀 evidence 与未来微调数据集使用
+                "effective_from": d.metadata.get("effective_from", ""),
+                "effective_to": d.metadata.get("effective_to", ""),
+                "status": d.metadata.get("status", ""),
+            }
             for d in docs
         ]
 
@@ -521,9 +529,15 @@ async def admin_upload(request: Request, file: UploadFile = File(...), admin: Us
             raise HTTPException(status_code=400, detail="未从文件中识别到文字（可能是扫描版或空文件）")
         fh = ks.file_hash(raw)
         source = os.path.splitext(file.filename)[0]
+        # 版本递增（阶段6）：同 hash 重传时 version+1，审计语义正确
+        try:
+            prev = vectorstore._collection.get(where={"file_hash": fh}, include=["metadatas"])["metadatas"]
+            version = max((int(m.get("version") or 0) for m in prev), default=0) + 1
+        except Exception:
+            version = 1
         extra = {
             "filename": file.filename, "uploaded_by": admin.username,
-            "uploaded_at": datetime.utcnow().isoformat(), "version": 1, "status": "现行",
+            "uploaded_at": datetime.utcnow().isoformat(), "version": version, "status": "现行",
         }
         n = ks.add_text(text, source=source, origin="upload", extra_meta=extra, file_hash_value=fh)
         first_line = next((ln.strip() for ln in text.splitlines() if ln.strip()), source)
@@ -533,6 +547,27 @@ async def admin_upload(request: Request, file: UploadFile = File(...), admin: Us
     res = await run_in_threadpool(_do)
     log_audit(admin.id, "knowledge.upload", target=res["filename"], detail=f"chunks={res['added_chunks']}")
     return res
+
+
+@app.post("/api/admin/knowledge/preview-chunk")
+@limiter.limit("20/minute")
+async def admin_preview_chunk(request: Request, body: PreviewChunkIn, _admin: User = Depends(require_admin)):
+    """切分预览（阶段6）：结构化切分不写库，供管理员核对条号边界。纯函数零耗时。"""
+    chunks = chunking.split_law_document(body.text)
+    structured = any(c.meta.get("article") for c in chunks)
+    return {
+        "mode": "structured" if structured else "fallback",
+        "count": len(chunks),
+        "chunks": [
+            {
+                "article": c.meta.get("article", ""),
+                "chapter": c.meta.get("chapter", ""),
+                "chars": len(c.page_content),
+                "content": c.page_content[:200],
+            }
+            for c in chunks
+        ],
+    }
 
 
 @app.post("/api/admin/knowledge/test")

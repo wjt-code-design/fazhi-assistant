@@ -158,6 +158,7 @@ export const adminApi = {
     status?: string;
   }) => api.post<any>("/api/admin/knowledge", b),
   knowledgeTest: (query: string) => api.post<any[]>("/api/admin/knowledge/test", { query }),
+  previewChunk: (text: string) => api.post<any>("/api/admin/knowledge/preview-chunk", { text }),
   qaCandidates: (status?: string) =>
     api.get<any[]>(`/api/admin/qa/candidates${status ? `?status=${status}` : ""}`),
   qaDecision: (id: number, decision: "approved" | "rejected") =>
