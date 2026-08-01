@@ -41,6 +41,25 @@ def _cheating_docs():
     docs = exact_article_lookup("刑法", "第二百八十四条之一")  # 组织考试作弊罪
     docs += exact_article_lookup("治安管理处罚法", "第二十七条")
     return docs
+
+
+_CC_KEYWORDS = ("拆封不退", "概不退款", "不予退款", "最终解释权", "格式条款", "概不退换", "拒退")
+
+
+def _is_consumer_clause_scenario(text: str) -> bool:
+    """检测「商家单方限制消费者权利 / 格式条款」场景，命中则补充格式条款条文到检索上下文。"""
+    t = text or ""
+    if any(k in t for k in _CC_KEYWORDS):
+        return True
+    return ("退货" in t or "退款" in t) and ("条款" in t or "免责" in t or "无效" in t or "退" in t)
+
+
+def _consumer_clause_docs():
+    """格式条款/消费者权利兜底条文：民法典496/497（格式条款）、消保法26（限制消费者权利条款无效）。"""
+    docs = exact_article_lookup("民法典", "第四百九十六条")
+    docs += exact_article_lookup("民法典", "第四百九十七条")
+    docs += exact_article_lookup("消费者权益保护法", "第二十六条")
+    return docs
 from multimodal import validate_image, persist_image, build_vision_content, describe_image, MEDIA_DIR
 from curation import should_curate
 from settings import settings
@@ -82,6 +101,16 @@ OUTPUT_FORMAT_RULE = (
     "\n\n【输出格式】\n"
     "不要使用 LaTeX 数学记号（如 $\\neq$、$\\le$ 之类带 $ 的公式），不要出现 $ 包裹的符号；"
     "需要表达不等/比较等时，直接用普通字符（如 ≠、≤、≥），或用中文（如“不等于”“小于等于”）。"
+)
+
+# 格式条款/消费者权利优先引用规则（所有意图统一）：涉及商家单方限制消费者权利时，
+# 不能只说"格式条款风险"而无条文支撑——优先引用民法典496/497条、消保法26条作兜底。
+FORMAT_CLAUSE_RULE = (
+    "\n\n【格式条款与消费者权利】\n"
+    "若问题涉及合同条款效力、商家单方限制消费者权利（如“拆封不退”“概不退款”“最终解释权归本店”）时："
+    "凡检索到的《民法典》合同编格式条款（第496、497条）、《消费者权益保护法》第26条，应优先引用作为"
+    "否定无效条款的兜底依据（结合第26条第2、3款“排除或限制消费者权利、加重消费者责任的格式条款无效”），"
+    "不要只泛泛说“格式条款风险”却不落到具体条文。"
 )
 
 # 图片分析轻量提示（Step D）：omni 原生读图，此处只规范输出结构与追问缺失信息，不做死板模板
@@ -235,6 +264,7 @@ def _build_messages(pre: dict) -> list:
     else:
         sys_text = SYSTEM_BASE
     sys_text += OUTPUT_FORMAT_RULE
+    sys_text += FORMAT_CLAUSE_RULE
     if pre.get("image"):
         sys_text += IMAGE_GUIDANCE
     if pre["summary"]:
@@ -295,6 +325,10 @@ def _pre(user_id: int, conversation_id, text: str, image):
         else:
             docs = retrieve(rewritten, k=4)
             qa_hit = ks.search_qa(rewritten)
+            # 格式条款/消费者权利场景：通用检索常召回消保法25/24但漏掉民法典496/497，
+            # 定向补充作否定无效条款的兜底依据（与提示词 FORMAT_CLAUSE_RULE 配套）
+            if _is_consumer_clause_scenario(text or raw_query):
+                docs = _consumer_clause_docs() + docs
         context = format_docs(docs)
         sources = [
             {
