@@ -7,6 +7,7 @@
 标签：
 - cheating_request：明确索取试题答案/代考/卖答案/泄题 → 拒绝 + 释法
 - study_aid：法学生做题/理解法条/学术分析 → 学习辅助框架（不堆检索条文）
+- chitchat：纯问候/客套/闲聊（无任何法律实体词）→ 直接聊，不检索不质检
 - legal_query：真实场景法律咨询 → 正常 RAG（默认）
 """
 
@@ -35,10 +36,27 @@ _STUDY_STRONG = (
 _STUDY_HELP_RE = re.compile(r"帮我(做|分析|理解|讲解).{0,6}(题|法条|这道|选择|场景)")
 
 
+# 闲聊强标记：命中任一 → 候选 chitchat。判定顺序在 study/cheating 之后，
+# 且必须「无任何法律实体词」——否则「你好，我被人打了」会被误判成闲聊
+_CHITCHAT_MARKS = (
+    "你好", "您好", "在吗", "嗨", "哈喽", "谢谢", "辛苦了", "再见", "拜拜",
+    "晚安", "早上好", "下午好", "晚上好", "今天天气", "天气怎么样", "随便聊聊",
+    "哈哈", "呵呵", "哦哦", "嗯嗯", "好呀", "好的",
+)
+# 法律实体词（命中任一即不判闲聊）：覆盖常见咨询场景 + 法律术语
+_LEGAL_MARK = (
+    "法", "罪", "赔偿", "合同", "欠", "借", "钱", "工资", "离婚", "起诉", "工伤",
+    "保险", "房产", "租赁", "协议", "条款", "责任", "法院", "律师", "官司", "骗",
+    "偷", "抢", "打", "骂", "告", "仲裁", "拘留", "判", "坐牢", "犯罪", "加班",
+)
+
+
 def classify_intent(text: str) -> str:
     t = (text or "").strip()
     if any(k in t for k in _CHEATING_KEYWORDS) or _ANSWER_SEEK_RE.search(t):
         return "cheating_request"
     if any(k in t for k in _STUDY_STRONG) or _STUDY_HELP_RE.search(t):
         return "study_aid"
+    if any(k in t for k in _CHITCHAT_MARKS) and not any(m in t for m in _LEGAL_MARK):
+        return "chitchat"
     return "legal_query"

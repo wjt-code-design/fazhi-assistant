@@ -23,6 +23,7 @@ from sqlalchemy.orm import Session
 
 import answer_cache
 import chunking
+import clarify
 import complexity
 import knowledge_service as ks
 import quality
@@ -319,6 +320,10 @@ def _pre(user_id: int, conversation_id, text: str, image):
         elif intent == "cheating_request":
             docs = cheating_docs()
             qa_hit = None
+        elif intent == "chitchat":
+            # 闲聊：不检索（零上下文，纯聊天），也不参与 RAG 质检（任务2）
+            docs = []
+            qa_hit = None
         else:
             docs = retrieve(rewritten, k=6)  # k4→6：给余弦精排更多候选 + 给模型更全上下文，缓解"对法错条"
             qa_hit = ks.search_qa(rewritten)
@@ -441,6 +446,10 @@ def _safe_pick(modality: str, tier: str) -> tuple[str, Any, bool]:
 NOTE_COMPLEX = "\n\n> 注：该问题较复杂，回答仅供参考，建议核对条文原文。"
 NOTE_QUOTA = "\n\n> 注：模型配额紧张，本回答仅供参考，建议核对条文原文。"
 
+# 低置信反问计数（任务2）：conv_id → 已反问（最多一次，防死循环）。进程内状态，
+# 单 worker 下有效（ADR-008 单 worker 约束）；重启清零可接受——反问上限防的是同会话循环。
+_clarified: dict[int, bool] = {}
+
 
 def _cutoff() -> str:
     return datetime.now().date().isoformat()
@@ -536,6 +545,16 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             tier = "flag"  # 轻量准入不通过 → 升旗舰
     # 仅当该 modality+tier 真有模型时才走轻量缓冲路径；否则短文本走旗舰流式（避免回退 omni 非流式的 awkward 路径）
     use_light = use_router and tier == "light" and modality == "text" and registry.has_role("text", "light")
+    # ---- 低置信反问策略（任务2，feature_router 关 → 不启用，旧行为零变化）----
+    # legal_query：库外硬信号/指名来源不在库 → 诚实拒答；信息不足 → 反问；其余直接答。
+    # chitchat：直接聊（_pre 已不检索）。纯规则决策，零额外嵌入（标定结论：置信度分
+    # 区分不了库外，见 clarify 模块注释——不为此调 grounded_top_score）。
+    strategy = "direct"
+    if use_router and pre["intent"] in ("legal_query", "chitchat"):
+        strategy = clarify.decide(
+            pre["intent"], text, bool(pre["sources"]),
+            _clarified.get(pre["conv_id"], False),
+        )
     cache_key = _cache_key(pre) if (use_router and _cacheable(pre)) else None
     cache_hit = answer_cache.get(cache_key) if cache_key else None
     flag_key = flag_llm = None
@@ -558,6 +577,26 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield "data: [DONE]\n\n"
                 try:
                     await run_in_threadpool(_post, pre, ca, False)
+                except Exception as e:
+                    print(f"[chat-post] {e}", flush=True)
+                return
+
+            # 分支0.5：低置信反问 / 诚实拒答（任务2，零 LLM：省 token、措辞稳定、拦截硬答）
+            if strategy in ("clarify", "refuse"):
+                msg = clarify.CLARIFY_PROMPT if strategy == "clarify" else clarify.REFUSE_PROMPT
+                if strategy == "clarify":
+                    _clarified[pre["conv_id"]] = True  # 会话级：最多反问一次
+                yield f"data: {json.dumps({'content': msg}, ensure_ascii=False)}\n\n"
+                routing_metrics.record(strategy, False, "pass", "miss", checked=False)
+                log_account(
+                    model="rule", tier=strategy, cache="miss", token_est=0,
+                    ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
+                    conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
+                )
+                yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+                try:
+                    await run_in_threadpool(_post, pre, msg)
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
                 return
@@ -631,7 +670,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # S3+S6：旗舰流式路径也跑自检 + 写缓存（让缓存/自检对 text 生效，不只轻量分支）。
             # 自检 PASS 才写缓存；FAIL 则旗舰无更强模型可升，追加核对注（S6 兜底扩展到旗舰）。
             verdict_flag = "pass" if answer else "empty"
-            if use_router and answer:
+            if use_router and answer and pre["intent"] != "chitchat":  # 闲聊豁免质检（无检索语境）
                 sv = quality.self_check(answer, bool(pre["sources"]))
                 if sv.ok:
                     if cache_key:
@@ -640,8 +679,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     verdict_flag = sv.reason
                     answer += NOTE_COMPLEX
                     yield f"data: {json.dumps({'content': NOTE_COMPLEX}, ensure_ascii=False)}\n\n"
-            # S2：回退模型本身已不可用 → 明说降级，不静默烧耗尽模型
-            if use_router and flag_degraded and answer:
+            # S2：回退模型本身已不可用 → 明说降级，不静默烧耗尽模型（闲聊豁免：降级注不适合闲聊语境）
+            if use_router and flag_degraded and answer and pre["intent"] != "chitchat":
                 verdict_flag = "low_quota"
                 answer += NOTE_QUOTA
                 yield f"data: {json.dumps({'content': NOTE_QUOTA}, ensure_ascii=False)}\n\n"

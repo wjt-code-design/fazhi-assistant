@@ -33,7 +33,8 @@ def assess(text: str, has_image: bool, intent: str, recent) -> tuple[str, str | 
         return "vision", None  # 保守交给两级预判
     if intent == "cheating_request":
         return "text", "light"
-    if intent == "study_aid":
+    if intent in ("study_aid", "chitchat"):
+        # study_aid 需推理质量；chitchat 固定旗舰流式（不走 light 缓冲与自检，避免闲聊被质检/升级误伤）
         return "text", "flag"
     # legal_query
     complex = _len_complex(text) or _keyword_hit(text) or _multi_turn(recent)

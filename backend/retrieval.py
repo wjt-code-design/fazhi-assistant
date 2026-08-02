@@ -150,6 +150,30 @@ def article_in_kb(source: str, article: str) -> bool:
     return any(_source_key(str((m or {}).get("source", "") or "")) == sk for m in metas)
 
 
+_src_set_cache: set[str] | None = None
+
+
+def source_in_kb(source: str) -> bool:
+    """法名是否在知识库（源名存在性，任务2：防「问库外法」检索到相近条文误答）。
+
+    与 article_in_kb 同思路（_source_key 归一 + 容忍括注），但不要求条号——
+    用户问「工伤保险条例的认定标准」时，检索会命中相近的工伤条文（余弦分不低），
+    仅靠置信度分分不出「库外」；显式检查问题指名的来源是否在库。
+    源名集合全量构建一次后 O(1) 查（10266 条 metadata 首查约 1-3s，知识增删后
+    invalidate() 重建）。
+    """
+    global _src_set_cache
+    sk = _source_key(source)
+    if not sk:
+        return False
+    if _src_set_cache is None:
+        data = vectorstore._collection.get(include=["metadatas"])
+        _src_set_cache = {
+            _source_key(str((m or {}).get("source", "") or "")) for m in (data["metadatas"] or [])
+        }
+    return sk in _src_set_cache
+
+
 def extract_citations(answer: str) -> list[tuple]:
     """抽取答案中所有《法名》第X条，按 (_source_key, _normalize_article) 去重，
     返回 [(raw_name, raw_article, literal)]（保留首次出现的原文写法）。纯函数。"""
@@ -192,10 +216,11 @@ _bm25_docs: list[Document] = []
 
 def invalidate() -> None:
     """知识增删后调用：清空 BM25 索引、结果缓存与回答缓存。"""
-    global _bm25, _bm25_docs
+    global _bm25, _bm25_docs, _src_set_cache
     with _bm25_lock:
         _bm25 = None
         _bm25_docs = []
+    _src_set_cache = None
     _cache.clear()
     import answer_cache  # 延迟 import，知识增删时同清回答缓存
 
