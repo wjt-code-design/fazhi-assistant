@@ -165,6 +165,7 @@ export const adminApi = {
     api.post<any>(`/api/admin/qa/${id}/decision`, { decision }),
   llmSwitch: (b: { model?: string }) =>
     api.post<any>("/api/admin/llm", b),
+  llmStatus: () => api.get<any>("/api/admin/llm-status"),
   audit: (limit?: number) =>
     api.get<any[]>(`/api/admin/audit${limit ? `?limit=${limit}` : ""}`),
 };

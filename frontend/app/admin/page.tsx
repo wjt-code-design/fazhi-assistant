@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { api, adminApi } from "@/lib/api";
 import { Logo, Spinner, StatCard, Badge, SectionTitle, EmptyState, Skeleton } from "@/components/ui";
 
-type Section = "stats" | "users" | "knowledge" | "upload" | "conversations" | "audit";
+type Section = "stats" | "users" | "knowledge" | "upload" | "conversations" | "audit" | "models";
 interface Stats {
   user_count: number;
   conversation_count: number;
@@ -65,6 +65,28 @@ interface AuditRow {
   detail: string;
   created_at?: string;
 }
+interface LlmModelRow {
+  key: string;
+  model: string;
+  modality: string;
+  tier: string;
+  quota_total: number;
+  quota_left: number;
+  depleted: boolean;
+  below_threshold: boolean;
+}
+interface LlmStatus {
+  feature_router: boolean;
+  models: LlmModelRow[];
+  metrics: {
+    total: number;
+    tier_mix: { light: number; flag: number; cache: number; legacy: number };
+    upgrade_count: number;
+    upgrade_rate: number;
+    self_check_pass_rate: number;
+    cache_hit_rate: number;
+  };
+}
 
 const ICONS: Record<Section, ReactNode> = {
   stats: (
@@ -85,6 +107,9 @@ const ICONS: Record<Section, ReactNode> = {
   audit: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
   ),
+  models: (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
+  ),
 };
 
 /** 条文时效状态徽章（阶段5） */
@@ -101,6 +126,7 @@ const NAV: { key: Section; label: string }[] = [
   { key: "upload", label: "文件上传" },
   { key: "conversations", label: "对话审查" },
   { key: "audit", label: "操作日志" },
+  { key: "models", label: "模型配额" },
 ];
 
 export default function AdminPage() {
@@ -125,6 +151,7 @@ export default function AdminPage() {
   const [switching, setSwitching] = useState(false);
   const [textModel, setTextModel] = useState("");
   const [audit, setAudit] = useState<AuditRow[]>([]);
+  const [llmStatus, setLlmStatus] = useState<LlmStatus | null>(null);
   const [addForm, setAddForm] = useState({
     title: "",
     article: "",
@@ -169,6 +196,7 @@ export default function AdminPage() {
       },
       conversations: () => api.get<ConvRow[]>("/api/admin/conversations").then(setConvs),
       audit: () => adminApi.audit().then(setAudit),
+      models: () => adminApi.llmStatus().then(setLlmStatus),
       upload: () => Promise.resolve(),
     };
     loaders[section]()
@@ -789,6 +817,67 @@ export default function AdminPage() {
                   </tbody>
                 </table>
                 {audit.length === 0 && <EmptyState title="暂无操作记录" />}
+              </div>
+            )}
+
+            {/* ===== 模型配额与路由（仅管理员可见） ===== */}
+            {!loadingData && section === "models" && llmStatus && (
+              <div>
+                <SectionTitle>模型配额与分级路由</SectionTitle>
+                <div className="card mt-4 flex flex-wrap items-center justify-between gap-3 px-5 py-4">
+                  <div>
+                    <div className="stat-label">多模型分级路由</div>
+                    <div className="mt-1 text-sm text-slate">
+                      简单问题走轻量模型省配额，复杂/图片走旗舰；剩余 &lt;5% 自动切换。模型信息不对普通用户展示。
+                    </div>
+                  </div>
+                  <Badge kind={llmStatus.feature_router ? "success" : "neutral"} dot>
+                    {llmStatus.feature_router ? "已启用" : "已关闭（单模型）"}
+                  </Badge>
+                </div>
+
+                <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
+                  <div className="stat-card"><div className="stat-value">{llmStatus.metrics.total}</div><div className="stat-label">本轮累计回答</div></div>
+                  <div className="stat-card"><div className="stat-value text-accent">{(llmStatus.metrics.cache_hit_rate * 100).toFixed(1)}%</div><div className="stat-label">缓存命中率（零 token）</div></div>
+                  <div className="stat-card"><div className="stat-value">{(llmStatus.metrics.upgrade_rate * 100).toFixed(1)}%</div><div className="stat-label">轻量升级率</div></div>
+                  <div className="stat-card"><div className="stat-value text-jade">{(llmStatus.metrics.self_check_pass_rate * 100).toFixed(1)}%</div><div className="stat-label">自检通过率</div></div>
+                </div>
+                <div className="card mt-4 px-5 py-4">
+                  <div className="stat-label">路由分布（light / flag / cache / legacy）</div>
+                  <div className="mt-1 font-mono text-sm text-ink">
+                    {llmStatus.metrics.tier_mix.light} / {llmStatus.metrics.tier_mix.flag} / {llmStatus.metrics.tier_mix.cache} / {llmStatus.metrics.tier_mix.legacy}
+                  </div>
+                  <p className="mt-2 text-xs text-slate">指标为本次运行累计，重启清零；跨重启审计请查后端 legal.chat 日志。</p>
+                </div>
+
+                <div className="card mt-4 overflow-x-auto">
+                  <table className="law-table">
+                    <thead>
+                      <tr><th>模型</th><th>模态</th><th>等级</th><th>剩余配额</th><th>状态</th></tr>
+                    </thead>
+                    <tbody>
+                      {llmStatus.models.map((m) => {
+                        const pct = m.quota_total > 0 ? Math.max(0, Math.min(100, (m.quota_left / m.quota_total) * 100)) : 0;
+                        return (
+                          <tr key={m.key}>
+                            <td className="max-w-[220px] truncate font-mono text-xs">{m.model}</td>
+                            <td><Badge kind={m.modality === "vision" ? "accent" : "neutral"}>{m.modality}</Badge></td>
+                            <td className="text-slate">{m.tier}</td>
+                            <td className="min-w-[180px]">
+                              <div className="h-2 w-full overflow-hidden rounded bg-mist">
+                                <div className="grad-bar h-full" style={{ width: `${pct}%`, ...(m.depleted ? { background: "var(--error)" } : {}) }} />
+                              </div>
+                              <div className="mt-1 text-xs text-slate">{m.quota_left.toLocaleString()} / {m.quota_total.toLocaleString()}</div>
+                            </td>
+                            <td>
+                              {m.depleted ? <Badge kind="error">已耗尽</Badge> : m.below_threshold ? <Badge kind="accent">将切换</Badge> : <Badge kind="success">可用</Badge>}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>
