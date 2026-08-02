@@ -503,7 +503,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             text, bool(image), pre["intent"], pre["recent"], bool(pre["sources"])
         ):
             tier = "flag"  # 轻量准入不通过 → 升旗舰
-    use_light = use_router and tier == "light" and modality == "text"
+    # 仅当该 modality+tier 真有模型时才走轻量缓冲路径；否则短文本走旗舰流式（避免回退 omni 非流式的 awkward 路径）
+    use_light = use_router and tier == "light" and modality == "text" and registry.has_role("text", "light")
     cache_key = _cache_key(pre) if (use_router and _cacheable(pre)) else None
     cache_hit = answer_cache.get(cache_key) if cache_key else None
     flag_key = flag_llm = None

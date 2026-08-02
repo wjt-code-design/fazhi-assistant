@@ -216,6 +216,11 @@ class LLMRegistry:
             e.runtime_used += int(tokens)
         quota_store.record_delta(key, int(tokens))
 
+    def has_role(self, modality: str, tier: str) -> bool:
+        """是否存在该 (modality, tier) 的模型——决定轻量路径是否可用。"""
+        with self._lock:
+            return any(e.modality == modality and e.tier == tier for e in self._entries.values())
+
     def default_key(self) -> str:
         """默认/兜底模型 key（_safe_pick 回退用，使回退路径也能扣配额）。"""
         with self._lock:
