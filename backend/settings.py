@@ -25,6 +25,11 @@ class Settings(BaseSettings):
     # ---- 特性开关 ----
     feature_hybrid: bool = True  # 向量+BM25 RRF 混合检索
     feature_rerank: bool = False  # cross-encoder 重排（CPU 重，默认关）
+    feature_router: bool = True  # 多模型分级路由总开关；False 时主回答退化为旧单模型（get()）
+
+    # ---- 多模型配置（可选整体覆盖默认代表表；JSON 数组，元素见 llm_registry.DEFAULT_ROLES 字段） ----
+    # 留空则用 llm_registry 内置的 8 代表模型默认表（base_url/api_key 复用上面的 LLM_*）
+    llm_models_json: str = ""
 
     # ---- 图片限制 ----
     image_max_mb: int = 5
