@@ -257,7 +257,11 @@ def _build_messages(pre: dict) -> list:
     history = []
     for m in pre["recent"]:
         if m["role"] == "user":
-            history.append(HumanMessage(content=m["content"] or ""))
+            # 多轮图片上下文：历史图片用其视觉描述代替裸 [图片]，否则后续轮次看不到图里内容
+            desc = m.get("image_desc") or ""
+            body = m["content"] or ""
+            content = (f"[用户上传的图片，内容如下：{desc}]\n{body}" if desc else body)
+            history.append(HumanMessage(content=content))
         elif m["role"] == "assistant":
             history.append(AIMessage(content=m["content"] or ""))
     qa_note = ""
@@ -285,7 +289,7 @@ def _pre(user_id: int, conversation_id, text: str, image):
             db.add(conv)
             db.flush()
         summary, recent = load_context(db, conv)
-        recent_ser = [{"role": m.role, "content": m.content or ""} for m in recent]
+        recent_ser = [{"role": m.role, "content": m.content or "", "image_desc": m.image_desc or ""} for m in recent]
 
         image_rel = thumb_rel = None
         desc = ""
@@ -335,6 +339,7 @@ def _pre(user_id: int, conversation_id, text: str, image):
                 content=user_content,
                 image_ref=image_rel,
                 thumb_ref=thumb_rel,
+                image_desc=desc or None,
             )
         )
         conv.message_count = (conv.message_count or 0) + 1

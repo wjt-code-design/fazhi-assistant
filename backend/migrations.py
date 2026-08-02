@@ -19,6 +19,7 @@ _COLUMN_MIGRATIONS = [
     ("conversations", "message_count", "INTEGER", "0"),
     ("conversations", "summary_upto", "INTEGER", "0"),
     ("conversations", "last_active_at", "DATETIME", None),
+    ("messages", "image_desc", "TEXT", None),
 ]
 
 

@@ -55,6 +55,7 @@ class Message(Base):
     content = Column(Text, default="")
     image_ref = Column(String(500), nullable=True)  # 存盘相对路径（相对 backend/）
     thumb_ref = Column(String(500), nullable=True)
+    image_desc = Column(Text, nullable=True)  # 图片视觉描述，供后续轮次作为多模态上下文
     token_est = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
