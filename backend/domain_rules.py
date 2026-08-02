@@ -60,6 +60,30 @@ def consumer_clause_docs():
     return _lookup_all(CONSUMER_CLAUSE_DOCS_SPEC)
 
 
+# ==================== 消费欺诈 / 退一赔三场景 ====================
+# 复合问题里检索 top-k 常被电商法占满，漏掉消保法55条（退一赔三），故定向补充。
+FRAUD_KEYWORDS = (
+    "欺诈", "退一赔三", "退一赔十", "假一赔", "假货", "假冒伪劣", "以假充真",
+    "以次充好", "虚假宣传", "三倍赔偿", "赔偿三倍", "假货赔偿",
+)
+
+
+def is_consumer_fraud_scenario(text: str) -> bool:
+    """检测「消费欺诈 / 退一赔三」场景，命中则补充消保法55条到检索上下文。"""
+    t = text or ""
+    return any(k in t for k in FRAUD_KEYWORDS)
+
+
+# 消费欺诈惩罚性赔偿：消保法55条（退一赔三，食品等另有食安法148 假一赔十，按需扩展）。
+CONSUMER_FRAUD_DOCS_SPEC = [
+    ("消费者权益保护法", "第五十五条"),  # 欺诈退一赔三 / 惩罚性赔偿
+]
+
+
+def consumer_fraud_docs():
+    return _lookup_all(CONSUMER_FRAUD_DOCS_SPEC)
+
+
 # ==================== 复杂度分级 / 质量自检常量 ====================
 # 高利害/多解主题词：命中任一 → 视为复杂问题（走旗舰模型，避免轻量翻车）
 COMPLEX_KEYWORDS = (

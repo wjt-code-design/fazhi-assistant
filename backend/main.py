@@ -33,7 +33,9 @@ from domain_rules import (
     CITATION_SELECTION_RULE,
     cheating_docs,
     consumer_clause_docs,
+    consumer_fraud_docs,
     is_consumer_clause_scenario,
+    is_consumer_fraud_scenario,
 )
 from intent import classify_intent
 from llm_registry import QuotaExhausted, estimate_tokens, registry
@@ -76,7 +78,11 @@ SYSTEM_BASE = (
     "3. 回答控制在 300 字以内。\n"
     "4. 避免绝对化措辞（如“一定/必然/绝对/100%”）；法律适用常有不确定性，宜用“可能/存在风险/需结合具体案情”。\n"
     "5. 遇灰色地带或法律解释存在分歧时，开头标注“存在法律不确定性”，可简要并列不同解读及倾向，不替用户拍板。\n"
-    "6. 本答复仅供参考，不构成正式法律意见。"
+    "6. 本答复仅供参考，不构成正式法律意见。\n"
+    "7. 所给条文仅为检索采样，未出现在其中不代表知识库未收录该法。若问题明显涉及某常见法律"
+    "（如消费欺诈/退一赔三→《消费者权益保护法》、诈骗或个人信息泄露→《刑法》《个人信息保护法》）"
+    "而所给条文未涵盖，应表述为“所给条文未涵盖该法，建议核对《X法》相关条款”，"
+    "严禁断言“未录入/未提供/知识库没有该法”。"
 )
 
 # 学习辅助意图（Step A）：法学生做题/理解法条，引导推理而非给答案键
@@ -318,6 +324,9 @@ def _pre(user_id: int, conversation_id, text: str, image):
             # 定向补充作否定无效条款的兜底依据（与提示词 CITATION_SELECTION_RULE 配套）
             if is_consumer_clause_scenario(text or raw_query):
                 docs = consumer_clause_docs() + docs
+            # 消费欺诈/退一赔三：检索 top-k 常漏消保法55条，定向补充
+            if is_consumer_fraud_scenario(text or raw_query):
+                docs = consumer_fraud_docs() + docs
         context = format_docs(docs)
         sources = [
             {
