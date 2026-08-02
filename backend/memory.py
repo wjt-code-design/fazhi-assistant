@@ -81,7 +81,7 @@ def _extend_summary(llm, existing: str, batch: list[Message]) -> str:
         new = (resp.content or "").strip()
         return new[:SUMMARY_MAX] if new else (existing or "")
     except Exception:
-        return existing or ""
+        return None  # 失败信号：调用方不推进窗口，避免旧消息永久丢失
 
 
 def compress(db: Session, conv: Conversation, llm) -> bool:
@@ -90,6 +90,8 @@ def compress(db: Session, conv: Conversation, llm) -> bool:
     if not batch:
         return False
     new_summary = _extend_summary(llm, conv.summary or "", batch)
+    if new_summary is None:
+        return False  # llm 失败：不推进 summary_upto，这批旧消息下次仍会重试
     conv.summary = new_summary
     conv.summary_upto = max(0, (conv.message_count or 0) - RECENT_K)
     db.commit()

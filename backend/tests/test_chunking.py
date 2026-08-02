@@ -100,3 +100,38 @@ def test_empty_input():
     assert C.split_law_document("") == []
     assert C.split_law_document("   ") == []
     assert C.split_article_text("") == []
+
+
+# ---------------- _strip_toc 退出分支（目录误吞正文是切分最大误伤源） ----------------
+def test_toc_exits_on_zhengwen_marker():
+    """目录后的显式「正文」标记 → 退出 TOC，后续条文进入 chunk。"""
+    text = "目  录\n第一章 总则\n第一条 立法目的\n正文\n第一章 总则\n第一条 为了保护合法权益，制定本法。"
+    chunks = C.split_law_document(text)
+    assert any(c.meta.get("article") == "第一条" for c in chunks)
+
+
+def test_toc_exits_on_repeated_chapter_heading():
+    """无「正文」标记，靠「章节标题第二次出现」退出 TOC（主退出机制）。"""
+    text = "目  录\n第一章 总则\n第一条 立法目的\n第二章 分则\n第一章 总则\n第一条 为了保护合法权益，制定本法。"
+    chunks = C.split_law_document(text)
+    assert any(c.meta.get("article") == "第一条" for c in chunks)
+
+
+def test_toc_safe_cap_exits_after_long_toc():
+    """无任何退出信号的长目录（纯短条目）→ TOC_MAX_SKIP 兜底退出，正文不丢。"""
+    toc = "\n".join(f"第{i}部分" for i in range(C.TOC_MAX_SKIP + 50))
+    text = "目  录\n" + toc + "\n第一条 为了保护合法权益，制定本法。"
+    chunks = C.split_law_document(text)
+    assert any(c.meta.get("article") == "第一条" for c in chunks)
+
+
+def test_toc_exits_on_long_article_line():
+    """目录里出现 >60 字含句号的完整条文 → 视为正文开始。"""
+    long_art = (
+        "第一条 为了保护合法权益，制定本法并明确适用范围、主管机关职责、"
+        "法律责任承担方式与救济途径，本条为示例性长条文内容，用于验证目录长行退出机制。"
+    )
+    assert len(long_art) > 60
+    text = "目  录\n第一章 总则\n第一条 立法目的\n" + long_art
+    chunks = C.split_law_document(text)
+    assert any(c.meta.get("article") == "第一条" for c in chunks)
