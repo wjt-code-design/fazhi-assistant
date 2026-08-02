@@ -24,6 +24,7 @@ import chunking
 import complexity
 import knowledge_service as ks
 import quality
+import routing_metrics
 from audit import log_audit
 from auth import create_token, get_current_user, hash_password, require_admin, verify_password
 from curation import should_curate
@@ -515,6 +516,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             if cache_hit:
                 ca = cache_hit["answer"]
                 yield f"data: {json.dumps({'content': ca}, ensure_ascii=False)}\n\n"
+                routing_metrics.record("cache", False, "pass", "hit")
                 log_account(
                     model="cache", tier="cache", cache="hit",
                     ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
@@ -540,6 +542,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     answer_cache.put(cache_key, answer, pre["sources"])
                 if res["key"]:
                     registry.deduct(res["key"], res["usage"])
+                routing_metrics.record(res["tier"], res["escalated"], res["verdict"], "miss")
                 log_account(
                     model=registry.model_of(res["key"]), tier=res["tier"],
                     escalated=res["escalated"], verdict=res["verdict"], cache="miss",
@@ -596,6 +599,9 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 旗舰/legacy 流式无真实 usage → 按输出估算扣减
             if use_router and flag_key and answer:
                 registry.deduct(flag_key, estimate_tokens(answer))
+            routing_metrics.record(
+                (tier or "flag") if use_router else "legacy", False, "pass" if answer else "empty", "miss"
+            )
             log_account(
                 model=registry.model_of(flag_key) if use_router else registry.config()["model"],
                 tier=(tier or "flag") if use_router else "legacy", cache="miss",
@@ -881,6 +887,16 @@ async def admin_llm_switch(request: Request, body: LlmSwitchIn, _admin: User = D
     cfg = registry.reload(model=body.model)
     log_audit(_admin.id, "llm.switch", target=body.model)
     return cfg
+
+
+@app.get("/api/admin/llm-status")
+def admin_llm_status(_admin: User = Depends(require_admin)):
+    """模型配额 + 路由运行态指标（仅管理员；普通用户接口不返回模型信息）。"""
+    return {
+        "feature_router": settings.feature_router,
+        "models": registry.status(),
+        "metrics": routing_metrics.snapshot(),
+    }
 
 
 # ==================== 管理员：操作审计 ====================
