@@ -10,6 +10,7 @@
 设计：测试不无脑杀进程——端口被占时仅警告，提示 `--force` 或 `PORT=` 退路。
 依赖纯标准库（netstat/taskkill 为 Windows 实现，跨平台有兜底）。
 """
+
 import argparse
 import os
 import subprocess
@@ -82,7 +83,7 @@ def cmd_start(port: int) -> int:
     print(f"后端启动中 PID {proc.pid}（日志 {LOG_FILE}）")
     for _ in range(60):
         if _health(port):
-            print("后端就绪：http://localhost:%d/api/health" % port)
+            print(f"后端就绪：http://localhost:{port}/api/health")
             return 0
         time.sleep(1)
     print(f"等待超时（60s），请检查日志：{LOG_FILE}")
