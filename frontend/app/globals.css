@@ -571,3 +571,11 @@
     overscroll-behavior: contain;
   }
 }
+
+/* ===== 移动端适配 =====
+   input ≥16px：iOS Safari 聚焦 <16px 的 input 会自动放大页面（真坑，必须防）。 */
+@media (max-width: 767px) {
+  .input {
+    font-size: 16px;
+  }
+}
