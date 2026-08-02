@@ -565,4 +565,9 @@
   .logo-seal:hover {
     transform: rotate(-4deg) scale(1.05);
   }
+
+  /* ===== 滚动容器加固：拦截滚轮在边界处连锁滚动外层 ===== */
+  .scroll-contain {
+    overscroll-behavior: contain;
+  }
 }

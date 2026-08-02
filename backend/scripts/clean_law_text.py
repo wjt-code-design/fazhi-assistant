@@ -8,9 +8,11 @@
   差集即"被吞条号"（无空格变体等导致），是导入正确性的核心断言。
 - 质量门禁三检：非空+无乱码 / 条号数>0 / 无重复异常。
 
-用法：cd backend && python scripts/clean_law_text.py
+用法：cd backend && python scripts/clean_law_text.py [--dry-run]
 - 读 data/laws_raw/*.txt → 写 data/laws_clean/*.txt → 逐部报告 → FAIL 汇总。
+- --dry-run：不写盘，只审计（将被删除的页码行 / 吞条 / 门禁），满足"删除前先看"。
 """
+import argparse
 import os
 import re
 import sys
@@ -47,6 +49,16 @@ def clean_text(text: str) -> str:
     while out and out[-1] == "":
         out.pop()
     return "\n".join(out)
+
+
+def page_lines_to_remove(text: str) -> list:
+    """返回将被剔除的整行页码残留：(行号, 行内容)。供 --dry-run 审计。"""
+    removed = []
+    for i, line in enumerate(text.splitlines(), 1):
+        s = line.strip()
+        if _PAGE_LINE_RE.match(s) or _PAGE_LINE_CN_RE.match(s):
+            removed.append((i, s))
+    return removed
 
 
 # ---------------- 结构层检测（报告不自动改） ----------------
@@ -144,6 +156,10 @@ def check_mojibake(text: str) -> bool:
 
 
 def main():
+    parser = argparse.ArgumentParser(description="清洗法律文本（格式层，不改写条文文字）。")
+    parser.add_argument("--dry-run", action="store_true", help="不写盘，只报告将被删除的页码残留行 / 吞条 / 门禁")
+    args = parser.parse_args()
+
     if not os.path.isdir(RAW_DIR):
         print(f"raw 目录不存在：{RAW_DIR}（先跑 convert_docx.py）", file=sys.stderr)
         sys.exit(1)
@@ -153,12 +169,15 @@ def main():
         print("raw 目录没有 txt", file=sys.stderr)
         sys.exit(1)
 
-    print(f"{'文件':<34} {'字符':>7} {'条号':>5} {'重复':>3} {'回退':>3} {'无空格':>5}  门禁")
+    print(f"{'文件':<34} {'字符':>7} {'条号':>5} {'重复':>3} {'回退':>3} {'无空格':>5} {'删行':>4}  门禁")
     fails = []
+    total_removed = 0
     for fname in files:
         src = os.path.join(RAW_DIR, fname)
         text = open(src, encoding="utf-8").read()
         clean = clean_text(text)
+        removed = page_lines_to_remove(text)
+        total_removed += len(removed)
         chunks = chunking.split_law_document(clean)
         base = verify_article_baseline(clean, chunks)
         dups = detect_duplicates(clean)
@@ -178,12 +197,21 @@ def main():
         status = "PASS" if not issues else "FAIL " + ",".join(issues)
         if issues:
             fails.append((fname, issues, base, dups))
-        print(f"{fname:<34} {len(clean):>7} {base['line_count']:>5} {len(dups):>3} {len(regr):>3} {nospace:>5}  {status}")
-        # 清洗后写盘（FAIL 也写——便于人工检查，但导入会拒绝 FAIL 文件）
-        with open(os.path.join(CLEAN_DIR, fname), "w", encoding="utf-8", newline="\n") as f:
-            f.write(clean)
+        print(f"{fname:<34} {len(clean):>7} {base['line_count']:>5} {len(dups):>3} {len(regr):>3} {nospace:>5} {len(removed):>4}  {status}")
+        if args.dry_run and removed:
+            for lineno, content in removed[:8]:
+                print(f"    - {fname}:{lineno}  删除 {content!r}")
+            if len(removed) > 8:
+                print(f"      ... 该文件共 {len(removed)} 行")
+        if not args.dry_run:
+            # 清洗后写盘（FAIL 也写——便于人工检查，但导入会拒绝 FAIL 文件）
+            with open(os.path.join(CLEAN_DIR, fname), "w", encoding="utf-8", newline="\n") as f:
+                f.write(clean)
 
-    print(f"\n共 {len(files)} 部，FAIL {len(fails)} 部。输出目录：{CLEAN_DIR}")
+    print(
+        f"\n共 {len(files)} 部，FAIL {len(fails)} 部，页码残留行 {total_removed} 行。"
+        + ("dry-run：未写盘。" if args.dry_run else f"输出目录：{CLEAN_DIR}")
+    )
     if fails:
         for fname, issues, base, dups in fails:
             print(f"  [{fname}] {','.join(issues)} 吞条={base['missing'][:5]} 重复={dups[:5]}")

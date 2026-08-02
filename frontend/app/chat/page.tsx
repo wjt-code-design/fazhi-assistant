@@ -59,6 +59,8 @@ export default function ChatPage() {
   const [streaming, setStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [isNearBottom, setIsNearBottom] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
   const [corrFor, setCorrFor] = useState<number | null>(null);
   const [corrText, setCorrText] = useState("");
@@ -77,9 +79,15 @@ export default function ChatPage() {
     if (user) loadHistory();
   }, [user]);
 
+  // 自动滚动到底部：只在用户贴近底部时跟随（不打断向上阅读）；
+  // 流式输出期间用即时滚动（避免 smooth 平滑动画"追着文字跑"的卡顿）
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+    const el = scrollRef.current;
+    if (!el || !isNearBottom) return;
+    const reduced = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const behavior: ScrollBehavior = reduced || streaming ? "auto" : "smooth";
+    el.scrollTo({ top: el.scrollHeight, behavior });
+  }, [messages, isNearBottom, streaming]);
 
   if (loading || !user) return null;
 
@@ -90,6 +98,7 @@ export default function ChatPage() {
     setInput("");
     setPendingImage(null);
     setSidebarOpen(false);
+    setIsNearBottom(true);
   }
 
   async function selectConv(item: ConvItem) {
@@ -107,6 +116,7 @@ export default function ChatPage() {
           thumbRef: m.thumb_ref || undefined,
         }))
       );
+      setIsNearBottom(true);
     } catch {
       setMessages([]);
     }
@@ -284,7 +294,16 @@ export default function ChatPage() {
         </header>
 
         {/* 消息流 */}
-        <div className="flex-1 overflow-y-auto px-4 py-6 md:px-8" onDrop={onDrop} onDragOver={(e) => e.preventDefault()}>
+        <div
+          ref={scrollRef}
+          className="scroll-contain flex-1 overflow-y-auto px-4 py-6 md:px-8"
+          onScroll={(e) => {
+            const el = e.currentTarget;
+            setIsNearBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
+          }}
+          onDrop={onDrop}
+          onDragOver={(e) => e.preventDefault()}
+        >
           <div className="mx-auto max-w-3xl">
             {messages.length === 0 && <EmptyState title="请输入您的法律问题" hint="支持文字、粘贴或拖拽图片；可连续追问" />}
             {messages.map((m, i) =>
