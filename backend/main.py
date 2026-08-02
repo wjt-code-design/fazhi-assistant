@@ -34,32 +34,10 @@ from llm_registry import registry
 from memory import load_context, recent_messages, needs_compress, compress, rewrite_query
 from retrieval import retrieve, grounded_top_score, retrieve_for_test, citation_verify, exact_article_lookup
 from intent import classify_intent
+from domain_rules import (
+    cheating_docs, consumer_clause_docs, is_consumer_clause_scenario, CITATION_SELECTION_RULE,
+)
 
-
-def _cheating_docs():
-    """作弊路径定向检索考试作弊相关条文，使释法引用有据（避免通用检索召回无关条文）。"""
-    docs = exact_article_lookup("刑法", "第二百八十四条之一")  # 组织考试作弊罪
-    docs += exact_article_lookup("治安管理处罚法", "第二十七条")
-    return docs
-
-
-_CC_KEYWORDS = ("拆封不退", "概不退款", "不予退款", "最终解释权", "格式条款", "概不退换", "拒退")
-
-
-def _is_consumer_clause_scenario(text: str) -> bool:
-    """检测「商家单方限制消费者权利 / 格式条款」场景，命中则补充格式条款条文到检索上下文。"""
-    t = text or ""
-    if any(k in t for k in _CC_KEYWORDS):
-        return True
-    return ("退货" in t or "退款" in t) and ("条款" in t or "免责" in t or "无效" in t or "退" in t)
-
-
-def _consumer_clause_docs():
-    """格式条款/消费者权利兜底条文：民法典496/497（格式条款）、消保法26（限制消费者权利条款无效）。"""
-    docs = exact_article_lookup("民法典", "第四百九十六条")
-    docs += exact_article_lookup("民法典", "第四百九十七条")
-    docs += exact_article_lookup("消费者权益保护法", "第二十六条")
-    return docs
 from multimodal import validate_image, persist_image, build_vision_content, describe_image, MEDIA_DIR
 from curation import should_curate
 from settings import settings
@@ -101,25 +79,6 @@ OUTPUT_FORMAT_RULE = (
     "\n\n【输出格式】\n"
     "不要使用 LaTeX 数学记号（如 $\\neq$、$\\le$ 之类带 $ 的公式），不要出现 $ 包裹的符号；"
     "需要表达不等/比较等时，直接用普通字符（如 ≠、≤、≥），或用中文（如“不等于”“小于等于”）。"
-)
-
-# 格式条款/消费者权利优先引用规则（所有意图统一）：涉及商家单方限制消费者权利时，
-# 不能只说"格式条款风险"而无条文支撑——优先引用民法典496/497条、消保法26条作兜底。
-FORMAT_CLAUSE_RULE = (
-    "\n\n【格式条款与消费者权利】\n"
-    "若问题涉及合同条款效力、商家单方限制消费者权利（如“拆封不退”“概不退款”“最终解释权归本店”）时，按步骤引用："
-    "先依《民法典》第496条认定该条款属于格式条款，再依第497条及《消费者权益保护法》第26条认定"
-    "“排除或限制消费者权利、加重消费者责任的条款无效”；不要只泛泛说“格式条款风险”却不落到具体条文。"
-)
-
-# 引用选择规则（所有意图统一，治"选引不准"）：优先引最具体直接的条款，严禁含糊替代。
-CITATION_SELECTION_RULE = (
-    "\n\n【引用选择规则】\n"
-    "回答必须优先引用与争议焦点最具体、最直接对应的法条；检索结果已含更贴切的条款（如赔偿标准、免责依据、"
-    "无效条款依据）时，必须引用之，严禁用“法律基本原则”“相关规定”等含糊表述替代。具体映射："
-    "涉及违法解除劳动合同的赔偿金引用《劳动合同法》第八十七条（并引第四十七、四十八条说明计算）；"
-    "涉及格式条款无效引用《民法典》第四百九十六、四百九十七条；"
-    "涉及交强险/机动车事故赔偿顺位引用《民法典》第一千二百一十三条。"
 )
 
 # 图片分析轻量提示（Step D）：omni 原生读图，此处只规范输出结构与追问缺失信息，不做死板模板
@@ -273,7 +232,6 @@ def _build_messages(pre: dict) -> list:
     else:
         sys_text = SYSTEM_BASE
     sys_text += OUTPUT_FORMAT_RULE
-    sys_text += FORMAT_CLAUSE_RULE
     sys_text += CITATION_SELECTION_RULE
     if pre.get("image"):
         sys_text += IMAGE_GUIDANCE
@@ -330,15 +288,15 @@ def _pre(user_id: int, conversation_id, text: str, image):
             docs = []
             qa_hit = None
         elif intent == "cheating_request":
-            docs = _cheating_docs()
+            docs = cheating_docs()
             qa_hit = None
         else:
             docs = retrieve(rewritten, k=4)
             qa_hit = ks.search_qa(rewritten)
             # 格式条款/消费者权利场景：通用检索常召回消保法25/24但漏掉民法典496/497，
-            # 定向补充作否定无效条款的兜底依据（与提示词 FORMAT_CLAUSE_RULE 配套）
-            if _is_consumer_clause_scenario(text or raw_query):
-                docs = _consumer_clause_docs() + docs
+            # 定向补充作否定无效条款的兜底依据（与提示词 CITATION_SELECTION_RULE 配套）
+            if is_consumer_clause_scenario(text or raw_query):
+                docs = consumer_clause_docs() + docs
         context = format_docs(docs)
         sources = [
             {
