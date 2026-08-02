@@ -94,6 +94,19 @@ venv\Scripts\python scripts/smoke_citation_fast.py
 venv\Scripts\python scripts/smoke_citation_full.py    # 需后端运行 + LLM key
 ```
 
+## 移动端验证
+
+Lighthouse 移动端（登录页，2026-08-02，Edge 驱动）：
+
+| 指标 | 分数 |
+|------|------|
+| Performance | 100 |
+| Accessibility | 95 |
+| Best Practices | 96 |
+| SEO | 100 |
+
+> chat/admin 已内建响应式（侧栏折叠 / 无横向溢出 / input ≥16px 防 iOS 放大）。
+
 ## 已知限制（诚实标注）
 
 - **并发**：本地单 worker 是唯一安全配置（多 worker 撞 Chroma/SQLite 锁）；扩并发需托管向量库+DB，见 `docs/ADR.md#ADR-007`。
