@@ -19,8 +19,11 @@ from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
+import answer_cache
 import chunking
+import complexity
 import knowledge_service as ks
+import quality
 from audit import log_audit
 from auth import create_token, get_current_user, hash_password, require_admin, verify_password
 from curation import should_curate
@@ -32,7 +35,7 @@ from domain_rules import (
     is_consumer_clause_scenario,
 )
 from intent import classify_intent
-from llm_registry import registry
+from llm_registry import QuotaExhausted, estimate_tokens, registry
 from memory import compress, load_context, needs_compress, recent_messages, rewrite_query
 from models import AuditLog, Conversation, Feedback, Message, QaCandidate, User
 from multimodal import MEDIA_DIR, build_vision_content, describe_image, persist_image, validate_image
@@ -358,8 +361,11 @@ def _pre(user_id: int, conversation_id, text: str, image):
         db.close()
 
 
-def _post(pre: dict, answer: str):
-    """流式后的写库 + 受控沉淀 + 压缩（独立会话，线程池内，不阻塞用户该轮）。"""
+def _post(pre: dict, answer: str, curate: bool = True):
+    """流式后的写库 + 受控沉淀 + 压缩（独立会话，线程池内，不阻塞用户该轮）。
+
+    curate=False：缓存命中路径——答案当初已沉淀过，跳过避免重复候选。
+    """
     db = SessionLocal()
     try:
         db.add(Message(conversation_id=pre["conv_id"], role="assistant", content=answer))
@@ -371,10 +377,11 @@ def _post(pre: dict, answer: str):
         db.commit()
 
         # 受控沉淀：高有据 + 含引用 + 非空答 → 入待审
-        grounded = grounded_top_score(pre["rewritten"])
-        q = pre["user_text"] or pre["rewritten"]
-        if q and should_curate(grounded, answer):
-            ks.create_candidate(db, q, answer, grounded, json.dumps(pre["sources"], ensure_ascii=False))
+        if curate:
+            grounded = grounded_top_score(pre["rewritten"])
+            q = pre["user_text"] or pre["rewritten"]
+            if q and should_curate(grounded, answer):
+                ks.create_candidate(db, q, answer, grounded, json.dumps(pre["sources"], ensure_ascii=False))
 
         # 增量压缩
         recent = recent_messages(db, conv.id)
@@ -384,9 +391,87 @@ def _post(pre: dict, answer: str):
         db.close()
 
 
-def _invoke_llm(messages) -> str:
-    """非流式兜底：流式不兼容/空答时，用同一模型 invoke 一次拿完整答案（部分模型非流式更稳）。"""
-    llm = registry.get()
+def _usage_total(resp) -> int | None:
+    """从 langchain 响应读 total_tokens（兼容 usage_metadata / response_metadata）。"""
+    if resp is None:
+        return None
+    um = getattr(resp, "usage_metadata", None) or {}
+    if um.get("total_tokens"):
+        return int(um["total_tokens"])
+    rm = getattr(resp, "response_metadata", None) or {}
+    tu = rm.get("token_usage") or rm.get("usage") or {}
+    t = tu.get("total_tokens") if isinstance(tu, dict) else None
+    return int(t) if t else None
+
+
+def _token_charge(resp, text: str) -> int:
+    """真实 usage 优先，否则按文本估算。"""
+    return _usage_total(resp) or estimate_tokens(text)
+
+
+def _safe_pick(modality: str, tier: str):
+    """pick 耗尽时回退默认模型（key=None 表示不计配额）。"""
+    try:
+        return registry.pick(modality, tier)
+    except QuotaExhausted:
+        return None, registry.get()
+
+
+def _cutoff() -> str:
+    return datetime.now().date().isoformat()
+
+
+def _cacheable(pre: dict) -> bool:
+    """仅安全形态可缓存：法律咨询 + 无图 + 首轮 + 检索命中。"""
+    return (
+        pre.get("intent") == "legal_query"
+        and not pre.get("image")
+        and not pre.get("recent")
+        and bool(pre.get("sources"))
+    )
+
+
+def _cache_key(pre: dict) -> str:
+    ids = [f"{s.get('source', '')}|{s.get('article', '')}" for s in (pre.get("sources") or [])]
+    return answer_cache.make_key(pre.get("rewritten", ""), pre.get("intent", ""), _cutoff(), ids)
+
+
+def _light_buffered(pre: dict, messages: list) -> dict:
+    """轻量路径：缓冲生成 → 自检 → 至多一次升级旗舰重答。同步，线程池内跑。
+
+    返回 {answer, key, modality, tier, usage, escalated, verdict}。key=None 不计配额。
+    """
+    modality = "vision" if pre.get("image") else "text"
+    ctx_present = bool(pre.get("sources"))
+    lkey, llm = _safe_pick(modality, "light")
+    resp = llm.invoke(messages)
+    raw = clean_answer(resp.content or "") if resp else ""
+    usage = _token_charge(resp, raw)
+    v = quality.self_check(raw, ctx_present)
+    if v.ok:
+        return dict(answer=raw, key=lkey, modality=modality, tier="light", usage=usage, escalated=False, verdict="pass")
+    # 升级旗舰（配额耗尽则不升级，明说降级）
+    try:
+        fkey, fllm = registry.pick(modality, "flag")
+    except QuotaExhausted:
+        note = "\n\n> 注：模型配额紧张，本回答仅供参考，建议核对条文原文。"
+        return dict(answer=(raw + note) if raw else note, key=lkey, modality=modality, tier="light", usage=usage, escalated=False, verdict=v.reason or "low_quota")
+    if fkey == lkey:  # 轻量即旗舰，无更强者可升
+        note = "\n\n> 注：该问题较复杂，回答仅供参考，建议核对条文原文。"
+        return dict(answer=(raw + note) if raw else note, key=lkey, modality=modality, tier="light", usage=usage, escalated=False, verdict=v.reason)
+    fresp = fllm.invoke(messages)
+    fraw = clean_answer(fresp.content or "") if fresp else ""
+    fusage = _token_charge(fresp, fraw)
+    fv = quality.self_check(fraw, ctx_present)
+    if fv.ok:
+        return dict(answer=fraw, key=fkey, modality=modality, tier="flag", usage=usage + fusage, escalated=True, verdict="pass")
+    note = "\n\n> 注：该问题较复杂，回答仅供参考，建议核对条文原文。"
+    return dict(answer=(fraw + note) if fraw else note, key=fkey, modality=modality, tier="flag", usage=usage + fusage, escalated=True, verdict=fv.reason)
+
+
+def _invoke_llm(messages, llm=None) -> str:
+    """非流式兜底：流式不兼容/空答时，用给定（或默认）模型 invoke 一次拿完整答案。"""
+    llm = llm or registry.get()
     resp = llm.invoke(messages)
     return resp.content if resp else ""
 
@@ -407,11 +492,76 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
 
     messages = _build_messages(pre)
 
+    # ---- 多模型路由决策（feature_router 关 → 全走 legacy 流式，旧行为零变化） ----
+    use_router = settings.feature_router
+    modality, tier = complexity.assess(text, bool(image), pre["intent"], pre["recent"])
+    if use_router:
+        if tier is None:  # 图片：描述已在 _pre 完成（两级预判第一级），回答阶段走旗舰
+            tier = "flag"
+        elif tier == "light" and not complexity.admit_light(
+            text, bool(image), pre["intent"], pre["recent"], bool(pre["sources"])
+        ):
+            tier = "flag"  # 轻量准入不通过 → 升旗舰
+    use_light = use_router and tier == "light" and modality == "text"
+    cache_key = _cache_key(pre) if (use_router and _cacheable(pre)) else None
+    cache_hit = answer_cache.get(cache_key) if cache_key else None
+    flag_key = flag_llm = None
+    if use_router and not use_light:
+        flag_key, flag_llm = _safe_pick(modality, tier or "flag")
+
     async def stream():
         try:
-            # glm 系列偶发"空生成"（content/reasoning 皆空，间歇/突发），多配置轮换重试降低失败率
+            # 分支0：缓存命中 → 零 token 直返
+            if cache_hit:
+                ca = cache_hit["answer"]
+                yield f"data: {json.dumps({'content': ca}, ensure_ascii=False)}\n\n"
+                log_account(
+                    model="cache", tier="cache", cache="hit",
+                    ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
+                    conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
+                )
+                yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+                try:
+                    await run_in_threadpool(_post, pre, ca, False)
+                except Exception as e:
+                    print(f"[chat-post] {e}", flush=True)
+                return
+
+            # 分支1：轻量缓冲 + 自检 + 至多一次升级旗舰
+            if use_light:
+                res = await run_in_threadpool(_light_buffered, pre, messages)
+                answer = res["answer"]
+                if answer:
+                    yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"
+                else:
+                    yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
+                if cache_key and res["verdict"] == "pass":
+                    answer_cache.put(cache_key, answer, pre["sources"])
+                if res["key"]:
+                    registry.deduct(res["key"], res["usage"])
+                log_account(
+                    model=registry.model_of(res["key"]), tier=res["tier"],
+                    escalated=res["escalated"], verdict=res["verdict"], cache="miss",
+                    token_est=res["usage"],
+                    ms=round((time.perf_counter() - t0) * 1000, 1), ok=bool(answer),
+                    conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
+                )
+                yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+                if answer:
+                    try:
+                        await run_in_threadpool(_post, pre, answer)
+                    except Exception as e:
+                        print(f"[chat-post] {e}", flush=True)
+                return
+
+            # 分支2：旗舰 / legacy 流式（保留多配置空答重试 + 流末引用校验）
             def make_chain_fn(_i, disabled):
-                llm = registry.get() if _i == 0 else registry.variant(disabled)
+                if use_router and flag_key:
+                    llm = registry.variant_of(flag_key, disabled) if disabled else flag_llm
+                else:
+                    llm = registry.get() if _i == 0 else registry.variant(disabled)
                 return make_chain(llm)
 
             chunks = []
@@ -420,9 +570,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"
             answer = "".join(chunks)
             if not answer:
-                # 流式可能不兼容/被限流：回退一次非流式调用
                 try:
-                    fb = await run_in_threadpool(_invoke_llm, messages)
+                    fb = await run_in_threadpool(_invoke_llm, messages, flag_llm)
                     answer = clean_answer(fb)
                     if answer:
                         yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"
@@ -430,7 +579,6 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     answer = ""
             else:
                 answer = clean_answer(answer)
-            # 引用校验（优化路线 B0.1，防假引用）：答案引用了知识库中不存在的法条 → 追加核对提示并记账
             if answer:
                 bad_cites = citation_verify(answer)
                 if bad_cites:
@@ -444,10 +592,14 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         detail=";".join(bad_cites)[:300],
                     )
             if not answer:
-                # 防御：流式+非流式都空则明确告知。模型名不暴露给普通用户，仅在调用记账日志出现
                 yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
+            # 旗舰/legacy 流式无真实 usage → 按输出估算扣减
+            if use_router and flag_key and answer:
+                registry.deduct(flag_key, estimate_tokens(answer))
             log_account(
-                model=registry.config()["model"],
+                model=registry.model_of(flag_key) if use_router else registry.config()["model"],
+                tier=(tier or "flag") if use_router else "legacy", cache="miss",
+                token_est=estimate_tokens(answer) if answer else 0,
                 ms=round((time.perf_counter() - t0) * 1000, 1),
                 ok=bool(answer),
                 conv_id=pre["conv_id"],
@@ -460,7 +612,6 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 try:
                     await run_in_threadpool(_post, pre, answer)
                 except Exception as e:
-                    # 已发出 [DONE]，此后异常只记日志，不再向客户端追加事件
                     print(f"[chat-post] {e}", flush=True)
         except Exception as e:
             yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"

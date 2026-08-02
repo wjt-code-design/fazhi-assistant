@@ -159,6 +159,14 @@ class LLMRegistry:
             cfg["disable_thinking"] = disable_thinking
             return _build(cfg)
 
+    def variant_of(self, key: str, disable_thinking: bool) -> ChatOpenAI:
+        """按指定 entry 的 cfg 临时构建关/开思考实例（旗舰流式重试用）。"""
+        with self._lock:
+            e = self._entries.get(key) or self._entries.get(DEFAULT_KEY) or next(iter(self._entries.values()))
+            cfg = dict(e.cfg)
+            cfg["disable_thinking"] = disable_thinking
+            return _build(cfg)
+
     def config(self) -> dict[str, Any]:
         with self._lock:
             e = self._entries.get(DEFAULT_KEY) or next(iter(self._entries.values()))
@@ -206,6 +214,15 @@ class LLMRegistry:
                 return
             e.runtime_used += int(tokens)
         quota_store.record_delta(key, int(tokens))
+
+    def model_of(self, key: str | None) -> str:
+        """key → 模型 id；None/未知返回默认模型名（供日志）。"""
+        with self._lock:
+            e = self._entries.get(key) if key else None
+            if e:
+                return e.model
+            d = self._entries.get(DEFAULT_KEY) or next(iter(self._entries.values()), None)
+            return d.model if d else ""
 
     def status(self) -> list[dict[str, Any]]:
         """管理员用：各模型配额与可用状态。"""

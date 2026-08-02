@@ -11,7 +11,11 @@ def client(monkeypatch):
 
     import database
     import main
+    import settings as _settings
     from models import Base
+
+    # 既有 chat 测试只验证持久化/契约，关掉多模型路由走 legacy 流式（配合 make_chain mock）
+    monkeypatch.setattr(_settings.settings, "feature_router", False)
 
     eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(eng)
