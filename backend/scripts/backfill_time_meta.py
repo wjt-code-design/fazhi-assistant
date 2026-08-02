@@ -7,6 +7,7 @@
 
 用法：cd backend && python scripts/backfill_time_meta.py
 """
+
 import sys
 
 sys.path.insert(0, ".")  # 允许从 backend/ 或任意目录运行
@@ -35,7 +36,7 @@ def main():
         fix_metas.append(patched)
     if not fix_ids:
         print(f"无需回填：{len(ids)} 个 chunk 三键齐全")
-        print(f"自检通过：缺键 chunk 数 = 0")
+        print("自检通过：缺键 chunk 数 = 0")
         return
     for i in range(0, len(fix_ids), BATCH):
         col.update(ids=fix_ids[i : i + BATCH], metadatas=fix_metas[i : i + BATCH])

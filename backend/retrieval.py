@@ -5,18 +5,17 @@
 - 检索结果按 (mode,query,category,k) 做 LRU 缓存；知识增删时调 invalidate() 失效。
 - BM25 索引惰性构建并缓存；增删知识后 invalidate() 重建。
 """
+
 import math
-import os
 import re
 import threading
+from collections.abc import Callable
 from datetime import date
-from typing import List, Optional, Tuple
 
 from langchain_core.documents import Document
 
-from rag_chain import vectorstore, embeddings
 import retrieval_core as rc
-
+from rag_chain import embeddings, vectorstore
 from settings import settings
 
 # ---- 条号直查路由（阶段7.2）：《法名》第X条 / 法名第X条 → 精确查找，零嵌入零检索 ----
@@ -38,12 +37,12 @@ def _num_to_cn(n: int) -> str:
         return "零"
     s = str(n)
     length = len(s)
-    out = []
+    out: list[str] = []
     for i, ch in enumerate(s):
         d = int(ch)
         pos = length - i - 1
         if d == 0:
-            if out and out[-1] != "零" and any(int(c) != 0 for c in s[i + 1:]):
+            if out and out[-1] != "零" and any(int(c) != 0 for c in s[i + 1 :]):
                 out.append("零")
             continue
         if pos == 1 and d == 1 and i == 0 and length > 1:
@@ -84,11 +83,11 @@ def parse_article_query(query: str):
         return None
     name = m.group(1).strip()
     if name.startswith(_PREFIX_CN):
-        name = name[len(_PREFIX_CN):]
+        name = name[len(_PREFIX_CN) :]
     return name, _normalize_article(m.group(2))
 
 
-def exact_article_lookup(source: str, article: str, cutoff: Optional[str] = None) -> List[Document]:
+def exact_article_lookup(source: str, article: str, cutoff: str | None = None) -> list[Document]:
     """精确条号查找（含时效过滤，与检索同口径）。返回匹配 Document 列表。"""
     cutoff = cutoff or date.today().isoformat()
     data = vectorstore._collection.get(
@@ -96,18 +95,20 @@ def exact_article_lookup(source: str, article: str, cutoff: Optional[str] = None
         include=["documents", "metadatas"],
     )
     docs = []
+    metas = data["metadatas"] or []
+    documents = data["documents"] or []
     for i in range(len(data["ids"])):
-        meta = data["metadatas"][i]
+        meta = metas[i]
         if not rc.is_valid_by_time(meta, cutoff):
             continue
-        docs.append(Document(page_content=data["documents"][i], metadata=meta))
+        docs.append(Document(page_content=documents[i], metadata=meta))
     return docs
 
 
 def _norm_source(name: str) -> str:
     """法名归一：去「中华人民共和国」前缀，便于答案引用与 sources 对齐。"""
     name = (name or "").strip()
-    return name[len(_PREFIX_CN):] if name.startswith(_PREFIX_CN) else name
+    return name[len(_PREFIX_CN) :] if name.startswith(_PREFIX_CN) else name
 
 
 def _source_key(name: str) -> str:
@@ -128,10 +129,11 @@ def article_in_kb(source: str, article: str) -> bool:
     art = _normalize_article(article)
     data = vectorstore._collection.get(where={"article": art}, include=["metadatas"])
     sk = _source_key(source)
-    return any(_source_key((m or {}).get("source", "")) == sk for m in data["metadatas"])
+    metas = data["metadatas"] or []
+    return any(_source_key(str((m or {}).get("source", "") or "")) == sk for m in metas)
 
 
-def extract_citations(answer: str) -> List[tuple]:
+def extract_citations(answer: str) -> list[tuple]:
     """抽取答案中所有《法名》第X条，按 (_source_key, _normalize_article) 去重，
     返回 [(raw_name, raw_article, literal)]（保留首次出现的原文写法）。纯函数。"""
     seen, out = set(), []
@@ -143,7 +145,7 @@ def extract_citations(answer: str) -> List[tuple]:
     return out
 
 
-def citation_verify(answer: str, in_kb=None) -> List[str]:
+def citation_verify(answer: str, in_kb=None) -> list[str]:
     """防假引用（优化路线 B0.1）：抽取答案中所有《法名》第X条，凡**不存在于知识库**者
     判为疑似编造，返回其原文写法（按归一化 key 去重：全称/简称、中文/阿拉伯数字合并）。
 
@@ -153,6 +155,7 @@ def citation_verify(answer: str, in_kb=None) -> List[str]:
     """
     in_kb = in_kb or article_in_kb
     return [literal for (name, art, literal) in extract_citations(answer) if not in_kb(name, art)]
+
 
 RETRIEVAL_RERANK = settings.feature_rerank
 HYBRID = settings.feature_hybrid
@@ -167,7 +170,7 @@ VECTOR_POOL_MIN = 32
 _cache = rc.LRU()
 _bm25_lock = threading.Lock()
 _bm25 = None
-_bm25_docs: List[Document] = []
+_bm25_docs: list[Document] = []
 
 
 def invalidate() -> None:
@@ -185,10 +188,12 @@ def _ensure_bm25() -> None:
         if _bm25 is not None:
             return
         data = vectorstore._collection.get(include=["documents", "metadatas"])
+        documents = data["documents"] or []
+        metadatas = data["metadatas"] or []
         docs = [
             Document(
-                page_content=data["documents"][i],
-                metadata=(data["metadatas"][i] if data["metadatas"] else {}),
+                page_content=documents[i],
+                metadata=metadatas[i] if i < len(metadatas) else {},
             )
             for i in range(len(data["ids"]))
         ]
@@ -197,7 +202,7 @@ def _ensure_bm25() -> None:
 
 
 def _cos(a, b) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
     na = math.sqrt(sum(x * x for x in a)) or 1.0
     nb = math.sqrt(sum(x * x for x in b)) or 1.0
     return dot / (na * nb)
@@ -206,9 +211,9 @@ def _cos(a, b) -> float:
 def vector_top(
     query: str,
     n: int,
-    category: Optional[str] = None,
-    valid: Optional[callable] = None,
-) -> List[Tuple[Document, float]]:
+    category: str | None = None,
+    valid: Callable | None = None,
+) -> list[tuple[Document, float]]:
     """向量召回。category 走 Chroma where（字符串 $eq 可靠）；时效谓词在 Python 侧过滤（D6）。"""
     filt = {"category": category} if category else None
     fetch_n = max(n * VECTOR_POOL_MULT, VECTOR_POOL_MIN)
@@ -231,9 +236,9 @@ def _doc_id(d: Document) -> str:
 def bm25_top(
     query: str,
     n: int,
-    category: Optional[str] = None,
-    valid: Optional[callable] = None,
-) -> List[Tuple[Document, float]]:
+    category: str | None = None,
+    valid: Callable | None = None,
+) -> list[tuple[Document, float]]:
     _ensure_bm25()
     if _bm25 is None:
         return []
@@ -243,9 +248,9 @@ def bm25_top(
 def hybrid_retrieve(
     query: str,
     k: int = 4,
-    category: Optional[str] = None,
-    cutoff: Optional[str] = None,
-) -> List[Document]:
+    category: str | None = None,
+    cutoff: str | None = None,
+) -> list[Document]:
     """混合检索（向量+BM25 RRF）。cutoff 为时效判定日期（'YYYY-MM-DD'，默认今天）。
 
     时效过滤（阶段5）：向量池与 BM25 池在 Python 侧共用 is_valid_by_time 谓词；
@@ -266,8 +271,8 @@ def hybrid_retrieve(
     v = vector_top(query, n, category, valid=valid)
     b = bm25_top(query, n, category, valid=valid)
     pool = {}
-    v_ids: List[str] = []
-    b_ids: List[str] = []
+    v_ids: list[str] = []
+    b_ids: list[str] = []
     for d, _ in v:
         did = _doc_id(d)
         pool[did] = d
@@ -287,9 +292,9 @@ def hybrid_retrieve(
 def retrieve(
     query: str,
     k: int = 4,
-    category: Optional[str] = None,
-    cutoff: Optional[str] = None,
-) -> List[Document]:
+    category: str | None = None,
+    cutoff: str | None = None,
+) -> list[Document]:
     """兼容旧调用。条号直查路由优先（《法名》第X条 → 精确查找，确定性命中）；
     未识别或未命中则回退混合检索。cutoff 缺省为今天。"""
     parsed = parse_article_query(query)
@@ -301,7 +306,7 @@ def retrieve(
     return hybrid_retrieve(query, k, category, cutoff)
 
 
-def grounded_top_score(query: str, category: Optional[str] = None, cutoff: Optional[str] = None) -> float:
+def grounded_top_score(query: str, category: str | None = None, cutoff: str | None = None) -> float:
     """受控沉淀打分：只对"当前仍有效"的条文计分（阶段5），避免沉淀失效条文。"""
     cutoff = cutoff or date.today().isoformat()
     valid = lambda m: rc.is_valid_by_time(m, cutoff)  # noqa: E731
@@ -344,7 +349,7 @@ def retrieve_for_test(query: str, k: int = 5):
     except Exception:
         return [_hit_dict(d, 0.0) for d, _ in res]
     out = []
-    for (d, _s), dv in zip(res, dvs):
+    for (d, _s), dv in zip(res, dvs, strict=True):
         out.append(_hit_dict(d, _cos(qv, dv)))
     out.sort(key=lambda x: x["score"], reverse=True)
     return out

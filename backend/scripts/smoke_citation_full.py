@@ -6,6 +6,7 @@
 前置：后端已启动（manage.py start），API key 已配。用法：
   cd backend && python scripts/smoke_citation_full.py
 """
+
 import json
 import os
 import sys
@@ -31,7 +32,8 @@ ADMIN = (ADMIN_USER, ADMIN_PASS)
 
 def post(url, payload, token=None):
     req = urllib.request.Request(
-        url, data=json.dumps(payload).encode(),
+        url,
+        data=json.dumps(payload).encode(),
         headers={"Content-Type": "application/json", **({"Authorization": "Bearer " + token} if token else {})},
     )
     return urllib.request.urlopen(req, timeout=90)
@@ -40,7 +42,8 @@ def post(url, payload, token=None):
 def chat(token, q):
     body = json.dumps({"question": q}).encode()
     req = urllib.request.Request(
-        BASE + "/api/chat", data=body,
+        BASE + "/api/chat",
+        data=body,
         headers={"Content-Type": "application/json", "Authorization": "Bearer " + token},
     )
     c = ""
@@ -60,7 +63,11 @@ def chat(token, q):
 
 
 POSITIVE = [
-    ("网购退货格式条款", "网购相机，商家标注“拆封不退”，买家要求七天无理由退货被拒。商家免责条款有效吗？", ["第四百九十六条", "第四百九十七条"]),
+    (
+        "网购退货格式条款",
+        "网购相机，商家标注“拆封不退”，买家要求七天无理由退货被拒。商家免责条款有效吗？",
+        ["第四百九十六条", "第四百九十七条"],
+    ),
     ("违法解除赔偿金", "公司违法解除劳动合同，赔偿金怎么算？", ["第八十七条"]),
     ("合法解除经济补偿", "公司合同到期不续签，经济补偿金怎么算？", ["第四十七条"]),
     ("试用期上限", "劳动合同试用期最长能约定多久？", ["第十九条"]),
@@ -102,7 +109,7 @@ def main():
     for label, q in NEGATIVE:
         c = chat(token, q)
         ok_honest = ("未覆盖" in c) or ("无法完整回答" in c) or ("未收录" in c) or ("司法解释" in c and "当前库" in c)
-        check(ok_honest, f"{label}: 诚实拒答={ok_honest} | 前80字: {c[:80].replace(chr(10),' ')}")
+        check(ok_honest, f"{label}: 诚实拒答={ok_honest} | 前80字: {c[:80].replace(chr(10), ' ')}")
 
     print(f"\nfull 门禁：{n - fail}/{n} 通过" + ("，FAIL!" if fail else ""))
     if fail:

@@ -1,4 +1,5 @@
 """阶段3 测试：可观测/健康检查/契约（mock LLM，内存 DB 隔离，不调真实 LLM）。"""
+
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
@@ -6,11 +7,11 @@ from sqlalchemy.orm import sessionmaker
 
 @pytest.fixture
 def client(monkeypatch):
+    from sqlalchemy.pool import StaticPool
+
     import database
     import main
     from models import Base
-
-    from sqlalchemy.pool import StaticPool
 
     eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(eng)
@@ -81,9 +82,9 @@ def test_admin_403_for_normal_user(client):
 
 
 def test_admin_audit_records_action_and_forbids_user(client):
+    from auth import hash_password
     from database import SessionLocal
     from models import User
-    from auth import hash_password
 
     db = SessionLocal()
     try:
@@ -110,9 +111,9 @@ def test_admin_audit_records_action_and_forbids_user(client):
 
 
 def test_feedback_down_creates_candidate_up_does_not(client):
+    from auth import hash_password
     from database import SessionLocal
     from models import User
-    from auth import hash_password
 
     db = SessionLocal()
     try:
@@ -129,7 +130,8 @@ def test_feedback_down_creates_candidate_up_does_not(client):
 
     before = len(client.get("/api/admin/qa/candidates", params={"status": "pending"}, headers=ah).json())
     r = client.post(
-        "/api/feedback", headers=headers,
+        "/api/feedback",
+        headers=headers,
         json={"question": "试用期多久", "answer": "错误的回答", "rating": "down", "correction": "应为六个月"},
     )
     assert r.status_code == 200
@@ -138,7 +140,10 @@ def test_feedback_down_creates_candidate_up_does_not(client):
     assert after[0]["answer"] == "应为六个月"
 
     b2 = len(client.get("/api/admin/qa/candidates", params={"status": "pending"}, headers=ah).json())
-    assert client.post("/api/feedback", headers=headers, json={"question": "x", "answer": "y", "rating": "up"}).status_code == 200
+    assert (
+        client.post("/api/feedback", headers=headers, json={"question": "x", "answer": "y", "rating": "up"}).status_code
+        == 200
+    )
     assert len(client.get("/api/admin/qa/candidates", params={"status": "pending"}, headers=ah).json()) == b2
 
     fbs = client.get("/api/admin/feedback", headers=ah).json()

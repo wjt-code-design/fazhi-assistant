@@ -5,6 +5,7 @@
   片段数 / source 短名 / article 落库 / seed 碎片被取代 / file_hash 幂等。
 临时 collection 隔离生产库；cwd 保存恢复防测试顺序污染。
 """
+
 import os
 import sys
 
@@ -45,10 +46,11 @@ def tmp_collection(monkeypatch, tmp_path):
     替换 vectorstore 引用后两者都落到临时库。
     """
     import chromadb
-    from langchain_chroma import Chroma
-    from rag_chain import embeddings
     import import_docs as id_mod
+    from langchain_chroma import Chroma
+
     import knowledge_service as ks_mod
+    from rag_chain import embeddings
 
     client = chromadb.PersistentClient(
         path=str(tmp_path / "chroma"),
@@ -67,12 +69,17 @@ def tmp_collection(monkeypatch, tmp_path):
 FIXTURE_LAW = "第一章 总则\n\n第一条 为了保护合法权益，制定本法。\n\n第二条 本法的适用范围。\n"
 
 
+@pytest.mark.slow
 def test_import_one_end_to_end(mod, tmp_collection, monkeypatch, tmp_path):
     from langchain_core.documents import Document
 
     # 预置一个 origin=seed 的碎片（应被整法取代）
     tmp_collection.add_documents(
-        [Document(page_content="第一条 旧种子碎片", metadata={"source": "测试法", "article": "第一条", "origin": "seed"})]
+        [
+            Document(
+                page_content="第一条 旧种子碎片", metadata={"source": "测试法", "article": "第一条", "origin": "seed"}
+            )
+        ]
     )
     # fixture 法文件写入临时 CLEAN_DIR
     clean_dir = tmp_path / "clean"
@@ -95,6 +102,7 @@ def test_import_one_end_to_end(mod, tmp_collection, monkeypatch, tmp_path):
     assert arts == {"第一条", "第二条"}
 
 
+@pytest.mark.slow
 def test_import_one_idempotent_by_hash(mod, tmp_collection, monkeypatch, tmp_path):
     clean_dir = tmp_path / "clean"
     clean_dir.mkdir()

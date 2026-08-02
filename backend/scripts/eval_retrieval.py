@@ -5,6 +5,7 @@
 
 用法：在 backend/ 下 `python scripts/eval_retrieval.py`（或任意目录，脚本会自定位）。
 """
+
 import json
 import os
 import sys
@@ -44,8 +45,7 @@ def main():
         print(f"[{c['id']}] source={int(s)} article={int(a)} keywords={int(k)}  Q={c['question']}")
     n = len(cases) or 1
     print(
-        f"\nrecall_source@4={hit_src / n:.2f} recall_article@4={hit_art / n:.2f} "
-        f"keyword_hit={hit_kw / n:.2f} (n={n})"
+        f"\nrecall_source@4={hit_src / n:.2f} recall_article@4={hit_art / n:.2f} keyword_hit={hit_kw / n:.2f} (n={n})"
     )
 
 

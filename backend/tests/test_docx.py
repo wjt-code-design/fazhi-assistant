@@ -5,6 +5,7 @@
 - 非法输入（坏 zip / 缺 document.xml）抛 ValueError。
 - validate_upload 白名单 + 魔数；parse_uploaded .docx 往返。
 """
+
 import io
 import os
 import sys
@@ -19,8 +20,8 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 import pytest
 
-from docx_utils import extract
 import knowledge_service as ks
+from docx_utils import extract
 
 W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
 
@@ -29,11 +30,11 @@ def _doc_xml(body_inner: str) -> bytes:
     return (
         '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'
         f'<w:document xmlns:w="{W}"><w:body>{body_inner}</w:body></w:document>'
-    ).encode("utf-8")
+    ).encode()
 
 
 def _para(text: str) -> str:
-    return f'<w:p><w:r><w:t>{text}</w:t></w:r></w:p>'
+    return f"<w:p><w:r><w:t>{text}</w:t></w:r></w:p>"
 
 
 def _table(cells_per_row):
@@ -70,7 +71,10 @@ def test_extract_table_pipe_separated():
 
 
 def test_extract_skips_wdel():
-    body = _para("保留文字") + f'<w:p><w:r><w:t>前</w:t></w:r><w:del><w:r><w:t>删除文本</w:t></w:r></w:del><w:r><w:t>后</w:t></w:r></w:p>'
+    body = (
+        _para("保留文字")
+        + "<w:p><w:r><w:t>前</w:t></w:r><w:del><w:r><w:t>删除文本</w:t></w:r></w:del><w:r><w:t>后</w:t></w:r></w:p>"
+    )
     data = build_docx(body)
     text, _ = extract(data)
     assert "删除文本" not in text
@@ -78,13 +82,13 @@ def test_extract_skips_wdel():
 
 
 def test_extract_warns_on_revision_insert():
-    body = _para("正文") + '<w:p><w:ins><w:r><w:t>插入</w:t></w:r></w:ins></w:p>'
+    body = _para("正文") + "<w:p><w:ins><w:r><w:t>插入</w:t></w:r></w:ins></w:p>"
     _, warns = extract(build_docx(body))
     assert any("w:ins" in w for w in warns)
 
 
 def test_extract_warns_on_field_code():
-    body = _para("正文") + '<w:p><w:fldSimple><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p>'
+    body = _para("正文") + "<w:p><w:fldSimple><w:r><w:t>1</w:t></w:r></w:fldSimple></w:p>"
     _, warns = extract(build_docx(body))
     assert any("fldSimple" in w for w in warns)
 

@@ -4,6 +4,7 @@
 - 未知环境变量忽略（extra=ignore），避免 .env 里多余项报错。
 - 兼容旧名 ZHIPUAI_API_KEY（见 api_key 属性）。
 """
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -22,7 +23,7 @@ class Settings(BaseSettings):
     admin_password: str = "admin12345"
 
     # ---- 特性开关 ----
-    feature_hybrid: bool = True   # 向量+BM25 RRF 混合检索
+    feature_hybrid: bool = True  # 向量+BM25 RRF 混合检索
     feature_rerank: bool = False  # cross-encoder 重排（CPU 重，默认关）
 
     # ---- 图片限制 ----

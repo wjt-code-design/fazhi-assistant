@@ -7,6 +7,7 @@
 
 用法：cd backend && python scripts/eval_chunking.py
 """
+
 import os
 import sys
 
@@ -15,13 +16,13 @@ BACKEND = os.path.dirname(HERE)
 sys.path.insert(0, BACKEND)
 os.chdir(BACKEND)
 
-from langchain_text_splitters import RecursiveCharacterTextSplitter  # noqa: E402
 from langchain_core.documents import Document  # noqa: E402
+from langchain_text_splitters import RecursiveCharacterTextSplitter  # noqa: E402
 
-from rag_chain import vectorstore, embeddings  # noqa: E402
 import chunking  # noqa: E402
-import retrieval  # noqa: E402
 import eval_metrics as M  # noqa: E402
+import retrieval  # noqa: E402
+from rag_chain import vectorstore  # noqa: E402
 
 FIXTURE = os.path.join(BACKEND, "..", "data", "sample_laws", "sample_law.txt")
 OLD_SOURCE = "tmp_chunk_old"
@@ -71,7 +72,10 @@ def main():
         vectorstore.add_documents(new_docs)
         retrieval.invalidate()
 
-        print(f"旧切分：{len(old_chunks)} chunk（无条号元数据）  新切分：{len(new_chunks)} chunk（{len(set(c.meta.get('article','') for c in new_chunks if c.meta.get('article')))} 个条号）\n")
+        print(
+            f"旧切分：{len(old_chunks)} chunk（无条号元数据）  新切分：{len(new_chunks)} chunk（{len(set(c.meta.get('article', '') for c in new_chunks if c.meta.get('article')))} 个条号）\n"
+        )
+
         def _path_recall(q, arts, src):
             docs = retrieval.retrieve(q, k=8)
             tmp = [d for d in docs if d.metadata.get("source") == src][:4]
@@ -86,8 +90,8 @@ def main():
             new_sum += r_new
             print(f"{q:<22} {','.join(arts):<10} {r_old:<10.2f} {r_new:<10.2f}")
         n = len(CASES) or 1
-        print(f"\nmean recall@4: 旧={old_sum/n:.2f}  新={new_sum/n:.2f}")
-        if new_sum/n < old_sum/n:
+        print(f"\nmean recall@4: 旧={old_sum / n:.2f}  新={new_sum / n:.2f}")
+        if new_sum / n < old_sum / n:
             print("警告：结构化切分 recall 低于旧切分，请检查 chunking.py", file=sys.stderr)
             sys.exit(1)
         print("结论：结构化切分 ≥ 旧切分（门禁通过）")

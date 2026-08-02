@@ -4,8 +4,9 @@
 - 链的输入为 main 组装好的 messages 列表（含 system/历史/带图或纯文本的最终 human），
   以便视觉模型接收 image_url content 数组。
 """
-import os
+
 import asyncio
+import os
 import re
 
 # 运行期默认离线用本地缓存，避免对 huggingface.co 的在线校验（部分环境 SSL 校验失败）。
@@ -13,9 +14,9 @@ import re
 os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.output_parsers import StrOutputParser
+from langchain_huggingface import HuggingFaceEmbeddings
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
@@ -35,8 +36,7 @@ vectorstore = Chroma(
 
 def format_docs(docs) -> str:
     return "\n\n".join(
-        f"[{d.metadata.get('source', '')} {d.metadata.get('article', '')}] {d.page_content}"
-        for d in docs
+        f"[{d.metadata.get('source', '')} {d.metadata.get('article', '')}] {d.page_content}" for d in docs
     )
 
 

@@ -7,8 +7,10 @@
 - 已有表新增列：用 PRAGMA table_info 检测，缺则 ALTER TABLE ADD COLUMN（try/except 兜底）。
   注意 SQLite 的 ADD COLUMN 对默认值有限制，last_active_at 用无默认(NULL)，排序时用 COALESCE 兜底。
 """
+
 from sqlalchemy import text
-from database import engine, Base
+
+from database import Base, engine
 
 # (table, column, ddl_type, default_sql_or_None)
 _COLUMN_MIGRATIONS = [

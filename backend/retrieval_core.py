@@ -3,13 +3,14 @@
 只依赖 stdlib + jieba + rank_bm25 + langchain_core 的 Document 类型，不加载嵌入模型/向量库，
 因此可被单元测试快速覆盖。重排模型加载与向量检索在 retrieval.py。
 """
+
 import threading
 from collections import OrderedDict
-from typing import Dict, List, Optional, Tuple
+from collections.abc import Callable, Mapping
 
 import jieba
-from rank_bm25 import BM25Okapi
 from langchain_core.documents import Document
+from rank_bm25 import BM25Okapi
 
 RRF_K = 60
 
@@ -17,7 +18,7 @@ RRF_K = 60
 STATUS_WHITELIST = ("现行", "已废止", "即将施行")
 
 
-def is_valid_by_time(meta: dict, today: str) -> bool:
+def is_valid_by_time(meta: Mapping, today: str) -> bool:
     """条文时效判定（阶段5）：status 非已废止 且 已生效 且 未过废止日。
 
     today: 'YYYY-MM-DD'（ISO 字典序即时间序）；空串/缺失键视为无该限制。
@@ -35,7 +36,7 @@ def is_valid_by_time(meta: dict, today: str) -> bool:
     return True
 
 
-def tokenize(text: str) -> List[str]:
+def tokenize(text: str) -> list[str]:
     """中文分词（jieba），过滤空白与纯空白片段。"""
     return [t for t in jieba.cut(text or "") if t and t.strip()]
 
@@ -44,7 +45,7 @@ class LRU:
     """线程安全的简单 LRU 缓存（用于检索结果缓存）。"""
 
     def __init__(self, maxsize: int = 256):
-        self._d: "OrderedDict[tuple, object]" = OrderedDict()
+        self._d: OrderedDict[tuple, object] = OrderedDict()
         self._max = maxsize
         self._lock = threading.Lock()
 
@@ -71,16 +72,16 @@ class LRU:
             return len(self._d)
 
 
-def rrf(rankings: List[List[str]], k: int = RRF_K) -> Dict[str, float]:
+def rrf(rankings: list[list[str]], k: int = RRF_K) -> dict[str, float]:
     """Reciprocal Rank Fusion。rankings=多个按相关性排序的 doc-id 列表；返回 id->融合分。纯函数。"""
-    scores: Dict[str, float] = {}
+    scores: dict[str, float] = {}
     for ranking in rankings:
         for rank, doc_id in enumerate(ranking):
             scores[doc_id] = scores.get(doc_id, 0.0) + 1.0 / (k + rank + 1)
     return scores
 
 
-def build_bm25(docs: List[Document]) -> Optional[BM25Okapi]:
+def build_bm25(docs: list[Document]) -> BM25Okapi | None:
     if not docs:
         return None
     return BM25Okapi([tokenize(d.page_content) for d in docs])
@@ -88,15 +89,15 @@ def build_bm25(docs: List[Document]) -> Optional[BM25Okapi]:
 
 def bm25_top(
     bm25: BM25Okapi,
-    docs: List[Document],
+    docs: list[Document],
     query: str,
     n: int,
-    category: Optional[str] = None,
-    valid: Optional[callable] = None,
-) -> List[Tuple[Document, float]]:
+    category: str | None = None,
+    valid: Callable | None = None,
+) -> list[tuple[Document, float]]:
     scores = bm25.get_scores(tokenize(query))
     order = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
-    out: List[Tuple[Document, float]] = []
+    out: list[tuple[Document, float]] = []
     for i in order:
         d = docs[i]
         if category and d.metadata.get("category") != category:
@@ -109,7 +110,7 @@ def bm25_top(
     return out
 
 
-def rerank(query: str, docs: List[Document], enabled: bool = False, model=None) -> List[Document]:
+def rerank(query: str, docs: list[Document], enabled: bool = False, model=None) -> list[Document]:
     """重排接口。未启用或未加载模型时原样返回（安全回落，保证不破坏现有检索）。
 
     启用且模型就绪时的接法（占位，模型加载在 retrieval.py 完成后再填充）：

@@ -1,6 +1,8 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Float
+
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
+
 from database import Base
 
 
@@ -15,9 +17,7 @@ class User(Base):
     is_active = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
 
-    conversations = relationship(
-        "Conversation", back_populates="user", cascade="all, delete-orphan"
-    )
+    conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
 
 
 class Conversation(Base):
@@ -49,9 +49,7 @@ class Message(Base):
     __tablename__ = "messages"
 
     id = Column(Integer, primary_key=True, index=True)
-    conversation_id = Column(
-        Integer, ForeignKey("conversations.id"), nullable=False, index=True
-    )
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False, index=True)
     # user / assistant / system
     role = Column(String(16), nullable=False)
     content = Column(Text, default="")

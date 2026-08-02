@@ -4,6 +4,7 @@
 默认输出：每条 recall@k + citation_correct，及均值。
 设 EVAL_LLM_JUDGE=1 时额外用 LLM 判忠实度（每条多 1 次模型调用，消耗 token）。
 """
+
 import json
 import os
 import sys
@@ -14,11 +15,11 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
-from langchain_core.messages import SystemMessage, HumanMessage
+from langchain_core.messages import HumanMessage, SystemMessage
 
 import eval_metrics as M
 from llm_registry import registry
-from rag_chain import make_chain, format_docs
+from rag_chain import format_docs, make_chain
 from retrieval import retrieve
 
 SYS = (
@@ -27,15 +28,14 @@ SYS = (
 )
 DATA = os.path.join(os.path.dirname(__file__), "..", "..", "data", "eval_set.json")
 
-JUDGE = (
-    "你是评测裁判。仅依据【条文】判断【答案】是否忠实（不含条文外的编造）。"
-    "只输出一个词：faithful 或 unfaithful。"
-)
+JUDGE = "你是评测裁判。仅依据【条文】判断【答案】是否忠实（不含条文外的编造）。只输出一个词：faithful 或 unfaithful。"
 
 
 def _faithful(llm, context: str, answer: str) -> bool:
     try:
-        r = llm.invoke([SystemMessage(content=JUDGE), HumanMessage(content=f"【条文】\n{context}\n\n【答案】\n{answer}")])
+        r = llm.invoke(
+            [SystemMessage(content=JUDGE), HumanMessage(content=f"【条文】\n{context}\n\n【答案】\n{answer}")]
+        )
         return "unfaithful" not in (r.content or "").lower()
     except Exception:
         return False
@@ -70,9 +70,9 @@ def main():
         line += f" Q={c['question']}"
         print(line)
     n = len(cases) or 1
-    tail = f"mean_recall@4={rec_sum/n:.2f} citation_accuracy={cit_ok/n:.2f}"
+    tail = f"mean_recall@4={rec_sum / n:.2f} citation_accuracy={cit_ok / n:.2f}"
     if do_judge:
-        tail += f" faithfulness={faith_ok/(njudge or 1):.2f}"
+        tail += f" faithfulness={faith_ok / (njudge or 1):.2f}"
     print(f"\n{tail} (n={n})")
 
 

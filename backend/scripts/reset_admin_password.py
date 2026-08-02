@@ -5,6 +5,7 @@
 用法：cd backend && python scripts/reset_admin_password.py --username admin --password 新密码
 不传参数时回退到 backend/.env 的 ADMIN_USERNAME / ADMIN_PASSWORD。
 """
+
 import argparse
 import os
 import sys
@@ -17,9 +18,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+from auth import hash_password  # noqa: E402
 from database import SessionLocal, init_db  # noqa: E402
 from models import User  # noqa: E402
-from auth import hash_password  # noqa: E402
 
 
 def main():
@@ -44,8 +45,10 @@ def main():
         user.password_hash = hash_password(password)
         db.commit()
         print(f"已重置 {username} 的密码。")
-        print("同步提示：请同时更新 backend/.env 的 ADMIN_PASSWORD 为新值，"
-              "保持 .env 与数据库一致（seed_admin.py 仅在用户不存在时创建，不会覆盖已改密码）。")
+        print(
+            "同步提示：请同时更新 backend/.env 的 ADMIN_PASSWORD 为新值，"
+            "保持 .env 与数据库一致（seed_admin.py 仅在用户不存在时创建，不会覆盖已改密码）。"
+        )
     finally:
         db.close()
 

@@ -5,6 +5,7 @@
 - 每文件报告：字符数 / 行首条号数 / FAIL（解析异常·乱码·空）/ WARN（修订·域代码）。
 - FAIL 文件不写 txt；报告打印并汇总。
 """
+
 import argparse
 import os
 import re

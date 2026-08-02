@@ -1,11 +1,12 @@
 import os
+
 from dotenv import load_dotenv
 
 load_dotenv()
 
+from auth import hash_password
 from database import SessionLocal, init_db
 from models import User
-from auth import hash_password
 
 
 def seed():

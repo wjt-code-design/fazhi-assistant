@@ -3,15 +3,15 @@
 说明：单一全模态模型负责"看图产描述/要点"（检索桥接）与"带图作答"；
 base64 不写库，只存盘；过小图片会被部分平台拒绝，故校验尺寸下限。
 """
+
 import base64
 import io
 import os
 import re
 import uuid
-from typing import Optional, Tuple
 
-from PIL import Image
 from langchain_core.messages import HumanMessage
+from PIL import Image
 
 BASE = os.path.dirname(os.path.abspath(__file__))
 MEDIA_DIR = os.path.join(BASE, "media")
@@ -33,7 +33,7 @@ def _abs(rel: str) -> str:
     return os.path.join(BASE, *rel.split("/"))
 
 
-def _decode_data_url(data_url: str) -> Tuple[str, bytes]:
+def _decode_data_url(data_url: str) -> tuple[str, bytes]:
     m = _DATA_URL_RE.match(data_url.strip())
     if not m:
         raise ValueError("图片格式不支持：需 data URL（data:image/...;base64,...）")
@@ -41,13 +41,13 @@ def _decode_data_url(data_url: str) -> Tuple[str, bytes]:
     try:
         raw = base64.b64decode(m.group(2), validate=True)
     except Exception as e:
-        raise ValueError(f"图片 base64 解码失败：{e}")
+        raise ValueError(f"图片 base64 解码失败：{e}") from e
     if not raw:
         raise ValueError("图片内容为空")
     return mime, raw
 
 
-def validate_image(image: Optional[str]) -> Optional[str]:
+def validate_image(image: str | None) -> str | None:
     """校验格式/大小/尺寸（用 IMAGE_LIMITS）；通过返回原 data URL，无图返回 None。"""
     if not image:
         return None
@@ -65,7 +65,7 @@ def validate_image(image: Optional[str]) -> Optional[str]:
         with Image.open(io.BytesIO(raw)) as im:
             w, h = im.size
     except Exception as e:
-        raise ValueError(f"图片无法解析（可能损坏）：{e}")
+        raise ValueError(f"图片无法解析（可能损坏）：{e}") from e
     min_px = cfg.get("min_px", 10)
     max_px = cfg.get("max_px", 6000)
     if w < min_px or h < min_px:
@@ -75,7 +75,7 @@ def validate_image(image: Optional[str]) -> Optional[str]:
     return image
 
 
-def persist_image(data_url: str) -> Tuple[str, str]:
+def persist_image(data_url: str) -> tuple[str, str]:
     """存原图 + 生成缩略图，返回 (原图相对路径, 缩略图相对路径)，相对 backend/，用 '/' 分隔。"""
     mime, raw = _decode_data_url(data_url)
     ext = "jpg" if "jpeg" in mime else "png"

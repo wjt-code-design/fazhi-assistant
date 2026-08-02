@@ -6,14 +6,15 @@
   仅在空答重试的 variant 中会用到。
 - 会偶发限流/空答，故保留 max_retries=3 与空答重试。
 """
+
 import threading
-from typing import Any, Dict, Optional
+from typing import Any
 
 from langchain_openai import ChatOpenAI
 
 from settings import settings
 
-DEFAULT_CFG: Dict[str, Any] = {
+DEFAULT_CFG: dict[str, Any] = {
     "model": settings.llm_model,
     "base_url": settings.llm_base_url,
     "api_key": settings.api_key,
@@ -23,10 +24,10 @@ DEFAULT_CFG: Dict[str, Any] = {
 }
 
 
-def _build(cfg: Dict[str, Any]) -> ChatOpenAI:
+def _build(cfg: dict[str, Any]) -> ChatOpenAI:
     if not cfg.get("api_key") or not cfg.get("base_url"):
         raise RuntimeError("缺少 LLM_API_KEY / LLM_BASE_URL，请在 backend/.env 配置")
-    model_kwargs: Dict[str, Any] = {}
+    model_kwargs: dict[str, Any] = {}
     if cfg.get("disable_thinking"):
         model_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     return ChatOpenAI(
@@ -43,8 +44,8 @@ def _build(cfg: Dict[str, Any]) -> ChatOpenAI:
 class LLMRegistry:
     def __init__(self) -> None:
         self._lock = threading.RLock()
-        self._cfg: Dict[str, Any] = dict(DEFAULT_CFG)
-        self._llm: Optional[ChatOpenAI] = None
+        self._cfg: dict[str, Any] = dict(DEFAULT_CFG)
+        self._llm: ChatOpenAI | None = None
         self._build()
 
     def _build(self) -> None:
@@ -53,7 +54,9 @@ class LLMRegistry:
 
     def get(self) -> ChatOpenAI:
         with self._lock:
-            return self._llm
+            llm = self._llm
+            assert llm is not None, "LLM 未初始化（_build 失败）"
+            return llm
 
     def variant(self, disable_thinking: bool) -> ChatOpenAI:
         """按给定"是否关思考"构建临时实例（用于空答重试；阿里云接受该参数）。"""
@@ -62,11 +65,11 @@ class LLMRegistry:
             cfg["disable_thinking"] = disable_thinking
             return _build(cfg)
 
-    def config(self) -> Dict[str, Any]:
+    def config(self) -> dict[str, Any]:
         with self._lock:
             return {"model": self._cfg["model"], "capabilities": list(self._cfg["capabilities"])}
 
-    def reload(self, model: Optional[str] = None) -> Dict[str, Any]:
+    def reload(self, model: str | None = None) -> dict[str, Any]:
         """在线热切换（单模型）。进行中流式仍持有旧实例引用，不受影响。"""
         with self._lock:
             if model:

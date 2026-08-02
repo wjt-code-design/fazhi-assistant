@@ -8,6 +8,7 @@
 
 用法：cd backend && python scripts/import_laws.py [--input 路径] [--dry-run]
 """
+
 import argparse
 import json
 import os
@@ -19,8 +20,8 @@ BACKEND = os.path.dirname(HERE)
 sys.path.insert(0, BACKEND)
 os.chdir(BACKEND)
 
-from rag_chain import vectorstore  # noqa: E402
 import knowledge_service as ks  # noqa: E402
+from rag_chain import vectorstore  # noqa: E402
 from retrieval_core import STATUS_WHITELIST  # noqa: E402
 
 DEFAULT_INPUT = os.path.join(BACKEND, "..", "data", "laws_extra.json")
@@ -59,13 +60,13 @@ def _load_entries(path: str) -> list:
 
 
 def _seed_conflict(title: str, article: str) -> bool:
-    ids = vectorstore._collection.get(
-        where={"$and": [{"source": title}, {"article": article}]}, include=["metadatas"]
-    )["ids"]
+    ids = vectorstore._collection.get(where={"$and": [{"source": title}, {"article": article}]}, include=["metadatas"])[
+        "ids"
+    ]
     if not ids:
         return False
     # 存在 seed 即视为冲突（重建会覆盖 import 版本）
-    metas = vectorstore._collection.get(ids=ids[:1], include=["metadatas"])["metadatas"]
+    metas = vectorstore._collection.get(ids=ids[:1], include=["metadatas"])["metadatas"] or []
     return bool(metas) and metas[0].get("origin") == "seed"
 
 
@@ -96,9 +97,7 @@ def main():
             print(f"  跳过（与种子冲突，请改 laws.json 后重建）：{title} {article}")
             n_skip += 1
             continue
-        stale = vectorstore._collection.get(
-            where={"$and": [{"source": title}, {"article": article}]}
-        )["ids"]
+        stale = vectorstore._collection.get(where={"$and": [{"source": title}, {"article": article}]})["ids"]
         n_del += len(stale)
         n_add += 1
         if args.dry_run:

@@ -1,4 +1,4 @@
-from eval_metrics import recall_at_k, citation_correct, citation_present
+from eval_metrics import citation_correct, citation_present, recall_at_k
 
 
 def test_recall_at_k():

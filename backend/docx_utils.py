@@ -8,8 +8,8 @@
   不依赖 U+FFFD 文本特征（后者仅作二级检查）。
 - 页眉/页脚/批注/嵌入对象不提取（法律文本正文在 document.xml）。
 """
+
 import zipfile
-from typing import List, Tuple
 from xml.etree import ElementTree as ET
 
 _W = "{http://schemas.openxmlformats.org/wordprocessingml/2006/main}"
@@ -21,7 +21,7 @@ def _tag(name: str) -> str:
 
 def _para_text(p: ET.Element) -> str:
     """段落文本：w:t 拼接；w:tab→空格；w:br→换行（w:del 已在树级剔除）。"""
-    parts: List[str] = []
+    parts: list[str] = []
     for node in p.iter():
         if node.tag == _tag("t"):
             parts.append(node.text or "")
@@ -34,30 +34,30 @@ def _para_text(p: ET.Element) -> str:
 
 def _table_text(tbl: ET.Element) -> str:
     """表格文本：每行单元格用 | 分隔，行之间换行（表格前空行由调用方补）。"""
-    rows: List[str] = []
+    rows: list[str] = []
     for tr in tbl.iter(_tag("tr")):
-        cells: List[str] = []
+        cells: list[str] = []
         for tc in tr.iter(_tag("tc")):
             cells.append("".join((t.text or "") for t in tc.iter(_tag("t"))))
         rows.append(" | ".join(cells))
     return "\n".join(rows)
 
 
-def extract(data: bytes, filename: str = "") -> Tuple[str, List[str]]:
+def extract(data: bytes, filename: str = "") -> tuple[str, list[str]]:
     """从 docx 字节提取正文。返回 (text, warnings)；非法/损坏抛 ValueError。"""
     try:
         zf = zipfile.ZipFile(__import__("io").BytesIO(data))
     except zipfile.BadZipFile as e:
-        raise ValueError(f"不是有效的 docx（zip 损坏）：{e}")
+        raise ValueError(f"不是有效的 docx（zip 损坏）：{e}") from e
     if "word/document.xml" not in zf.namelist():
         raise ValueError("不是有效的 docx（缺少 word/document.xml）")
     raw = zf.read("word/document.xml")
     try:
         root = ET.fromstring(raw)
     except ET.ParseError as e:
-        raise ValueError(f"document.xml 解析失败（可能编码损坏）：{e}")
+        raise ValueError(f"document.xml 解析失败（可能编码损坏）：{e}") from e
 
-    warnings: List[str] = []
+    warnings: list[str] = []
     # 修订/域代码检测（先于剔除，报告后处理）
     if root.find(f".//{_tag('ins')}") is not None:
         warnings.append("文档含修订插入标记(w:ins)——若以原始视图保存，插入文字可能缺失，请确认")
@@ -73,9 +73,8 @@ def extract(data: bytes, filename: str = "") -> Tuple[str, List[str]]:
     body = root.find(_tag("body"))
     if body is None:
         raise ValueError("document.xml 缺少 body")
-    body = body  # type: ET.Element
 
-    blocks: List[str] = []
+    blocks: list[str] = []
     for child in body:
         if child.tag == _tag("p"):
             t = _para_text(child).strip("\n")

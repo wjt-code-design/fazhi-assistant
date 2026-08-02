@@ -1,6 +1,7 @@
 import os
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm import declarative_base, sessionmaker
 
 # 路径锚定到本文件所在目录，避免依赖启动目录
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

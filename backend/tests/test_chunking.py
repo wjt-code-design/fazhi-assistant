@@ -1,4 +1,5 @@
 """阶段6 测试：结构化切分（纯函数，fixture 为合成测试文本）。"""
+
 import os
 
 import chunking as C
@@ -89,7 +90,7 @@ def test_toc_only_short_entries_falls_back():
 def test_split_article_text_basic_and_long():
     short = C.split_article_text("依法成立的合同受法律保护。", article="第八条")
     assert len(short) == 1 and short[0].meta["article"] == "第八条"
-    long_body = ("第" + "一段。" + "第二段；" * 300)
+    long_body = "第" + "一段。" + "第二段；" * 300
     long = C.split_article_text(long_body, article="第九条", chapter="第二章 分则")
     assert len(long) >= 2 and all(c.meta["article"] == "第九条" for c in long)
     assert all("第二章 分则" in c.page_content for c in long)

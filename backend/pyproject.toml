@@ -1,0 +1,75 @@
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B"]
+# E501 行长交给 formatter；B008 是 FastAPI 标准写法（Depends() 作为默认参数）
+ignore = ["E501", "B008"]
+
+# 需在 load_dotenv / sys.path 调整后 import → E402 是设计使然
+[tool.ruff.lint.per-file-ignores]
+"scripts/*.py" = ["E402"]
+"tests/*.py" = ["E402"]
+"main.py" = ["E402"]  # 必须先 load_dotenv 再 import 业务模块（启动强校验）
+"multimodal.py" = ["E402"]
+"seed_admin.py" = ["E402"]
+
+[tool.mypy]
+python_version = 3.11
+ignore_missing_imports = true
+check_untyped_defs = false
+warn_unused_ignores = false
+warn_redundant_casts = false
+no_implicit_optional = false
+exclude = ["tests/"]
+
+# SQLAlchemy 2.0 用 Column 而非 Mapped 注解 → Column[T] 被当 T 的误报（框架摩擦，基线忽略）
+# 迁移到 Mapped[mapped_column] 后应移除这些 override
+[[tool.mypy.overrides]]
+module = "models"
+disable_error_code = ["arg-type", "assignment", "return-value", "valid-type", "misc"]
+
+[[tool.mypy.overrides]]
+module = "database"
+disable_error_code = ["arg-type", "assignment"]
+
+[[tool.mypy.overrides]]
+module = "knowledge_service"
+disable_error_code = ["arg-type", "assignment", "return-value"]
+
+[[tool.mypy.overrides]]
+module = "memory"
+disable_error_code = ["arg-type", "assignment", "return-value"]
+
+[[tool.mypy.overrides]]
+module = "main"
+disable_error_code = ["arg-type", "assignment", "return-value", "union-attr"]
+
+# multimodal：PIL/IMAGE_LIMITS 类型摩擦（图片工具，非核心 RAG 逻辑）
+[[tool.mypy.overrides]]
+module = "multimodal"
+disable_error_code = ["operator", "assignment", "dict-item", "union-attr", "arg-type"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "slow: 真实 KB / 嵌入模型测试，CI 跳过（本地全跑）",
+]
+
+[tool.coverage.run]
+branch = true
+# 管理/一次性脚本与 seed 导入不进覆盖率（核心检索/校验路径必须测）
+omit = [
+    "tests/*",
+    "scripts/*",
+    "knowledge_base.py",
+    "seed_admin.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "if __name__ == .__main__.:",
+]

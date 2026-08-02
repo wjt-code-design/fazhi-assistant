@@ -4,6 +4,7 @@
 - citation_verify：命中/异常/全称简称归一/〇零归一/无引用。
 - _num_to_cn / _normalize_article / parse_article_query 边界。
 """
+
 import os
 import sys
 
@@ -38,24 +39,32 @@ def test_extract_no_citations():
 
 # ---------------- citation_verify（知识库存在性校验，可注入 in_kb） ----------------
 def test_verify_in_kb_not_flagged():
-    in_kb = lambda name, art: R._normalize_article(art) in {"第十三条", "第二十条"}
+    def in_kb(name, art):
+        return R._normalize_article(art) in {"第十三条", "第二十条"}
+
     assert R.citation_verify("依据《刑法》第十三条和第二十条。", in_kb) == []
 
 
 def test_verify_not_in_kb_flagged():
-    in_kb = lambda name, art: False
+    def in_kb(name, art):
+        return False
+
     assert R.citation_verify("依据《刑法》第九百九十九条。", in_kb) == ["《刑法》第九百九十九条"]
 
 
 def test_verify_mixed():
-    in_kb = lambda name, art: R._normalize_article(art) == "第十三条"
+    def in_kb(name, art):
+        return R._normalize_article(art) == "第十三条"
+
     bad = R.citation_verify("《刑法》第十三条真实，《刑法》第九百九十九条编造。", in_kb)
     assert bad == ["《刑法》第九百九十九条"]
 
 
 def test_verify_dedup_fullname_abbreviation():
     # 全称+简称都不在库 → 只报一次
-    in_kb = lambda name, art: False
+    def in_kb(name, art):
+        return False
+
     assert len(R.citation_verify("《中华人民共和国刑法》第二十条、《刑法》第二十条。", in_kb)) == 1
 
 
@@ -64,14 +73,20 @@ def test_source_key_handles_xianfa_bracket():
     assert R._source_key("宪法（1982年）") == "宪法"
     assert R._source_key("中华人民共和国宪法（1982年）") == "宪法"
     kb_sources = {"宪法"}  # 已去括注的库存源名
-    in_kb = lambda name, art: R._source_key(name) in kb_sources
+
+    def in_kb(name, art):
+        return R._source_key(name) in kb_sources
+
     assert R.citation_verify("《宪法》第二条。", in_kb) == []
 
 
 def test_verify_cross_law_fabrication():
     # 跨法编造：第1260条只在民法典，挂到电子商务法名下 → 判不在库
     kb = {("民法典", "第一千二百六十条")}
-    in_kb = lambda name, art: (R._source_key(name), R._normalize_article(art)) in kb
+
+    def in_kb(name, art):
+        return (R._source_key(name), R._normalize_article(art)) in kb
+
     assert R.citation_verify("《电子商务法》第一千二百六十条。", in_kb) == ["《电子商务法》第一千二百六十条"]
     assert R.citation_verify("《民法典》第一千二百六十条。", in_kb) == []
 
@@ -85,8 +100,18 @@ def test_verify_against_real_kb():
 
 # ---------------- _num_to_cn ----------------
 def test_num_to_cn():
-    cases = {1: "一", 10: "十", 13: "十三", 19: "十九", 20: "二十", 100: "一百",
-             101: "一百零一", 108: "一百零八", 110: "一百一十", 1260: "一千二百六十"}
+    cases = {
+        1: "一",
+        10: "十",
+        13: "十三",
+        19: "十九",
+        20: "二十",
+        100: "一百",
+        101: "一百零一",
+        108: "一百零八",
+        110: "一百一十",
+        1260: "一千二百六十",
+    }
     for n, exp in cases.items():
         assert R._num_to_cn(n) == exp, f"{n} → {R._num_to_cn(n)} != {exp}"
 

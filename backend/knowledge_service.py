@@ -6,21 +6,20 @@
 - 时效字段 effective_from/effective_to/status 经 extra_meta 透传到 metadata（阶段1种子，阶段5治理）。
 - 受控沉淀：高有据问答先入 qa_candidates，管理员采纳后才写 qa_pairs 向量集合。
 """
+
 import hashlib
 import io
 import math
 import os
-from datetime import datetime
-from typing import Optional
 
-from langchain_core.documents import Document
 from langchain_chroma import Chroma
+from langchain_core.documents import Document
 from sqlalchemy.orm import Session
 
-from rag_chain import vectorstore, embeddings, BASE_DIR
 import chunking
 import retrieval
 from models import QaCandidate
+from rag_chain import BASE_DIR, embeddings, vectorstore
 
 _ALLOWED_EXT = {".txt", ".md", ".pdf", ".docx"}
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -38,7 +37,7 @@ def _collection():
 
 
 def _cos(a, b) -> float:
-    dot = sum(x * y for x, y in zip(a, b))
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
     na = math.sqrt(sum(x * x for x in a)) or 1.0
     nb = math.sqrt(sum(x * x for x in b)) or 1.0
     return dot / (na * nb)
@@ -69,7 +68,7 @@ def validate_upload(filename: str, raw: bytes) -> str:
             if "word/document.xml" not in zipfile.ZipFile(io.BytesIO(raw)).namelist():
                 raise ValueError("不是有效的 docx（缺少 word/document.xml）")
         except zipfile.BadZipFile:
-            raise ValueError("docx 容器损坏，无法解析")
+            raise ValueError("docx 容器损坏，无法解析") from None
     else:
         try:
             raw.decode("utf-8")
@@ -77,7 +76,7 @@ def validate_upload(filename: str, raw: bytes) -> str:
             try:
                 raw.decode("gbk")
             except UnicodeDecodeError:
-                raise ValueError("文本文件编码无法识别（需 UTF-8/GBK）")
+                raise ValueError("文本文件编码无法识别（需 UTF-8/GBK）") from None
     return ext
 
 
@@ -105,8 +104,8 @@ def add_chunks(
     pairs: list,
     source: str,
     origin: str,
-    extra_meta: Optional[dict] = None,
-    file_hash_value: Optional[str] = None,
+    extra_meta: dict | None = None,
+    file_hash_value: str | None = None,
 ) -> int:
     """写入多 chunk（每 chunk 独立 metadata，如 article/chapter），返回写入数。
 
@@ -135,8 +134,8 @@ def add_text(
     source: str,
     article: str = "",
     origin: str = "manual",
-    extra_meta: Optional[dict] = None,
-    file_hash_value: Optional[str] = None,
+    extra_meta: dict | None = None,
+    file_hash_value: str | None = None,
 ) -> int:
     """切片入库，返回写入切片数。
 
@@ -159,9 +158,7 @@ def add_text(
     else:
         if origin in ("manual", "import") and article:
             try:
-                stale = _collection().get(
-                    where={"$and": [{"source": source}, {"article": article}]}
-                )["ids"]
+                stale = _collection().get(where={"$and": [{"source": source}, {"article": article}]})["ids"]
                 if stale:
                     _collection().delete(ids=stale)
             except Exception:
@@ -179,7 +176,7 @@ def delete_doc(doc_id: str):
     retrieval.invalidate()
 
 
-def list_docs(limit: int = 50, offset: int = 0, source: Optional[str] = None):
+def list_docs(limit: int = 50, offset: int = 0, source: str | None = None):
     """分页返回知识片段：{"items": [...], "total": N}。
 
     用 Chroma 原生 limit/offset（不全量拉取）——千级语料下避免一次序列化全部文档拖垮管理后台。
@@ -202,7 +199,7 @@ def list_docs(limit: int = 50, offset: int = 0, source: Optional[str] = None):
     return {"items": items, "total": total}
 
 
-def count_docs(status: Optional[str] = None) -> int:
+def count_docs(status: str | None = None) -> int:
     if status:
         return len(_collection().get(where={"status": status})["ids"])
     return _collection().count()
@@ -246,7 +243,7 @@ def create_candidate(db: Session, question: str, answer: str, grounded_score: fl
     return c
 
 
-def list_candidates(db: Session, status: Optional[str] = None):
+def list_candidates(db: Session, status: str | None = None):
     q = db.query(QaCandidate)
     if status:
         q = q.filter(QaCandidate.status == status)

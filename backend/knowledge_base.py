@@ -6,6 +6,7 @@ os.environ["HF_HUB_OFFLINE"] = "0"
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
 from langchain_core.documents import Document
+
 from rag_chain import vectorstore
 
 # 数据路径锚定到项目根目录，避免依赖启动目录
@@ -27,19 +28,19 @@ def build(json_path: str = DATA_PATH):
 
     docs = [
         Document(
-            page_content=f"{l['title']} {l['article_number']}\n{l['content']}",
+            page_content=f"{law['title']} {law['article_number']}\n{law['content']}",
             metadata={
-                "source": l["title"],
-                "article": l["article_number"],
-                "category": l.get("category", ""),
+                "source": law["title"],
+                "article": law["article_number"],
+                "category": law.get("category", ""),
                 "origin": "seed",
                 # 时效种子（阶段1占位，阶段5治理；None/缺失 coerce 成空串，Chroma 不接受 None）
-                "effective_from": l.get("effective_from") or "",
-                "effective_to": l.get("effective_to") or "",
-                "status": l.get("status") or "现行",
+                "effective_from": law.get("effective_from") or "",
+                "effective_to": law.get("effective_to") or "",
+                "status": law.get("status") or "现行",
             },
         )
-        for l in laws
+        for law in laws
     ]
     vectorstore.add_documents(docs)
     print(f"已入库 {len(docs)} 条种子条文（origin=seed，可安全重跑）")

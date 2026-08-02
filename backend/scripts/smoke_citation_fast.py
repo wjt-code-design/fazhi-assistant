@@ -9,6 +9,7 @@
 
 用法：cd backend && python scripts/smoke_citation_fast.py（退出码非 0 = 失败）
 """
+
 import os
 import sys
 
@@ -22,7 +23,7 @@ from dotenv import load_dotenv
 load_dotenv(".env")
 
 from intent import classify_intent  # noqa: E402
-from retrieval import retrieve, citation_verify  # noqa: E402
+from retrieval import citation_verify, retrieve  # noqa: E402
 
 # (query, expected_sources, expected_articles, expected_intent)
 # 检索层直接能召回的用例（不依赖 _pre 的定向补充逻辑）
@@ -39,9 +40,9 @@ RETRIEVAL_CASES = [
 # 引用校验罐头样例（非 LLM）：
 # (answer, in_kb 判定中「在库的条号」，期望结果)
 VERIFY_CASES = [
-    ("依据《刑法》第十三条和《劳动合同法》第八十七条。", {"第十三条", "第八十七条"}, []),          # 全在库 → 不报
-    ("依据《刑法》第九百九十九条。", {"第十三条"}, ["《刑法》第九百九十九条"]),                        # 编造 → 报
-    ("《中华人民共和国刑法》第二十条、《刑法》第20条。", {"第二十条"}, []),                            # 全称/简称/数字归一 → 不报
+    ("依据《刑法》第十三条和《劳动合同法》第八十七条。", {"第十三条", "第八十七条"}, []),  # 全在库 → 不报
+    ("依据《刑法》第九百九十九条。", {"第十三条"}, ["《刑法》第九百九十九条"]),  # 编造 → 报
+    ("《中华人民共和国刑法》第二十条、《刑法》第20条。", {"第二十条"}, []),  # 全称/简称/数字归一 → 不报
 ]
 
 
@@ -71,7 +72,10 @@ def main():
 
     print("=== 引用校验（罐头）===")
     for answer, in_kb_arts, expected in VERIFY_CASES:
-        in_kb = lambda name, art: __import__("retrieval", fromlist=["_normalize_article"])._normalize_article(art) in in_kb_arts
+
+        def in_kb(name, art, arts=in_kb_arts):
+            return __import__("retrieval", fromlist=["_normalize_article"])._normalize_article(art) in arts
+
         got = citation_verify(answer, in_kb)
         check(got == expected, f"citation_verify({answer[:18]}...) = {got}, 期望 {expected}")
 

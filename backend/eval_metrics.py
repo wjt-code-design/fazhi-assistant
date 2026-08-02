@@ -5,8 +5,9 @@
 - citation_present：答案是否含《…》第X条 引用。
 忠实度(faithfulness) 需 LLM-judge，成本较高，默认关闭（见 scripts/eval_quality.py 的 EVAL_LLM_JUDGE）。
 """
+
 import re
-from typing import Iterable, List
+from collections.abc import Iterable
 
 _CITE_RE = re.compile(r"《[^》]+》\s*第[一二三四五六七八九十百零0-9]+条")
 
@@ -19,7 +20,7 @@ def recall_at_k(retrieved_articles: Iterable[str], expected_articles: Iterable[s
     return sum(1 for a in exp if a in rev) / len(exp)
 
 
-def cited_articles(answer: str) -> List[str]:
+def cited_articles(answer: str) -> list[str]:
     return _CITE_RE.findall(answer or "")
 
 

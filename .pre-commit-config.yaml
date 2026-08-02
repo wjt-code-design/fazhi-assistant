@@ -1,0 +1,15 @@
+# 提交前自动门禁（提交被挡在 git 外，CI 前的第一道关卡）。
+# 前端 lint 由 CI 的 next build（内置 ESLint）把关——本项目未装独立 eslint CLI。
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml

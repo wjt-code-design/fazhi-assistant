@@ -14,6 +14,7 @@
   python scripts/import_docs.py --purge-source 个人所得税法     # 清理残留（先 --dry-run）
   python scripts/import_docs.py                                  # 全量导入
 """
+
 import argparse
 import hashlib
 import os
@@ -50,7 +51,7 @@ def short_source(fname: str) -> str:
     name = os.path.splitext(fname)[0]
     name = _DATE_SUFFIX_RE.sub("", name)
     if name.startswith(_PREFIX):
-        name = name[len(_PREFIX):]
+        name = name[len(_PREFIX) :]
     return name
 
 
@@ -88,12 +89,9 @@ def import_one(fname: str, dry_run: bool) -> dict:
     # seed 取代：删除本文件覆盖范围内的 origin=seed 碎片
     seed_replaced = 0
     if articles:
-        seed_hits = _col().get(
-            where={"$and": [{"source": source}, {"origin": "seed"}]}, include=["metadatas"]
-        )
+        seed_hits = _col().get(where={"$and": [{"source": source}, {"origin": "seed"}]}, include=["metadatas"])
         to_del = [
-            cid for cid, m in zip(seed_hits["ids"], seed_hits["metadatas"])
-            if m.get("article") in articles
+            cid for cid, m in zip(seed_hits["ids"], seed_hits["metadatas"], strict=True) if m.get("article") in articles
         ]
         if to_del:
             print(f"  {source}：seed 取代 {len(to_del)} 条碎片{'(dry-run)' if dry_run else ''}")
@@ -105,8 +103,7 @@ def import_one(fname: str, dry_run: bool) -> dict:
         return {"source": source, "skipped_hash": False, "chunks": len(chunks), "seed_replaced": seed_replaced}
 
     pairs = [
-        (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")})
-        for c in chunks
+        (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")}) for c in chunks
     ]
     n = ks.add_chunks(pairs, source=source, origin="upload", extra_meta={"status": "现行"}, file_hash_value=fh)
     return {"source": source, "skipped_hash": False, "chunks": n, "seed_replaced": seed_replaced}
@@ -116,9 +113,7 @@ def assert_seed_replaced() -> None:
     """7 个种子碎片必须全部被整法取代（origin=seed 且 (source, article) 匹配 = 0）。"""
     bad = []
     for src, art in sorted(SEED_FRAGMENTS):
-        n = len(_col().get(
-            where={"$and": [{"source": src}, {"article": art}, {"origin": "seed"}]}
-        )["ids"])
+        n = len(_col().get(where={"$and": [{"source": src}, {"article": art}, {"origin": "seed"}]})["ids"])
         if n:
             bad.append(f"{src} {art}({n})")
     if bad:
@@ -168,8 +163,8 @@ def main():
         total_chunks += r["chunks"]
         total_skipped += 1 if r["skipped_hash"] else 0
         flag = "（hash 幂等跳过）" if r["skipped_hash"] else ""
-        print(f"  {r['source']:<24} {r['chunks']:>5} 片段 {time.time()-st:>5.1f}s{flag}")
-    print(f"\n总计：{total_chunks} 片段（跳过 {total_skipped}），耗时 {time.time()-t0:.1f}s")
+        print(f"  {r['source']:<24} {r['chunks']:>5} 片段 {time.time() - st:>5.1f}s{flag}")
+    print(f"\n总计：{total_chunks} 片段（跳过 {total_skipped}），耗时 {time.time() - t0:.1f}s")
 
     # seed 取代断言：5 部种子法全部在本次范围（仅导入模式执行）
     if not args.dry_run:

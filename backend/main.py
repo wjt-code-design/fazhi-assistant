@@ -1,5 +1,5 @@
-import os
 import json
+import os
 import socket
 import time
 from contextlib import asynccontextmanager
@@ -11,38 +11,50 @@ from dotenv import load_dotenv
 # 必须在导入会读取环境变量的本地模块之前加载 .env
 load_dotenv()
 
-from fastapi import FastAPI, Request, Depends, HTTPException, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse, FileResponse, JSONResponse
+from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
-from sqlalchemy.orm import Session
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sqlalchemy import func, text
-from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
+from sqlalchemy.orm import Session
 
-from rag_chain import format_docs, make_chain, stream_with_retry, clean_answer, vectorstore
-from database import SessionLocal, init_db, get_db
-from models import User, Conversation, Message, QaCandidate, AuditLog, Feedback
-from schemas import (
-    RegisterIn, LoginIn, UserUpdateIn, KnowledgeAddIn, KnowledgeTestIn, PreviewChunkIn,
-    ChatIn, MessageOut, ConversationListItem, ConversationDetail,
-    QaDecisionIn, LlmSwitchIn, FeedbackIn,
-)
 import chunking
-from auth import hash_password, verify_password, create_token, get_current_user, require_admin
 import knowledge_service as ks
-from llm_registry import registry
-from memory import load_context, recent_messages, needs_compress, compress, rewrite_query
-from retrieval import retrieve, grounded_top_score, retrieve_for_test, citation_verify, exact_article_lookup
-from intent import classify_intent
-from domain_rules import (
-    cheating_docs, consumer_clause_docs, is_consumer_clause_scenario, CITATION_SELECTION_RULE,
-)
-
-from multimodal import validate_image, persist_image, build_vision_content, describe_image, MEDIA_DIR
-from curation import should_curate
-from settings import settings
-from observability import RequestIdMiddleware, setup_logging, log_account
 from audit import log_audit
+from auth import create_token, get_current_user, hash_password, require_admin, verify_password
+from curation import should_curate
+from database import SessionLocal, get_db, init_db
+from domain_rules import (
+    CITATION_SELECTION_RULE,
+    cheating_docs,
+    consumer_clause_docs,
+    is_consumer_clause_scenario,
+)
+from intent import classify_intent
+from llm_registry import registry
+from memory import compress, load_context, needs_compress, recent_messages, rewrite_query
+from models import AuditLog, Conversation, Feedback, Message, QaCandidate, User
+from multimodal import MEDIA_DIR, build_vision_content, describe_image, persist_image, validate_image
+from observability import RequestIdMiddleware, log_account, setup_logging
+from rag_chain import clean_answer, format_docs, make_chain, stream_with_retry, vectorstore
+from retrieval import citation_verify, grounded_top_score, retrieve, retrieve_for_test
+from schemas import (
+    ChatIn,
+    ConversationDetail,
+    ConversationListItem,
+    FeedbackIn,
+    KnowledgeAddIn,
+    KnowledgeTestIn,
+    LlmSwitchIn,
+    LoginIn,
+    MessageOut,
+    PreviewChunkIn,
+    QaDecisionIn,
+    RegisterIn,
+    UserUpdateIn,
+)
+from settings import settings
 
 # 启动期强校验
 if not settings.jwt_secret:
@@ -101,10 +113,11 @@ SYSTEM_CHEATING = (
 )
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 
 limiter = Limiter(key_func=get_remote_address)
+
 
 @asynccontextmanager
 async def lifespan(_app):
@@ -313,8 +326,11 @@ def _pre(user_id: int, conversation_id, text: str, image):
         user_content = text if text and text.strip() else ("[图片]" if image else "")
         db.add(
             Message(
-                conversation_id=conv.id, role="user", content=user_content,
-                image_ref=image_rel, thumb_ref=thumb_rel,
+                conversation_id=conv.id,
+                role="user",
+                content=user_content,
+                image_ref=image_rel,
+                thumb_ref=thumb_rel,
             )
         )
         conv.message_count = (conv.message_count or 0) + 1
@@ -325,9 +341,18 @@ def _pre(user_id: int, conversation_id, text: str, image):
             conv.question = (text or user_content)[:2000]
         db.commit()
         return dict(
-            conv_id=conv.id, summary=summary, recent=recent_ser, context=context,
-            qa_hit=qa_hit, sources=sources, image=image, user_text=text or "",
-            image_rel=image_rel, thumb_rel=thumb_rel, rewritten=rewritten, intent=intent,
+            conv_id=conv.id,
+            summary=summary,
+            recent=recent_ser,
+            context=context,
+            qa_hit=qa_hit,
+            sources=sources,
+            image=image,
+            user_text=text or "",
+            image_rel=image_rel,
+            thumb_rel=thumb_rel,
+            rewritten=rewritten,
+            intent=intent,
         )
     finally:
         db.close()
@@ -378,7 +403,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
     try:
         pre = await run_in_threadpool(_pre, user.id, body.conversation_id, text, image)
     except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
+        raise HTTPException(status_code=400, detail=str(ve)) from ve
 
     messages = _build_messages(pre)
 
@@ -412,7 +437,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     note = "\n\n> 注：回答中引用的 " + "、".join(bad_cites) + " 未在知识库中检索到，建议核对条文原文。"
                     answer += note
                     yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
-                    log_account(kind="citation_anomaly", conv_id=pre["conv_id"], user_id=user.id, detail=";".join(bad_cites)[:300])
+                    log_account(
+                        kind="citation_anomaly",
+                        conv_id=pre["conv_id"],
+                        user_id=user.id,
+                        detail=";".join(bad_cites)[:300],
+                    )
             if not answer:
                 # 防御：流式+非流式都空则明确告知。模型名不暴露给普通用户，仅在调用记账日志出现
                 yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
@@ -466,17 +496,19 @@ def my_conversations(user: User = Depends(get_current_user), db: Session = Depen
             .first()
         )
         has_image = (
-            db.query(Message.id)
-            .filter(Message.conversation_id == c.id, Message.image_ref.isnot(None))
-            .first()
+            db.query(Message.id).filter(Message.conversation_id == c.id, Message.image_ref.isnot(None)).first()
             is not None
         )
         preview = (c.question or (first_user.content if first_user else "") or c.title or "新对话")[:60]
         out.append(
             ConversationListItem(
-                id=c.id, title=c.title or preview, preview=preview,
-                message_count=c.message_count or 0, has_image=has_image,
-                last_active_at=c.last_active_at, created_at=c.created_at,
+                id=c.id,
+                title=c.title or preview,
+                preview=preview,
+                message_count=c.message_count or 0,
+                has_image=has_image,
+                last_active_at=c.last_active_at,
+                created_at=c.created_at,
             )
         )
     return out
@@ -489,13 +521,17 @@ def get_conversation(conv_id: int, user: User = Depends(get_current_user), db: S
         raise HTTPException(status_code=404, detail="会话不存在")
     msgs = db.query(Message).filter(Message.conversation_id == conv_id).order_by(Message.created_at.asc()).all()
     return ConversationDetail(
-        id=conv.id, title=conv.title or "", summary=conv.summary or "",
+        id=conv.id,
+        title=conv.title or "",
+        summary=conv.summary or "",
         messages=[MessageOut.model_validate(m) for m in msgs],
     )
 
 
 @app.patch("/api/conversations/{conv_id}")
-def rename_conversation(conv_id: int, title: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def rename_conversation(
+    conv_id: int, title: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     conv = db.get(Conversation, conv_id)
     if not conv or conv.user_id != user.id:
         raise HTTPException(status_code=404, detail="会话不存在")
@@ -533,7 +569,9 @@ def admin_users(db: Session = Depends(get_db), _admin: User = Depends(require_ad
     users = db.query(User).order_by(User.created_at.desc()).all()
     return [
         {
-            "id": u.id, "username": u.username, "role": u.role,
+            "id": u.id,
+            "username": u.username,
+            "role": u.role,
             "is_active": u.is_active,
             "created_at": u.created_at.isoformat() if u.created_at else None,
         }
@@ -542,7 +580,9 @@ def admin_users(db: Session = Depends(get_db), _admin: User = Depends(require_ad
 
 
 @app.patch("/api/admin/users/{user_id}")
-def admin_update_user(user_id: int, body: UserUpdateIn, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+def admin_update_user(
+    user_id: int, body: UserUpdateIn, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
+):
     user = db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
@@ -555,17 +595,23 @@ def admin_update_user(user_id: int, body: UserUpdateIn, db: Session = Depends(ge
 
 # ==================== 管理员：对话审查 ====================
 @app.get("/api/admin/conversations")
-def admin_conversations(limit: int = 50, offset: int = 0, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+def admin_conversations(
+    limit: int = 50, offset: int = 0, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
+):
     rows = (
         db.query(Conversation, User.username)
         .join(User, Conversation.user_id == User.id)
         .order_by(Conversation.created_at.desc())
-        .offset(offset).limit(limit)
+        .offset(offset)
+        .limit(limit)
         .all()
     )
     return [
         {
-            "id": c.id, "username": uname, "question": c.question, "answer": c.answer,
+            "id": c.id,
+            "username": uname,
+            "question": c.question,
+            "answer": c.answer,
             "created_at": c.created_at.isoformat() if c.created_at else None,
         }
         for c, uname in rows
@@ -600,7 +646,7 @@ async def admin_upload(request: Request, file: UploadFile = File(...), admin: Us
     try:
         ks.validate_upload(file.filename, raw)
     except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve))
+        raise HTTPException(status_code=400, detail=str(ve)) from ve
 
     def _do():
         text = ks.parse_uploaded(file.filename, raw)
@@ -615,8 +661,11 @@ async def admin_upload(request: Request, file: UploadFile = File(...), admin: Us
         except Exception:
             version = 1
         extra = {
-            "filename": file.filename, "uploaded_by": admin.username,
-            "uploaded_at": datetime.utcnow().isoformat(), "version": version, "status": "现行",
+            "filename": file.filename,
+            "uploaded_by": admin.username,
+            "uploaded_at": datetime.utcnow().isoformat(),
+            "version": version,
+            "status": "现行",
         }
         n = ks.add_text(text, source=source, origin="upload", extra_meta=extra, file_hash_value=fh)
         first_line = next((ln.strip() for ln in text.splitlines() if ln.strip()), source)
@@ -662,7 +711,9 @@ def admin_qa_candidates(status: str = None, db: Session = Depends(get_db), _admi
 
 
 @app.post("/api/admin/qa/{cand_id}/decision")
-def admin_qa_decision(cand_id: int, body: QaDecisionIn, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+def admin_qa_decision(
+    cand_id: int, body: QaDecisionIn, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
+):
     r = ks.decide_candidate(db, cand_id, body.decision)
     if not r:
         raise HTTPException(status_code=404, detail="候选不存在")
@@ -693,8 +744,11 @@ def admin_audit(limit: int = 100, db: Session = Depends(get_db), _admin: User = 
     )
     return [
         {
-            "id": a.id, "admin": uname or "-", "action": a.action,
-            "target": a.target, "detail": a.detail,
+            "id": a.id,
+            "admin": uname or "-",
+            "action": a.action,
+            "target": a.target,
+            "detail": a.detail,
             "created_at": a.created_at.isoformat() if a.created_at else None,
         }
         for a, uname in rows
@@ -705,9 +759,12 @@ def admin_audit(limit: int = 100, db: Session = Depends(get_db), _admin: User = 
 @app.post("/api/feedback")
 def post_feedback(body: FeedbackIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     fb = Feedback(
-        user_id=user.id, conversation_id=body.conversation_id,
-        question=body.question, answer=body.answer,
-        rating=body.rating, correction=body.correction or "",
+        user_id=user.id,
+        conversation_id=body.conversation_id,
+        question=body.question,
+        answer=body.answer,
+        rating=body.rating,
+        correction=body.correction or "",
     )
     db.add(fb)
     db.commit()
@@ -724,8 +781,12 @@ def admin_feedback(limit: int = 100, db: Session = Depends(get_db), _admin: User
     rows = db.query(Feedback).order_by(Feedback.created_at.desc()).limit(min(max(limit, 1), 500)).all()
     return [
         {
-            "id": f.id, "user_id": f.user_id, "conversation_id": f.conversation_id,
-            "question": f.question, "answer": f.answer, "rating": f.rating,
+            "id": f.id,
+            "user_id": f.user_id,
+            "conversation_id": f.conversation_id,
+            "question": f.question,
+            "answer": f.answer,
+            "rating": f.rating,
             "correction": f.correction,
             "created_at": f.created_at.isoformat() if f.created_at else None,
         }

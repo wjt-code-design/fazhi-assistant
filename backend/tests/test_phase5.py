@@ -4,6 +4,7 @@
 - API 契约：仿 test_phase3 的 client fixture（内存 DB + 真实 vectorstore），落库用例必须 finally 自清理。
 - 端到端排除：真实 vectorstore，唯一 source="test_phase5_tmp"，断言后按 source 删除（不依赖 add_text 返回 ids）。
 """
+
 from langchain_core.documents import Document
 
 import retrieval_core as rc
@@ -14,12 +15,20 @@ def test_valid_by_time_matrix():
     assert rc.is_valid_by_time({"status": "现行"}, "2026-08-01") is True  # 无日期限制
     assert rc.is_valid_by_time({"status": "现行", "effective_from": "", "effective_to": ""}, "2026-08-01") is True
     assert rc.is_valid_by_time({"status": "已废止"}, "2026-08-01") is False
-    assert rc.is_valid_by_time({"status": "已废止", "effective_to": "2020-12-31"}, "2000-01-01") is False  # 已废止恒为 False
+    assert (
+        rc.is_valid_by_time({"status": "已废止", "effective_to": "2020-12-31"}, "2000-01-01") is False
+    )  # 已废止恒为 False
     assert rc.is_valid_by_time({"status": "现行", "effective_to": "2020-12-31"}, "2026-08-01") is False  # 已过废止日
-    assert rc.is_valid_by_time({"status": "现行", "effective_to": "2020-12-31"}, "2020-12-31") is True  # 废止日当天仍有效
+    assert (
+        rc.is_valid_by_time({"status": "现行", "effective_to": "2020-12-31"}, "2020-12-31") is True
+    )  # 废止日当天仍有效
     assert rc.is_valid_by_time({"status": "现行", "effective_to": "2020-12-31"}, "2021-01-01") is False
-    assert rc.is_valid_by_time({"status": "即将施行", "effective_from": "2027-01-01"}, "2026-08-01") is False  # 尚未施行
-    assert rc.is_valid_by_time({"status": "即将施行", "effective_from": "2027-01-01"}, "2027-01-01") is True  # 施行日当天生效
+    assert (
+        rc.is_valid_by_time({"status": "即将施行", "effective_from": "2027-01-01"}, "2026-08-01") is False
+    )  # 尚未施行
+    assert (
+        rc.is_valid_by_time({"status": "即将施行", "effective_from": "2027-01-01"}, "2027-01-01") is True
+    )  # 施行日当天生效
     assert rc.is_valid_by_time({"status": "现行", "effective_from": "2021-01-01"}, "2026-08-01") is True
     assert rc.is_valid_by_time({"status": "草案"}, "2026-08-01") is True  # 未知状态默认有效
     assert rc.is_valid_by_time({}, "2026-08-01") is True  # 缺键视为无限制
@@ -57,8 +66,8 @@ def test_admin_knowledge_add_contract_with_time_fields(monkeypatch):
 
     import database
     import main
-    from models import Base, User
     from auth import hash_password
+    from models import Base, User
 
     eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
     Base.metadata.create_all(eng)
@@ -96,6 +105,7 @@ def test_admin_knowledge_add_contract_with_time_fields(monkeypatch):
             assert md["status"] == "即将施行"
         finally:
             from rag_chain import vectorstore
+
             ids = vectorstore._collection.get(where={"source": "test_phase5_tmp"})["ids"]
             if ids:
                 vectorstore._collection.delete(ids=ids)
@@ -105,18 +115,33 @@ def test_admin_knowledge_add_contract_with_time_fields(monkeypatch):
 # 语义（D2）：status=已废止 是管理员权威标记，恒排除（即使 cutoff 早于废止日）；
 # 历史 cutoff 只对「仍标现行但已过 effective_to」的条文生效。
 def test_retrieval_excludes_expired_but_admin_test_sees_it():
-    from rag_chain import vectorstore
     import retrieval
+    from rag_chain import vectorstore
 
     source = "test_phase5_tmp"
     c1 = "合同当事人应当按照约定全面履行自己的义务。阶段5测试已废止条文甲。"
     c2 = "合同履行应当遵循诚实信用原则。阶段5测试已过期条文乙。"
     from knowledge_service import add_text
 
-    add_text(c1, source=source, article="第八条", origin="manual",
-             extra_meta={"effective_from": "1999-10-01", "effective_to": "2020-12-31", "status": "已废止", "category": "民法"})
-    add_text(c2, source=source, article="第九条", origin="manual",
-             extra_meta={"effective_from": "1999-10-01", "effective_to": "2020-12-31", "status": "现行", "category": "民法"})
+    add_text(
+        c1,
+        source=source,
+        article="第八条",
+        origin="manual",
+        extra_meta={
+            "effective_from": "1999-10-01",
+            "effective_to": "2020-12-31",
+            "status": "已废止",
+            "category": "民法",
+        },
+    )
+    add_text(
+        c2,
+        source=source,
+        article="第九条",
+        origin="manual",
+        extra_meta={"effective_from": "1999-10-01", "effective_to": "2020-12-31", "status": "现行", "category": "民法"},
+    )
     try:
         # 今天检索：两条都不应命中（已废止恒排除；现行但已过废止日也排除）
         today_docs = retrieval.retrieve(c2[:40], k=4)

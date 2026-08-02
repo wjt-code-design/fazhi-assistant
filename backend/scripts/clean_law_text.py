@@ -12,6 +12,7 @@
 - 读 data/laws_raw/*.txt → 写 data/laws_clean/*.txt → 逐部报告 → FAIL 汇总。
 - --dry-run：不写盘，只审计（将被删除的页码行 / 吞条 / 门禁），满足"删除前先看"。
 """
+
 import argparse
 import os
 import re
@@ -34,7 +35,7 @@ _PAGE_LINE_CN_RE = re.compile(r"^第\s*\d+\s*页\s*$")
 
 def clean_text(text: str) -> str:
     """连续空行合并为单个空行；行首尾空白 strip；剔除整行页码残留。"""
-    out = []
+    out: list[str] = []
     for line in text.splitlines():
         s = line.strip()
         if not s:
@@ -197,7 +198,9 @@ def main():
         status = "PASS" if not issues else "FAIL " + ",".join(issues)
         if issues:
             fails.append((fname, issues, base, dups))
-        print(f"{fname:<34} {len(clean):>7} {base['line_count']:>5} {len(dups):>3} {len(regr):>3} {nospace:>5} {len(removed):>4}  {status}")
+        print(
+            f"{fname:<34} {len(clean):>7} {base['line_count']:>5} {len(dups):>3} {len(regr):>3} {nospace:>5} {len(removed):>4}  {status}"
+        )
         if args.dry_run and removed:
             for lineno, content in removed[:8]:
                 print(f"    - {fname}:{lineno}  删除 {content!r}")

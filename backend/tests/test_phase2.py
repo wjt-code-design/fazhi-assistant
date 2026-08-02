@@ -39,12 +39,12 @@ def test_tokenize_filters_whitespace():
 
 # ---------- LRU ----------
 def test_lru_evicts_oldest():
-    l = rc.LRU(2)
-    l.put("a", 1)
-    l.put("b", 2)
-    assert l.get("a") == 1
-    l.put("c", 3)  # 淘汰 b
-    assert l.get("b") is None and l.get("c") == 3 and len(l) == 2
+    cache = rc.LRU(2)
+    cache.put("a", 1)
+    cache.put("b", 2)
+    assert cache.get("a") == 1
+    cache.put("c", 3)  # 淘汰 b
+    assert cache.get("b") is None and cache.get("c") == 3 and len(cache) == 2
 
 
 # ---------- 重排回落 ----------
@@ -93,7 +93,7 @@ def test_chatin_flexible_and_maxlen():
 
 # ---------- memory 双阈值（纯逻辑） ----------
 def test_needs_compress_dual_threshold():
-    from memory import needs_compress, char_count
+    from memory import char_count, needs_compress
 
     recent = [SimpleNamespace(content="a" * 100) for _ in range(6)]
     assert needs_compress(SimpleNamespace(message_count=5, summary=""), recent) is False

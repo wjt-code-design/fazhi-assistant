@@ -11,11 +11,19 @@
 - 短条**不做跨条合并**（跨条会破坏 metadata.article 单值 → recall_at_k 精确匹配失效）。
 - 降级链：全文无条号 → 回退段落优先 600/80 切分（与旧 upload 行为一致）。
 """
+
 import re
 from dataclasses import dataclass, field
-from typing import List
+from typing import TypedDict
 
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+
+
+class _ArticleBuf(TypedDict):
+    no: str
+    chapter: str
+    lines: list[str]
+
 
 ARTICLE_RE = re.compile(
     r"^第([零〇○一二三四五六七八九十百千万0-9０-９]+)条"
@@ -26,11 +34,11 @@ CHAPTER_RE = re.compile(r"^第([零〇○一二三四五六七八九十百千万
 FREE_CHAPTER_RE = re.compile(r"^(总则|附则|序言|前言)(?=[\s　，。]|$)")
 TOC_RE = re.compile(r"^目\s*录$")
 
-CHUNK_MAX = 800      # 条文超过此长度触发句切
-SENT_CHUNK = 500     # 句切 chunk 大小
+CHUNK_MAX = 800  # 条文超过此长度触发句切
+SENT_CHUNK = 500  # 句切 chunk 大小
 SENT_OVERLAP = 60
-MIN_ARTICLE = 10     # 短于此的「条文」视为 TOC 残留/误识别，丢弃
-TOC_MAX_SKIP = 500   # 目录跳过安全上限（防无退出条件的文档被整篇跳过；重复标题退出为主机制）
+MIN_ARTICLE = 10  # 短于此的「条文」视为 TOC 残留/误识别，丢弃
+TOC_MAX_SKIP = 500  # 目录跳过安全上限（防无退出条件的文档被整篇跳过；重复标题退出为主机制）
 
 _PARA_SPLITTER = RecursiveCharacterTextSplitter(
     chunk_size=600, chunk_overlap=80, separators=["\n\n", "\n", "。", "；", ". ", " ", ""]
@@ -46,7 +54,7 @@ class Chunk:
     meta: dict = field(default_factory=dict)
 
 
-def _strip_toc(lines: List[str]) -> List[str]:
+def _strip_toc(lines: list[str]) -> list[str]:
     """剔除目录页区域：遇「目 录」行进入 TOC 态，跳过条目行。
 
     退出条件（按可靠性排序）：
@@ -56,11 +64,11 @@ def _strip_toc(lines: List[str]) -> List[str]:
     3. 长内容行（>60 字且含句号）——兜底（目录行通常很短）。
     4. TOC_MAX_SKIP 安全上限（防止无退出条件的文档被整篇跳过）。
     """
-    out: List[str] = []
+    out: list[str] = []
     i, n = 0, len(lines)
     in_toc = False
     skipped = 0
-    seen_headings = set()
+    seen_headings: set[str] = set()
     while i < n:
         line = lines[i]
         s = line.strip()
@@ -120,14 +128,14 @@ def _strip_toc(lines: List[str]) -> List[str]:
     return out
 
 
-def split_law_document(text: str) -> List[Chunk]:
+def split_law_document(text: str) -> list[Chunk]:
     """整篇文档结构化切分。未识别到任何条号时回退段落切分（meta 无 article）。"""
     if not (text or "").strip():
         return []
     lines = _strip_toc(text.splitlines())
 
-    articles: List[dict] = []  # {"no", "chapter", "lines"}
-    cur = None
+    articles: list[_ArticleBuf] = []
+    cur: _ArticleBuf | None = None
     chapter = ""
     for raw in lines:
         line = raw.strip()
@@ -141,10 +149,11 @@ def split_law_document(text: str) -> List[Chunk]:
                 cur = None
             chapter = line
             continue
-        if ARTICLE_RE.match(line):
+        m = ARTICLE_RE.match(line)
+        if m:
             if cur is not None:
                 articles.append(cur)
-            cur = {"no": ARTICLE_RE.match(line).group(0), "chapter": chapter, "lines": [line]}
+            cur = {"no": m.group(0), "chapter": chapter, "lines": [line]}
             continue
         if cur is not None:
             cur["lines"].append(line)
@@ -154,7 +163,7 @@ def split_law_document(text: str) -> List[Chunk]:
     if not articles:
         return _fallback_paragraph(text)
 
-    out: List[Chunk] = []
+    out: list[Chunk] = []
     for a in articles:
         body = "\n".join(a["lines"]).strip()
         if len(body) < MIN_ARTICLE:
@@ -163,7 +172,7 @@ def split_law_document(text: str) -> List[Chunk]:
     return out if out else _fallback_paragraph(text)
 
 
-def split_article_text(content: str, article: str = "", chapter: str = "") -> List[Chunk]:
+def split_article_text(content: str, article: str = "", chapter: str = "") -> list[Chunk]:
     """单条条文切分：章节前缀 + 条号头行保留（BM25 条号查询的精确匹配载荷）；超长条句切。"""
     body = (content or "").strip()
     if not body:
@@ -178,6 +187,6 @@ def split_article_text(content: str, article: str = "", chapter: str = "") -> Li
     return out
 
 
-def _fallback_paragraph(text: str) -> List[Chunk]:
+def _fallback_paragraph(text: str) -> list[Chunk]:
     """无条号边界时回退：段落优先切分（与旧 upload 行为一致）。"""
     return [Chunk(p, {}) for p in _PARA_SPLITTER.split_text(text) if p.strip()]

@@ -3,6 +3,7 @@
 注意：中间件用纯 ASGI 实现（只包装 send，不缓冲 body），以免破坏 SSE 流式响应
 （BaseHTTPMiddleware 会缓冲 StreamingResponse，导致流式失效/内存暴涨）。
 """
+
 import contextvars
 import json
 import logging

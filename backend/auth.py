@@ -1,10 +1,12 @@
 import os
+from datetime import UTC, datetime, timedelta
+
 import bcrypt
 import jwt
-from datetime import datetime, timedelta, timezone
 from fastapi import Depends, HTTPException
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
+
 from database import get_db
 from models import User
 
@@ -18,6 +20,7 @@ def _jwt_secret() -> str:
     if not secret:
         raise RuntimeError("缺少 JWT_SECRET，请在 .env 中设置")
     return secret
+
 
 # auto_error=False：未带令牌时返回 None，由我们自行抛出统一的 401
 _bearer = HTTPBearer(auto_error=False)
@@ -39,7 +42,7 @@ def create_token(user: User) -> str:
         "sub": str(user.id),
         "username": user.username,
         "role": user.role,
-        "exp": datetime.now(timezone.utc) + timedelta(days=TOKEN_EXPIRE_DAYS),
+        "exp": datetime.now(UTC) + timedelta(days=TOKEN_EXPIRE_DAYS),
     }
     return jwt.encode(payload, _jwt_secret(), algorithm=JWT_ALGORITHM)
 
@@ -53,7 +56,7 @@ def get_current_user(
     try:
         payload = jwt.decode(creds.credentials, _jwt_secret(), algorithms=[JWT_ALGORITHM])
     except jwt.PyJWTError:
-        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+        raise HTTPException(status_code=401, detail="令牌无效或已过期") from None
     user = db.get(User, int(payload["sub"]))
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="用户不存在或已被禁用")

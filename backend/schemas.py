@@ -1,8 +1,7 @@
 import re
 from datetime import datetime
-from typing import List, Optional
 
-from pydantic import BaseModel, Field, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 # ===== 认证 =====
@@ -34,15 +33,15 @@ class UserOut(BaseModel):
 
 
 class UserUpdateIn(BaseModel):
-    is_active: Optional[bool] = None
+    is_active: bool | None = None
 
 
 # ===== 问答（多轮 + 多模态，向后兼容旧 question 字段） =====
 class ChatIn(BaseModel):
-    question: Optional[str] = Field(default=None, max_length=2000)  # 旧客户端兼容
-    content: Optional[str] = Field(default=None, max_length=4000)  # 文本（优先）
-    conversation_id: Optional[int] = None  # 续聊；空=新建
-    image: Optional[str] = Field(default=None, description="data URL 或 http URL；base64 不写库")
+    question: str | None = Field(default=None, max_length=2000)  # 旧客户端兼容
+    content: str | None = Field(default=None, max_length=4000)  # 文本（优先）
+    conversation_id: int | None = None  # 续聊；空=新建
+    image: str | None = Field(default=None, description="data URL 或 http URL；base64 不写库")
 
 
 # ===== 会话 / 消息 =====
@@ -50,8 +49,8 @@ class MessageOut(BaseModel):
     id: int
     role: str
     content: str
-    image_ref: Optional[str] = None
-    thumb_ref: Optional[str] = None
+    image_ref: str | None = None
+    thumb_ref: str | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
@@ -63,7 +62,7 @@ class ConversationListItem(BaseModel):
     preview: str
     message_count: int
     has_image: bool
-    last_active_at: Optional[datetime] = None
+    last_active_at: datetime | None = None
     created_at: datetime
 
 
@@ -71,7 +70,7 @@ class ConversationDetail(BaseModel):
     id: int
     title: str
     summary: str
-    messages: List[MessageOut]
+    messages: list[MessageOut]
 
 
 # ===== 统计 =====
@@ -98,13 +97,13 @@ class KnowledgeAddIn(BaseModel):
     article: str = ""
     content: str = Field(..., min_length=1)
     # 时效字段（阶段5）：日期必须为 YYYY-MM-DD 或空，保证字典序比较可靠
-    effective_from: Optional[str] = None
-    effective_to: Optional[str] = None
-    status: Optional[str] = None
+    effective_from: str | None = None
+    effective_to: str | None = None
+    status: str | None = None
 
     @field_validator("effective_from", "effective_to")
     @classmethod
-    def _date_or_empty(cls, v: Optional[str]) -> Optional[str]:
+    def _date_or_empty(cls, v: str | None) -> str | None:
         if v and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
             raise ValueError("日期格式必须为 YYYY-MM-DD")
         return v
@@ -126,7 +125,7 @@ class QaCandidateOut(BaseModel):
     grounded_score: float
     evidence: str
     status: str
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
 
 
 class QaDecisionIn(BaseModel):
@@ -135,23 +134,23 @@ class QaDecisionIn(BaseModel):
 
 # ===== 模型在线切换 =====
 class LlmSwitchIn(BaseModel):
-    model: Optional[str] = Field(default=None, min_length=1, max_length=64)
+    model: str | None = Field(default=None, min_length=1, max_length=64)
 
 
 class FeedbackIn(BaseModel):
-    conversation_id: Optional[int] = None
+    conversation_id: int | None = None
     question: str = Field(..., min_length=1, max_length=4000)
     answer: str = Field(..., min_length=1, max_length=8000)
     rating: str = Field(..., pattern="^(up|down)$")
-    correction: Optional[str] = Field(default=None, max_length=8000)
+    correction: str | None = Field(default=None, max_length=8000)
 
 
 class FeedbackOut(BaseModel):
     id: int
-    user_id: Optional[int] = None
-    conversation_id: Optional[int] = None
+    user_id: int | None = None
+    conversation_id: int | None = None
     question: str
     answer: str
     rating: str
     correction: str
-    created_at: Optional[datetime] = None
+    created_at: datetime | None = None
