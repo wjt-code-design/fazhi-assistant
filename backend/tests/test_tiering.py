@@ -93,6 +93,14 @@ def test_light_fail_quota_exhausted_no_escalation(monkeypatch):
     assert "注：" in res["answer"]  # 明说降级
 
 
+def test_light_empty_upstream_returns_empty_answer(monkeypatch):
+    # 两级都空答 → 返回空串（调用方走 error 分支、不落库空免责声明），与流式路径一致
+    _patch_pick(monkeypatch, FakeLLM(""), FakeLLM(""))
+    _patch_selfcheck(monkeypatch, [(False, "empty"), (False, "empty")])
+    res = main._light_buffered(_pre(), [])
+    assert res["answer"] == ""
+
+
 # ---------------- 缓存判定 ----------------
 def test_cacheable_only_safe_form():
     assert main._cacheable(_pre(sources=True)) is True

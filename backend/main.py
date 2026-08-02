@@ -411,11 +411,11 @@ def _token_charge(resp, text: str) -> int:
 
 
 def _safe_pick(modality: str, tier: str):
-    """pick 耗尽时回退默认模型（key=None 表示不计配额）。"""
+    """pick 耗尽/无该档模型时回退默认强模型（回退 key 也计配额）。"""
     try:
         return registry.pick(modality, tier)
     except QuotaExhausted:
-        return None, registry.get()
+        return registry.default_key(), registry.get()
 
 
 def _cutoff() -> str:
@@ -456,10 +456,10 @@ def _light_buffered(pre: dict, messages: list) -> dict:
         fkey, fllm = registry.pick(modality, "flag")
     except QuotaExhausted:
         note = "\n\n> 注：模型配额紧张，本回答仅供参考，建议核对条文原文。"
-        return dict(answer=(raw + note) if raw else note, key=lkey, modality=modality, tier="light", usage=usage, escalated=False, verdict=v.reason or "low_quota")
+        return dict(answer=(raw + note) if raw else "", key=lkey, modality=modality, tier="light", usage=usage, escalated=False, verdict=v.reason or "low_quota")
     if fkey == lkey:  # 轻量即旗舰，无更强者可升
         note = "\n\n> 注：该问题较复杂，回答仅供参考，建议核对条文原文。"
-        return dict(answer=(raw + note) if raw else note, key=lkey, modality=modality, tier="light", usage=usage, escalated=False, verdict=v.reason)
+        return dict(answer=(raw + note) if raw else "", key=lkey, modality=modality, tier="light", usage=usage, escalated=False, verdict=v.reason)
     fresp = fllm.invoke(messages)
     fraw = clean_answer(fresp.content or "") if fresp else ""
     fusage = _token_charge(fresp, fraw)
@@ -467,7 +467,7 @@ def _light_buffered(pre: dict, messages: list) -> dict:
     if fv.ok:
         return dict(answer=fraw, key=fkey, modality=modality, tier="flag", usage=usage + fusage, escalated=True, verdict="pass")
     note = "\n\n> 注：该问题较复杂，回答仅供参考，建议核对条文原文。"
-    return dict(answer=(fraw + note) if fraw else note, key=fkey, modality=modality, tier="flag", usage=usage + fusage, escalated=True, verdict=fv.reason)
+    return dict(answer=(fraw + note) if fraw else "", key=fkey, modality=modality, tier="flag", usage=usage + fusage, escalated=True, verdict=fv.reason)
 
 
 def _invoke_llm(messages, llm=None) -> str:
@@ -516,7 +516,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             if cache_hit:
                 ca = cache_hit["answer"]
                 yield f"data: {json.dumps({'content': ca}, ensure_ascii=False)}\n\n"
-                routing_metrics.record("cache", False, "pass", "hit")
+                routing_metrics.record("cache", False, "pass", "hit", checked=False)
                 log_account(
                     model="cache", tier="cache", cache="hit",
                     ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
@@ -542,7 +542,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     answer_cache.put(cache_key, answer, pre["sources"])
                 if res["key"]:
                     registry.deduct(res["key"], res["usage"])
-                routing_metrics.record(res["tier"], res["escalated"], res["verdict"], "miss")
+                routing_metrics.record(res["tier"], res["escalated"], res["verdict"], "miss", checked=True)
                 log_account(
                     model=registry.model_of(res["key"]), tier=res["tier"],
                     escalated=res["escalated"], verdict=res["verdict"], cache="miss",
@@ -600,7 +600,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             if use_router and flag_key and answer:
                 registry.deduct(flag_key, estimate_tokens(answer))
             routing_metrics.record(
-                (tier or "flag") if use_router else "legacy", False, "pass" if answer else "empty", "miss"
+                (tier or "flag") if use_router else "legacy", False, "pass" if answer else "empty", "miss",
+                checked=False,
             )
             log_account(
                 model=registry.model_of(flag_key) if use_router else registry.config()["model"],
@@ -620,7 +621,9 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
         except Exception as e:
-            yield f"data: {json.dumps({'error': str(e)}, ensure_ascii=False)}\n\n"
+            # 详情只进日志：str(e) 可能含内部 model id / 供应商错误体 / 服务器路径，不得下发普通用户
+            print(f"[chat-stream] {type(e).__name__}: {e}", flush=True)
+            yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
 
     return StreamingResponse(stream(), media_type="text/event-stream")
 

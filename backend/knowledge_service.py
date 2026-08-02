@@ -268,6 +268,10 @@ def decide_candidate(db: Session, cand_id: int, decision: str):
         return None
     if decision == "approved":
         add_qa_pair(r.question, r.answer, r.evidence or "")
+        # 纠错采纳 = 知识变更：清回答缓存，否则旧答案在 TTL 内继续命中、纠错静默失效
+        import retrieval
+
+        retrieval.invalidate()
         r.status = "approved"
     elif decision == "rejected":
         r.status = "rejected"
