@@ -5,6 +5,14 @@ __pycache__/
 venv/
 .venv/
 
+# ===== 覆盖率 / 工具产物 =====
+.coverage
+.coverage.*
+htmlcov/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+
 # ===== 数据库（含用户数据，绝不提交）=====
 *.db
 *.sqlite
