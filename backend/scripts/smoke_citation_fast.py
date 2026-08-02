@@ -22,6 +22,8 @@ from dotenv import load_dotenv
 
 load_dotenv(".env")
 
+import complexity  # noqa: E402
+import quality  # noqa: E402
 from intent import classify_intent  # noqa: E402
 from retrieval import citation_verify, retrieve  # noqa: E402
 
@@ -78,6 +80,28 @@ def main():
 
         got = citation_verify(answer, in_kb)
         check(got == expected, f"citation_verify({answer[:18]}...) = {got}, 期望 {expected}")
+
+    print("=== 复杂度路由 / 回答自检（罐头）===")
+    check(complexity.admit_light("试用期最长多久", False, "legal_query", [], True), "admit_light 短+命中+单轮 → 放行")
+    check(not complexity.admit_light("工伤赔偿怎么算", False, "legal_query", [], True), "admit_light 高利害词 → 拒绝")
+    check(not complexity.admit_light("试用期最长多久", False, "legal_query", [], False), "admit_light 无命中 → 拒绝")
+    check(
+        not complexity.admit_light("试用期最长多久", False, "legal_query", [{"role": "user"}], True),
+        "admit_light 多轮 → 拒绝",
+    )
+
+    def _kb_true(name, art):
+        return True
+
+    check(
+        not quality.self_check("根据法律规定结合具体案情分析处理此事即可。", True, in_kb=_kb_true).ok,
+        "self_check 命中却无引用 → FAIL",
+    )
+    check(
+        quality.self_check("根据《劳动合同法》第十九条，试用期最长不得超过六个月。", True, in_kb=_kb_true).ok,
+        "self_check 命中且有在库引用 → PASS",
+    )
+    check(quality.self_check("", True, in_kb=_kb_true).reason == "empty", "self_check 空答 → empty")
 
     print(f"\nfast 门禁：{n - fail}/{n} 通过" + ("，FAIL!" if fail else ""))
     if fail:

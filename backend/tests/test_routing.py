@@ -51,14 +51,23 @@ def test_pick_returns_requested_tier(monkeypatch):
     assert key == "t_light" and llm is not None
 
 
-def test_pick_same_tier_by_quota_left_desc(monkeypatch):
+def test_pick_same_tier_by_priority_then_quota(monkeypatch):
+    # priority 主导：b 配额少但 priority 低（能力强）→ 先选 b
     roles = [
-        {"key": "a", "model": "x", "modality": "text", "tier": "light", "capabilities": ["text"], "quota_total": 1000, "initial_used": 800},
-        {"key": "b", "model": "x", "modality": "text", "tier": "light", "capabilities": ["text"], "quota_total": 1000, "initial_used": 100},
+        {"key": "a", "model": "x", "modality": "text", "tier": "light", "priority": 1, "capabilities": ["text"], "quota_total": 1000, "initial_used": 0},
+        {"key": "b", "model": "x", "modality": "text", "tier": "light", "priority": 0, "capabilities": ["text"], "quota_total": 1000, "initial_used": 800},
     ]
     reg, _ = _make_registry(monkeypatch, roles)
     key, _ = reg.pick("text", "light")
-    assert key == "b"  # 剩余 900 > 200
+    assert key == "b"
+    # priority 相同 → 比剩余配额（tie-break）
+    roles2 = [
+        {"key": "a", "model": "x", "modality": "text", "tier": "light", "priority": 0, "capabilities": ["text"], "quota_total": 1000, "initial_used": 800},
+        {"key": "b", "model": "x", "modality": "text", "tier": "light", "priority": 0, "capabilities": ["text"], "quota_total": 1000, "initial_used": 100},
+    ]
+    reg2, _ = _make_registry(monkeypatch, roles2)
+    key2, _ = reg2.pick("text", "light")
+    assert key2 == "b"  # 剩余 900 > 200
 
 
 def test_pick_skips_below_threshold_and_falls_back(monkeypatch):

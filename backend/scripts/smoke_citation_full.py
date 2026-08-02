@@ -83,6 +83,13 @@ NEGATIVE = [
     ("库外司法解释", "最高人民法院关于民间借贷的司法解释对利率上限怎么规定？"),
 ]
 
+# 轻量准入场景（短+命中+单轮+无高利害词）：验证「省配额走轻量」不降质——
+# 轻量答对则直接 PASS；轻量答错会升级旗舰，仍应引对。整体证明路由保质量。
+LIGHT_POSITIVE = [
+    ("轻量-试用期", "试用期最长多久", ["第十九条"]),
+    ("轻量-七天退货", "七天无理由退货条件", ["第二十五条"]),
+]
+
 
 def main():
     token = json.loads(post(BASE + "/api/auth/login", {"username": ADMIN[0], "password": ADMIN[1]}).read())["token"]
@@ -110,6 +117,14 @@ def main():
         c = chat(token, q)
         ok_honest = ("未覆盖" in c) or ("无法完整回答" in c) or ("未收录" in c) or ("司法解释" in c and "当前库" in c)
         check(ok_honest, f"{label}: 诚实拒答={ok_honest} | 前80字: {c[:80].replace(chr(10), ' ')}")
+
+    print("=== 轻量准入场景：省配额走轻量，质量不降（轻量错则升级旗舰，仍应引对）===")
+    for label, q, expects in LIGHT_POSITIVE:
+        c = chat(token, q)
+        ok_cite = any(e in c for e in expects)
+        ok_vague = ("法律基本原则" not in c) and ("相关规定" not in c)
+        ok_note = "未在知识库中检索到" not in c
+        check(ok_cite and ok_vague and ok_note, f"{label}: 引用={ok_cite} 含糊无={ok_vague} 误报无={ok_note}")
 
     print(f"\nfull 门禁：{n - fail}/{n} 通过" + ("，FAIL!" if fail else ""))
     if fail:

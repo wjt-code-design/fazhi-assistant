@@ -27,20 +27,18 @@ DEFAULT_QUOTA = 1_000_000
 # 默认代表模型表：key / model / modality / tier / capabilities / initial_used（截图已用量）
 # base_url / api_key 复用 settings；可在 .env 用 LLM_MODELS_JSON 整体覆盖。
 DEFAULT_ROLES: list[dict[str, Any]] = [
-    {"key": "text_flag", "model": "qwen3.7-plus", "modality": "text", "tier": "flag", "capabilities": ["text"], "initial_used": 28580},
-    {"key": "text_light", "model": "deepseek-r1-distill-qwen-7b", "modality": "text", "tier": "light", "capabilities": ["text"], "initial_used": 177},
-    {"key": "text_backup", "model": "qwen-plus-2025-07-28", "modality": "text", "tier": "flag", "capabilities": ["text"], "initial_used": 418},
-    {"key": "vision_flag", "model": "qwen3.5-omni-plus-2026-03-15", "modality": "vision", "tier": "flag", "capabilities": ["text", "vision"], "initial_used": 140644},
-    {"key": "vision_flag2", "model": "qwen3-vl-235b-a22b-thinking", "modality": "vision", "tier": "flag", "capabilities": ["text", "vision"], "initial_used": 0},
-    {"key": "vision_mid", "model": "qwen3-vl-32b-thinking", "modality": "vision", "tier": "mid", "capabilities": ["text", "vision"], "initial_used": 0},
-    {"key": "vision_light", "model": "qwen3.5-omni-flash", "modality": "vision", "tier": "light", "capabilities": ["text", "vision"], "initial_used": 0},
-    {"key": "vision_7b", "model": "qwen2.5-omni-7b", "modality": "vision", "tier": "light", "capabilities": ["text", "vision"], "initial_used": 0},
+    # priority：同 (modality, tier) 内能力优先级，小=优先；配额只判可用与否，不参与排序。
+    # 精简为 2 个强可控模型：thinking/视觉推理模型与 deepseek-r1 在边缘 case（库外问题被检索召回
+    # 无关条文时）会据无关条文硬答、不可控，故剔除。text 轻量档空缺时 _safe_pick 回退默认全模态
+    # 强模型兜底（历史对边缘 case 诚实拒答/答对），消除轻量硬答风险；省配额靠缓存命中 + 不升级。
+    {"key": "text_flag", "model": "qwen3.7-plus", "modality": "text", "tier": "flag", "priority": 0, "capabilities": ["text"], "initial_used": 28580},
+    {"key": "vision_flag", "model": "qwen3.5-omni-plus-2026-03-15", "modality": "vision", "tier": "flag", "priority": 0, "capabilities": ["text", "vision"], "initial_used": 140644},
 ]
 
 # 各模态的 tier 回退链（请求某 tier 时，从该 tier 起沿链向上找未耗尽的）
 TIER_CHAIN: dict[str, list[str]] = {
     "text": ["light", "flag"],
-    "vision": ["light", "mid", "flag"],
+    "vision": ["flag"],  # 视觉单旗舰（可控）；图片描述也走默认全模态模型
 }
 
 # 旧单模型兼容：get() 指向的 key（全模态旗舰 omni-plus，等价旧行为）
@@ -57,6 +55,7 @@ class ModelEntry:
     model: str
     modality: str
     tier: str
+    priority: int
     capabilities: set[str]
     cfg: dict[str, Any]
     quota_total: int
@@ -136,6 +135,7 @@ class LLMRegistry:
                     model=r["model"],
                     modality=r.get("modality", "text"),
                     tier=r.get("tier", "flag"),
+                    priority=int(r.get("priority", 0)),
                     capabilities=set(cfg["capabilities"]),
                     cfg=cfg,
                     quota_total=int(r.get("quota_total", DEFAULT_QUOTA)),
@@ -193,7 +193,8 @@ class LLMRegistry:
                 start = 0
             for t in chain[start:]:
                 candidates = [e for e in self._entries.values() if e.modality == modality and e.tier == t]
-                candidates.sort(key=lambda e: e.quota_left, reverse=True)
+                # 同档按能力优先级（priority 升序）选，配额只判可用；同优先级再比剩余配额
+                candidates.sort(key=lambda e: (e.priority, -e.quota_left))
                 for e in candidates:
                     if not e.unavailable:
                         assert e.llm is not None
@@ -215,6 +216,12 @@ class LLMRegistry:
             e.runtime_used += int(tokens)
         quota_store.record_delta(key, int(tokens))
 
+    def default_key(self) -> str:
+        """默认/兜底模型 key（_safe_pick 回退用，使回退路径也能扣配额）。"""
+        with self._lock:
+            e = self._entries.get(DEFAULT_KEY) or next(iter(self._entries.values()), None)
+            return e.key if e else ""
+
     def model_of(self, key: str | None) -> str:
         """key → 模型 id；None/未知返回默认模型名（供日志）。"""
         with self._lock:
@@ -233,6 +240,7 @@ class LLMRegistry:
                     "model": e.model,
                     "modality": e.modality,
                     "tier": e.tier,
+                    "priority": e.priority,
                     "capabilities": sorted(e.capabilities),
                     "quota_total": e.quota_total,
                     "quota_left": e.quota_left,
