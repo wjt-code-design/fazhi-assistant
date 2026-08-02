@@ -9,7 +9,6 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
-import pytest
 
 import llm_registry
 import main
