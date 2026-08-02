@@ -174,12 +174,15 @@ _bm25_docs: list[Document] = []
 
 
 def invalidate() -> None:
-    """知识增删后调用：清空 BM25 索引与结果缓存。"""
+    """知识增删后调用：清空 BM25 索引、结果缓存与回答缓存。"""
     global _bm25, _bm25_docs
     with _bm25_lock:
         _bm25 = None
         _bm25_docs = []
     _cache.clear()
+    import answer_cache  # 延迟 import，知识增删时同清回答缓存
+
+    answer_cache.clear()
 
 
 def _ensure_bm25() -> None:
