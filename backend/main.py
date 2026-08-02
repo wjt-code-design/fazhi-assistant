@@ -3,7 +3,9 @@ import os
 import socket
 import time
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
@@ -424,12 +426,20 @@ def _token_charge(resp, text: str) -> int:
     return _usage_total(resp) or estimate_tokens(text)
 
 
-def _safe_pick(modality: str, tier: str):
-    """pick 耗尽/无该档模型时回退默认强模型（回退 key 也计配额）。"""
+def _safe_pick(modality: str, tier: str) -> tuple[str, Any, bool]:
+    """pick 耗尽/无该档模型时回退默认模型。第三项 degraded：回退模型本身也已不可用
+    （配额耗尽/低于阈值），调用方应明说降级，不静默烧耗尽模型。"""
     try:
-        return registry.pick(modality, tier)
+        key, llm = registry.pick(modality, tier)
+        return key, llm, False
     except QuotaExhausted:
-        return registry.default_key(), registry.get()
+        dk = registry.default_key()
+        return dk, registry.get(), registry.is_unavailable(dk)
+
+
+# 核对/降级提示（轻量升级失败、旗舰自检失败、配额紧张共用，避免字面量重复）
+NOTE_COMPLEX = "\n\n> 注：该问题较复杂，回答仅供参考，建议核对条文原文。"
+NOTE_QUOTA = "\n\n> 注：模型配额紧张，本回答仅供参考，建议核对条文原文。"
 
 
 def _cutoff() -> str:
@@ -451,37 +461,44 @@ def _cache_key(pre: dict) -> str:
     return answer_cache.make_key(pre.get("rewritten", ""), pre.get("intent", ""), _cutoff(), ids)
 
 
-def _light_buffered(pre: dict, messages: list) -> dict:
-    """轻量路径：缓冲生成 → 自检 → 至多一次升级旗舰重答。同步，线程池内跑。
+@dataclass
+class _LightResult:
+    """轻量路径返回结构（消除四处重复 dict 形状）。key=None 表示不计配额。"""
 
-    返回 {answer, key, modality, tier, usage, escalated, verdict}。key=None 不计配额。
-    """
+    answer: str
+    key: str | None
+    modality: str
+    tier: str
+    usage: int
+    escalated: bool
+    verdict: str
+
+
+def _light_buffered(pre: dict, messages: list) -> _LightResult:
+    """轻量路径：缓冲生成 → 自检 → 至多一次升级旗舰重答。同步，线程池内跑。"""
     modality = "vision" if pre.get("image") else "text"
     ctx_present = bool(pre.get("sources"))
-    lkey, llm = _safe_pick(modality, "light")
+    lkey, llm, _ = _safe_pick(modality, "light")  # 轻量回退降级由下方升级 except 兜底
     resp = llm.invoke(messages)
     raw = clean_answer(resp.content or "") if resp else ""
     usage = _token_charge(resp, raw)
     v = quality.self_check(raw, ctx_present)
     if v.ok:
-        return dict(answer=raw, key=lkey, modality=modality, tier="light", usage=usage, escalated=False, verdict="pass")
+        return _LightResult(raw, lkey, modality, "light", usage, False, "pass")
     # 升级旗舰（配额耗尽则不升级，明说降级）
     try:
         fkey, fllm = registry.pick(modality, "flag")
     except QuotaExhausted:
-        note = "\n\n> 注：模型配额紧张，本回答仅供参考，建议核对条文原文。"
-        return dict(answer=(raw + note) if raw else "", key=lkey, modality=modality, tier="light", usage=usage, escalated=False, verdict=v.reason or "low_quota")
+        return _LightResult((raw + NOTE_QUOTA) if raw else "", lkey, modality, "light", usage, False, v.reason or "low_quota")
     if fkey == lkey:  # 轻量即旗舰，无更强者可升
-        note = "\n\n> 注：该问题较复杂，回答仅供参考，建议核对条文原文。"
-        return dict(answer=(raw + note) if raw else "", key=lkey, modality=modality, tier="light", usage=usage, escalated=False, verdict=v.reason)
+        return _LightResult((raw + NOTE_COMPLEX) if raw else "", lkey, modality, "light", usage, False, v.reason)
     fresp = fllm.invoke(messages)
     fraw = clean_answer(fresp.content or "") if fresp else ""
     fusage = _token_charge(fresp, fraw)
     fv = quality.self_check(fraw, ctx_present)
     if fv.ok:
-        return dict(answer=fraw, key=fkey, modality=modality, tier="flag", usage=usage + fusage, escalated=True, verdict="pass")
-    note = "\n\n> 注：该问题较复杂，回答仅供参考，建议核对条文原文。"
-    return dict(answer=(fraw + note) if fraw else "", key=fkey, modality=modality, tier="flag", usage=usage + fusage, escalated=True, verdict=fv.reason)
+        return _LightResult(fraw, fkey, modality, "flag", usage + fusage, True, "pass")
+    return _LightResult((fraw + NOTE_COMPLEX) if fraw else "", fkey, modality, "flag", usage + fusage, True, fv.reason)
 
 
 def _invoke_llm(messages, llm=None) -> str:
@@ -523,7 +540,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
     cache_hit = answer_cache.get(cache_key) if cache_key else None
     flag_key = flag_llm = None
     if use_router and not use_light:
-        flag_key, flag_llm = _safe_pick(modality, tier or "flag")
+        flag_key, flag_llm, flag_degraded = _safe_pick(modality, tier or "flag")
 
     async def stream():
         try:
@@ -548,20 +565,20 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 分支1：轻量缓冲 + 自检 + 至多一次升级旗舰
             if use_light:
                 res = await run_in_threadpool(_light_buffered, pre, messages)
-                answer = res["answer"]
+                answer = res.answer
                 if answer:
                     yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"
                 else:
                     yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
-                if cache_key and res["verdict"] == "pass":
+                if cache_key and res.verdict == "pass":
                     answer_cache.put(cache_key, answer, pre["sources"])
-                if res["key"]:
-                    registry.deduct(res["key"], res["usage"])
-                routing_metrics.record(res["tier"], res["escalated"], res["verdict"], "miss", checked=True)
+                if res.key:
+                    registry.deduct(res.key, res.usage)
+                routing_metrics.record(res.tier, res.escalated, res.verdict, "miss", checked=True)
                 log_account(
-                    model=registry.model_of(res["key"]), tier=res["tier"],
-                    escalated=res["escalated"], verdict=res["verdict"], cache="miss",
-                    token_est=res["usage"],
+                    model=registry.model_of(res.key), tier=res.tier,
+                    escalated=res.escalated, verdict=res.verdict, cache="miss",
+                    token_est=res.usage,
                     ms=round((time.perf_counter() - t0) * 1000, 1), ok=bool(answer),
                     conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
                 )
@@ -611,12 +628,32 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     )
             if not answer:
                 yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
-            # 旗舰/legacy 流式无真实 usage → 按输出估算扣减
+            # S3+S6：旗舰流式路径也跑自检 + 写缓存（让缓存/自检对 text 生效，不只轻量分支）。
+            # 自检 PASS 才写缓存；FAIL 则旗舰无更强模型可升，追加核对注（S6 兜底扩展到旗舰）。
+            verdict_flag = "pass" if answer else "empty"
+            if use_router and answer:
+                sv = quality.self_check(answer, bool(pre["sources"]))
+                if sv.ok:
+                    if cache_key:
+                        answer_cache.put(cache_key, answer, pre["sources"])
+                else:
+                    verdict_flag = sv.reason
+                    answer += NOTE_COMPLEX
+                    yield f"data: {json.dumps({'content': NOTE_COMPLEX}, ensure_ascii=False)}\n\n"
+            # S2：回退模型本身已不可用 → 明说降级，不静默烧耗尽模型
+            if use_router and flag_degraded and answer:
+                verdict_flag = "low_quota"
+                answer += NOTE_QUOTA
+                yield f"data: {json.dumps({'content': NOTE_QUOTA}, ensure_ascii=False)}\n\n"
+            # 流式无真实 usage → 按输出 + 主要输入估算扣减（补输入，避免长期低估）
             if use_router and flag_key and answer:
-                registry.deduct(flag_key, estimate_tokens(answer))
+                registry.deduct(
+                    flag_key,
+                    estimate_tokens(answer) + estimate_tokens(pre.get("context", "") + pre.get("user_text", "")),
+                )
             routing_metrics.record(
-                (tier or "flag") if use_router else "legacy", False, "pass" if answer else "empty", "miss",
-                checked=False,
+                (tier or "flag") if use_router else "legacy", False, verdict_flag, "miss",
+                checked=bool(use_router and answer),
             )
             log_account(
                 model=registry.model_of(flag_key) if use_router else registry.config()["model"],

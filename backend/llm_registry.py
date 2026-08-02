@@ -32,7 +32,7 @@ DEFAULT_ROLES: list[dict[str, Any]] = [
     # 无关条文时）会据无关条文硬答、不可控，故剔除。text 轻量档空缺时 _safe_pick 回退默认全模态
     # 强模型兜底（历史对边缘 case 诚实拒答/答对），消除轻量硬答风险；省配额靠缓存命中 + 不升级。
     {"key": "text_flag", "model": "qwen3.7-plus", "modality": "text", "tier": "flag", "priority": 0, "capabilities": ["text"], "disable_thinking": True, "initial_used": 28580},  # 关深度思考：法律引用无需长思考，关后 24s→3s 且引用更直接
-    {"key": "vision_flag", "model": "qwen3.5-omni-plus-2026-03-15", "modality": "vision", "tier": "flag", "priority": 0, "capabilities": ["text", "vision"], "initial_used": 140644},
+    {"key": "vision_flag", "model": "qwen3.5-omni-plus-2026-03-15", "modality": "vision", "tier": "flag", "priority": 0, "capabilities": ["text", "vision"], "disable_thinking": True, "initial_used": 140644},  # 关深度思考，图片回答同样提速
 ]
 
 # 各模态的 tier 回退链（请求某 tier 时，从该 tier 起沿链向上找未耗尽的）
@@ -146,15 +146,20 @@ class LLMRegistry:
                 self._entries[key] = e
 
     # ---------- 兼容接口（旧调用点不改） ----------
+    def _default_entry(self) -> ModelEntry | None:
+        """默认/兜底 entry（调用方须持锁）。消除五处重复的默认查找。"""
+        return self._entries.get(DEFAULT_KEY) or next(iter(self._entries.values()), None)
+
     def get(self) -> ChatOpenAI:
         with self._lock:
-            e = self._entries.get(DEFAULT_KEY) or next(iter(self._entries.values()))
-            assert e.llm is not None, "LLM 未初始化"
+            e = self._default_entry()
+            assert e is not None and e.llm is not None, "LLM 未初始化"
             return e.llm
 
     def variant(self, disable_thinking: bool) -> ChatOpenAI:
         with self._lock:
-            e = self._entries.get(DEFAULT_KEY) or next(iter(self._entries.values()))
+            e = self._default_entry()
+            assert e is not None, "LLM 未初始化"
             cfg = dict(e.cfg)
             cfg["disable_thinking"] = disable_thinking
             return _build(cfg)
@@ -162,15 +167,16 @@ class LLMRegistry:
     def variant_of(self, key: str, disable_thinking: bool) -> ChatOpenAI:
         """按指定 entry 的 cfg 临时构建关/开思考实例（旗舰流式重试用）。"""
         with self._lock:
-            e = self._entries.get(key) or self._entries.get(DEFAULT_KEY) or next(iter(self._entries.values()))
+            e = self._entries.get(key) or self._default_entry()
+            assert e is not None, "LLM 未初始化"
             cfg = dict(e.cfg)
             cfg["disable_thinking"] = disable_thinking
             return _build(cfg)
 
     def config(self) -> dict[str, Any]:
         with self._lock:
-            e = self._entries.get(DEFAULT_KEY) or next(iter(self._entries.values()))
-            return {"model": e.model, "capabilities": sorted(e.capabilities)}
+            e = self._default_entry()
+            return {"model": e.model if e else "", "capabilities": sorted(e.capabilities) if e else []}
 
     def reload(self, model: str | None = None) -> dict[str, Any]:
         """兼容：仅重建默认 entry（旧单模型热切换语义）。多模型整体重载用 _load。"""
@@ -201,10 +207,6 @@ class LLMRegistry:
                         return e.key, e.llm
             raise QuotaExhausted(f"模态 {modality} 无可用模型（全耗尽或低于阈值 {QUOTA_THRESHOLD:.0%}）")
 
-    def pick_any_text(self) -> tuple[str, ChatOpenAI]:
-        """辅助：纯文本调用（改写/压缩）也走配额感知选择，从轻量起。"""
-        return self.pick("text", "light")
-
     def deduct(self, key: str, tokens: int) -> None:
         """扣减某模型用量（内存 + 持久化）。tokens<=0 忽略。"""
         if tokens <= 0:
@@ -221,10 +223,16 @@ class LLMRegistry:
         with self._lock:
             return any(e.modality == modality and e.tier == tier for e in self._entries.values())
 
+    def is_unavailable(self, key: str) -> bool:
+        """该 key 模型是否不可用（耗尽/低于阈值/不存在）——供回退降级判断。"""
+        with self._lock:
+            e = self._entries.get(key)
+            return e.unavailable if e else True
+
     def default_key(self) -> str:
         """默认/兜底模型 key（_safe_pick 回退用，使回退路径也能扣配额）。"""
         with self._lock:
-            e = self._entries.get(DEFAULT_KEY) or next(iter(self._entries.values()), None)
+            e = self._default_entry()
             return e.key if e else ""
 
     def model_of(self, key: str | None) -> str:
@@ -233,7 +241,7 @@ class LLMRegistry:
             e = self._entries.get(key) if key else None
             if e:
                 return e.model
-            d = self._entries.get(DEFAULT_KEY) or next(iter(self._entries.values()), None)
+            d = self._default_entry()
             return d.model if d else ""
 
     def status(self) -> list[dict[str, Any]]:

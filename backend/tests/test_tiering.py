@@ -65,32 +65,32 @@ def test_light_pass_no_escalation(monkeypatch):
     _patch_pick(monkeypatch, FakeLLM("根据《劳动合同法》第十九条，试用期最长六个月。"), FakeLLM("flag"))
     _patch_selfcheck(monkeypatch, [(True, "")])
     res = main._light_buffered(_pre(), [])
-    assert res["tier"] == "light" and res["escalated"] is False and res["verdict"] == "pass"
-    assert res["key"] == "L"
+    assert res.tier == "light" and res.escalated is False and res.verdict == "pass"
+    assert res.key == "L"
 
 
 def test_light_fail_escalate_flag_pass(monkeypatch):
     _patch_pick(monkeypatch, FakeLLM("看相关规定吧"), FakeLLM("根据《劳动合同法》第十九条，最长六个月。"))
     _patch_selfcheck(monkeypatch, [(False, "no_citation_while_hit"), (True, "")])
     res = main._light_buffered(_pre(), [])
-    assert res["tier"] == "flag" and res["escalated"] is True and res["verdict"] == "pass"
-    assert res["key"] == "F"
+    assert res.tier == "flag" and res.escalated is True and res.verdict == "pass"
+    assert res.key == "F"
 
 
 def test_light_fail_escalate_flag_still_fail_adds_note(monkeypatch):
     _patch_pick(monkeypatch, FakeLLM("看相关规定"), FakeLLM("大概是这样处理的吧"))
     _patch_selfcheck(monkeypatch, [(False, "vague"), (False, "vague")])
     res = main._light_buffered(_pre(), [])
-    assert res["tier"] == "flag" and res["escalated"] is True and res["verdict"] != "pass"
-    assert "注：" in res["answer"]  # 不静默，追加核对注
+    assert res.tier == "flag" and res.escalated is True and res.verdict != "pass"
+    assert "注：" in res.answer  # 不静默，追加核对注
 
 
 def test_light_fail_quota_exhausted_no_escalation(monkeypatch):
     _patch_pick(monkeypatch, FakeLLM("看相关规定"), FakeLLM("x"), flag_raises=True)
     _patch_selfcheck(monkeypatch, [(False, "vague")])
     res = main._light_buffered(_pre(), [])
-    assert res["escalated"] is False  # 配额耗尽不升级
-    assert "注：" in res["answer"]  # 明说降级
+    assert res.escalated is False  # 配额耗尽不升级
+    assert "注：" in res.answer  # 明说降级
 
 
 def test_light_empty_upstream_returns_empty_answer(monkeypatch):
@@ -98,7 +98,7 @@ def test_light_empty_upstream_returns_empty_answer(monkeypatch):
     _patch_pick(monkeypatch, FakeLLM(""), FakeLLM(""))
     _patch_selfcheck(monkeypatch, [(False, "empty"), (False, "empty")])
     res = main._light_buffered(_pre(), [])
-    assert res["answer"] == ""
+    assert res.answer == ""
 
 
 # ---------------- 缓存判定 ----------------
