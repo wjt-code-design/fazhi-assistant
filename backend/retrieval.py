@@ -1,4 +1,4 @@
-"""检索编排：向量 + BM25(jieba) 经 RRF 融合 + 结果缓存 + 重排回落。
+"""检索编排：向量 + BM25(jieba) 经 RRF 融合召回候选池 + 池内余弦精排 + 结果缓存 + 重排回落。
 
 - HYBRID=1（默认）：向量与 BM25 双路召回 + RRF 融合；对中文法律条号/专有名词的精确匹配是语义检索的短板，BM25 补齐。
 - RETRIEVAL_RERANK=1（默认关）：重排接口已就绪，模型加载与启用在此开关后填充；关闭时安全回落为原顺序。
@@ -58,6 +58,23 @@ def _num_to_cn(n: int) -> str:
         elif pos == 4:
             out.append("万")
     return "".join(out)
+
+
+# ---- 检索措辞桥接：用户口语与条文语言的词面鸿沟 ----
+# 实测 bad case：复议法第11条全文无「受案范围」（只有 12 条反面条款有），BGE/BM25 都吃字面，
+# 不改写则 11 条永远进不了池；「高空抛物」被 BGE 嵌入到「高度危险责任」区域，1254 条压不出。
+# 桥接只影响检索输入，不改问答原文。词面命中后 BM25 捞进池，余弦精排在池内定序。
+_QUERY_BRIDGE = [
+    (re.compile(r"高空抛物"), "从建筑物中抛掷物品"),
+    (re.compile(r"受案范围"), "申请行政复议"),
+]
+
+
+def _bridge_query(query: str) -> str:
+    """把口语关键词改写为条文用语（仅检索层）。"""
+    for pat, rep in _QUERY_BRIDGE:
+        query = pat.sub(rep, query)
+    return query
 
 
 def _normalize_article(art: str) -> str:
@@ -211,6 +228,14 @@ def _cos(a, b) -> float:
     return dot / (na * nb)
 
 
+def _append_unique(dst: list[str], seen: set[str], dids: list[str]) -> None:
+    """候选池构建：逐条去重追加（向量保底 ∪ BM25 保底 ∪ RRF，防 RRF 挤出单路强匹配条）。"""
+    for did in dids:
+        if did not in seen:
+            seen.add(did)
+            dst.append(did)
+
+
 def vector_top(
     query: str,
     n: int,
@@ -254,14 +279,17 @@ def hybrid_retrieve(
     category: str | None = None,
     cutoff: str | None = None,
 ) -> list[Document]:
-    """混合检索（向量+BM25 RRF）。cutoff 为时效判定日期（'YYYY-MM-DD'，默认今天）。
+    """混合检索（向量+BM25 RRF 召回候选池，池内余弦精排）。cutoff 为时效判定日期。
 
+    RRF 只看排名、丢失向量分值，故只负责"召回候选池"（含 BM25 捞回的向量漏网条）；
+    池内用精确余弦分重排去噪，避免 BM25 通用词噪声条（"赔偿""申请"）压过语义更对的条。
     时效过滤（阶段5）：向量池与 BM25 池在 Python 侧共用 is_valid_by_time 谓词；
     缓存 key 含 cutoff，跨日旧 key 自然淘汰。
     """
     cutoff = cutoff or date.today().isoformat()
+    query = _bridge_query(query)  # 措辞桥接先于缓存 key，词表变更自动失效
     valid = lambda m: rc.is_valid_by_time(m, cutoff)  # noqa: E731
-    key = ("h", query, category, k, cutoff)
+    key = ("h2cos", query, category, k, cutoff)  # h2cos: 含余弦精排，区别于旧 h 缓存
     hit = _cache.get(key)
     if hit is not None:
         return hit
@@ -285,8 +313,28 @@ def hybrid_retrieve(
         pool.setdefault(did, d)
         b_ids.append(did)
     fused = rc.rrf([v_ids, b_ids])
-    ordered = sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:k]
-    docs = [pool[did] for did, _ in ordered if did in pool]
+    # RRF 只用排名、丢了向量分值，会让 BM25 的通用词噪声条（如"赔偿""申请"）压过语义更对的条。
+    # 故 RRF 只负责"召回候选池"（BM25 捞回向量漏的条），池内再用精确余弦分精排去噪。
+    # 候选池 = 向量 top-k 保底 ∪ BM25 top-k 保底（防 RRF 把任一路强匹配的条挤出池）∪ RRF top 2k。
+    cand_dids: list[str] = []
+    seen: set[str] = set()
+    _append_unique(cand_dids, seen, [_doc_id(d) for d, _ in v[:k]])
+    _append_unique(cand_dids, seen, [_doc_id(d) for d, _ in b[:k]])
+    _append_unique(
+        cand_dids,
+        seen,
+        [did for did, _ in sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[: k * 2]],
+    )
+    cand_docs = [pool[did] for did in cand_dids]
+    try:
+        qv = embeddings.embed_query(query)
+        dvs = embeddings.embed_documents([d.page_content for d in cand_docs])
+        docs = [d for d, _ in sorted(zip(cand_docs, dvs, strict=True), key=lambda t: _cos(qv, t[1]), reverse=True)[:k]]
+    except Exception:
+        # 嵌入故障：回退到 RRF 序（与旧行为一致）；不写缓存，防一次瞬断长期缓存未精排结果
+        docs = [pool[did] for did, _ in sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:k]]
+        docs = rc.rerank(query, docs, enabled=RETRIEVAL_RERANK)
+        return docs
     docs = rc.rerank(query, docs, enabled=RETRIEVAL_RERANK)
     _cache.put(key, docs)
     return docs

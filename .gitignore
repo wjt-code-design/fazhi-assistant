@@ -45,3 +45,12 @@ out/
 data/laws_raw/
 data/laws_clean/
 lighthouse*.json
+
+# 备份目录（含数据库副本，属用户数据，绝不提交）
+backups/
+
+# 配额运行态持久化文件
+quota_used.sqlite
+
+# frontend-design skill 的设计参考图（非项目产物，不提交）
+frontend/design/

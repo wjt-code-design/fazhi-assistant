@@ -320,7 +320,7 @@ def _pre(user_id: int, conversation_id, text: str, image):
             docs = cheating_docs()
             qa_hit = None
         else:
-            docs = retrieve(rewritten, k=4)
+            docs = retrieve(rewritten, k=6)  # k4→6：给余弦精排更多候选 + 给模型更全上下文，缓解"对法错条"
             qa_hit = ks.search_qa(rewritten)
             # 格式条款/消费者权利场景：通用检索常召回消保法25/24但漏掉民法典496/497，
             # 定向补充作否定无效条款的兜底依据（与提示词 CITATION_SELECTION_RULE 配套）
