@@ -31,7 +31,7 @@ DEFAULT_ROLES: list[dict[str, Any]] = [
     # 精简为 2 个强可控模型：thinking/视觉推理模型与 deepseek-r1 在边缘 case（库外问题被检索召回
     # 无关条文时）会据无关条文硬答、不可控，故剔除。text 轻量档空缺时 _safe_pick 回退默认全模态
     # 强模型兜底（历史对边缘 case 诚实拒答/答对），消除轻量硬答风险；省配额靠缓存命中 + 不升级。
-    {"key": "text_flag", "model": "qwen3.7-plus", "modality": "text", "tier": "flag", "priority": 0, "capabilities": ["text"], "initial_used": 28580},
+    {"key": "text_flag", "model": "qwen3.7-plus", "modality": "text", "tier": "flag", "priority": 0, "capabilities": ["text"], "disable_thinking": True, "initial_used": 28580},  # 关深度思考：法律引用无需长思考，关后 24s→3s 且引用更直接
     {"key": "vision_flag", "model": "qwen3.5-omni-plus-2026-03-15", "modality": "vision", "tier": "flag", "priority": 0, "capabilities": ["text", "vision"], "initial_used": 140644},
 ]
 
