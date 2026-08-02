@@ -1,0 +1,54 @@
+# 一键部署（本地 / Docker Desktop on Windows）。
+# 用法：
+#   1. cp backend/.env.example .env && 填好 LLM_API_KEY / JWT_SECRET / ADMIN_PASSWORD 等
+#   2. docker compose up -d --build
+# 访问：http://localhost:3000（前端） / http://localhost:8000/healthz（后端健康检查）
+#
+# 诚实标注：
+#   - 后端镜像约 1.5GB（BGE 模型烘焙），首次构建需数分钟（下载 CPU torch + 模型）。
+#   - mem_limit 仅限制容器内内存；Windows 宿主页面文件仍由本机决定（WSL2 见 backend/docs/OPS.md）。
+#   - 并发模型：单 worker（uvicorn 默认 1 进程）——多 worker 会撞本地 Chroma/SQLite 锁。
+
+services:
+  backend:
+    build: ./backend
+    container_name: fazhi-backend
+    ports:
+      - "8000:8000"
+    environment:
+      # 从宿主 .env 读取（compose 自动加载根目录 .env）
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      - LLM_MODEL=${LLM_MODEL:-qwen3.5-omni-plus-2026-03-15}
+      - JWT_SECRET=${JWT_SECRET}
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      # SQLite 落在挂载卷内（避免单文件挂载的目录坑）
+      - DATABASE_URL=sqlite:////data/app.db
+    volumes:
+      # 持久化用户数据（绝不进镜像）
+      - ./backend/chroma_db:/app/chroma_db
+      - ./backend/media:/app/media
+      - ./backend/backups:/app/backups
+      - ./backend/data:/data
+    restart: unless-stopped
+    mem_limit: 4g
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=5).close()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    container_name: fazhi-frontend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+    mem_limit: 512m
+    # 前端等后端健康后才起（避免启动时依赖后端不可达）
+    depends_on:
+      backend:
+        condition: service_healthy
