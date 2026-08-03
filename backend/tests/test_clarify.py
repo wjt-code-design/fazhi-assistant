@@ -92,6 +92,27 @@ def test_decide_refuse_out_of_kb_source():
     assert clarify.decide("legal_query", "婚姻法规定的夫妻共同财产怎么分割？", True) == "refuse"
 
 
+def test_decide_no_false_refuse_from_mis_extracted_law():
+    """误抽法名不触发拒答（2026-08-04 修复，用户实测正当防卫法考题）。
+
+    真实 case：「不管何种刑法学说」被裸名正则整段误抽成法名 → source_in_kb 判
+    不在库 → 误拒答（知识库有刑法20条且检索命中，却答"未收录"）。修复：不在库的
+    裸名须通过 _plausible_law 可信度判定（含连接/疑问词、泛称法名 → 丢弃不拒答）。
+    """
+    exam = (
+        "甲乙二人对丙素有仇怨，伺机报复。丙掏出铁棍击打乙，乙掏出小刀回击，最后二人都负轻伤，"
+        "如何评价甲乙丙？A.如果乙成立正当防卫，甲也成立正当防卫 "
+        "B.乙不因为一开始有伤害意图，而影响正当防卫的构成 "
+        "C.乙有过错，所以成立防卫过当 "
+        "D.不管何种刑法学说，丙都不构成正当防卫"
+    )
+    assert clarify.decide("legal_query", exam, True) == "direct"  # 检索命中 → 正常回答
+    # 误抽形态：连接词/泛称/疑问 → 不拒答
+    assert clarify.decide("legal_query", "这种合同纠纷适用合同法还是民法？", True) == "direct"
+    assert clarify.decide("legal_query", "刑事法怎么规定的？", True) == "direct"
+    assert clarify.decide("legal_query", "行政法规定的行政处罚种类", True) == "direct"
+
+
 def test_decide_source_in_kb_direct():
     # 指名来源在库 → 不因来源拒答
     assert clarify.decide("legal_query", "民法典第一千二百五十四条是什么", True) == "direct"

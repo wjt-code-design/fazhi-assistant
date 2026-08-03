@@ -41,16 +41,55 @@ _SOURCE_BARE_RE = re.compile(
 # 裸名前缀修剪：介词/动词不属法名（「根据劳动合同法」→「劳动合同法」）
 _PREP_PREFIX = ("根据", "按照", "依据", "依照", "参照", "适用", "违反", "基于")
 
+# 疑问/通用修饰词：裸名正则会贪婪吞掉这些前缀致误抽法名（真实 case：法考题
+# 「不管何种刑法学说」被整段抽成法名 → source_in_kb 判不在库 → 误拒答）。
+# 抽取前从文本中剥离（书引《X法》不受影响），2026-08-04 架构级修复。
+_QUERY_WORDS = ("不管何种", "何种", "什么", "这种", "那种", "哪种", "哪部", "啥")
+
+# 裸名候选可信度（防误抽 → 误拒答，2026-08-04）：不在库的裸名，只有"长得像一部
+# 具体法律的名称"才保留（触发拒答）；含连接/疑问词、或非规范词尾（"刑法和民法"/
+# "合同纠纷适用…"）、或泛称法名（"行政法/刑事法"——法律大类总称非具体法）视为误抽
+# 丢弃。书引（《X法》）不受此判定约束。
+_JOIN_IMMUNE = ("和", "与", "或", "还是", "适用", "纠纷", "依据", "按照", "规定", "的")
+# 泛称法名：法律大类总称，非具体法律（不在库且非用户点名某部法）
+_GENERIC_LAWS = (
+    "行政法", "刑事法", "民事法", "程序法", "实体法", "经济法",
+    "诉讼法", "商法", "宪法学", "刑法学", "民法学",
+)
+
+
+def _plausible_law(name: str) -> bool:
+    """裸名是否像一部具体法律的名称（误抽免疫）。"""
+    for p in ("根据", "按照", "依据", "依照", "参照", "适用", "违反", "基于"):
+        if name.startswith(p):
+            name = name[len(p) :]
+            break
+    if any(b in name for b in _JOIN_IMMUNE + _QUERY_WORDS):
+        return False
+    if name in _GENERIC_LAWS:
+        return False
+    if not (name.endswith("法") or name.endswith("条例") or name.endswith("法典")):
+        return False
+    return 2 <= len(name) <= 8
+
 
 def extract_source_names(text: str) -> list[str]:
-    """从问题中抽取疑似法名（书引优先，裸名去常见误报，简称归一为全称），供源名存在性检查。"""
+    """从问题中抽取疑似法名（书引优先，裸名去常见误报，简称归一为全称），供源名存在性检查。
+
+    修复（2026-08-04）：裸名抽取前剥离疑问/通用修饰词（不管何种/什么/这种/哪种等）——
+    否则正则贪婪把「不管何种刑法」整段当法名，source_in_kb 判不在库 → 误拒答（真实 case：
+    正当防卫法考题）。书引（《X法》）精确不受影响。
+    """
     t = text or ""
     out: list[str] = []
     for m in _SOURCE_QUOTE_RE.finditer(t):
         name = canon_source(m.group(1).strip())
         if name and name not in out:
             out.append(name)
-    for m in _SOURCE_BARE_RE.finditer(t):
+    t_bare = t
+    for q in _QUERY_WORDS:
+        t_bare = t_bare.replace(q, "")
+    for m in _SOURCE_BARE_RE.finditer(t_bare):
         name = m.group(1)
         for p in _PREP_PREFIX:
             if name.startswith(p):
@@ -124,7 +163,13 @@ def decide(
     if any(m in t for m in REFUSE_MARKS):
         return "refuse"
     for name in extract_source_names(t):
-        if not R.source_in_kb(name):
+        # 不在库的法名 → 拒答。但只对"可信法名"（具体法律名称）拒答：
+        # 书引《X法》精确指名始终可信；裸名需通过 _plausible_law 判定——
+        # 「刑法和民法」「合同纠纷适用…」「行政法泛称」等误抽形态不触发拒答
+        #（2026-08-04 修复：法考题「不管何种刑法学说」曾被误抽成法名致误拒答）。
+        if not R.source_in_kb(name) and (
+            name.startswith("《") or _plausible_law(name)
+        ):
             return "refuse"
     if detect_underspecified(t) and not clarified_once:
         return "clarify"
