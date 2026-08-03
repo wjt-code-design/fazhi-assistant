@@ -153,6 +153,16 @@ def article_in_kb(source: str, article: str) -> bool:
 _src_set_cache: set[str] | None = None
 
 
+def _ensure_src_set() -> None:
+    """构建源名集合（首次全量扫描约 1-3s，之后 O(1) 查；知识增删后 invalidate 重建）。"""
+    global _src_set_cache
+    if _src_set_cache is None:
+        data = vectorstore._collection.get(include=["metadatas"])
+        _src_set_cache = {
+            _source_key(str((m or {}).get("source", "") or "")) for m in (data["metadatas"] or [])
+        }
+
+
 def source_in_kb(source: str) -> bool:
     """法名是否在知识库（源名存在性，任务2：防「问库外法」检索到相近条文误答）。
 
@@ -166,12 +176,15 @@ def source_in_kb(source: str) -> bool:
     sk = _source_key(source)
     if not sk:
         return False
-    if _src_set_cache is None:
-        data = vectorstore._collection.get(include=["metadatas"])
-        _src_set_cache = {
-            _source_key(str((m or {}).get("source", "") or "")) for m in (data["metadatas"] or [])
-        }
+    _ensure_src_set()
+    assert _src_set_cache is not None  # _ensure_src_set 副作用保证已构建
     return sk in _src_set_cache
+
+
+def prewarm() -> None:
+    """启动预热（lifespan 调用）：BM25 索引 + 源名集合，避免重启后首问 3s+ 冷启动。"""
+    _ensure_bm25()
+    _ensure_src_set()
 
 
 def extract_citations(answer: str) -> list[tuple]:
@@ -352,9 +365,16 @@ def hybrid_retrieve(
     )
     cand_docs = [pool[did] for did in cand_dids]
     try:
+        # 余弦精排：chroma 已是 cosine 距离（score = 1-cos），向量池内条目直接用
+        # chroma 分（cos = 1 - score），只对 BM25 独有条目额外嵌入——省 ~0.5s/问
         qv = embeddings.embed_query(query)
-        dvs = embeddings.embed_documents([d.page_content for d in cand_docs])
-        docs = [d for d, _ in sorted(zip(cand_docs, dvs, strict=True), key=lambda t: _cos(qv, t[1]), reverse=True)[:k]]
+        v_cos = {_doc_id(d): 1.0 - float(s) for d, s in v if _doc_id(d) in pool}
+        bm25_only = [d for d in cand_docs if _doc_id(d) not in v_cos]
+        if bm25_only:
+            dvs = embeddings.embed_documents([d.page_content for d in bm25_only])
+            for d, dv in zip(bm25_only, dvs, strict=True):
+                v_cos[_doc_id(d)] = _cos(qv, dv)
+        docs = sorted(cand_docs, key=lambda d: v_cos[_doc_id(d)], reverse=True)[:k]
     except Exception:
         # 嵌入故障：回退到 RRF 序（与旧行为一致）；不写缓存，防一次瞬断长期缓存未精排结果
         docs = [pool[did] for did, _ in sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:k]]

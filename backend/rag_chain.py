@@ -30,7 +30,7 @@ embeddings = HuggingFaceEmbeddings(
 vectorstore = Chroma(
     persist_directory=os.path.join(BASE_DIR, "chroma_db"),
     embedding_function=embeddings,
-    collection_name="legal_provisions",
+    collection_name="legal_provisions_cos",  # hnsw:space=cosine：距离分=1-cos，精排免重复嵌入
 )
 
 

@@ -47,7 +47,7 @@ from models import AuditLog, Conversation, Feedback, Message, QaCandidate, User
 from multimodal import MEDIA_DIR, build_vision_content, describe_image, persist_image, validate_image
 from observability import RequestIdMiddleware, log_account, setup_logging
 from rag_chain import clean_answer, format_docs, make_chain, stream_with_retry, vectorstore
-from retrieval import citation_verify, grounded_top_score, retrieve, retrieve_for_test
+from retrieval import citation_verify, grounded_top_score, prewarm, retrieve, retrieve_for_test
 from schemas import (
     ChatIn,
     ConversationDetail,
@@ -135,6 +135,8 @@ limiter = Limiter(key_func=get_remote_address)
 @asynccontextmanager
 async def lifespan(_app):
     setup_logging(settings.log_level)
+    # 预热：BM25 索引 + 源名集合（重启后首问冷启动 3s+ → 0），不阻塞事件循环
+    await run_in_threadpool(prewarm)
     yield
 
 
