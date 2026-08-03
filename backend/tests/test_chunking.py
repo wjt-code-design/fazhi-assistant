@@ -65,6 +65,19 @@ def test_long_article_sentence_split():
     assert all(len(c.page_content) <= 700 for c in third)
 
 
+def test_long_article_coverage_complete():
+    """超长条句切后覆盖完整原文、无遗漏段（基准步骤6）——每句代表子串都必须出现。"""
+    body = "".join(f"第{i}条第二款的规定要求各方妥善履行义务，确保交易安全与秩序稳定。" for i in range(60))
+    assert len(body) > C.CHUNK_MAX, "测试前提：超过句切阈值"
+    long = C.split_article_text(body, article="第九条", chapter="第二章 分则")
+    assert len(long) >= 2
+    joined = "".join(c.page_content for c in long)
+    for i in range(0, 60, 5):
+        assert f"第{i}条第二款" in joined, f"第{i}条第二款 被句切遗漏"
+    # 拼接总长应不小于原文（重叠允许，遗漏会缩小总长）
+    assert sum(len(c.page_content) for c in long) >= len(body)
+
+
 def test_article_has_headline_kept():
     """条号头行保留在内容中（BM25 条号查询的精确匹配载荷）。"""
     chunks = _chunks()

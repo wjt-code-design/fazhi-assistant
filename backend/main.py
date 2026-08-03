@@ -573,10 +573,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 分支0：缓存命中 → 零 token 直返
             if cache_hit:
                 ca = cache_hit["answer"]
+                _f0 = time.perf_counter()  # 缓存命中：首帧≈总耗时（瞬时，用于首帧埋点分段标注）
                 yield f"data: {json.dumps({'content': ca}, ensure_ascii=False)}\n\n"
                 routing_metrics.record("cache", False, "pass", "hit", checked=False)
                 log_account(
                     model="cache", tier="cache", cache="hit",
+                    first_ms=round((_f0 - t0) * 1000, 1),
                     ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
                     conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
                 )
@@ -593,10 +595,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 msg = clarify.CLARIFY_PROMPT if strategy == "clarify" else clarify.REFUSE_PROMPT
                 if strategy == "clarify":
                     _clarified[pre["conv_id"]] = True  # 会话级：最多反问一次
+                _f0 = time.perf_counter()  # 反问/拒答：零 LLM，首帧≈总耗时
                 yield f"data: {json.dumps({'content': msg}, ensure_ascii=False)}\n\n"
                 routing_metrics.record(strategy, False, "pass", "miss", checked=False)
                 log_account(
                     model="rule", tier=strategy, cache="miss", token_est=0,
+                    first_ms=round((_f0 - t0) * 1000, 1),
                     ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
                     conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
                 )
@@ -613,6 +617,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 res = await run_in_threadpool(_light_buffered, pre, messages)
                 answer = res.answer
                 if answer:
+                    _f0 = time.perf_counter()  # 轻量缓冲：非流式整答返回，首帧=完成时刻
                     yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"
                 else:
                     yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
@@ -625,6 +630,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     model=registry.model_of(res.key), tier=res.tier,
                     escalated=res.escalated, verdict=res.verdict, cache="miss",
                     token_est=res.usage,
+                    first_ms=round((_f0 - t0) * 1000, 1) if answer else None,
                     ms=round((time.perf_counter() - t0) * 1000, 1), ok=bool(answer),
                     conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
                 )
@@ -646,7 +652,10 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 return make_chain(llm)
 
             chunks = []
+            _f0 = None
             async for piece in stream_with_retry(make_chain_fn, messages, [(False, 0.0), (True, 0.5), (False, 0.5)]):
+                if _f0 is None:
+                    _f0 = time.perf_counter()  # 真流式：首个 token 时刻（首帧埋点）
                 chunks.append(piece)
                 yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"
             answer = "".join(chunks)
@@ -655,6 +664,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     fb = await run_in_threadpool(_invoke_llm, messages, flag_llm)
                     answer = clean_answer(fb)
                     if answer:
+                        if _f0 is None:
+                            _f0 = time.perf_counter()
                         yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"
                 except Exception:
                     answer = ""
@@ -705,6 +716,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 model=registry.model_of(flag_key) if use_router else registry.config()["model"],
                 tier=(tier or "flag") if use_router else "legacy", cache="miss",
                 token_est=estimate_tokens(answer) if answer else 0,
+                first_ms=round((_f0 - t0) * 1000, 1) if _f0 else None,
                 ms=round((time.perf_counter() - t0) * 1000, 1),
                 ok=bool(answer),
                 conv_id=pre["conv_id"],

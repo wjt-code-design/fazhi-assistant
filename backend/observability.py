@@ -12,7 +12,7 @@ import uuid
 
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
 
-_ACCOUNT_FIELDS = ("method", "path", "status", "ms", "model", "ok", "conv_id", "user_id", "q_len")
+_ACCOUNT_FIELDS = ("method", "path", "status", "ms", "first_ms", "model", "ok", "conv_id", "user_id", "q_len")
 
 
 class _JsonFormatter(logging.Formatter):

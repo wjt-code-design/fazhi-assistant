@@ -1,7 +1,8 @@
-"""检索层评测骨架（阶段1种子）。
+"""检索层评测（阶段1种子 + 基准步骤5增强）。
 
-对 data/eval_set.json 跑 recall@k / 关键词命中，作为检索/切片/embedding 变更后的防回归基线。
-仅评估检索，不调用 LLM，离线即可运行。
+对 data/eval_set.json 跑 recall@1/2/4/6 + MRR + 关键词命中，作为检索/切片/embedding
+变更后的防回归基线。仅评估检索，不调用 LLM，离线即可运行。结果落盘
+docs/benchmark_results/retrieval_<ts>.json（多 k 曲线 / MRR）。
 
 用法：在 backend/ 下 `python scripts/eval_retrieval.py`（或任意目录，脚本会自定位）。
 """
@@ -9,6 +10,7 @@
 import json
 import os
 import sys
+import time
 
 # 评测阶段需联网下载模型（缓存缺失时）；显式关闭离线模式，覆盖 rag_chain 的运行期离线默认。
 os.environ["HF_HUB_OFFLINE"] = "0"
@@ -22,6 +24,8 @@ os.chdir(BACKEND)
 from retrieval import retrieve  # noqa: E402
 
 DATA = os.path.join(BACKEND, "..", "data", "eval_set.json")
+OUT_DIR = os.path.join(BACKEND, "..", "docs", "benchmark_results")
+KS = (1, 2, 4, 6)
 
 
 def norm(s: str) -> str:
@@ -30,23 +34,50 @@ def norm(s: str) -> str:
 
 def main():
     cases = json.load(open(DATA, encoding="utf-8"))
-    hit_src = hit_art = hit_kw = 0
-    for c in cases:
-        docs = retrieve(c["question"], k=4)
-        srcs = {d.metadata.get("source", "") for d in docs}
-        arts = {d.metadata.get("article", "") for d in docs}
-        text = norm(" ".join(d.page_content for d in docs))
-        s = any(e in srcs for e in c.get("expected_sources", []))
-        a = any(e in arts for e in c.get("expected_articles", []))
-        k = all(norm(kw) in text for kw in c.get("expected_keywords", []))
-        hit_src += s
-        hit_art += a
-        hit_kw += k
-        print(f"[{c['id']}] source={int(s)} article={int(a)} keywords={int(k)}  Q={c['question']}")
     n = len(cases) or 1
-    print(
-        f"\nrecall_source@4={hit_src / n:.2f} recall_article@4={hit_art / n:.2f} keyword_hit={hit_kw / n:.2f} (n={n})"
+    recall = {k: 0 for k in KS}
+    mrr_sum = 0.0
+    hit_kw = 0
+    rows = []
+    for c in cases:
+        docs = retrieve(c["question"], k=max(KS))
+        srcs = [d.metadata.get("source", "") for d in docs]
+        arts = [d.metadata.get("article", "") for d in docs]
+        exp_src = set(c.get("expected_sources", []))
+        exp_art = set(c.get("expected_articles", []))
+        text = norm(" ".join(d.page_content for d in docs))
+        for k in KS:
+            recall[k] += int(any(a in exp_art for a in arts[:k]))
+        # MRR：首个期望条文的最小 rank
+        rank = next((i + 1 for i, a in enumerate(arts) if a in exp_art), None)
+        if rank:
+            mrr_sum += 1.0 / rank
+        kw = all(norm(kw) in text for kw in c.get("expected_keywords", []))
+        hit_kw += kw
+        rows.append({"id": c.get("id"), "source_ok": bool(srcs[:4] and any(s in exp_src for s in srcs[:4])), "mrr_rank": rank, "question": c["question"]})
+    print(f"样本 n={n}")
+    for k in KS:
+        print(f"  recall_article@{k} = {recall[k] / n:.3f}")
+    print(f"  recall_source@4 = {sum(1 for r in rows if r['source_ok']) / n:.3f}")
+    print(f"  MRR = {mrr_sum / n:.3f}")
+    print(f"  keyword_hit = {hit_kw / n:.3f}")
+    os.makedirs(OUT_DIR, exist_ok=True)
+    ts = time.strftime("%Y%m%d-%H%M%S")
+    out = os.path.join(OUT_DIR, f"retrieval_{ts}.json")
+    json.dump(
+        {
+            "ts": ts,
+            "n": n,
+            "recall_article": {str(k): round(recall[k] / n, 4) for k in KS},
+            "recall_source_4": round(sum(1 for r in rows if r["source_ok"]) / n, 4),
+            "mrr": round(mrr_sum / n, 4),
+            "keyword_hit": round(hit_kw / n, 4),
+        },
+        open(out, "w", encoding="utf-8"),
+        ensure_ascii=False,
+        indent=1,
     )
+    print(f"结果落盘：{out}")
 
 
 if __name__ == "__main__":
