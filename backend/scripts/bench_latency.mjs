@@ -82,7 +82,10 @@ for (let i = 0; i < 2; i++) {
 }
 console.log(`→ 热缓存首帧 ≈ ${hot.map((h) => h.first_ms)}ms（命中应为几十 ms 级）`);
 
-const ts = new Date().toISOString().replace(/[:.]/g, "-");
+// 统一时间戳 %Y%m%d-%H%M%S（与 eval_* 脚本一致，benchmark_trend 按文件名排序）
+const now = new Date();
+const pad = (n) => String(n).padStart(2, "0");
+const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
 const outDir = join(__dirname, "..", "..", "docs", "benchmark_results");
 mkdirSync(outDir, { recursive: true });
 const outFile = join(outDir, `latency_${ts}.json`);

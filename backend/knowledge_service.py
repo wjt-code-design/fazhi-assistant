@@ -11,6 +11,7 @@ import hashlib
 import io
 import math
 import os
+import threading
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -23,6 +24,12 @@ from rag_chain import BASE_DIR, embeddings, vectorstore
 
 _ALLOWED_EXT = {".txt", ".md", ".pdf", ".docx"}
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
+
+# 知识写串行锁：add_text 的 delete-then-add 与 delete_doc 非原子（Chroma 无事务），
+# FastAPI 线程池下并发管理操作可能交错（互删/重复）。RLock 串行化写路径
+#（可重入：add_text 内嵌套 add_chunks 也覆盖）。单 worker 约束下的务实方案——
+# 真正的原子替换需 Chroma 事务或多进程协调，超出当前架构（见 ADR-008）。
+_WRITE_LOCK = threading.RLock()
 
 # 受控沉淀采纳后的"已确认问答"集合：用 question 做向量，便于问题空间匹配复用
 _qa_store = Chroma(
@@ -144,35 +151,37 @@ def add_text(
     - manual/import：单条条文切分；按 (source, article) 幂等——重复添加=更新而非堆积。
     - seed：knowledge_base.build 直写，不走本函数。
     """
-    if file_hash_value:
-        try:
-            _collection().delete(where={"file_hash": file_hash_value})
-        except Exception:
-            pass
-    if origin == "upload":
-        chunks = chunking.split_law_document(content)
-        pairs = [
-            (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")})
-            for c in chunks
-        ]
-    else:
-        if origin in ("manual", "import") and article:
+    with _WRITE_LOCK:
+        if file_hash_value:
             try:
-                stale = _collection().get(where={"$and": [{"source": source}, {"article": article}]})["ids"]
-                if stale:
-                    _collection().delete(ids=stale)
+                _collection().delete(where={"file_hash": file_hash_value})
             except Exception:
                 pass
-        chunks = chunking.split_article_text(content, article=article)
-        pairs = [
-            (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")})
-            for c in chunks
-        ]
-    return add_chunks(pairs, source=source, origin=origin, extra_meta=extra_meta, file_hash_value=file_hash_value)
+        if origin == "upload":
+            chunks = chunking.split_law_document(content)
+            pairs = [
+                (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")})
+                for c in chunks
+            ]
+        else:
+            if origin in ("manual", "import") and article:
+                try:
+                    stale = _collection().get(where={"$and": [{"source": source}, {"article": article}]})["ids"]
+                    if stale:
+                        _collection().delete(ids=stale)
+                except Exception:
+                    pass
+            chunks = chunking.split_article_text(content, article=article)
+            pairs = [
+                (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")})
+                for c in chunks
+            ]
+        return add_chunks(pairs, source=source, origin=origin, extra_meta=extra_meta, file_hash_value=file_hash_value)
 
 
 def delete_doc(doc_id: str):
-    _collection().delete(ids=[doc_id])
+    with _WRITE_LOCK:
+        _collection().delete(ids=[doc_id])
     retrieval.invalidate()
 
 

@@ -44,8 +44,11 @@ for (let i = 0; i < 61; i++) {
 }
 const elapsed = (performance.now() - t0) / 1000;
 const n429 = codes.filter((c) => c === 429).length;
+const now = new Date();
+const pad = (n) => String(n).padStart(2, "0");
+const ts = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
 const result = {
-  ts: new Date().toISOString(),
+  ts,
   requests: codes.length,
   elapsed_s: Math.round(elapsed * 10) / 10,
   n_429: n429,
@@ -55,7 +58,7 @@ const result = {
 };
 const outDir = join(__dirname, "..", "..", "docs", "benchmark_results");
 mkdirSync(outDir, { recursive: true });
-const outFile = join(outDir, `rate_limit_${result.ts.replace(/[:.]/g, "-")}.json`);
+const outFile = join(outDir, `rate_limit_${ts}.json`);
 writeFileSync(outFile, JSON.stringify(result, null, 1) + "\n");
 console.log(`\n61 次耗时 ${elapsed.toFixed(0)}s | 429 出现 ${n429} 次 | 首次 429 在第 ${codes.indexOf(429) + 1 || "-"} 次`);
 console.log(n429 >= 1 ? "限流触发 PASS" : "限流未触发 FAIL");

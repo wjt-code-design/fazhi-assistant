@@ -28,6 +28,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
 
 import _judge  # noqa: E402
+
 from retrieval import retrieve  # noqa: E402
 
 BASE = os.getenv("API_BASE", "http://localhost:8000")

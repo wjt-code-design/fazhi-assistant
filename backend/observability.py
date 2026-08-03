@@ -12,7 +12,13 @@ import uuid
 
 request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
 
-_ACCOUNT_FIELDS = ("method", "path", "status", "ms", "first_ms", "model", "ok", "conv_id", "user_id", "q_len")
+# token_est/tier/cache/escalated/verdict：log_account 实际传入的记账字段——此前遗漏被
+# JSON formatter 静默丢弃（每问成本算不出、eval_latency_log 的 rule 剔除恒为 0），
+# 2026-08-03 交付级验收修复。追加尾部，不动既有字段顺序。
+_ACCOUNT_FIELDS = (
+    "method", "path", "status", "ms", "first_ms", "model", "ok", "conv_id", "user_id", "q_len",
+    "token_est", "tier", "cache", "escalated", "verdict", "kind", "detail",
+)
 
 
 class _JsonFormatter(logging.Formatter):

@@ -115,6 +115,28 @@ def test_empty_input():
     assert C.split_article_text("") == []
 
 
+# ---------------- MIN_ARTICLE 边界（规格定案，2026-08-03） ----------------
+# 语料实测：10236 条真条文 body 全部 ≥10 字（0 条被吞）——MIN_ARTICLE=10 丢弃的
+# 都是 TOC 残留/误识别（如「第一条 立法目的」）。锁死边界：<10 吞（TOC）、==10 保（真条文）。
+def test_min_article_boundary():
+    assert C.MIN_ARTICLE == 10, "边界测试依赖 MIN_ARTICLE=10"
+    # <10 字：TOC 残留/误识别 → 丢弃（有真实条文时不影响）
+    text = "第一条 立法目的\n第二条 为了保护合法权益，制定本法，规范有关行为。"
+    chunks = C.split_law_document(text)
+    arts = {c.meta.get("article") for c in chunks}
+    assert "第一条" not in arts, "过短条文（<10 字）应作为 TOC 残留丢弃"
+    assert "第二条" in arts, "正常条文不受 MIN_ARTICLE 影响"
+
+
+def test_min_article_exactly_10_kept():
+    # 恰 10 字：边界值保留（body 长度 == MIN_ARTICLE 不丢弃）
+    assert C.MIN_ARTICLE == 10
+    text = "第一条 甲乙丙丁戊己"  # body="第一条 甲乙丙丁戊己" = 恰 10 字
+    assert len("第一条 甲乙丙丁戊己") == 10
+    chunks = C.split_law_document(text)
+    assert any(c.meta.get("article") == "第一条" for c in chunks), "恰 10 字条文应保留（边界）"
+
+
 # ---------------- _strip_toc 退出分支（目录误吞正文是切分最大误伤源） ----------------
 def test_toc_exits_on_zhengwen_marker():
     """目录后的显式「正文」标记 → 退出 TOC，后续条文进入 chunk。"""
