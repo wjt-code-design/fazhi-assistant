@@ -107,6 +107,7 @@ def parse_article_query(query: str):
 def exact_article_lookup(source: str, article: str, cutoff: str | None = None) -> list[Document]:
     """精确条号查找（含时效过滤，与检索同口径）。返回匹配 Document 列表。"""
     cutoff = cutoff or date.today().isoformat()
+    source = canon_source(source)  # 简称→全称（库内存全称，民诉法→民事诉讼法）
     data = vectorstore._collection.get(
         where={"$and": [{"source": source}, {"article": article}]},
         include=["documents", "metadatas"],
@@ -126,6 +127,24 @@ def _norm_source(name: str) -> str:
     """法名归一：去「中华人民共和国」前缀，便于答案引用与 sources 对齐。"""
     name = (name or "").strip()
     return name[len(_PREFIX_CN) :] if name.startswith(_PREFIX_CN) else name
+
+
+# 法名简称 → 全称（库内 source 存全称；条号直查 exact_article_lookup 与
+# clarify 源名存在性检查共用。放本模块：domain_rules 依赖本模块，放过去会循环导入）
+SOURCE_ALIAS = {
+    "民诉法": "民事诉讼法",
+    "刑诉法": "刑事诉讼法",
+    "行诉法": "行政诉讼法",
+    "消保法": "消费者权益保护法",
+    "电商法": "电子商务法",
+    "个保法": "个人信息保护法",
+    "网安法": "网络安全法",
+    "破产法": "企业破产法",
+}
+
+
+def canon_source(name: str) -> str:
+    return SOURCE_ALIAS.get(name, name)
 
 
 def _source_key(name: str) -> str:

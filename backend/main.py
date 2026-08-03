@@ -135,8 +135,12 @@ limiter = Limiter(key_func=get_remote_address)
 @asynccontextmanager
 async def lifespan(_app):
     setup_logging(settings.log_level)
-    # 预热：BM25 索引 + 源名集合（重启后首问冷启动 3s+ → 0），不阻塞事件循环
-    await run_in_threadpool(prewarm)
+    # 预热：BM25 索引 + 源名集合（重启后首问冷启动 3s+ → 0），不阻塞事件循环。
+    # 失败仅降级（首问走惰性构建），不让应用拒绝启动（code-review：chroma 损坏时原惰性路径可恢复）
+    try:
+        await run_in_threadpool(prewarm)
+    except Exception as e:
+        print(f"[prewarm] 预热失败，降级惰性构建（重启后首问稍慢）：{e}", flush=True)
     yield
 
 

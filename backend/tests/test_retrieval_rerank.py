@@ -58,3 +58,10 @@ def test_personal_info_principles():
 def test_shareholder_capital_deadline():
     docs = retrieval.hybrid_retrieve("公司股东认缴出资的期限是多长？", k=6)
     assert _in_top(docs, "公司法", "第四十七条"), "出资期限应召回 47 条"
+
+
+@pytest.mark.slow
+def test_short_name_exact_lookup():
+    # 简称→全称：条号直查也应吃别名（库内 source 是全称「刑事诉讼法」）
+    docs = retrieval.exact_article_lookup("刑诉法", "第八十三条")
+    assert docs, "刑诉法第八十三条应命中刑事诉讼法第八十三条"

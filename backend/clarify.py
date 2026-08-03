@@ -13,6 +13,7 @@ import re
 
 import retrieval as R
 from domain_rules import COMPLEX_KEYWORDS
+from retrieval import canon_source
 
 # 置信度标定结论（scripts/calibrate_confidence.py，2026-08-03 实测）：正向 eval_set
 # 28 例 top1 余弦全 ≥ 0.637；underspecified 3 例 0.611-0.634；chitchat 0.35-0.43；
@@ -41,11 +42,11 @@ _PREP_PREFIX = ("根据", "按照", "依据", "依照", "参照", "适用", "违
 
 
 def extract_source_names(text: str) -> list[str]:
-    """从问题中抽取疑似法名（书引优先，裸名去常见误报），供源名存在性检查。"""
+    """从问题中抽取疑似法名（书引优先，裸名去常见误报，简称归一为全称），供源名存在性检查。"""
     t = text or ""
     out: list[str] = []
     for m in _SOURCE_QUOTE_RE.finditer(t):
-        name = m.group(1).strip()
+        name = canon_source(m.group(1).strip())
         if name and name not in out:
             out.append(name)
     for m in _SOURCE_BARE_RE.finditer(t):
@@ -54,6 +55,7 @@ def extract_source_names(text: str) -> list[str]:
             if name.startswith(p):
                 name = name[len(p) :]
                 break
+        name = canon_source(name)
         if name and name not in out:
             out.append(name)
     return out

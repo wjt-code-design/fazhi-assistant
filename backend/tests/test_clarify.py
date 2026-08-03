@@ -56,6 +56,15 @@ def test_extract_source_names():
     assert clarify.extract_source_names("保险法第一百七十四条") == ["保险法"]
 
 
+def test_source_alias():
+    # 简称 → 全称归一：库里存全称，短名直查会误判「不在库」→ 误拒答（code-review 发现）
+    assert clarify.extract_source_names("民诉法第一百二十条") == ["民事诉讼法"]
+    assert clarify.extract_source_names("刑诉法第八十三条") == ["刑事诉讼法"]
+    assert clarify.extract_source_names("消保法第五十五条") == ["消费者权益保护法"]
+    # 归一后在库 → 不因短名误拒答
+    assert clarify.decide("legal_query", "民诉法第一百二十条是什么", True) == "direct"
+
+
 # ---------------- decide：4 档策略 ----------------
 def test_decide_chitchat():
     assert clarify.decide("chitchat", "你好！", False) == "chat"

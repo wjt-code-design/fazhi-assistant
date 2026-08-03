@@ -78,7 +78,7 @@ def export_chroma_json(dest_dir: str) -> str:
     import chromadb
 
     client = chromadb.PersistentClient(path=CHROMA_DIR)
-    col = client.get_collection("legal_provisions")
+    col = client.get_collection("legal_provisions_cos")  # cosine 库（L2 旧库已废弃）
     meta = col.get(include=["metadatas"], limit=100000)
     metas = meta["metadatas"] or []
     rows = []
