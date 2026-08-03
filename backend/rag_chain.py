@@ -19,17 +19,47 @@ from langchain_core.output_parsers import StrOutputParser
 from langchain_huggingface import HuggingFaceEmbeddings
 
 from llm_guard import llm_guard  # noqa: E402
+from settings import settings  # noqa: E402
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# 1. Embeddings — BGE-base-zh 本地（CPU）
-embeddings = HuggingFaceEmbeddings(
-    model_name="BAAI/bge-base-zh-v1.5",
-    model_kwargs={"device": "cpu"},
-)
+# 1. Embeddings — 配置驱动（ADR-011，2026-08-04）：local=本地 BGE CPU（默认，零配置回退）；
+#    aliyun=阿里云 text-embedding-v4（OpenAI 兼容端点）。
+#    ⚠ 必须 check_embedding_ctx_length=False：langchain 默认本地 token 化长度检查会把文本
+#    转成 token 数组发给 DashScope，触发 400 InvalidParameter（"input.contents is neither
+#    str nor list of str"，grilling 实测）。
+def _build_embeddings():
+    provider = settings.embedding_provider
+    if provider != "aliyun":
+        return HuggingFaceEmbeddings(
+            model_name="BAAI/bge-base-zh-v1.5",
+            model_kwargs={"device": "cpu"},
+        )
+    from langchain_openai import OpenAIEmbeddings
 
-# 2. Vector store — Chroma 持久化
-COLLECTION_NAME = "legal_provisions_cos"  # hnsw:space=cosine：距离分=1-cos，精排免重复嵌入
+    if not settings.embedding_api_key:
+        raise RuntimeError("embedding_provider=aliyun 但缺 EMBEDDING_API_KEY，请在 backend/.env 配置")
+    return OpenAIEmbeddings(
+        model=settings.embedding_model,
+        api_key=settings.embedding_api_key,
+        base_url=settings.embedding_base_url,
+        dimensions=settings.embedding_dimensions,
+        chunk_size=10,  # 阿里云 batch 上限
+        max_retries=3,
+        timeout=60,
+        check_embedding_ctx_length=False,  # 关键：禁用本地 token 化检查（grilling）
+    )
+
+
+embeddings = _build_embeddings()
+
+# 2. Vector store — Chroma 持久化。collection 名随 provider 派生（语义空间不同，切云须重建）
+_COLLECTION_LOCAL = "legal_provisions_cos"  # hnsw:space=cosine：距离分=1-cos
+_COLLECTION_CLOUD = "legal_provisions_te4"  # 云端 text-embedding-v4（重建产物，旧库保留可回退）
+_QA_COLLECTION_LOCAL = "qa_pairs"
+_QA_COLLECTION_CLOUD = "qa_pairs_te4"
+COLLECTION_NAME = _COLLECTION_CLOUD if settings.embedding_provider == "aliyun" else _COLLECTION_LOCAL
+QA_COLLECTION_NAME = _QA_COLLECTION_CLOUD if settings.embedding_provider == "aliyun" else _QA_COLLECTION_LOCAL
 vectorstore = Chroma(
     persist_directory=os.path.join(BASE_DIR, "chroma_db"),
     embedding_function=embeddings,

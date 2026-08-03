@@ -31,6 +31,27 @@ class Settings(BaseSettings):
     # 留空则用 llm_registry 内置的 8 代表模型默认表（base_url/api_key 复用上面的 LLM_*）
     llm_models_json: str = ""
 
+    # ---- 向量嵌入（local=本地 BGE CPU；aliyun=阿里云 text-embedding-v4，需配 key）----
+    embedding_provider: str = "local"  # local / aliyun
+    embedding_api_key: str = ""
+    embedding_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    embedding_model: str = "text-embedding-v4"
+    embedding_dimensions: int = 768  # text-embedding-v4 支持 768/1024 等；必须与重建库一致
+    embedding_quota_total: int = 0  # 0=不启用配额监控
+    embedding_quota_initial: int = 0  # 开通时已用 token（截图余量用）
+    embedding_warn_threshold: float = 0.15  # 剩余 <15% → 后台标黄"快用完"
+    embedding_hard_threshold: float = 0.05  # 剩余 <5% → 自动切回 local + 标红
+
+    # ---- 重排序（rerank，准度主菜；qwen3-rerank 按输入 token 计费）----
+    rerank_enabled: bool = False  # 是否启用 rerank（开则跳过 cosine 精排，见 retrieval）
+    rerank_api_key: str = ""
+    rerank_base_url: str = "https://dashscope.aliyuncs.com/compatible-api/v1"
+    rerank_model: str = "qwen3-rerank"
+    rerank_quota_total: int = 0  # 0=不启用配额监控
+    rerank_quota_initial: int = 0
+    rerank_warn_threshold: float = 0.15
+    rerank_hard_threshold: float = 0.05
+
     # ---- 图片限制 ----
     image_max_mb: int = 5
     image_max_px: int = 6000

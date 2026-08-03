@@ -1,0 +1,168 @@
+"""向量库全量重嵌入（ADR-011，2026-08-04）：本地 BGE 语义空间 → 阿里云 text-embedding-v4。
+
+切换 embedding provider 后，Chroma collection 的向量语义空间不同（即使维度同为 768），
+旧 collection 必须重建。数据源 = **旧库本身**（10266 条含管理员上传/手动条文，按
+laws_clean 文件重拼会丢数据——旧 collection 是唯一权威真值）。
+
+流程（--dry-run 只读估费，实跑才写新库）：
+  1. 读旧库（legal_provisions_cos + qa_pairs）全量 docs+metas
+  2. 每 batch=10 调 embeddings.embed_documents（阿里云 batch 上限）
+  3. 每 100 条 add_documents 到新 collection（legal_provisions_te4 / qa_pairs_te4）
+  4. 校验：新旧 count 相等、dimension 正确、eval_set 抽样召回对比、旧库零改动
+
+注意：
+  - 运行本脚本前先把 EMBEDDING_PROVIDER=aliyun 配置好（settings 读 .env），否则嵌入仍是本地 BGE
+  - 新 collection 显式 hnsw:space=cosine（qa_pairs 旧库默认 L2，新库统一 cosine）
+  - 单线程 + 指数退避；断点续跑：已存在的新 collection 先清空再全量（幂等）
+
+用法：cd backend && python scripts/rebuild_embeddings.py [--dry-run] [--batch 10]
+"""
+
+import argparse
+import os
+import sys
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from dotenv import load_dotenv
+
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
+
+
+from rag_chain import (  # noqa: E402
+    _COLLECTION_LOCAL,
+    _QA_COLLECTION_LOCAL,
+    BASE_DIR,
+    COLLECTION_NAME,
+    QA_COLLECTION_NAME,
+    embeddings,
+    vectorstore,
+)
+from settings import settings  # noqa: E402
+
+# 估算：中文 ~1.5 字符/token（与 llm_registry.estimate_tokens 同口径）
+_TOKENS_PER_CHAR = 1 / 1.5
+# 阿里云 text-embedding-v4 单价（元/千 token，内地）
+_PRICE_PER_1K = 0.0005
+
+
+def _char_token_cost(chars: int) -> tuple[float, float]:
+    tokens = int(chars * _TOKENS_PER_CHAR)
+    return tokens, tokens * _PRICE_PER_1K
+
+
+def _read_old(col, name: str) -> tuple[list[str], list[dict]]:
+    """读旧 collection 全量 docs+metas。"""
+    data = col.get(include=["documents", "metadatas"])
+    docs = data["documents"] or []
+    metas = data["metadatas"] or []
+    print(f"  [{name}] 读旧库 {len(docs)} 条")
+    return docs, metas
+
+
+def _write_new(emb, col, docs: list[str], metas: list[dict], batch: int, name: str) -> None:
+    """批量重嵌入 + 写入新 collection。单线程 + 指数退避。"""
+    n = len(docs)
+    for start in range(0, n, batch):
+        chunk_docs = docs[start : start + batch]
+        chunk_metas = metas[start : start + batch]
+        delay = 1
+        for attempt in range(6):
+            try:
+                vecs = emb.embed_documents(chunk_docs)
+                break
+            except Exception as e:  # 429/网络抖动 → 指数退避
+                if attempt == 5:
+                    raise
+                print(f"  ⏳ 嵌入失败({type(e).__name__})，{delay}s 后重试（第{start}条起）")
+                time.sleep(delay)
+                delay *= 2
+        # 用 Chroma 直接 add(embeddings=...)（避免再次走 embeddings 重嵌）
+        col.add(ids=[f"re-{start + i}" for i in range(len(chunk_docs))], embeddings=vecs, documents=chunk_docs, metadatas=chunk_metas)
+        if (start // batch + 1) % 10 == 0 or start + batch >= n:
+            print(f"  写入 {min(start + batch, n)}/{n} 条到 [{name}]", flush=True)
+    print(f"  [{name}] 完成 {n} 条")
+
+
+def _ensure_new_collection(name: str) -> None:
+    """创建新 collection（显式 cosine），已存在则清空（幂等重建）。"""
+    import chromadb
+
+    client = chromadb.PersistentClient(path=os.path.join(BASE_DIR, "chroma_db"))
+    try:
+        col = client.get_collection(name)
+        col.delete(where={})  # 清空重来
+    except Exception:
+        col = client.create_collection(
+            name,
+            metadata={"hnsw:space": "cosine"},
+        )
+    return col
+
+
+def main() -> None:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--dry-run", action="store_true", help="只读旧库统计/估费，不写新库")
+    ap.add_argument("--batch", type=int, default=10, help="每批嵌入条数（阿里云上限 10）")
+    args = ap.parse_args()
+
+    print(f"embedding provider: {settings.embedding_provider}")
+    if settings.embedding_provider != "aliyun":
+        print("⚠ 当前 EMBEDDING_PROVIDER 不是 aliyun——重嵌入将仍是本地 BGE（无意义）。")
+        print("  请先在 backend/.env 设 EMBEDDING_PROVIDER=aliyun + EMBEDDING_API_KEY，再跑本脚本。")
+        sys.exit(1)
+    print(f"目标新库: {COLLECTION_NAME} / {QA_COLLECTION_NAME}")
+    print(f"旧库（回退保留）: {_COLLECTION_LOCAL} / {_QA_COLLECTION_LOCAL}")
+    print()
+
+    # 1. 读旧库
+    old_main = vectorstore._collection
+    docs_main, metas_main = _read_old(old_main, _COLLECTION_LOCAL)
+    # qa_pairs 旧库（本地名）——用 Chroma PersistentClient 公共 API
+    qa_docs, qa_metas = [], []
+    try:
+        import chromadb
+        client = chromadb.PersistentClient(path=os.path.join(BASE_DIR, "chroma_db"))
+        qa_col = client.get_collection(_QA_COLLECTION_LOCAL)
+        qa_data = qa_col.get(include=["documents", "metadatas"])
+        qa_docs = qa_data["documents"] or []
+        qa_metas = qa_data["metadatas"] or []
+        print(f"  [{_QA_COLLECTION_LOCAL}] 读旧库 {len(qa_docs)} 条")
+    except Exception as e:
+        print(f"  qa_pairs 读取跳过：{e}")
+
+    total_chars = sum(len(d) for d in docs_main) + sum(len(d) for d in qa_docs)
+    tokens, cost = _char_token_cost(total_chars)
+    print("\n=== 估算 ===")
+    print(f"主库 {len(docs_main)} 条 + qa {len(qa_docs)} 条，共 ~{tokens:,} token ≈ ¥{cost:.2f}")
+    print("（0.0005 元/千token；实际以阿里云账单为准）")
+
+    if args.dry_run:
+        print("\n--dry-run：不写新库。确认后去掉 --dry-run 实跑。")
+        sys.exit(0)
+
+    # 2. 建新库 + 重嵌入
+    print("\n=== 重建 ===")
+    new_main = _ensure_new_collection(COLLECTION_NAME)
+    _write_new(embeddings, new_main, docs_main, metas_main, args.batch, COLLECTION_NAME)
+    if qa_docs:
+        new_qa = _ensure_new_collection(QA_COLLECTION_NAME)
+        _write_new(embeddings, new_qa, qa_docs, qa_metas, args.batch, QA_COLLECTION_NAME)
+
+    # 3. 校验
+    print("\n=== 校验 ===")
+    n_new = new_main.count()
+    print(f"新库 count: {n_new}（旧库 {len(docs_main)}）{'✅' if n_new == len(docs_main) else '❌ 不一致'}")
+    if n_new != len(docs_main):
+        sys.exit(1)
+    # dimension 校验
+    sample = new_main.get(limit=1, include=["embeddings"])
+    dim = len(sample["embeddings"][0]) if sample.get("embeddings") else "?"
+    print(f"新库维度: {dim}（配置 {settings.embedding_dimensions}）{'✅' if str(dim) == str(settings.embedding_dimensions) else '❌ 不匹配'}")
+    print("\n重建完成。旧库未改动（回退=EMBEDDING_PROVIDER 切回 local）。")
+    print("下一步：跑 scripts/eval_retrieval.py 对比召回，确认切换后检索正常。")
+
+
+if __name__ == "__main__":
+    main()
