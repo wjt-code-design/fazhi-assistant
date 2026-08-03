@@ -85,7 +85,9 @@ def _judge(llm, q: str, ans: str) -> int:
 
 def main() -> None:
     token = _login()
-    llm = registry.get()
+    # judge 显式用 text 档模型（qwen3.7-plus）——registry.get() 返回 DEFAULT_KEY 是 omni（vision），
+    # 报告标注的 judge 模型必须与实际一致（code-review 抓出模型名标错）
+    _, llm = registry.pick("text", "flag")
     cases = [c for c in json.load(open(os.path.join(DATA, "eval_set.json"), encoding="utf-8")) if c.get("question")]
     sample = cases[:N_SAMPLE]
     os.makedirs(OUT_DIR, exist_ok=True)
@@ -112,6 +114,7 @@ def main() -> None:
     out = os.path.join(OUT_DIR, f"relevance_{result['ts']}.json")
     with open(out, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=1)
+        f.write("\n")
     print(f"结果落盘：{out}")
 
 

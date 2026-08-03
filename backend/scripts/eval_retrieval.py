@@ -64,19 +64,21 @@ def main():
     os.makedirs(OUT_DIR, exist_ok=True)
     ts = time.strftime("%Y%m%d-%H%M%S")
     out = os.path.join(OUT_DIR, f"retrieval_{ts}.json")
-    json.dump(
-        {
-            "ts": ts,
-            "n": n,
-            "recall_article": {str(k): round(recall[k] / n, 4) for k in KS},
-            "recall_source_4": round(sum(1 for r in rows if r["source_ok"]) / n, 4),
-            "mrr": round(mrr_sum / n, 4),
-            "keyword_hit": round(hit_kw / n, 4),
-        },
-        open(out, "w", encoding="utf-8"),
-        ensure_ascii=False,
-        indent=1,
-    )
+    with open(out, "w", encoding="utf-8") as f:
+        json.dump(
+            {
+                "ts": ts,
+                "n": n,
+                "recall_article": {str(k): round(recall[k] / n, 4) for k in KS},
+                "recall_source_4": round(sum(1 for r in rows if r["source_ok"]) / n, 4),
+                "mrr": round(mrr_sum / n, 4),
+                "keyword_hit": round(hit_kw / n, 4),
+            },
+            f,
+            ensure_ascii=False,
+            indent=1,
+        )
+        f.write("\n")
     print(f"结果落盘：{out}")
 
 

@@ -102,6 +102,7 @@ def main() -> None:
     out = os.path.join(OUT_DIR, f"hallucination_{result['ts']}.json")
     with open(out, "w", encoding="utf-8") as f:
         json.dump({"summary": result, "rows": rows}, f, ensure_ascii=False, indent=1)
+        f.write("\n")
     print(f"结果落盘：{out}")
 
 

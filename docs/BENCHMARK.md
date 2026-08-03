@@ -14,10 +14,10 @@
 | 召回率 recall@1/2/4/6 | **0.82 / 0.93 / 1.00 / 1.00** | eval_set 28 例纯检索 | 合成标注，非真实问答 |
 | MRR | **0.90** | 同上，期望条文 rank 倒数 | — |
 | 答案相关性 | **100%**（10/10 完全相关） | LLM judge（qwen3.7-plus）打 0/1/2 | **单一 judge、无人工金标**——主观度量 |
-| 首字时延 p50 / p90 | **1.3s / 2.1s** | 服务端 `first_ms` 埋点，65 个非缓存首问 | 含检索 pre（~1.2s）+ LLM TTFT |
-| 端到端时延 p50 | **3.8s** | 服务端 `ms` 字段，同一批样本 | 生成长度决定（提示词限 ≤300 字） |
+| 首字时延 p50 / p90 | **1.3s / 2.1s** | `eval_latency_log.py` 服务端日志统计，65 个纯生成首问（剔除缓存与 clarify/refuse） | 含检索 pre（~1.2s）+ LLM TTFT |
+| 端到端时延 p50 | **3.8s** | 同上脚本，`ms` 字段同一批样本 | 生成长度决定（提示词限 ≤300 字） |
 | 缓存命中 | ~0.2s/问 | answer_cache（进程内 LRU 512/TTL 6h） | 重启即清；key 含条文 ids（近似问题共享） |
-| 限流 | **生效**（第 60 次 429） | node 连发 61 次（60s 窗口内） | 按 IP；chat 60/min、login 10/min |
+| 限流 | **生效**（第 60 次 429，[物证](benchmark_results/rate_limit_2026-08-03T14-01-21-052Z.json)） | `bench_rate_429.mjs` node 连发 61 次（12s，60s 窗口内），结果落盘 | 按 IP；chat 60/min、login 10/min |
 | 检索时延 | ~1.2s（cosine 精排免重嵌后） | 阶段插桩（精排只嵌 BM25 独有条目） | 无独立运行时间隔统计脚本 |
 | 吞吐量 / 并发 | **无压测数字** | — | 单 worker 架构约束（ADR-007/008），量化需多 worker 改造 |
 | 长文本 | 99 部法 / 10236 条 / 最长 **7627 字** | `split_law_document` 句切（>800 字跨多条） | **无上下文预算管控**（提示词无 token 上限断言） |
@@ -31,12 +31,12 @@
 
 - **幻觉率 / 引用合法率**：`scripts/eval_hallucination.py`。eval_set 28 例走真实 chat，答案抽取所有《法名》第X条，`citation_verify` 判定是否在库。**只证明"没编造不存在的条文"**，不证明"引对了题目要的条文"——那是语义层，靠 full 门禁 + 人工 QA 沉淀兜底（ADR-010 明示此边界）。
 - **自检通过率**：同一批答案跑 `quality.self_check(context_present=True)`。1 例失败是"正当防卫过当"（模型答了但没引条号）——语义答对但形式未引条，诚实计入。
-- **相关性**：`scripts/eval_relevance.py`。qwen3.7-plus 单 judge 对 10 例问答打 0/1/2。**主观 + 单 judge + 无金标**，数字仅供参考；修复"法定"误拒答后 10/10 完全相关。
+- **相关性**：`scripts/eval_relevance.py`。judge 显式用 text 档模型 qwen3.7-plus（`registry.pick("text","flag")`）对 10 例问答打 0/1/2。**主观 + 单 judge + 无金标**，数字仅供参考。时序：首跑 `relevance_20260803-212818` 9/10（0 分=遗产继承「法定」误拒答，运行于修复前代码）→ 修复 9bd055c 后重跑 `relevance_20260803-214010` 与 `_220335` 均 10/10。
 - **准确性**：`scripts/smoke_citation_full.py` 12 场景（8 正向引条 + 2 负向诚实拒答 + 2 轻量）。**字符串包含断言偏弱**，且结果不落盘——理想是 LLM faithfulness（`EVAL_LLM_JUDGE=1` 可选开启）。
 
 ### 性能类
 
-- **首字/端到端时延**：服务端 `first_ms`/`ms` 埋点（`observability.log_account`），日志统计**排除缓存命中**（`model != "cache"`）。65 个非缓存首问 p50/p90。首帧 = 检索 pre（~1.2s）+ LLM 首个 token（~0.6-1s）；总时延 = 首帧 + 流式生成（字数决定）。
+- **首字/端到端时延**：`scripts/eval_latency_log.py` 统计服务端 `first_ms`/`ms` 埋点（`observability.log_account`）——**排除缓存命中**（`model != "cache"`）且**剔除 clarify/refuse（零 LLM 即时返回）**。65 个纯生成首问 p50/p90/p99。首帧 = 检索 pre（~1.2s）+ LLM 首个 token（~0.6-1s）；总时延 = 首帧 + 流式生成（字数决定）。**数字由脚本可复现**（与 `bench_latency.mjs` 的客户端口径不同——后者含流式传输，仅作对照）。
 - **缓存命中**：同题二次问 ~0.2s（进程内 LRU + SQLite 无持久，重启即清；key 含条文 ids → 近似问题共享缓存）。
 - **限流**：node 脚本 61 次连发（12s 内，缓存命中零配额），第 60 次触发 429（60/min 生效）。**注意**：Python urllib 读 SSE 首帧有 ~2s 测量假象（http.client readline），客户端时延一律用 node（浏览器同源口径）。
 - **吞吐/并发**：**故意不给数字**。单 worker（`uvicorn` 无 `--workers`）+ 60/min 限流 + 远端 LLM 生成 3-8s——压测会同时撞缓存（同题二次命中）与限流（429），数字无法反映真实容量。扩并发路径在 ADR-008（Qdrant/PG + PostgreSQL + 多 worker），当前规模不需要。
@@ -59,9 +59,10 @@
 cd backend
 python scripts/eval_hallucination.py   # 幻觉/自检（28 例真实 LLM）
 python scripts/eval_retrieval.py       # 召回多 k + MRR（离线）
-python scripts/eval_relevance.py       # 相关性（10 例 LLM judge）
-node scripts/bench_latency.mjs         # 端到端时延（node 口径）
-node scripts/bench_rate_429.mjs        # 限流冒烟（60s 窗口连发）
+python scripts/eval_relevance.py       # 相关性（10 例 LLM judge，qwen3.7-plus）
+python scripts/eval_latency_log.py     # 首帧/总时延（服务端日志，剔除缓存+rule）
+node scripts/bench_latency.mjs         # 端到端时延（node 客户端口径，对照）
+node scripts/bench_rate_429.mjs        # 限流冒烟（60s 窗口连发，落盘物证）
 python scripts/eval_negative_run.py    # 弃答率（LawBench 范式）
 ```
-全部输出落盘 `docs/benchmark_results/*.json`（不覆盖，时间戳追加）。
+全部输出落盘 `docs/benchmark_results/*.json`（不覆盖，时间戳追加）。报告主数字的复现源：时延 → `eval_latency_log.py`，限流 → `bench_rate_429.mjs` 落盘物证。
