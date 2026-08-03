@@ -75,9 +75,20 @@ interface LlmModelRow {
   depleted: boolean;
   below_threshold: boolean;
 }
+interface UtilityQuotaRow {
+  key: string;
+  model: string;
+  modality: string;
+  quota_total: number;
+  quota_left: number;
+  depleted: boolean;
+  warn_threshold: boolean; // <15% 快用完标黄
+  below_threshold: boolean; // <5% 已降级 local 标红
+}
 interface LlmStatus {
   feature_router: boolean;
   models: LlmModelRow[];
+  utility_quota: UtilityQuotaRow[];
   metrics: {
     total: number;
     tier_mix: { light: number; flag: number; cache: number; legacy: number };
@@ -878,6 +889,49 @@ export default function AdminPage() {
                     </tbody>
                   </table>
                 </div>
+
+                {llmStatus.utility_quota && llmStatus.utility_quota.length > 0 && (
+                  <div className="card mt-4 px-5 py-4">
+                    <div className="stat-label">工具模型配额（embedding / rerank，云 token）</div>
+                    <div className="mt-3 space-y-3">
+                      {llmStatus.utility_quota.map((u) => {
+                        const pct = u.quota_total > 0 ? Math.max(0, Math.min(100, (u.quota_left / u.quota_total) * 100)) : 0;
+                        return (
+                          <div key={u.key}>
+                            <div className="flex items-center justify-between">
+                              <span className="font-mono text-xs text-ink">
+                                {u.modality === "embedding" ? "Embedding" : "Rerank"} · <span className="text-slate">{u.model}</span>
+                              </span>
+                              <span className="text-xs text-slate">{u.quota_left.toLocaleString()} / {u.quota_total.toLocaleString()} token</span>
+                            </div>
+                            <div className="mt-1 h-2 w-full overflow-hidden rounded bg-mist">
+                              <div
+                                className="h-full"
+                                style={{
+                                  width: `${pct}%`,
+                                  background: u.depleted ? "var(--error)" : u.below_threshold ? "var(--error)" : u.warn_threshold ? "var(--accent)" : "var(--jade)",
+                                }}
+                              />
+                            </div>
+                            <div className="mt-1 text-xs">
+                              {u.depleted ? (
+                                <Badge kind="error">已耗尽</Badge>
+                              ) : u.below_threshold ? (
+                                <Badge kind="error">已降级本地</Badge>
+                              ) : u.warn_threshold ? (
+                                <Badge kind="accent">快用完</Badge>
+                              ) : (
+                                <Badge kind="success">充足</Badge>
+                              )}
+                              <span className="ml-2 text-slate">剩余 {pct.toFixed(0)}%</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <p className="mt-3 text-xs text-slate">用量按输入文本估算（云 API 无真实 usage）；低于 5% 自动切回本地模型。</p>
+                  </div>
+                )}
               </div>
             )}
           </div>

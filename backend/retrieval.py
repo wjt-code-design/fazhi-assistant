@@ -66,6 +66,14 @@ def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
             },
             cast_to=dict,
         )
+        # 配额扣减（ADR-011 阶段E）：qwen3-rerank 按输入 token 计费（query + documents），
+        # 无真实 usage 返回 → estimate_tokens 近似估算（~1.5 字符/token）
+        from llm_registry import estimate_tokens, registry
+
+        registry.deduct_utility(
+            "rerank",
+            estimate_tokens(query) + sum(estimate_tokens(d.page_content) for d in docs),
+        )
         results = (resp or {}).get("results") or []
         if not results:
             return None
@@ -358,6 +366,11 @@ def vector_top(
     valid: Callable | None = None,
 ) -> list[tuple[Document, float]]:
     """向量召回。category 走 Chroma where（字符串 $eq 可靠）；时效谓词在 Python 侧过滤（D6）。"""
+    # 配额扣减（ADR-011 阶段E）：每次向量召回 Chroma 内部做 1 次 embed_query，
+    # 按查询文本估算扣 embedding 用量（quota_total=0 时 record_delta no-op，安全）
+    from llm_registry import estimate_tokens, registry
+
+    registry.deduct_utility("embedding", estimate_tokens(query))
     filt = {"category": category} if category else None
     fetch_n = max(n * VECTOR_POOL_MULT, VECTOR_POOL_MIN)
     res = vectorstore.similarity_search_with_score(query, k=fetch_n, filter=filt)

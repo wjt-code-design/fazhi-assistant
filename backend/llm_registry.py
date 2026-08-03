@@ -263,5 +263,50 @@ class LLMRegistry:
                 for e in self._entries.values()
             ]
 
+    def utility_quota_status(self) -> list[dict[str, Any]]:
+        """工具类模型（embedding/rerank）配额（ADR-011 阶段E）。
+
+        LLM 走"同档多模型自动切换"；embedding/rerank 只有云端+local，无平级切换，
+        故用双阈值：warn（<warn_threshold 标黄"快用完"）/ hard（<hard_threshold 自动
+        切回 local 标红）。配额 0 表示未启用配额监控，跳过。
+        """
+        items = []
+        for name, total, initial, warn, hard in (
+            ("embedding", settings.embedding_quota_total, settings.embedding_quota_initial,
+             settings.embedding_warn_threshold, settings.embedding_hard_threshold),
+            ("rerank", settings.rerank_quota_total, settings.rerank_quota_initial,
+             settings.rerank_warn_threshold, settings.rerank_hard_threshold),
+        ):
+            if total <= 0:
+                continue
+            used = initial + quota_store.get_used(name)
+            left = max(0, total - used)
+            pct = left / total if total > 0 else 0.0
+            items.append(
+                {
+                    "key": name,
+                    "model": settings.embedding_model if name == "embedding" else settings.rerank_model,
+                    "modality": name,
+                    "tier": "utility",
+                    "priority": 0,
+                    "capabilities": [name],
+                    "quota_total": total,
+                    "quota_left": left,
+                    "depleted": left <= 0,
+                    "below_threshold": pct < hard,  # 前端语义复用：已达降级阈值
+                    "warn_threshold": pct < warn and pct >= hard,  # 标黄：快用完
+                }
+            )
+        return items
+
+    def deduct_utility(self, name: str, tokens: int) -> None:
+        """扣减工具类模型用量（embedding/rerank），持久化。tokens<=0 或未启用配额 → 忽略。"""
+        if tokens <= 0 or name not in ("embedding", "rerank"):
+            return
+        total = settings.embedding_quota_total if name == "embedding" else settings.rerank_quota_total
+        if total <= 0:
+            return  # 未启用配额监控，不积累
+        quota_store.record_delta(name, int(tokens))
+
 
 registry = LLMRegistry()

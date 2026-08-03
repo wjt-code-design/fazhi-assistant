@@ -981,6 +981,7 @@ def admin_llm_status(_admin: User = Depends(require_admin)):
     return {
         "feature_router": settings.feature_router,
         "models": registry.status(),
+        "utility_quota": registry.utility_quota_status(),  # embedding/rerank 配额（ADR-011 阶段E）
         "metrics": routing_metrics.snapshot(),
     }
 
