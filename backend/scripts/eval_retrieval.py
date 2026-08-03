@@ -12,6 +12,8 @@ import os
 import sys
 import time
 
+from dotenv import load_dotenv  # noqa: E402
+
 # 评测阶段需联网下载模型（缓存缺失时）；显式关闭离线模式，覆盖 rag_chain 的运行期离线默认。
 os.environ["HF_HUB_OFFLINE"] = "0"
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
@@ -20,6 +22,9 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 BACKEND = os.path.dirname(HERE)
 sys.path.insert(0, BACKEND)
 os.chdir(BACKEND)
+# 关键（ADR-011）：settings 只读 os.environ，不读 .env 文件——不显式 load_dotenv 则
+# embedding/rerank 全走本地默认，评测会假性复现旧基线。与其它 eval 脚本对齐。
+load_dotenv(os.path.join(BACKEND, ".env"))
 
 from retrieval import retrieve  # noqa: E402
 

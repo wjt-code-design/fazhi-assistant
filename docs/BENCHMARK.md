@@ -4,10 +4,16 @@
 > 所有数字可复跑：脚本在 `backend/scripts/`，原始结果在 `docs/benchmark_results/*.json`。
 > 诚实标注贯穿全文——每个数字都注明「怎么测的 + 已知限制」。
 
-> **嵌入层（2026-08-04 ADR-011）**：支持 provider 切换——默认本地 BGE（下表数字均为
+> **嵌入层（2026-08-04 ADR-011）**：支持 provider 切换——默认本地 BGE（下表检索行为
 > 本地 BGE 口径）；配 `EMBEDDING_PROVIDER=aliyun` 可切阿里云 text-embedding-v4（需
 > 重建向量库 `scripts/rebuild_embeddings.py`），并可启用 qwen3-rerank 精排（准度主菜）。
-> 切云后**召回/延迟数字会变**，须重新跑 `eval_retrieval.py` + `bench_latency.mjs` 对比。
+> 切云后**召回数字会变**，须重新跑 `eval_retrieval.py` + `bench_latency.mjs` 对比。
+> **2026-08-04 切云实测（te4 + qwen3-rerank）**：recall@2 0.93→**1.00**、MRR 0.90→**0.91**，
+> @1/@4/@6 持平（0.82/1.00/1.00）。详见下方「切云实测（ADR-011）」。
+>
+> **评测脚本注意**：`settings.py` 只读 os.environ 不读 .env——跑任何脚本前需自行
+> `load_dotenv`（rebuild/eval 均已内置）。`eval_retrieval.py` 曾漏加，导致切云后
+> 假性复现本地基线（2026-08-04 修复）。
 
 ## 总览表
 
@@ -22,6 +28,7 @@
 | 答案准确性（faithfulness） | **78.6%**（22/28 忠实） | `eval_quality.py` `EVAL_LLM_JUDGE=1`，判"答案 vs 检索条文"无编造 | 只证"不违背条文"，不证"答对"（无金标答案）；judge 判据严格——条文外的合理解释（如"最长不超过十一个月"的推算）也算 unfaithful |
 | 一致性 | **80%**（8/10） | 同题两改写各问一次，LLM judge 判实质一致 | 2 例失败归因检索漂移（ids_overlap 低），非模型波动 |
 | 措辞鲁棒性 | **90%**（9/10 稳定） | `eval_robustness.py` 10 对同义改写 top-k 命中一致 | 1 例改写丢关键词（"认缴出资"→"拖缴"） |
+| 切云召回 recall@1/2/4/6 | **0.82 / 1.00 / 1.00 / 1.00** | 同上 eval_set，provider=aliyun + rerank 开 | 合成标注；28 例样本下 @1 无区分度（本就正确） |
 | 红队 | **100%**（10/10） | `eval_redteam.py` 注入 3/绕写 4/危险 3，LLM 判据 | 曾发现注入泄露真漏洞（已修，见下） |
 | 首字时延 p50 / p90 | **1.3s / 2.1s** | `eval_latency_log.py` 服务端日志统计，65 个纯生成首问（剔除缓存与 clarify/refuse） | 含检索 pre（~1.2s）+ LLM TTFT |
 | 端到端时延 p50 | **3.8s** | 同上脚本，`ms` 字段同一批样本 | 生成长度决定（提示词限 ≤300 字） |

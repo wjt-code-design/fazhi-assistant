@@ -37,7 +37,6 @@ from rag_chain import (  # noqa: E402
     COLLECTION_NAME,
     QA_COLLECTION_NAME,
     embeddings,
-    vectorstore,
 )
 from settings import settings  # noqa: E402
 
@@ -49,7 +48,7 @@ _PRICE_PER_1K = 0.0005
 
 def _char_token_cost(chars: int) -> tuple[float, float]:
     tokens = int(chars * _TOKENS_PER_CHAR)
-    return tokens, tokens * _PRICE_PER_1K
+    return tokens, tokens * _PRICE_PER_1K / 1000  # 单价是 元/千token
 
 
 def _read_old(col, name: str) -> tuple[list[str], list[dict]]:
@@ -86,19 +85,16 @@ def _write_new(emb, col, docs: list[str], metas: list[dict], batch: int, name: s
 
 
 def _ensure_new_collection(name: str):
-    """创建新 collection（显式 cosine），已存在则清空（幂等重建）。返回新 collection。"""
+    """重建 collection（显式 cosine）：已存在则删除后重建（幂等）。返回新 collection。"""
     import chromadb
 
     client = chromadb.PersistentClient(path=os.path.join(BASE_DIR, "chroma_db"))
-    col = client.get_collection(name) if name in [c.name for c in client.list_collections()] else None
-    if col is not None:
-        col.delete(where={})  # 清空重来（幂等）
-    else:
-        col = client.create_collection(
-            name,
-            metadata={"hnsw:space": "cosine"},
-        )
-    return col
+    if name in [c.name for c in client.list_collections()]:
+        client.delete_collection(name)
+    return client.create_collection(
+        name,
+        metadata={"hnsw:space": "cosine"},
+    )
 
 
 def main() -> None:
@@ -116,14 +112,16 @@ def main() -> None:
     print(f"旧库（回退保留）: {_COLLECTION_LOCAL} / {_QA_COLLECTION_LOCAL}")
     print()
 
-    # 1. 读旧库
-    old_main = vectorstore._collection
+    # 1. 读旧库——必须显式 PersistentClient 打开旧 collection：
+    #    切到 aliyun 后 rag_chain.vectorstore 已指向新库（te4，空），不能拿它当旧库
+    import chromadb
+
+    client = chromadb.PersistentClient(path=os.path.join(BASE_DIR, "chroma_db"))
+    old_main = client.get_collection(_COLLECTION_LOCAL)
     docs_main, metas_main = _read_old(old_main, _COLLECTION_LOCAL)
-    # qa_pairs 旧库（本地名）——用 Chroma PersistentClient 公共 API
+    # qa_pairs 旧库（本地名）——同一 client
     qa_docs, qa_metas = [], []
     try:
-        import chromadb
-        client = chromadb.PersistentClient(path=os.path.join(BASE_DIR, "chroma_db"))
         qa_col = client.get_collection(_QA_COLLECTION_LOCAL)
         qa_data = qa_col.get(include=["documents", "metadatas"])
         qa_docs = list(qa_data["documents"] or [])
