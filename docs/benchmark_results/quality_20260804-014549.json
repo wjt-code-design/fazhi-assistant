@@ -1,0 +1,208 @@
+{
+ "ts": "20260804-014549",
+ "summary": {
+  "mean_recall_4": 1.0,
+  "citation_accuracy": 0.8214,
+  "faithfulness": 0.7857
+ },
+ "judge": "qwen3.7-plus text 档 temp=0",
+ "pipeline": "真实 chat API（_client.chat，与一致性/红队/相关性同口径）",
+ "rows": [
+  {
+   "id": 1,
+   "question": "劳动合同试用期最长多久？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 2,
+   "question": "网购七天无理由退货有法律依据吗？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 3,
+   "question": "民事权利的诉讼时效是几年？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 4,
+   "question": "刑法第十三条讲了什么？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": false
+  },
+  {
+   "id": 5,
+   "question": "醉酒驾驶会被吊销驾照吗？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 6,
+   "question": "一个民事合同要有效，需要满足哪些条件？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": false
+  },
+  {
+   "id": 7,
+   "question": "建立劳动关系应当订立书面劳动合同吗？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": false
+  },
+  {
+   "id": 8,
+   "question": "经济补偿按工作年限每满一年支付几个月工资？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 9,
+   "question": "自然人之间的借款合同什么时候成立？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 10,
+   "question": "遗产的法定继承顺序是什么？",
+   "recall@4": 1.0,
+   "cite_ok": false,
+   "faithful": true
+  },
+  {
+   "id": 11,
+   "question": "正当防卫明显超过必要限度造成重大损害怎么处理？",
+   "recall@4": 1.0,
+   "cite_ok": false,
+   "faithful": true
+  },
+  {
+   "id": 12,
+   "question": "盗窃公私财物数额较大的处几年有期徒刑？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 13,
+   "question": "电商经营者搭售商品应如何提示消费者？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": false
+  },
+  {
+   "id": 14,
+   "question": "行政处罚中哪些情形当事人有权要求听证？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 15,
+   "question": "网络服务提供者接到侵权通知后应采取什么措施？",
+   "recall@4": 1.0,
+   "cite_ok": false,
+   "faithful": true
+  },
+  {
+   "id": 16,
+   "question": "机动车交通事故先由交强险赔偿的法律依据是什么？",
+   "recall@4": 1.0,
+   "cite_ok": false,
+   "faithful": true
+  },
+  {
+   "id": 17,
+   "question": "用人单位超一个月不签书面劳动合同要支付什么？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": false
+  },
+  {
+   "id": 18,
+   "question": "在道路上醉酒驾驶机动车构成什么罪？",
+   "recall@4": 1.0,
+   "cite_ok": false,
+   "faithful": true
+  },
+  {
+   "id": 19,
+   "question": "处理敏感个人信息需要取得单独同意吗？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 20,
+   "question": "申请行政复议的期限一般是多久？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 21,
+   "question": "股东未按期足额缴纳出资应当承担什么责任？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 22,
+   "question": "中华人民共和国的一切权力属于谁？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 23,
+   "question": "刑事案件中证明被告人有罪的举证责任由谁承担？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": false
+  },
+  {
+   "id": 24,
+   "question": "民事诉讼当事人对自己提出的主张有责任提供什么？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 25,
+   "question": "注册商标的有效期是多少年？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 26,
+   "question": "生产经营单位主要负责人对安全生产工作负什么责？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 27,
+   "question": "保险事故中被保险人向保险人请求赔偿的诉讼时效是多久？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  },
+  {
+   "id": 28,
+   "question": "未成年人的父母是其监护人吗？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  }
+ ]
+}
