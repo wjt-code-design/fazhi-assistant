@@ -15,10 +15,29 @@ from datetime import date
 from langchain_core.documents import Document
 
 import query_understand
+import quota_store
 import retrieval_core as rc
 from domain_rules import canon_source
 from rag_chain import embeddings, vectorstore
 from settings import settings
+
+
+def estimate_tokens_local(text: str) -> int:
+    """中文 token 近似估算（与 llm_registry.estimate_tokens 同口径，本地副本避免引 registry）。"""
+    return max(1, int(len(text or "") / 1.5))
+
+
+def _deduct_utility(name: str, tokens: int) -> None:
+    """扣减工具类模型用量（embedding/rerank）。quota_total=0（未启用）→ no-op。
+
+    轻量实现（不 import llm_registry——其模块级初始化需 LLM key，离线检索脚本会崩）。
+    """
+    if tokens <= 0 or name not in ("embedding", "rerank"):
+        return
+    total = settings.embedding_quota_total if name == "embedding" else settings.rerank_quota_total
+    if total <= 0:
+        return
+    quota_store.record_delta(name, int(tokens))
 
 # ---- rerank（准度主菜，ADR-011）：qwen3-rerank 经 OpenAI 兼容 /reranks 端点 ----
 # 懒加载（未配置 key 或 rerank_enabled=false 时返回 None，安全降级为原精排）。
@@ -67,12 +86,10 @@ def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
             cast_to=dict,
         )
         # 配额扣减（ADR-011 阶段E）：qwen3-rerank 按输入 token 计费（query + documents），
-        # 无真实 usage 返回 → estimate_tokens 近似估算（~1.5 字符/token）
-        from llm_registry import estimate_tokens, registry
-
-        registry.deduct_utility(
+        # 无真实 usage 返回 → estimate_tokens_local 近似估算（~1.5 字符/token）
+        _deduct_utility(
             "rerank",
-            estimate_tokens(query) + sum(estimate_tokens(d.page_content) for d in docs),
+            estimate_tokens_local(query) + sum(estimate_tokens_local(d.page_content) for d in docs),
         )
         results = (resp or {}).get("results") or []
         if not results:
@@ -367,10 +384,9 @@ def vector_top(
 ) -> list[tuple[Document, float]]:
     """向量召回。category 走 Chroma where（字符串 $eq 可靠）；时效谓词在 Python 侧过滤（D6）。"""
     # 配额扣减（ADR-011 阶段E）：每次向量召回 Chroma 内部做 1 次 embed_query，
-    # 按查询文本估算扣 embedding 用量（quota_total=0 时 record_delta no-op，安全）
-    from llm_registry import estimate_tokens, registry
-
-    registry.deduct_utility("embedding", estimate_tokens(query))
+    # 按查询文本估算扣 embedding 用量（quota_total=0 时 _deduct_utility no-op，安全）。
+    # ⚠ 不 import llm_registry（其模块级初始化需 LLM key，离线检索脚本无 key 会崩）
+    _deduct_utility("embedding", estimate_tokens_local(query))
     filt = {"category": category} if category else None
     fetch_n = max(n * VECTOR_POOL_MULT, VECTOR_POOL_MIN)
     res = vectorstore.similarity_search_with_score(query, k=fetch_n, filter=filt)
