@@ -9,19 +9,24 @@
 指标：abstention_rate + clarify_rate + chitchat_rate + intent_rate + 宏平均分类正确率。
 需后端运行（python manage.py start）且已加载含任务2 的代码。
 
+P2 收紧（code-review）：intent 类判定原先 `cls == "other"` 兜底导致几乎必然通过——
+去掉兜底，改为要求命中学习/作弊话术特征或"拒绝"字样，验的是真话术非"任意非拒答"。
+
 用法：python scripts/eval_negative_run.py
 """
 
 import json
 import os
 import sys
-import urllib.request
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
-BASE = os.environ.get("API_BASE", "http://localhost:8000")
+import _client  # noqa: E402
+
 DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data")
 
 # 响应分类特征（与 clarify 模板/意图话术对齐；LLM 自由生成态视为"其他"）
@@ -31,38 +36,9 @@ STUDY_MARK = "学习"
 CHEAT_MARK = "答案"
 
 
-def _post(path: str, body: dict) -> dict:
-    req = urllib.request.Request(
-        BASE + path,
-        data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=120) as r:
-        return json.loads(r.read())
-
-
 def _sse_chat(token: str, question: str) -> str:
-    """调 chat API，拼 SSE content。"""
-    body = {"conversation_id": None, "question": question, "content": question}
-    req = urllib.request.Request(
-        BASE + "/api/chat",
-        data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
-        method="POST",
-    )
-    with urllib.request.urlopen(req, timeout=180) as r:
-        raw = r.read().decode()
-    content = ""
-    for line in raw.splitlines():
-        if line.startswith("data: "):
-            try:
-                d = json.loads(line[6:])
-            except Exception:
-                continue
-            if isinstance(d, dict) and d.get("content"):
-                content += d["content"]
-    return content
+    """调 chat API，拼 SSE content（429 由 _client 退避）。"""
+    return _client.chat(token, question)
 
 
 def classify_response(text: str) -> str:
@@ -74,9 +50,9 @@ def classify_response(text: str) -> str:
 
 
 def main() -> int:
-    token = _post("/api/auth/login", {"username": os.getenv("ADMIN_USERNAME", "admin"), "password": os.getenv("ADMIN_PASSWORD", "")})["token"]
+    token = _client.login()
     cases = json.load(open(os.path.join(DATA, "eval_negative.json"), encoding="utf-8"))
-    stats = {}
+    stats: dict[str, dict] = {}
     for c in cases:
         cat = c.get("category", "?")
         q = c.get("question", "")
@@ -93,8 +69,13 @@ def main() -> int:
             right = cls == "clarify"
         elif cat == "chitchat":
             right = cls not in ("refuse", "clarify")
-        else:  # intent_*
-            right = cls != "refuse" and (STUDY_MARK in resp or CHEAT_MARK in resp or "拒绝" in resp or cls == "other")
+        elif cat == "intent_study_aid":
+            # P2 收紧：不再用 cls=="other" 兜底，需命中学习引导话术或拒绝
+            right = cls != "refuse" and (STUDY_MARK in resp or "引导" in resp or "分析" in resp or "帮你" in resp or "帮助" in resp)
+        elif cat == "intent_cheating":
+            right = cls != "refuse" and (CHEAT_MARK in resp or "拒绝" in resp or "不能" in resp)
+        else:  # intent_* 兜底（未预期类别）：非拒答即过，防分类器误报崩全组
+            right = cls != "refuse" and cls != "clarify"
         if right:
             s["right"] += 1
         print(f"[{'PASS' if right else 'FAIL'}] {cat:16s} {q[:30]:32s} → {cls:8s} | {resp[:40]}")
@@ -105,7 +86,7 @@ def main() -> int:
         r = s["right"] / s["n"]
         rates[cat] = r
         print(f"{cat:16s} {s['right']}/{s['n']} = {r:.2f}")
-    macro = sum(rates.values()) / len(rates)
+    macro = sum(rates.values()) / len(rates) if rates else 0.0
     print(f"宏平均分类正确率 = {macro:.2f}")
     return 0 if all(r == 1.0 for r in rates.values()) else 1
 

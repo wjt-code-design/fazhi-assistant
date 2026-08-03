@@ -11,7 +11,6 @@ import json
 import os
 import sys
 import time
-import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -19,52 +18,17 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
+import _client  # noqa: E402
 import _judge  # noqa: E402
 
-BASE = os.getenv("API_BASE", "http://localhost:8000")
 DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data")
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(os.path.dirname(HERE), "..", "docs", "benchmark_results")
 N_SAMPLE = 10
 
 
-def _login() -> str:
-    req = urllib.request.Request(
-        BASE + "/api/auth/login",
-        data=json.dumps({"username": os.getenv("ADMIN_USERNAME", "admin"), "password": os.getenv("ADMIN_PASSWORD", "")}).encode(),
-        headers={"Content-Type": "application/json"},
-    )
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read())["token"]
-
-
-def _chat(token: str, q: str) -> str:
-    body = {"conversation_id": None, "question": q, "content": q}
-    req = urllib.request.Request(
-        BASE + "/api/chat",
-        data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
-    )
-    out = ""
-    with urllib.request.urlopen(req, timeout=180) as r:
-        for line in r:
-            line = line.decode().strip()
-            if not line.startswith("data: "):
-                continue
-            raw = line[6:]
-            if raw == "[DONE]":
-                break
-            try:
-                d = json.loads(raw)
-            except Exception:
-                continue
-            if isinstance(d, dict) and d.get("content"):
-                out += d["content"]
-    return out
-
-
 def main() -> None:
-    token = _login()
+    token = _client.login()
     # judge 统一走共享基建 _judge（text 档 qwen3.7-plus + temp=0 + 结构化 JSON 判据）——
     # registry.get() 返回 DEFAULT_KEY 是 omni（vision），报告标注的 judge 必须与实际一致
     llm = _judge.pick_text_llm()
@@ -74,7 +38,7 @@ def main() -> None:
     rows = []
     for i, c in enumerate(sample, 1):
         q = c["question"]
-        ans = _chat(token, q)
+        ans = _client.chat(token, q)
         score = _judge.relevance(llm, q, ans)
         rows.append({"q": q[:20], "score": score})
         print(f"[{i}/{len(sample)}] score={score} {q[:22]}")

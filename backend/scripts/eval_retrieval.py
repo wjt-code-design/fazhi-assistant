@@ -48,7 +48,7 @@ def main():
         text = norm(" ".join(d.page_content for d in docs))
         for k in KS:
             recall[k] += int(any(a in exp_art for a in arts[:k]))
-        # MRR：首个期望条文的最小 rank
+        # MRR@6：首个期望条文的最小 rank（k=max(KS)=6 截断——实为 MRR@6 而非全量 MRR）
         rank = next((i + 1 for i, a in enumerate(arts) if a in exp_art), None)
         if rank:
             mrr_sum += 1.0 / rank
@@ -59,7 +59,7 @@ def main():
     for k in KS:
         print(f"  recall_article@{k} = {recall[k] / n:.3f}")
     print(f"  recall_source@4 = {sum(1 for r in rows if r['source_ok']) / n:.3f}")
-    print(f"  MRR = {mrr_sum / n:.3f}")
+    print(f"  MRR@6 = {mrr_sum / n:.3f}")
     print(f"  keyword_hit = {hit_kw / n:.3f}")
     os.makedirs(OUT_DIR, exist_ok=True)
     ts = time.strftime("%Y%m%d-%H%M%S")
@@ -71,7 +71,7 @@ def main():
                 "n": n,
                 "recall_article": {str(k): round(recall[k] / n, 4) for k in KS},
                 "recall_source_4": round(sum(1 for r in rows if r["source_ok"]) / n, 4),
-                "mrr": round(mrr_sum / n, 4),
+                "mrr_at_6": round(mrr_sum / n, 4),  # k=max(KS)=6 截断，非全量 MRR
                 "keyword_hit": round(hit_kw / n, 4),
             },
             f,

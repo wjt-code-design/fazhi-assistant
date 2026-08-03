@@ -5,7 +5,7 @@
 # 注意：
 #   - 需后端运行（python manage.py start）——chat 类脚本走真实 API
 #   - 每脚本独立进程会重复加载 BGE/qwen（一次性基准可接受）
-#   - 脚本内部已 sleep≥1.0 + 429 退避（60/min 限流）
+#   - 脚本内部 sleep≥1.0 + 429 递增退避（_client 模块，60/min 限流）
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

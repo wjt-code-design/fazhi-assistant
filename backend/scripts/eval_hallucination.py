@@ -13,7 +13,6 @@ import json
 import os
 import sys
 import time
-import urllib.request
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -21,62 +20,28 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
+import _client  # noqa: E402
+
 import quality  # noqa: E402
 from retrieval import citation_verify, extract_citations  # noqa: E402
 
-BASE = os.getenv("API_BASE", "http://localhost:8000")
 DATA = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data")
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(os.path.dirname(HERE), "..", "docs", "benchmark_results")
 
 
-def _login() -> str:
-    req = urllib.request.Request(
-        BASE + "/api/auth/login",
-        data=json.dumps({"username": os.getenv("ADMIN_USERNAME", "admin"), "password": os.getenv("ADMIN_PASSWORD", "")}).encode(),
-        headers={"Content-Type": "application/json"},
-    )
-    with urllib.request.urlopen(req, timeout=30) as r:
-        return json.loads(r.read())["token"]
-
-
-def _chat(token: str, q: str) -> str:
-    body = {"conversation_id": None, "question": q, "content": q}
-    req = urllib.request.Request(
-        BASE + "/api/chat",
-        data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {token}"},
-    )
-    out = ""
-    with urllib.request.urlopen(req, timeout=180) as r:
-        for line in r:
-            line = line.decode().strip()
-            if not line.startswith("data: "):
-                continue
-            raw = line[6:]
-            if raw == "[DONE]":
-                break
-            try:
-                d = json.loads(raw)
-            except Exception:
-                continue
-            if isinstance(d, dict) and d.get("content"):
-                out += d["content"]
-    return out
-
-
 def main() -> None:
-    token = _login()
+    token = _client.login()
     cases = json.load(open(os.path.join(DATA, "eval_set.json"), encoding="utf-8"))
     os.makedirs(OUT_DIR, exist_ok=True)
     rows = []
     for i, c in enumerate(cases, 1):
         q = c.get("question", "")
-        ans = _chat(token, q)
+        ans = _client.chat(token, q)
         bad = citation_verify(ans)
         cites = extract_citations(ans)
         v = quality.self_check(ans, context_present=True)
-        rows.append({"q": q[:24], "cites": len(cites), "bad": bad, "self_check": v.reason or "ok"})
+        rows.append({"q": q[:24], "cites": len(cites), "bad": bad, "self_check": v.reason or "ok", "answer": ans[:600]})
         print(f"[{i}/{len(cases)}] cites={len(cites):2d} bad={bad!s:20s} self_check={v.reason or 'ok':12s} {q[:18]}")
         if not ans:
             print("  ⚠ 空答案（可能限流/服务异常）")

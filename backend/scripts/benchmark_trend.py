@@ -3,7 +3,7 @@
 - 按文件名前缀分组（quality/robustness/consistency/redteam/hallucination/retrieval/
   relevance/latency_log/rate_limit/latency），时间戳统一 %Y%m%d-%H%M%S（2026-08-03 统一，
   旧 ISO 文件名仍可解析）。
-- 数值方向感知：时延类指标（first_ms_* / total_ms_*）越低越好，其余数值越高越好。
+- 数值方向感知：时延类指标（first_ms_* / total_ms_* / 429 计数）越低越好，其余数值越高越好。
 - 输出 delta 表 + 回归标记（worse），落盘 docs/benchmark_results/trend_<ts>.json。
 
 用法：cd backend && python scripts/benchmark_trend.py [--all]（--all 列出每组全部版本；默认 latest vs previous）
@@ -19,10 +19,13 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 OUT_DIR = os.path.join(os.path.dirname(HERE), "..", "docs", "benchmark_results")
 
-# 时延类字段：越低越好（其余数值字段越高越好）
-_LOWER_BETTER_KEYS = ("first_ms", "total_ms", "ms", "elapsed_s")
+# 时延/计数类字段：越低越好（其余数值字段越高越好）。
+# n_429（越多越差）、first_ms/total_ms（时延）走降向；elapsed_s 同降向。
+_LOWER_BETTER_KEYS = ("first_ms", "total_ms", "ms", "elapsed_s", "n_429")
 
-_TS_RE = re.compile(r"^(?P<y>\d{4})(?P<m>\d{2})(?P<d>\d{2})[-T](?P<H>\d{2})[-:]?(?P<M>\d{2})[-:]?(?P<S>\d{2})")
+# 兼容紧凑（20260803-210152）与 ISO（2026-08-03T13-18-07-697Z）两种时间戳：
+# y/m/d 间分隔符可选（[-:]?），y/m/d 与 H 之间为 [-T]。
+_TS_RE = re.compile(r"^(?P<y>\d{4})[-:]?(?P<m>\d{2})[-:]?(?P<d>\d{2})[-T](?P<H>\d{2})[-:]?(?P<M>\d{2})[-:]?(?P<S>\d{2})")
 
 
 def _normalize_ts(s: str) -> str:
@@ -34,11 +37,33 @@ def _normalize_ts(s: str) -> str:
     return f"{g['y']}{g['m']}{g['d']}-{g['H']}{g['M']}{g['S']}"
 
 
+# 已知类型前缀（最长匹配优先），避免 `latency_log_*` 被 `latency_*` 吞掉分组。
+_KNOWN_TYPES = (
+    "latency_log",
+    "latency",
+    "rate_limit",
+    "consistency",
+    "robustness",
+    "redteam",
+    "hallucination",
+    "retrieval",
+    "relevance",
+    "quality",
+    "negative",
+)
+
+
 def _type_and_ts(fname: str) -> tuple[str, str]:
+    """从文件名拆 (类型, 时间戳)。类型取已知前缀最长匹配——latency 与 latency_log 分属两组。"""
     base = fname[:-5]  # 去 .json
-    parts = base.split("_", 1)
-    typ = parts[0]
-    ts = parts[1] if len(parts) > 1 else ""
+    typ = ""
+    for prefix in _KNOWN_TYPES:
+        if base.startswith(prefix + "_") and len(prefix) > len(typ):
+            typ = prefix
+    if not typ:
+        parts = base.split("_", 1)
+        typ = parts[0]
+    ts = base[len(typ) + 1:] if len(base) > len(typ) + 1 else ""
     return typ, _normalize_ts(ts)
 
 
