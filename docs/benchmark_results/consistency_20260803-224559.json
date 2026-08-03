@@ -1,0 +1,132 @@
+{
+ "ts": "20260803-224559",
+ "summary": {
+  "n": 10,
+  "pass_rate": 0.8,
+  "mean_judge": 1.6,
+  "mean_difflib": 0.472,
+  "note": "judge 为主（>=1 通过）；difflib 仅辅助不设阈值；temp=0 定 judge"
+ },
+ "rows": [
+  {
+   "id": 1,
+   "question": "劳动合同试用期最长多久？",
+   "judge_score": 2,
+   "difflib_ratio": 0.627,
+   "ids_overlap": 0.714,
+   "pass": true,
+   "answer_lens": [
+    293,
+    294
+   ]
+  },
+  {
+   "id": 2,
+   "question": "网购七天无理由退货有法律依据吗？",
+   "judge_score": 2,
+   "difflib_ratio": 0.728,
+   "ids_overlap": 0.714,
+   "pass": true,
+   "answer_lens": [
+    300,
+    291
+   ]
+  },
+  {
+   "id": 3,
+   "question": "民事权利的诉讼时效是几年？",
+   "judge_score": 2,
+   "difflib_ratio": 0.642,
+   "ids_overlap": 0.333,
+   "pass": true,
+   "answer_lens": [
+    277,
+    296
+   ]
+  },
+  {
+   "id": 5,
+   "question": "醉酒驾驶会被吊销驾照吗？",
+   "judge_score": 2,
+   "difflib_ratio": 0.431,
+   "ids_overlap": 1.0,
+   "pass": true,
+   "answer_lens": [
+    303,
+    342
+   ]
+  },
+  {
+   "id": 10,
+   "question": "遗产的法定继承顺序是什么？",
+   "judge_score": 2,
+   "difflib_ratio": 0.493,
+   "ids_overlap": 0.5,
+   "pass": true,
+   "answer_lens": [
+    299,
+    236
+   ]
+  },
+  {
+   "id": 11,
+   "question": "正当防卫明显超过必要限度造成重大损害怎么处理？",
+   "judge_score": 0,
+   "difflib_ratio": 0.066,
+   "ids_overlap": 0.333,
+   "pass": false,
+   "answer_lens": [
+    295,
+    100
+   ]
+  },
+  {
+   "id": 12,
+   "question": "盗窃公私财物数额较大的处几年有期徒刑？",
+   "judge_score": 2,
+   "difflib_ratio": 0.683,
+   "ids_overlap": 1.0,
+   "pass": true,
+   "answer_lens": [
+    198,
+    250
+   ]
+  },
+  {
+   "id": 18,
+   "question": "在道路上醉酒驾驶机动车构成什么罪？",
+   "judge_score": 2,
+   "difflib_ratio": 0.308,
+   "ids_overlap": 0.714,
+   "pass": true,
+   "answer_lens": [
+    321,
+    321
+   ]
+  },
+  {
+   "id": 25,
+   "question": "注册商标的有效期是多少年？",
+   "judge_score": 2,
+   "difflib_ratio": 0.727,
+   "ids_overlap": 0.714,
+   "pass": true,
+   "answer_lens": [
+    161,
+    183
+   ]
+  },
+  {
+   "id": 28,
+   "question": "未成年人的父母是其监护人吗？",
+   "judge_score": 0,
+   "difflib_ratio": 0.018,
+   "ids_overlap": 0.091,
+   "pass": false,
+   "answer_lens": [
+    72,
+    261
+   ]
+  }
+ ]
+}
