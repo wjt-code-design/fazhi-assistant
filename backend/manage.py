@@ -25,6 +25,9 @@ PY = sys.executable
 PORT = int(os.getenv("PORT", "8000"))
 LOG_DIR = os.path.join(HERE, "logs")
 LOG_FILE = os.path.join(LOG_DIR, "backend.log")
+# 日志轮转阈值：backend.log 超过该大小，启动时轮转为 .1/.2 并保留最近 3 份（防磁盘被吃光）
+LOG_ROTATE_BYTES = int(os.getenv("LOG_ROTATE_BYTES", str(50 * 1024 * 1024)))  # 默认 50MB
+LOG_KEEP = 3
 
 
 def _listening_pids(port: int) -> list[int]:
@@ -65,6 +68,24 @@ def cmd_status(port: int) -> int:
     return 1
 
 
+def _rotate_log() -> None:
+    """backend.log 超阈值时轮转 .1/.2（保留 LOG_KEEP 份）。启动时调用，防日志无限增长吃光磁盘。"""
+    if not os.path.exists(LOG_FILE):
+        return
+    try:
+        if os.path.getsize(LOG_FILE) < LOG_ROTATE_BYTES:
+            return
+    except OSError:
+        return
+    for i in range(LOG_KEEP - 1, 0, -1):  # .2 → .3, .1 → .2
+        src = f"{LOG_FILE}.{i}" if i > 1 else LOG_FILE
+        dst = f"{LOG_FILE}.{i + 1}"
+        if os.path.exists(src):
+            os.replace(src, dst)
+    os.replace(LOG_FILE, f"{LOG_FILE}.1")
+    print(f"日志已轮转（超 {LOG_ROTATE_BYTES // (1024 * 1024)}MB，保留最近 {LOG_KEEP} 份）", flush=True)
+
+
 def cmd_start(port: int) -> int:
     pids = _listening_pids(port)
     if pids:
@@ -72,6 +93,7 @@ def cmd_start(port: int) -> int:
         print("提示：用 PORT=8001 python manage.py start 换端口，或先 python manage.py stop。")
         return 1
     os.makedirs(LOG_DIR, exist_ok=True)
+    _rotate_log()
     log = open(LOG_FILE, "a", encoding="utf-8")
     flags = getattr(subprocess, "DETACHED_PROCESS", 0) | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0)
     proc = subprocess.Popen(

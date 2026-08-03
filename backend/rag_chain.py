@@ -18,6 +18,8 @@ from langchain_chroma import Chroma
 from langchain_core.output_parsers import StrOutputParser
 from langchain_huggingface import HuggingFaceEmbeddings
 
+from llm_guard import llm_guard  # noqa: E402
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # 1. Embeddings — BGE-base-zh 本地（CPU）
@@ -51,18 +53,22 @@ async def stream_with_retry(make_chain_fn, messages, configs):
 
     make_chain_fn(i, disabled) -> 可 astream 的链；configs = [(disabled, wait_seconds), ...]。
     依次尝试：首个产生非空内容即返回；全部为空则 yield 结束后返回（调用方据此判定为空）。
+
+    并发门控：整个生成过程占一个全局 LLM 并发位（async 路径），超限排队超时抛
+    LLMBusyError → 调用方降级「服务繁忙」。突增时不会无界并发打向供应商。
     """
-    for i, (disabled, wait) in enumerate(configs):
-        chain = make_chain_fn(i, disabled)
-        chunks = []
-        async for piece in chain.astream(messages):
-            if piece:
-                chunks.append(piece)
-                yield piece
-        if "".join(chunks):
-            return
-        if wait:
-            await asyncio.sleep(wait)
+    async with llm_guard:
+        for i, (disabled, wait) in enumerate(configs):
+            chain = make_chain_fn(i, disabled)
+            chunks = []
+            async for piece in chain.astream(messages):
+                if piece:
+                    chunks.append(piece)
+                    yield piece
+            if "".join(chunks):
+                return
+            if wait:
+                await asyncio.sleep(wait)
 
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.S)

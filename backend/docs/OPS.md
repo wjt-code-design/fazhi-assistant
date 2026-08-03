@@ -97,3 +97,42 @@ processors=4
 ```
 
 改后 `wsl --shutdown` 重启 WSL 生效。
+
+---
+
+## 6. 日志轮转（2026-08-04 新增）
+
+- `manage.py start` 启动时自动检查 `logs/backend.log`：超过 **50MB**（env `LOG_ROTATE_BYTES` 可调）即轮转为 `.1/.2/.3`，保留最近 3 份。防日志无限增长吃光磁盘。
+- Docker 场景不受影响：日志走 stdout（`docker compose logs`），容器内不落文件，由 Docker 侧管理。
+- 手工轮转：`python manage.py stop && python manage.py start`（启动时自动触发）。
+
+## 7. 崩溃自动拉起
+
+| 部署方式 | 自动拉起 | 说明 |
+|----------|----------|------|
+| Docker | ✅ `restart: unless-stopped` | 容器崩溃自动重启，无需干预 |
+| 裸机 Windows | ❌ 需手动 | `python manage.py status` 检测；或用任务计划程序（Task Scheduler）对 `manage.py start` 做**故障重启**（触发器=启动时 + 意外终止后），或参考下方 `watch` 简单守护 |
+
+裸机简单守护（Task Scheduler / 命令行轮询，二选一）：
+
+```bash
+# 简易守护：每 30s 检查 healthz，挂了就拉起（后台跑）
+while true; do
+  curl -sf -m 2 http://localhost:8000/api/health >/dev/null || (cd backend && python manage.py start)
+  sleep 30
+done
+```
+
+> 诚实标注：这是「冒烟级守护」，不处理半开状态（进程在但 healthz 失败）的优雅重启；完整方案需 supervisor/systemd 或托管平台，当前规模不配。
+
+## 8. 备份排程（建议，未内置）
+
+`backup_data.py` 目前**手动运行**。建议用 Windows 任务计划程序（或 cron）每日跑一次：
+
+```bash
+# 每日凌晨 3 点备份到 D:/backups（含恢复验证，FAIL 会标红）
+schtasks /Create /SC DAILY /ST 03:00 /TN fazhi-backup ^
+  /TR "cd /d C:\Users\33393\Desktop\ai-legal-helper\backend && venv\Scripts\python.exe scripts\backup_data.py --out D:\backups"
+```
+
+保留策略：`backup_data.py` 按时间戳建目录，磁盘够的话保留 N 天；建议另加清理（Task Scheduler 定期删旧目录）。

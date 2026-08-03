@@ -42,6 +42,7 @@ from domain_rules import (
     is_consumer_fraud_scenario,
 )
 from intent import classify_intent
+from llm_guard import LLMBusyError, llm_guard
 from llm_registry import QuotaExhausted, estimate_tokens, registry
 from memory import compress, load_context, needs_compress, recent_messages, rewrite_query
 from models import AuditLog, Conversation, Feedback, Message, QaCandidate, User
@@ -267,12 +268,17 @@ def _pre(user_id: int, conversation_id, text: str, image):
         if image:
             validate_image(image)  # 失败抛 ValueError（单一全模态模型）
             image_rel, thumb_rel = persist_image(image)
-            desc = describe_image(registry.get(), image, text or "")
+            with llm_guard:  # 图片描述是 LLM 调用，同样占并发位
+                desc = describe_image(registry.get(), image, text or "")
 
         raw_query = " ".join(p for p in [text or "", desc] if p).strip()
         if not raw_query:
             raw_query = "请描述并分析图片中的法律相关内容"
-        rewritten = rewrite_query(registry.get(), recent, raw_query) if recent_ser else raw_query
+        if recent_ser:
+            with llm_guard:  # 多轮改写是 LLM 调用，同样占并发位
+                rewritten = rewrite_query(registry.get(), recent, raw_query)
+        else:
+            rewritten = raw_query
 
         # 意图分流（Step A）：学习辅助/元问题不做条文检索，避免「考试题」被误检索成作弊罪条文堆砌
         intent = classify_intent(text or raw_query)
@@ -450,6 +456,12 @@ def _light_buffered(pre: dict, messages: list) -> _LightResult:
     modality = "vision" if pre.get("image") else "text"
     ctx_present = bool(pre.get("sources"))
     lkey, llm, _ = _safe_pick(modality, "light")  # 轻量回退降级由下方升级 except 兜底
+    with llm_guard:  # 轻量+升级重答共占一个并发位（同一请求串行持有，突增时降级）
+        return _light_buffered_locked(pre, messages, modality, ctx_present, lkey, llm)
+
+
+def _light_buffered_locked(pre: dict, messages: list, modality: str, ctx_present: bool, lkey, llm) -> _LightResult:
+    """轻量路径主体（已持有并发位）：缓冲生成 → 自检 → 至多一次升级旗舰重答。"""
     resp = llm.invoke(messages)
     raw = clean_answer(resp.content or "") if resp else ""
     usage = _token_charge(resp, raw)
@@ -475,7 +487,8 @@ def _light_buffered(pre: dict, messages: list) -> _LightResult:
 def _invoke_llm(messages, llm=None) -> str:
     """非流式兜底：流式不兼容/空答时，用给定（或默认）模型 invoke 一次拿完整答案。"""
     llm = llm or registry.get()
-    resp = llm.invoke(messages)
+    with llm_guard:  # 同步兜底同样占一个并发位
+        resp = llm.invoke(messages)
     return resp.content if resp else ""
 
 
@@ -492,6 +505,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
         pre = await run_in_threadpool(_pre, user.id, body.conversation_id, text, image)
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve)) from ve
+    except LLMBusyError:
+        raise HTTPException(status_code=503, detail="服务繁忙，请稍后重试") from None
 
     messages = _build_messages(pre)
 
@@ -685,6 +700,9 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     await run_in_threadpool(_post, pre, answer)
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
+        except LLMBusyError:
+            # 并发门控降级：不占日志噪音（每次 surge 都刷不可取），仅下发繁忙提示
+            yield f"data: {json.dumps({'error': '服务繁忙，请稍后重试'}, ensure_ascii=False)}\n\n"
         except Exception as e:
             # 详情只进日志：str(e) 可能含内部 model id / 供应商错误体 / 服务器路径，不得下发普通用户
             print(f"[chat-stream] {type(e).__name__}: {e}", flush=True)
