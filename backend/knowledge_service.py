@@ -51,6 +51,21 @@ def _cos(a, b) -> float:
     return dot / (na * nb)
 
 
+_QA_IS_COSINE: bool | None = None
+
+
+def _qa_is_cosine() -> bool:
+    """qa_pairs collection 是否 cosine 空间（cloud 新库 qa_pairs_te4 是，本地 qa_pairs 是 L2）。"""
+    global _QA_IS_COSINE
+    if _QA_IS_COSINE is None:
+        try:
+            meta = _qa_store._collection.metadata or {}
+            _QA_IS_COSINE = (meta.get("hnsw:space") or "l2").lower() == "cosine"
+        except Exception:
+            _QA_IS_COSINE = False
+    return _QA_IS_COSINE
+
+
 def file_hash(raw: bytes) -> str:
     return hashlib.sha256(raw).hexdigest()
 
@@ -223,21 +238,27 @@ def add_qa_pair(question: str, answer: str, evidence: str = "") -> None:
 
 
 def search_qa(query: str, threshold: float = 0.7):
-    """命中已确认问答则返回 {question,answer,score}，否则 None。"""
-    docs = _qa_store.similarity_search(query, k=1)
-    if not docs:
+    """命中已确认问答则返回 {question,answer,score}，否则 None。
+
+    性能优化（ADR-011 阶段D）：cosine 空间复用 chroma 距离分（1-dist），免重嵌。
+    """
+    res = _qa_store.similarity_search_with_score(query, k=1)
+    if not res:
         return None
-    try:
-        qv = embeddings.embed_query(query)
-        dv = embeddings.embed_documents([docs[0].page_content])[0]
-        score = _cos(qv, dv)
-    except Exception:
-        return None
+    if _qa_is_cosine():
+        score = max(0.0, min(1.0, 1.0 - float(res[0][1])))
+    else:
+        try:
+            qv = embeddings.embed_query(query)
+            dv = embeddings.embed_documents([res[0][0].page_content])[0]
+            score = _cos(qv, dv)
+        except Exception:
+            return None
     if score < threshold:
         return None
     return {
-        "question": docs[0].page_content,
-        "answer": docs[0].metadata.get("answer", ""),
+        "question": res[0][0].page_content,
+        "answer": res[0][0].metadata.get("answer", ""),
         "score": round(score, 4),
     }
 

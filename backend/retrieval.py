@@ -20,6 +20,61 @@ from domain_rules import canon_source
 from rag_chain import embeddings, vectorstore
 from settings import settings
 
+# ---- rerank（准度主菜，ADR-011）：qwen3-rerank 经 OpenAI 兼容 /reranks 端点 ----
+# 懒加载（未配置 key 或 rerank_enabled=false 时返回 None，安全降级为原精排）。
+_rerank_client = None
+_rerank_client_lock = threading.Lock()
+
+
+def _get_rerank_client():
+    """懒构建 rerank OpenAI client。未启用/未配 key → None。"""
+    global _rerank_client
+    if not settings.rerank_enabled or not settings.rerank_api_key:
+        return None
+    if _rerank_client is not None:
+        return _rerank_client
+    with _rerank_client_lock:
+        if _rerank_client is None:
+            from openai import OpenAI
+
+            _rerank_client = OpenAI(
+                api_key=settings.rerank_api_key,
+                base_url=settings.rerank_base_url,
+                timeout=30,
+            )
+    return _rerank_client
+
+
+def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
+    """qwen3-rerank 重排候选池，返回按分数降序的新排序。任何异常 → None（降级原序）。
+
+    - query 用 rewrite 后的检索词（非长题干），省 token
+    - rerank 整个候选池（实测 12-17 条），不裁剪——池外碰不到，池内全排最优
+    - 失败/未启用 → None：调用方保持原精排顺序（安全）
+    """
+    client = _get_rerank_client()
+    if client is None or not docs:
+        return None
+    try:
+        resp = client.post(
+            "/reranks",
+            body={
+                "model": settings.rerank_model,
+                "query": query,
+                "documents": [d.page_content for d in docs],
+                "top_n": len(docs),
+            },
+            cast_to=dict,
+        )
+        results = (resp or {}).get("results") or []
+        if not results:
+            return None
+        ordered = sorted(results, key=lambda r: r.get("relevance_score", 0.0), reverse=True)
+        idx = [r.get("index", 0) for r in ordered]
+        return [docs[i] for i in idx if 0 <= i < len(docs)]
+    except Exception:
+        return None
+
 # ---- 条号直查路由（阶段7.2）：《法名》第X条 / 法名第X条 → 精确查找，零嵌入零检索 ----
 _ART_FULL_RE = re.compile(
     r"《([^》]{1,24}?)》\s*(第[零〇○一二三四五六七八九十百千万0-9０-９]+条(?:之[一二三四五六七八九十百千万0-9０-９]+)?)"
@@ -262,6 +317,25 @@ def _ensure_bm25() -> None:
         _bm25_docs = docs
 
 
+_COLLECTION_IS_COSINE: bool | None = None
+
+
+def _collection_is_cosine() -> bool:
+    """当前主库 collection 是否 cosine 空间（cos = 1 - distance 才成立）。
+
+    本地主库 legal_provisions_cos / cloud 新库 legal_provisions_te4 均 cosine；
+    qa_pairs 本地库是 L2（欧氏距离不可转 cos）。缓存判断结果。
+    """
+    global _COLLECTION_IS_COSINE
+    if _COLLECTION_IS_COSINE is None:
+        try:
+            meta = vectorstore._collection.metadata or {}
+            _COLLECTION_IS_COSINE = (meta.get("hnsw:space") or "l2").lower() == "cosine"
+        except Exception:
+            _COLLECTION_IS_COSINE = False
+    return _COLLECTION_IS_COSINE
+
+
 def _cos(a, b) -> float:
     dot = sum(x * y for x, y in zip(a, b, strict=True))
     na = math.sqrt(sum(x * x for x in a)) or 1.0
@@ -312,6 +386,20 @@ def bm25_top(
     if _bm25 is None:
         return []
     return rc.bm25_top(_bm25, _bm25_docs, query, n, category, valid=valid)
+
+
+def _cosine_rank(query: str, docs: list[Document]) -> list[Document]:
+    """余弦精排（rerank 关闭 / 失败时的回退口径，2026-08-04 恢复旧版单段行为）。
+
+    纯余弦（措辞桥接靠 BM25 捞进候选池 + 余弦定序——用 RRF 会改变桥接 case 排序，
+    如"行政复议受案范围"的"第十一条"靠桥接在 BM25 命中但余弦不高，纯余弦更稳，
+    实测回归后恢复旧口径）。
+    """
+    qv = embeddings.embed_query(query)
+    dvs = embeddings.embed_documents([d.page_content for d in docs])
+    v_cos: dict[str, float] = {_doc_id(d): _cos(qv, dv) for d, dv in zip(docs, dvs, strict=True)}
+    rank_key = lambda d: (1, 1.0, v_cos[_doc_id(d)])  # noqa: E731
+    return sorted(docs, key=rank_key, reverse=True)
 
 
 def hybrid_retrieve(
@@ -394,44 +482,39 @@ def hybrid_retrieve(
     )
     cand_docs = [pool[did] for did in cand_dids]
     try:
-        # 精排 = 锚点强命中保底（结果级）+ 其余位次用 RRF + 余弦补。
-        # 为什么锚点保底必须是"结果级"而非"候选池级"：348 对"非法持有毒品罪"锚点
-        # 排第 0，但对锚点余弦绝对值仅 0.72，低于噪声条对整句的 0.74-0.77——若只把
-        # 锚点命中放进候选池再精排，348 仍会被整句的泛命中压出 top-k。强锚点代表
-        # 独立法律子问题，其 top-2 命中必须直接占据结果位（机制保证核心条文必现）。
-        # 取 top-3：罪名 query 常被"字面含罪名的相邻条文"（356/349）抢占前位，真正
-        # 定罪条款（347/348）实测可落第 3 位（纯"非法持有毒品罪"：348 向量@4/BM25@3）——
-        # top-3 兜住向量与 BM25 两侧（2026-08-04 实测校准）。
-        qv = embeddings.embed_query(query)
-        dvs = embeddings.embed_documents([d.page_content for d in cand_docs])
-        v_cos: dict[str, float] = {_doc_id(d): _cos(qv, dv) for d, dv in zip(cand_docs, dvs, strict=True)}
-        fused_rank: dict[str, float] = {}
-        for ranking in rankings + b_rankings:
-            for rank, did in enumerate(ranking):
-                fused_rank[did] = fused_rank.get(did, 0.0) + 1.0 / (rc.RRF_K + rank + 1)
-        # 无锚点时保持旧版单段行为：纯余弦精排（措辞桥接靠 BM25 捞进候选池 + 余弦定序）。
-        # 用 RRF 会改变桥接 case 的排序（"行政复议受案范围"的"第十一条"靠桥接在 BM25
-        # 命中但余弦不高，纯余弦反而更稳）——2026-08-04 实测回归后恢复旧口径。
-        rank_key = lambda d: (1, 1.0, v_cos[_doc_id(d)])  # noqa: E731
-        docs = sorted(cand_docs, key=rank_key, reverse=True)
+        # 结果级锚点保底：每个强锚点 v/b top-3 去重，占据结果首位（机制保证核心条文必现）。
+        # 为什么保底而非精排：348 对"非法持有毒品罪"锚点排第 0 但对锚点余弦仅 0.72，
+        # 低于噪声条对整句的 0.74-0.77——纯精排会把"单一精准命中"挤出 top-k。强锚点
+        # 代表独立法律子问题，其 top-3 命中必须直接占位（2026-08-04 实测校准）。
+        anchor_guaranteed: list[str] = []
+        ag_seen: set[str] = set()
         if anchor_rank_idx:
-            # 结果级锚点保底：每个强锚点 v/b top-2 去重，占据结果首位
-            anchor_guaranteed: list[str] = []
-            ag_seen: set[str] = set()
             for qi in anchor_rank_idx:
                 for did in (rankings[qi][:3] + b_rankings[qi][:3]):
                     if did not in ag_seen:
                         ag_seen.add(did)
                         anchor_guaranteed.append(did)
-            rest = [d for d in docs if _doc_id(d) not in ag_seen]
-            docs = [pool[did] for did in anchor_guaranteed] + rest
+        rest_docs = [d for d in cand_docs if _doc_id(d) not in ag_seen]
+
+        if settings.rerank_enabled:
+            # rerank 开（ADR-011 准度主菜）：锚点保底不动，其余位次由 qwen3-rerank 定序。
+            # 跳过 cosine 整池重嵌（rerank 已接管高位定序，避免既重嵌又 rerank 浪费网络往返）。
+            reranked = _rerank_docs(query, rest_docs)
+            if reranked is not None:
+                docs = [pool[did] for did in anchor_guaranteed] + reranked
+            else:
+                # rerank 失败 → 回退原余弦精排（安全）
+                docs = _cosine_rank(query, rest_docs)
+                docs = [pool[did] for did in anchor_guaranteed] + docs
+        else:
+            # rerank 关（本地 BGE 回退）：余弦精排 + 锚点保底前置（机制保证核心条文必现）
+            ranked = _cosine_rank(query, cand_docs)
+            docs = [pool[did] for did in anchor_guaranteed] + [d for d in ranked if _doc_id(d) not in ag_seen]
         docs = docs[:k]
     except Exception:
-        # 嵌入故障：回退到 RRF 序（与旧行为一致）；不写缓存，防一次瞬断长期缓存未精排结果
+        # 嵌入/精排故障：回退到 RRF 序（与旧行为一致）；不写缓存，防一次瞬断长期缓存未精排结果
         docs = [pool[did] for did, _ in sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:k]]
-        docs = rc.rerank(query, docs, enabled=RETRIEVAL_RERANK)
         return docs
-    docs = rc.rerank(query, docs, enabled=RETRIEVAL_RERANK)
     _cache.put(key, docs)
     return docs
 
@@ -454,18 +537,24 @@ def retrieve(
 
 
 def grounded_top_score(query: str, category: str | None = None, cutoff: str | None = None) -> float:
-    """受控沉淀打分：只对"当前仍有效"的条文计分（阶段5），避免沉淀失效条文。"""
+    """受控沉淀打分：只对"当前仍有效"的条文计分（阶段5），避免沉淀失效条文。
+
+    性能优化（ADR-011 阶段D）：cosine 空间下 chroma 距离分 = 1 - cos，直接复用免重嵌。
+    """
     cutoff = cutoff or date.today().isoformat()
     valid = lambda m: rc.is_valid_by_time(m, cutoff)  # noqa: E731
-    res = vectorstore.similarity_search(
+    res = vectorstore.similarity_search_with_score(
         query, k=max(VECTOR_POOL_MIN, 8), filter=({"category": category} if category else None)
     )
-    res = [d for d in res if valid(d.metadata)]
+    res = [(d, s) for d, s in res if valid(d.metadata)]
     if not res:
         return 0.0
+    if _collection_is_cosine():
+        # cosine 空间：score = 1 - cos → cos = 1 - score（免重嵌）
+        return max(0.0, min(1.0, 1.0 - float(res[0][1])))
     try:
         qv = embeddings.embed_query(query)
-        dv = embeddings.embed_documents([res[0].page_content])[0]
+        dv = embeddings.embed_documents([res[0][0].page_content])[0]
         return _cos(qv, dv)
     except Exception:
         return 0.0
@@ -486,10 +575,17 @@ def _hit_dict(d: Document, score: float) -> dict:
 
 
 def retrieve_for_test(query: str, k: int = 5):
-    """管理员检索测试：返回 top-k + 余弦相关度（语义分，便于解释）；不过滤已废止条文。"""
+    """管理员检索测试：返回 top-k + 余弦相关度（语义分，便于解释）；不过滤已废止条文。
+
+    性能优化（ADR-011 阶段D）：cosine 空间复用 chroma 距离分，免整池重嵌。
+    """
     res = vectorstore.similarity_search_with_score(query, k=k)
     if not res:
         return []
+    if _collection_is_cosine():
+        out = [_hit_dict(d, max(0.0, min(1.0, 1.0 - float(s)))) for d, s in res]
+        out.sort(key=lambda x: x["score"], reverse=True)
+        return out
     try:
         qv = embeddings.embed_query(query)
         dvs = embeddings.embed_documents([d.page_content for d, _ in res])
