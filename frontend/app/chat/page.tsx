@@ -393,15 +393,16 @@ export default function ChatPage() {
                   <polyline points="21 15 16 10 5 21" />
                 </svg>
               </button>
-              <input
-                className="input flex-1 !rounded-[6px] !py-3"
+              <textarea
+                className="input flex-1 !rounded-[6px] !py-3 resize-none max-h-[160px]"
+                rows={2}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey) send();
+                  if (e.key === "Enter" && e.ctrlKey) send();  // Enter 换行，Ctrl+Enter 发送
                 }}
                 onPaste={onPaste}
-                placeholder="请输入您的法律问题…（可粘贴/拖拽图片，支持连续追问）"
+                placeholder="请输入您的法律问题…（Enter 换行，Ctrl+Enter 发送；可粘贴/拖拽图片，支持连续追问）"
                 disabled={streaming}
               />
               <button
