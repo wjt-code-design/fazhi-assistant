@@ -27,10 +27,11 @@ embeddings = HuggingFaceEmbeddings(
 )
 
 # 2. Vector store — Chroma 持久化
+COLLECTION_NAME = "legal_provisions_cos"  # hnsw:space=cosine：距离分=1-cos，精排免重复嵌入
 vectorstore = Chroma(
     persist_directory=os.path.join(BASE_DIR, "chroma_db"),
     embedding_function=embeddings,
-    collection_name="legal_provisions_cos",  # hnsw:space=cosine：距离分=1-cos，精排免重复嵌入
+    collection_name=COLLECTION_NAME,
 )
 
 

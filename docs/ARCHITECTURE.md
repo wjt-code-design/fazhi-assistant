@@ -33,7 +33,8 @@
 ```
 .docx / .txt ──► convert_docx.py（docx→txt）──► clean_law_text.py（清洗+门禁）
    ──► chunking.split_law_document（按「第X条」边界切分，章节前缀注入）
-   ──► BGE 嵌入 ──► Chroma（legal_provisions 集合）
+   ──► BGE 嵌入 ──► Chroma（legal_provisions_cos 集合，hnsw:space=cosine——
+       距离分=1-cos，检索精排免重复嵌入；旧 L2 集合 legal_provisions 已废弃删除）
 ```
 
 - **清洗铁律**：只做格式层（空行/页码残留），**绝不改写条文文字**；`--dry-run` 先审计。

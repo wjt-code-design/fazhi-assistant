@@ -77,8 +77,10 @@ def export_chroma_json(dest_dir: str) -> str:
     """导出 collection 条文元数据为 JSON（可读备份，用于核对条数/source 分布）。"""
     import chromadb
 
+    from rag_chain import COLLECTION_NAME  # 与检索库单一来源（code-review：避免字面量重复）
+
     client = chromadb.PersistentClient(path=CHROMA_DIR)
-    col = client.get_collection("legal_provisions_cos")  # cosine 库（L2 旧库已废弃）
+    col = client.get_collection(COLLECTION_NAME)
     meta = col.get(include=["metadatas"], limit=100000)
     metas = meta["metadatas"] or []
     rows = []

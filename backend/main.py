@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import socket
 import time
@@ -140,7 +141,7 @@ async def lifespan(_app):
     try:
         await run_in_threadpool(prewarm)
     except Exception as e:
-        print(f"[prewarm] 预热失败，降级惰性构建（重启后首问稍慢）：{e}", flush=True)
+        logging.warning("[prewarm] 预热失败，降级惰性构建（重启后首问稍慢）：%s", e)
     yield
 
 

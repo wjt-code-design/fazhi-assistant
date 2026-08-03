@@ -65,3 +65,11 @@ def test_short_name_exact_lookup():
     # 简称→全称：条号直查也应吃别名（库内 source 是全称「刑事诉讼法」）
     docs = retrieval.exact_article_lookup("刑诉法", "第八十三条")
     assert docs, "刑诉法第八十三条应命中刑事诉讼法第八十三条"
+
+
+@pytest.mark.slow
+def test_short_name_citation_verify():
+    # code-review P1：引用校验（article_in_kb）也应归一——答案引《民诉法》第X条
+    # 不应被判假引用（此前 source_in_kb/article_in_kb 走 _source_key 不接别名）
+    bad = retrieval.citation_verify("根据《民诉法》第一百二十条，采取强制措施的决定权专属人民法院。")
+    assert bad == [], f"《民诉法》应归一审诉法而非判假引用: {bad}"

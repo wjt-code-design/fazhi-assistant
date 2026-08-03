@@ -15,6 +15,7 @@ from datetime import date
 from langchain_core.documents import Document
 
 import retrieval_core as rc
+from domain_rules import canon_source
 from rag_chain import embeddings, vectorstore
 from settings import settings
 
@@ -129,24 +130,6 @@ def _norm_source(name: str) -> str:
     return name[len(_PREFIX_CN) :] if name.startswith(_PREFIX_CN) else name
 
 
-# 法名简称 → 全称（库内 source 存全称；条号直查 exact_article_lookup 与
-# clarify 源名存在性检查共用。放本模块：domain_rules 依赖本模块，放过去会循环导入）
-SOURCE_ALIAS = {
-    "民诉法": "民事诉讼法",
-    "刑诉法": "刑事诉讼法",
-    "行诉法": "行政诉讼法",
-    "消保法": "消费者权益保护法",
-    "电商法": "电子商务法",
-    "个保法": "个人信息保护法",
-    "网安法": "网络安全法",
-    "破产法": "企业破产法",
-}
-
-
-def canon_source(name: str) -> str:
-    return SOURCE_ALIAS.get(name, name)
-
-
 def _source_key(name: str) -> str:
     """KB 源名归一（用于存在性比对）：去「中华人民共和国」前缀 + 去尾部（年份/版本）括注。
 
@@ -164,7 +147,7 @@ def article_in_kb(source: str, article: str) -> bool:
     """
     art = _normalize_article(article)
     data = vectorstore._collection.get(where={"article": art}, include=["metadatas"])
-    sk = _source_key(source)
+    sk = _source_key(canon_source(source))  # 简称→全称（民诉法→民事诉讼法），防答案引简称被误判编造
     metas = data["metadatas"] or []
     return any(_source_key(str((m or {}).get("source", "") or "")) == sk for m in metas)
 
@@ -192,7 +175,7 @@ def source_in_kb(source: str) -> bool:
     invalidate() 重建）。
     """
     global _src_set_cache
-    sk = _source_key(source)
+    sk = _source_key(canon_source(source))  # 简称→全称（与 article_in_kb/exact_article_lookup 同口径）
     if not sk:
         return False
     _ensure_src_set()

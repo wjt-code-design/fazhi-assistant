@@ -4,14 +4,15 @@
 - 条文映射（作弊 / 格式条款 / 引用选择）只改这里，main.py 不感知细节
 - 提示词规则从这里导入，main.py 只负责拼接
 
-复用 retrieval.exact_article_lookup 做精确条号命中。
+复用 retrieval.exact_article_lookup 做精确条号命中（函数内局部 import，解开
+domain_rules ↔ retrieval 循环依赖——retrieval 需要本模块的 canon_source 等常量）。
 """
-
-from retrieval import exact_article_lookup
 
 
 def _lookup_all(specs: list[tuple[str, str]]):
     """按 (source, article) 精确查找，返回 Document 列表（顺序 = 传入顺序）。"""
+    from retrieval import exact_article_lookup  # noqa: PLC0415
+
     docs = []
     for source, article in specs:
         docs += exact_article_lookup(source, article)
@@ -105,6 +106,25 @@ LIGHT_SHORT_LEN = 60
 MIN_ANSWER_LEN = 20
 # token 配额切换阈值：剩余比例 < 该值则路由跳过该模型
 QUOTA_THRESHOLD = 0.05
+
+
+# ==================== 法名简称 → 全称 ====================
+# 库内 source 存全称（民事诉讼法）；用户口语/书面常用简称（民诉法）。条号直查
+# （exact_article_lookup）、源名存在性（source_in_kb）与引用校验（article_in_kb）共用。
+SOURCE_ALIAS = {
+    "民诉法": "民事诉讼法",
+    "刑诉法": "刑事诉讼法",
+    "行诉法": "行政诉讼法",
+    "消保法": "消费者权益保护法",
+    "电商法": "电子商务法",
+    "个保法": "个人信息保护法",
+    "网安法": "网络安全法",
+    "破产法": "企业破产法",
+}
+
+
+def canon_source(name: str) -> str:
+    return SOURCE_ALIAS.get(name, name)
 
 
 # ==================== 提示词规则 ====================
