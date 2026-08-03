@@ -91,3 +91,34 @@
   - 流式路径无真实 usage，按输出长度估算扣减（标注「近似」）。
   - `routing_metrics` 为进程内运行态，重启清零；跨重启审计看 `legal.chat` 日志。
   - LLM 有固有波动，full 门禁为 release 前抽查，允许偶发重跑，非 100% 稳定。
+
+---
+
+## ADR-011 向量嵌入/重排序上云（本地 BGE + rerank → 阿里云 text-embedding-v4 + qwen3-rerank）
+
+- **背景**：用户根本诉求是提升检索/回复准度与性能。原检索层全本地（BGE CPU 嵌入），
+  rerank 接口占位未启用。用户有阿里云 embedding（text-embedding-v4）与
+  qwen3-rerank/qwen3-vl-rerank 的云 token（各百万级）。
+- **决策**：
+  - **嵌入 provider 化**（`rag_chain._build_embeddings`）：`local`（默认，零配置回退，
+    BGE CPU）↔ `aliyun`（`OpenAIEmbeddings` 调 text-embedding-v4，须
+    `check_embedding_ctx_length=False` 防 400）。collection 名随 provider 派生
+    （`legal_provisions_cos`/`legal_provisions_te4`），旧库保留可回退。
+  - **rerank 接入**（`retrieval._rerank_docs`）：qwen3-rerank 经 OpenAI 兼容
+    `/reranks` 端点，对**整个候选池**（实测 12-17 条）精排；**锚点保底条文不动**
+    （防 rerank 挤出法考题核心定罪条款）；rerank 开时跳过 cosine 整池重嵌。
+  - **配额监控**（`utility_quota_status` + `/api/admin/llm-status`）：embedding/rerank
+    用量按 `estimate_tokens` 近似扣减，双阈值——<15% 标黄"快用完"、<5% 自动切回 local
+    标红。LLM 走"同档多模型自动切换"，embedding/rerank 无平级切换故用双阈值。
+- **理由**：本地 CPU 嵌入是首帧延迟大头且占 ~781MB 内存；rerank 是准度主菜（召回后
+  精排，recall@1 提升显著）；云 token 便宜（embedding ¥0.43/全库、rerank 0.6元/百万
+  token）且有配额可视化。
+- **代价 / 诚实标注**：
+  - 切云必须**重建向量库**（语义空间不同，即使维度同为 768）——`scripts/rebuild_embeddings.py`
+    从旧库本身（含管理员上传）全量重嵌入，旧库保留可回退。
+  - 云端单次嵌入比本地 CPU **慢**（+100-300ms RTT）——性能提升来自"免本地 CPU 瓶颈 +
+    精排复用 chroma 距离分 + rerank 替代重嵌"，非嵌入本身变快。
+  - embedding/rerank 用量**按输入文本估算**（无真实 usage 返回），非精确计费。
+  - 失败降级：rerank 异常 → 回退原精排；embedding key 未配 → 启动报错（提示切回 local）。
+  - **不做（层2 独立）**：托管向量库 + 托管 DB + 多 worker 全上云（ADR-008 路径），
+    单独立项，运维彻底解放的后续工程。

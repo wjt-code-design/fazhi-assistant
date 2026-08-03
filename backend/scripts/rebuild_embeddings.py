@@ -55,8 +55,8 @@ def _char_token_cost(chars: int) -> tuple[float, float]:
 def _read_old(col, name: str) -> tuple[list[str], list[dict]]:
     """读旧 collection 全量 docs+metas。"""
     data = col.get(include=["documents", "metadatas"])
-    docs = data["documents"] or []
-    metas = data["metadatas"] or []
+    docs = list(data["documents"] or [])
+    metas = [dict(m) for m in (data["metadatas"] or [])]  # Mapping → dict，统一类型
     print(f"  [{name}] 读旧库 {len(docs)} 条")
     return docs, metas
 
@@ -85,15 +85,15 @@ def _write_new(emb, col, docs: list[str], metas: list[dict], batch: int, name: s
     print(f"  [{name}] 完成 {n} 条")
 
 
-def _ensure_new_collection(name: str) -> None:
-    """创建新 collection（显式 cosine），已存在则清空（幂等重建）。"""
+def _ensure_new_collection(name: str):
+    """创建新 collection（显式 cosine），已存在则清空（幂等重建）。返回新 collection。"""
     import chromadb
 
     client = chromadb.PersistentClient(path=os.path.join(BASE_DIR, "chroma_db"))
-    try:
-        col = client.get_collection(name)
-        col.delete(where={})  # 清空重来
-    except Exception:
+    col = client.get_collection(name) if name in [c.name for c in client.list_collections()] else None
+    if col is not None:
+        col.delete(where={})  # 清空重来（幂等）
+    else:
         col = client.create_collection(
             name,
             metadata={"hnsw:space": "cosine"},
@@ -126,8 +126,8 @@ def main() -> None:
         client = chromadb.PersistentClient(path=os.path.join(BASE_DIR, "chroma_db"))
         qa_col = client.get_collection(_QA_COLLECTION_LOCAL)
         qa_data = qa_col.get(include=["documents", "metadatas"])
-        qa_docs = qa_data["documents"] or []
-        qa_metas = qa_data["metadatas"] or []
+        qa_docs = list(qa_data["documents"] or [])
+        qa_metas = [dict(m) for m in (qa_data["metadatas"] or [])]
         print(f"  [{_QA_COLLECTION_LOCAL}] 读旧库 {len(qa_docs)} 条")
     except Exception as e:
         print(f"  qa_pairs 读取跳过：{e}")

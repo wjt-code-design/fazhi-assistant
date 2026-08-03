@@ -10,7 +10,9 @@ import os
 import sys
 
 BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+TESTS = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, BACKEND)
+sys.path.insert(0, TESTS)  # 供 _fake_embeddings 模块
 sys.path.insert(0, os.path.join(BACKEND, "scripts"))
 
 from dotenv import load_dotenv
@@ -47,10 +49,10 @@ def tmp_collection(monkeypatch, tmp_path):
     """
     import chromadb
     import import_docs as id_mod
+    from _fake_embeddings import FakeEmbeddings
     from langchain_chroma import Chroma
 
     import knowledge_service as ks_mod
-    from rag_chain import embeddings
 
     client = chromadb.PersistentClient(
         path=str(tmp_path / "chroma"),
@@ -58,7 +60,7 @@ def tmp_collection(monkeypatch, tmp_path):
     )
     vs = Chroma(
         collection_name="test_import_docs_tmp",
-        embedding_function=embeddings,
+        embedding_function=FakeEmbeddings(),  # 固定向量，不加载真实 BGE（ADR-011 测试隔离）
         client=client,
     )
     monkeypatch.setattr(id_mod, "vectorstore", vs)

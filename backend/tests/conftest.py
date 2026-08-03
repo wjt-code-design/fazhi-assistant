@@ -8,6 +8,9 @@ import sys
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret-for-ci-only")
 os.environ.setdefault("LLM_API_KEY", "test-key-not-for-real-calls")
 os.environ.setdefault("LLM_BASE_URL", "https://test.invalid/v1")
+# 测试固定本地嵌入 + 关闭 rerank——防 CI 联网（云端 embedding/rerank 需真实 key）
+os.environ.setdefault("EMBEDDING_PROVIDER", "local")
+os.environ.setdefault("RERANK_ENABLED", "false")
 
 # 让 tests 能 import backend 顶层模块
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

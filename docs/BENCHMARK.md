@@ -4,6 +4,11 @@
 > 所有数字可复跑：脚本在 `backend/scripts/`，原始结果在 `docs/benchmark_results/*.json`。
 > 诚实标注贯穿全文——每个数字都注明「怎么测的 + 已知限制」。
 
+> **嵌入层（2026-08-04 ADR-011）**：支持 provider 切换——默认本地 BGE（下表数字均为
+> 本地 BGE 口径）；配 `EMBEDDING_PROVIDER=aliyun` 可切阿里云 text-embedding-v4（需
+> 重建向量库 `scripts/rebuild_embeddings.py`），并可启用 qwen3-rerank 精排（准度主菜）。
+> 切云后**召回/延迟数字会变**，须重新跑 `eval_retrieval.py` + `bench_latency.mjs` 对比。
+
 ## 总览表
 
 | 指标 | 数字 | 怎么测的 | 已知限制 |
