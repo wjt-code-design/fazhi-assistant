@@ -1,0 +1,9 @@
+{
+ "ts": "20260804-020308",
+ "requests": 61,
+ "elapsed_s": 9.9,
+ "n_429": 4,
+ "first_429_at": 58,
+ "pass": true,
+ "note": "node 口径（无 urllib 假象）；同题缓存命中零配额；限流 slowapi 按 IP 60/min"
+}

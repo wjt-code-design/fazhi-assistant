@@ -33,6 +33,10 @@ if [ "$SKIP_LLM" = "0" ]; then
   ./venv/Scripts/python.exe scripts/eval_negative_run.py
   echo "=== 限流冒烟（node，落盘物证）==="
   node scripts/bench_rate_429.mjs
+  # 限流冒烟刚触发 60/min 窗口（IP 级别）——立即测时延会全被 429 拒（2026-08-04 实测：
+  # bench_latency 5 请求全 429、测出 0ms 假象）。等窗口滑出再测。
+  echo "（等待 60s 让限流窗口滑出，避免污染时延测量）"
+  sleep 60
   echo "=== 端到端时延（node 口径）==="
   node scripts/bench_latency.mjs
 else
