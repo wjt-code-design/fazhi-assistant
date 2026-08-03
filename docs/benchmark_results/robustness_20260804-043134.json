@@ -1,0 +1,103 @@
+{
+ "ts": "20260804-043134",
+ "summary": {
+  "n": 10,
+  "both_hit_rate": 0.9,
+  "stable_rate": 0.9,
+  "bridge_pairs": 2,
+  "bridge_stable": 2,
+  "note": "改写句不含桥接词时，bridge 对暴露措辞桥接依赖（诚实数据）"
+ },
+ "rows": [
+  {
+   "id": 2,
+   "original": "网购七天无理由退货有法律依据吗？",
+   "paraphrase": "在网上买的东西不想要了，七天内能无理由退吗？有法律支持吗？",
+   "orig_hit": true,
+   "para_hit": true,
+   "stable": true,
+   "bridge": false
+  },
+  {
+   "id": 3,
+   "original": "民事权利的诉讼时效是几年？",
+   "paraphrase": "民事纠纷去法院起诉有时效限制吗？期限是多长？",
+   "orig_hit": true,
+   "para_hit": true,
+   "stable": true,
+   "bridge": false
+  },
+  {
+   "id": 5,
+   "original": "醉酒驾驶会被吊销驾照吗？",
+   "paraphrase": "喝酒开车被交警查到，驾驶证会被吊销吗？",
+   "orig_hit": true,
+   "para_hit": true,
+   "stable": true,
+   "bridge": false
+  },
+  {
+   "id": 10,
+   "original": "遗产的法定继承顺序是什么？",
+   "paraphrase": "父母去世后遗产应该由谁先继承？顺序怎么排？",
+   "orig_hit": true,
+   "para_hit": true,
+   "stable": true,
+   "bridge": false
+  },
+  {
+   "id": 12,
+   "original": "盗窃公私财物数额较大的处几年有期徒刑？",
+   "paraphrase": "偷东西金额达到立案标准要判几年？",
+   "orig_hit": true,
+   "para_hit": true,
+   "stable": true,
+   "bridge": false
+  },
+  {
+   "id": 16,
+   "original": "机动车交通事故先由交强险赔偿的法律依据是什么？",
+   "paraphrase": "出了车祸，是不是先由交强险赔？依据是什么？",
+   "orig_hit": true,
+   "para_hit": true,
+   "stable": true,
+   "bridge": false
+  },
+  {
+   "id": 19,
+   "original": "处理敏感个人信息需要取得单独同意吗？",
+   "paraphrase": "收集用户的敏感个人信息，光有概括同意够吗？",
+   "orig_hit": true,
+   "para_hit": true,
+   "stable": true,
+   "bridge": false
+  },
+  {
+   "id": 21,
+   "original": "股东未按期足额缴纳出资应当承担什么责任？",
+   "paraphrase": "股东拖着不缴认缴的出资要担什么责？",
+   "orig_hit": true,
+   "para_hit": false,
+   "stable": false,
+   "bridge": false
+  },
+  {
+   "id": "bridge1",
+   "original": "高空抛物致人损害，由谁承担责任？",
+   "paraphrase": "有人从楼上扔东西砸伤了人，该由谁来负责？",
+   "orig_hit": true,
+   "para_hit": true,
+   "stable": true,
+   "bridge": true
+  },
+  {
+   "id": "bridge2",
+   "original": "行政复议的受案范围包括哪些情形？",
+   "paraphrase": "对哪些行政行为不服可以申请行政复议？",
+   "orig_hit": true,
+   "para_hit": true,
+   "stable": true,
+   "bridge": true
+  }
+ ]
+}

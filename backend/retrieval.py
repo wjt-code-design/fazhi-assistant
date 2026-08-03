@@ -340,14 +340,17 @@ def hybrid_retrieve(
         _cache.put(key, docs)
         return docs
     n = max(k * BM25_K_MULT, 4)
-    # 查询切片（query_understand）：超长法考题/长文本拆成独立检索单元，每段独立召回，
-    # 杜绝"场景词淹没核心罪名"导致关键条文掉出候选池（2026-08-04 diagnosing-bugs）。
-    # 短查询返回 [query] 单段，行为与旧版完全一致。
-    queries = query_understand.slice_query(query)
+    # 查询分解（query_understand.decompose）：整句 + 法条/罪名/概念锚点 + 长文切片，
+    # 每单元独立召回进候选池。强锚点（法条引用/罪名/法律概念）独立检索且 top-k 命中
+    # 保底进结果——含锚点的查询无论长短，核心条文必被独立召回，不依赖整句 BGE 余弦分
+    # （2026-08-04 架构改进，取代早前仅"位置切片"——短复合查询无机制保证）。
+    # 切片段（弱单元）只扩大候选池，不保底（避免单元过多稀释锚点保底）。
+    units = query_understand.decompose(query)
     pool: dict[str, Document] = {}
-    rankings: list[list[str]] = []  # 各段的 v 路排名
-    b_rankings: list[list[str]] = []  # 各段的 b 路排名
-    for q in queries:
+    rankings: list[list[str]] = []  # 各单元的 v 路排名
+    b_rankings: list[list[str]] = []  # 各单元的 b 路排名
+    anchor_rank_idx: list[int] = []  # 强锚点单元在 rankings 中的索引（保底用）
+    for qi, (q, kind) in enumerate(units):
         v = vector_top(q, n, category, valid=valid)
         b = bm25_top(q, n, category, valid=valid)
         v_ids: list[str] = []
@@ -362,13 +365,14 @@ def hybrid_retrieve(
             b_ids.append(did)
         rankings.append(v_ids)
         b_rankings.append(b_ids)
-    # RRF 融合所有段的双路排名（整句 + 各切片段）；段内排名在融合中自然加权。
+        if kind == query_understand.KIND_ANCHOR:
+            anchor_rank_idx.append(qi)
+    # 保底：每单元向量 top-k 与 BM25 top-k 都进候选池（防 RRF 挤出任一路强匹配条）
     all_v_ids: list[str] = []
     all_b_ids: list[str] = []
     seen_v: set[str] = set()
     seen_b: set[str] = set()
     for v_ids, b_ids in zip(rankings, b_rankings, strict=True):
-        # 保底：每段向量 top-k 与 BM25 top-k 都进候选池（防 RRF 挤出任一路强匹配条）
         for did in v_ids[:k]:
             if did not in seen_v:
                 seen_v.add(did)
@@ -378,7 +382,7 @@ def hybrid_retrieve(
                 seen_b.add(did)
                 all_b_ids.append(did)
     fused = rc.rrf(rankings + b_rankings)
-    # 候选池 = 各段向量 top-k 保底 ∪ 各段 BM25 top-k 保底 ∪ RRF top 2k
+    # 候选池 = 各单元向量 top-k 保底 ∪ 各单元 BM25 top-k 保底 ∪ RRF top 2k
     cand_dids: list[str] = []
     seen: set[str] = set()
     _append_unique(cand_dids, seen, all_v_ids)
@@ -390,41 +394,38 @@ def hybrid_retrieve(
     )
     cand_docs = [pool[did] for did in cand_dids]
     try:
-        # 精排 = 切片段 top-1 保底 + 其余位次按"切片段 RRF 排名分"排。
-        # 为什么需要 top-1 保底：348 只在 D 段("不构成非法持有毒品罪")排第 0，而
-        # 356/357 在多个选项段都排前面（RRF 累计分高）——纯 RRF/余弦会让"单一但精准
-        # 的强命中"输给"多段泛命中"。每个切片段代表一个独立法律子问题（选项），
-        # 它的 top-1 就是该子问题的答案候选，必须保底，否则选项问的核心条文会丢。
-        # 切片模式：各切片段（queries[1:]）的 v/b top-1 去重保底进结果；
-        # 非切片模式（单段）：退回整句 RRF + 余弦（与旧版兼容）。
-        seg_hit_ids: list[str] = []
-        seg_seen: set[str] = set()
-        if len(queries) > 1:
-            # 每切片段 v/b 各取 top-2 保底：罪名 query 常被"字面含罪名的相邻条文"
-            # （如 356/349）抢占 top-1，真正定罪条款（347/348）落在 top-2——取 2 保底
-            # 才兜得住（2026-08-04 实测：C 段"运输毒品罪"的 347 在 BM25 top-2）。
-            for v_ids, b_ids in zip(rankings[1:], b_rankings[1:], strict=True):
-                for did in (v_ids[:2] + b_ids[:2]):
-                    if did not in seg_seen:
-                        seg_seen.add(did)
-                        seg_hit_ids.append(did)
+        # 精排 = 锚点强命中保底（结果级）+ 其余位次用 RRF + 余弦补。
+        # 为什么锚点保底必须是"结果级"而非"候选池级"：348 对"非法持有毒品罪"锚点
+        # 排第 0，但对锚点余弦绝对值仅 0.72，低于噪声条对整句的 0.74-0.77——若只把
+        # 锚点命中放进候选池再精排，348 仍会被整句的泛命中压出 top-k。强锚点代表
+        # 独立法律子问题，其 top-2 命中必须直接占据结果位（机制保证核心条文必现）。
+        # 取 top-3：罪名 query 常被"字面含罪名的相邻条文"（356/349）抢占前位，真正
+        # 定罪条款（347/348）实测可落第 3 位（纯"非法持有毒品罪"：348 向量@4/BM25@3）——
+        # top-3 兜住向量与 BM25 两侧（2026-08-04 实测校准）。
         qv = embeddings.embed_query(query)
         dvs = embeddings.embed_documents([d.page_content for d in cand_docs])
         v_cos: dict[str, float] = {_doc_id(d): _cos(qv, dv) for d, dv in zip(cand_docs, dvs, strict=True)}
-        if len(queries) > 1:
-            # 切片段 RRF 排名分（不含整句段，整句泛而切片准）
-            fused_rank: dict[str, float] = {}
-            for ranking in rankings[1:] + b_rankings[1:]:
-                for rank, did in enumerate(ranking):
-                    fused_rank[did] = fused_rank.get(did, 0.0) + 1.0 / (rc.RRF_K + rank + 1)
-            rank_key = lambda d: (  # noqa: E731
-                (2 if _doc_id(d) in seg_seen else 1) if seg_hit_ids else 1,
-                fused_rank.get(_doc_id(d), 0.0),
-                v_cos[_doc_id(d)],
-            )
-        else:
-            rank_key = lambda d: (1, 1.0, v_cos[_doc_id(d)])  # noqa: E731 单段：纯余弦
-        docs = sorted(cand_docs, key=rank_key, reverse=True)[:k]
+        fused_rank: dict[str, float] = {}
+        for ranking in rankings + b_rankings:
+            for rank, did in enumerate(ranking):
+                fused_rank[did] = fused_rank.get(did, 0.0) + 1.0 / (rc.RRF_K + rank + 1)
+        # 无锚点时保持旧版单段行为：纯余弦精排（措辞桥接靠 BM25 捞进候选池 + 余弦定序）。
+        # 用 RRF 会改变桥接 case 的排序（"行政复议受案范围"的"第十一条"靠桥接在 BM25
+        # 命中但余弦不高，纯余弦反而更稳）——2026-08-04 实测回归后恢复旧口径。
+        rank_key = lambda d: (1, 1.0, v_cos[_doc_id(d)])  # noqa: E731
+        docs = sorted(cand_docs, key=rank_key, reverse=True)
+        if anchor_rank_idx:
+            # 结果级锚点保底：每个强锚点 v/b top-2 去重，占据结果首位
+            anchor_guaranteed: list[str] = []
+            ag_seen: set[str] = set()
+            for qi in anchor_rank_idx:
+                for did in (rankings[qi][:3] + b_rankings[qi][:3]):
+                    if did not in ag_seen:
+                        ag_seen.add(did)
+                        anchor_guaranteed.append(did)
+            rest = [d for d in docs if _doc_id(d) not in ag_seen]
+            docs = [pool[did] for did in anchor_guaranteed] + rest
+        docs = docs[:k]
     except Exception:
         # 嵌入故障：回退到 RRF 序（与旧行为一致）；不写缓存，防一次瞬断长期缓存未精排结果
         docs = [pool[did] for did, _ in sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:k]]
