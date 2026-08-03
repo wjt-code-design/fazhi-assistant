@@ -49,9 +49,11 @@ def test_extract_source_names():
     assert clarify.extract_source_names("我这样做违法吗？") == []
     assert clarify.extract_source_names("这个合法吗？") == []
     assert clarify.extract_source_names("他这样做法违反第几条？") == []  # "做法"误抽曾导致误拒答
-    # 真实回归：保险诈骗罪考题里「无法」「非法」曾是假法名导致误拒答
+    # 真实回归：保险诈骗罪考题里「无法」「非法」、遗产继承「法定」曾是假法名导致误拒答
     assert clarify.extract_source_names("自己作为被保险人就无法从保险公司获得赔偿") == []
     assert clarify.extract_source_names("因欠缺非法占有目的") == []
+    assert clarify.extract_source_names("遗产的法定继承顺序是什么？") == []  # 基准发现：法定误抽致误拒答
+    assert clarify.extract_source_names("根据法定继承规定，第一顺序继承人是谁？") == []  # 根据法误抽
     # 真法名仍正常抽出
     assert clarify.extract_source_names("保险法第一百七十四条") == ["保险法"]
 
