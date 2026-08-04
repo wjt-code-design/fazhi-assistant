@@ -47,13 +47,6 @@ def test_lru_evicts_oldest():
     assert cache.get("b") is None and cache.get("c") == 3 and len(cache) == 2
 
 
-# ---------- 重排回落 ----------
-def test_rerank_identity_when_disabled_or_no_model():
-    docs = [Document(page_content="x"), Document(page_content="y")]
-    assert rc.rerank("q", docs, enabled=False) == docs
-    assert rc.rerank("q", docs, enabled=True, model=None) == docs
-
-
 # ---------- BM25（非退化语料） ----------
 def test_bm25_ranks_matching_first_and_positive():
     docs = [

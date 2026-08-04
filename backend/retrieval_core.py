@@ -4,6 +4,7 @@
 因此可被单元测试快速覆盖。重排模型加载与向量检索在 retrieval.py。
 """
 
+import math
 import threading
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
@@ -13,6 +14,23 @@ from langchain_core.documents import Document
 from rank_bm25 import BM25Okapi
 
 RRF_K = 60
+
+
+def cos(a, b) -> float:
+    """余弦相似度（纯 math，不加载嵌入模型）。"""
+    dot = sum(x * y for x, y in zip(a, b, strict=True))
+    na = math.sqrt(sum(x * x for x in a)) or 1.0
+    nb = math.sqrt(sum(x * x for x in b)) or 1.0
+    return dot / (na * nb)
+
+
+def is_cosine_space(col) -> bool:
+    """collection 是否 hnsw:space=cosine（cosine 空间下 chroma 距离分 = 1 - cos 才成立）。"""
+    try:
+        meta = (col.metadata or {}) if col is not None else {}
+        return (meta.get("hnsw:space") or "l2").lower() == "cosine"
+    except Exception:
+        return False
 
 # 时效状态白名单（导入/手动添加校验用）
 STATUS_WHITELIST = ("现行", "已废止", "即将施行")
@@ -110,14 +128,3 @@ def bm25_top(
     return out
 
 
-def rerank(query: str, docs: list[Document], enabled: bool = False, model=None) -> list[Document]:
-    """重排接口。未启用或未加载模型时原样返回（安全回落，保证不破坏现有检索）。
-
-    启用且模型就绪时的接法（占位，模型加载在 retrieval.py 完成后再填充）：
-        pairs = [[query, d.page_content] for d in docs]
-        scores = model.compute_score(pairs)
-        docs = [d for _, d in sorted(zip(scores, docs), key=lambda x: x[0], reverse=True)]
-    """
-    if not enabled or model is None or not docs:
-        return docs
-    return docs

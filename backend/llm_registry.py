@@ -19,6 +19,7 @@ from typing import Any
 from langchain_openai import ChatOpenAI
 
 import quota_store
+import quota_utils
 from domain_rules import QUOTA_THRESHOLD
 from settings import settings
 
@@ -100,8 +101,12 @@ def _build(cfg: dict[str, Any]) -> ChatOpenAI:
 
 
 def estimate_tokens(text: str) -> int:
-    """中文 token 近似估算（无真实 usage 时用）：约 1.5 字符 / token。"""
-    return max(1, int(len(text or "") / 1.5))
+    """中文 token 近似估算（无真实 usage 时用）：约 1.5 字符 / token。
+
+    ADR-011 code-review 收敛：唯一实现在 quota_utils，此处 re-export 保兼容
+    （main.py / tests/test_routing.py 继续按 llm_registry.estimate_tokens 引用）。
+    """
+    return quota_utils.estimate_tokens(text)
 
 
 def _load_roles() -> list[dict[str, Any]]:
@@ -264,49 +269,63 @@ class LLMRegistry:
             ]
 
     def utility_quota_status(self) -> list[dict[str, Any]]:
-        """工具类模型（embedding/rerank）配额（ADR-011 阶段E）。
+        """工具类模型（embedding/rerank）配额（ADR-011 阶段E + code-review 收敛）。
 
-        LLM 走"同档多模型自动切换"；embedding/rerank 只有云端+local，无平级切换，
-        故用双阈值：warn（<warn_threshold 标黄"快用完"）/ hard（<hard_threshold 自动
-        切回 local 标红）。配额 0 表示未启用配额监控，跳过。
+        - embedding：**换班制**（grilling 决策）——耗尽不自动降级，后台标红提示手动换班重建库，
+          真耗尽时检索返回 409 明确报错。fallback="manual_rebuild"。
+        - rerank：**多模型自动轮换**——每模型独立配额，耗尽自动切队列下一个，全耗尽自动降级
+          本地 cosine 精排（fallback="local_cosine"）。
+        配额 0 表示未启用配额监控，跳过。
         """
         items = []
-        for name, total, initial, warn, hard in (
-            ("embedding", settings.embedding_quota_total, settings.embedding_quota_initial,
-             settings.embedding_warn_threshold, settings.embedding_hard_threshold),
-            ("rerank", settings.rerank_quota_total, settings.rerank_quota_initial,
-             settings.rerank_warn_threshold, settings.rerank_hard_threshold),
-        ):
-            if total <= 0:
-                continue
-            used = initial + quota_store.get_used(name)
-            left = max(0, total - used)
-            pct = left / total if total > 0 else 0.0
+        # embedding（单条）
+        et, ei = settings.embedding_quota_total, settings.embedding_quota_initial
+        if et > 0:
+            used = ei + quota_store.get_used("embedding")
+            left = max(0, et - used)
+            pct = left / et
             items.append(
                 {
-                    "key": name,
-                    "model": settings.embedding_model if name == "embedding" else settings.rerank_model,
-                    "modality": name,
+                    "key": "embedding",
+                    "model": "BGE (local)" if settings.embedding_provider != "aliyun" else settings.embedding_model,
+                    "modality": "embedding",
                     "tier": "utility",
                     "priority": 0,
-                    "capabilities": [name],
+                    "capabilities": ["embedding"],
+                    "quota_total": et,
+                    "quota_left": left,
+                    "depleted": left <= 0,
+                    "below_threshold": pct < settings.embedding_hard_threshold,
+                    "warn_threshold": pct < settings.embedding_warn_threshold
+                    and pct >= settings.embedding_hard_threshold,
+                    "fallback": "manual_rebuild",
+                }
+            )
+        # rerank（每模型一条，按轮换序列）
+        rw, rh = settings.rerank_warn_threshold, settings.rerank_hard_threshold
+        for m in quota_utils.rerank_model_list():
+            total = quota_utils.utility_quota_total_for(m)
+            if total <= 0:
+                continue
+            used = settings.rerank_quota_initial + quota_store.get_used(m)
+            left = max(0, total - used)
+            pct = left / total
+            items.append(
+                {
+                    "key": m,
+                    "model": m,
+                    "modality": "rerank",
+                    "tier": "utility",
+                    "priority": 0,
+                    "capabilities": ["rerank"],
                     "quota_total": total,
                     "quota_left": left,
                     "depleted": left <= 0,
-                    "below_threshold": pct < hard,  # 前端语义复用：已达降级阈值
-                    "warn_threshold": pct < warn and pct >= hard,  # 标黄：快用完
+                    "below_threshold": pct < rh,
+                    "warn_threshold": pct < rw and pct >= rh,
+                    "fallback": "local_cosine",
                 }
             )
         return items
-
-    def deduct_utility(self, name: str, tokens: int) -> None:
-        """扣减工具类模型用量（embedding/rerank），持久化。tokens<=0 或未启用配额 → 忽略。"""
-        if tokens <= 0 or name not in ("embedding", "rerank"):
-            return
-        total = settings.embedding_quota_total if name == "embedding" else settings.rerank_quota_total
-        if total <= 0:
-            return  # 未启用配额监控，不积累
-        quota_store.record_delta(name, int(tokens))
-
 
 registry = LLMRegistry()

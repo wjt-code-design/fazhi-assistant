@@ -1,12 +1,12 @@
-"""检索编排：向量 + BM25(jieba) 经 RRF 融合召回候选池 + 池内余弦精排 + 结果缓存 + 重排回落。
+"""检索编排：向量 + BM25(jieba) 经 RRF 融合召回候选池 + 池内余弦精排 + 结果缓存 + 云 rerank。
 
 - HYBRID=1（默认）：向量与 BM25 双路召回 + RRF 融合；对中文法律条号/专有名词的精确匹配是语义检索的短板，BM25 补齐。
-- RETRIEVAL_RERANK=1（默认关）：重排接口已就绪，模型加载与启用在此开关后填充；关闭时安全回落为原顺序。
+- 云 rerank（ADR-011）：qwen3-rerank 系多模型按配额自动轮换，全耗尽回落池内余弦精排。
 - 检索结果按 (mode,query,category,k) 做 LRU 缓存；知识增删时调 invalidate() 失效。
 - BM25 索引惰性构建并缓存；增删知识后 invalidate() 重建。
+- 配额扣减统一走 quota_utils（不 import llm_registry——其模块级初始化需 LLM key）。
 """
 
-import math
 import re
 import threading
 from collections.abc import Callable
@@ -15,34 +15,32 @@ from datetime import date
 from langchain_core.documents import Document
 
 import query_understand
-import quota_store
+import quota_utils
 import retrieval_core as rc
 from domain_rules import canon_source
 from rag_chain import embeddings, vectorstore
 from settings import settings
 
-
-def estimate_tokens_local(text: str) -> int:
-    """中文 token 近似估算（与 llm_registry.estimate_tokens 同口径，本地副本避免引 registry）。"""
-    return max(1, int(len(text or "") / 1.5))
-
-
-def _deduct_utility(name: str, tokens: int) -> None:
-    """扣减工具类模型用量（embedding/rerank）。quota_total=0（未启用）→ no-op。
-
-    轻量实现（不 import llm_registry——其模块级初始化需 LLM key，离线检索脚本会崩）。
-    """
-    if tokens <= 0 or name not in ("embedding", "rerank"):
-        return
-    total = settings.embedding_quota_total if name == "embedding" else settings.rerank_quota_total
-    if total <= 0:
-        return
-    quota_store.record_delta(name, int(tokens))
-
-# ---- rerank（准度主菜，ADR-011）：qwen3-rerank 经 OpenAI 兼容 /reranks 端点 ----
-# 懒加载（未配置 key 或 rerank_enabled=false 时返回 None，安全降级为原精排）。
+# ---- rerank（准度主菜，ADR-011）：qwen3-rerank 系经 OpenAI 兼容 /reranks 端点 ----
+# 多模型按配额自动轮换（qwen3-rerank → gte-rerank-v2 → qwen3-vl-rerank）：每次请求选
+# 当前配额最充足（剩余 >= hard 阈值）的模型；全耗尽 → None → 调用方回退池内余弦精排。
+# client 与模型解耦（model 在 body），换模型无需重建 client。懒加载 + 缓存。
 _rerank_client = None
 _rerank_client_lock = threading.Lock()
+
+
+def _active_rerank_model() -> str | None:
+    """返回当前应使用的 rerank 模型（队列中第一个配额充足的），全耗尽 → None。
+
+    配额只减不增 → 轮换天然"只前进不后退"，无抖动。未启用/未配 key → None。
+    """
+    if not settings.rerank_enabled or not settings.rerank_api_key:
+        return None
+    hard = settings.rerank_hard_threshold
+    for model in quota_utils.rerank_model_list():
+        if quota_utils.utility_quota_ok(model, hard):
+            return model
+    return None
 
 
 def _get_rerank_client():
@@ -64,32 +62,50 @@ def _get_rerank_client():
     return _rerank_client
 
 
-def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
-    """qwen3-rerank 重排候选池，返回按分数降序的新排序。任何异常 → None（降级原序）。
+def _rerank_query(query: str, units: list[tuple[str, str]]) -> str:
+    """rerank 用聚焦检索词：锚点单元优先，过短/纯条号回落整句截断。
 
-    - query 用 rewrite 后的检索词（非长题干），省 token
+    rerank 对聚焦 query 打分更准（省 token 是附带收益）；但**纯条号锚点无语义**
+    （"第三百四十七条"）或过短锚点丢失限定信息时，硬用会损排序准度——回落整句截断。
+    判定：锚点 join 含"罪"（罪名语义）或长度 >= 8（含《法名》等多词）→ 有语义用锚点；
+    否则回落整句前 120 字符（长题干截断避免稀释，实测校准阈值）。
+    """
+    anchors = [q for q, kind in units if kind == query_understand.KIND_ANCHOR]
+    if anchors:
+        joined = " ".join(anchors)
+        if any("罪" in a for a in anchors) or len(joined) >= 8:
+            return joined
+    return query[:120]
+
+
+def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
+    """云 rerank 重排候选池，返回按分数降序的新排序。任何异常/全模型配额耗尽 → None（降级原序）。
+
+    - 活跃模型 = _active_rerank_model()（多模型轮换），None → 直接降级
+    - query 用锚点检索词（阶段4 _rerank_query），省 token
     - rerank 整个候选池（实测 12-17 条），不裁剪——池外碰不到，池内全排最优
     - 失败/未启用 → None：调用方保持原精排顺序（安全）
     """
+    model = _active_rerank_model()
     client = _get_rerank_client()
-    if client is None or not docs:
+    if client is None or model is None or not docs:
         return None
     try:
         resp = client.post(
             "/reranks",
             body={
-                "model": settings.rerank_model,
+                "model": model,
                 "query": query,
                 "documents": [d.page_content for d in docs],
                 "top_n": len(docs),
             },
             cast_to=dict,
         )
-        # 配额扣减（ADR-011 阶段E）：qwen3-rerank 按输入 token 计费（query + documents），
-        # 无真实 usage 返回 → estimate_tokens_local 近似估算（~1.5 字符/token）
-        _deduct_utility(
-            "rerank",
-            estimate_tokens_local(query) + sum(estimate_tokens_local(d.page_content) for d in docs),
+        # 配额扣减（ADR-011 阶段E）：rerank 按输入 token 计费（query + documents），
+        # 无真实 usage 返回 → quota_utils.estimate_tokens 近似估算；key = 模型名（per-model 轮换）
+        quota_utils.deduct_utility(
+            model,
+            quota_utils.estimate_tokens(query) + sum(quota_utils.estimate_tokens(d.page_content) for d in docs),
         )
         results = (resp or {}).get("results") or []
         if not results:
@@ -294,7 +310,6 @@ def citation_verify(answer: str, in_kb=None) -> list[str]:
     return [literal for (name, art, literal) in extract_citations(answer) if not in_kb(name, art)]
 
 
-RETRIEVAL_RERANK = settings.feature_rerank
 HYBRID = settings.feature_hybrid
 # 池放大倍数：千级语料下小池会丢掉相关条文（RRF 需要条文同时进双池才有融合分）。
 # 实测：k=4 时池=8，相关条文排第 6/10 位会掉出 top-4；池=16 后恢复。
@@ -353,19 +368,8 @@ def _collection_is_cosine() -> bool:
     """
     global _COLLECTION_IS_COSINE
     if _COLLECTION_IS_COSINE is None:
-        try:
-            meta = vectorstore._collection.metadata or {}
-            _COLLECTION_IS_COSINE = (meta.get("hnsw:space") or "l2").lower() == "cosine"
-        except Exception:
-            _COLLECTION_IS_COSINE = False
+        _COLLECTION_IS_COSINE = rc.is_cosine_space(vectorstore._collection)
     return _COLLECTION_IS_COSINE
-
-
-def _cos(a, b) -> float:
-    dot = sum(x * y for x, y in zip(a, b, strict=True))
-    na = math.sqrt(sum(x * x for x in a)) or 1.0
-    nb = math.sqrt(sum(x * x for x in b)) or 1.0
-    return dot / (na * nb)
 
 
 def _append_unique(dst: list[str], seen: set[str], dids: list[str]) -> None:
@@ -383,10 +387,8 @@ def vector_top(
     valid: Callable | None = None,
 ) -> list[tuple[Document, float]]:
     """向量召回。category 走 Chroma where（字符串 $eq 可靠）；时效谓词在 Python 侧过滤（D6）。"""
-    # 配额扣减（ADR-011 阶段E）：每次向量召回 Chroma 内部做 1 次 embed_query，
-    # 按查询文本估算扣 embedding 用量（quota_total=0 时 _deduct_utility no-op，安全）。
-    # ⚠ 不 import llm_registry（其模块级初始化需 LLM key，离线检索脚本无 key 会崩）
-    _deduct_utility("embedding", estimate_tokens_local(query))
+    # 配额扣减由 rag_chain.QuotaTrackingEmbeddings 包装对象统一负责（Chroma 内部经
+    # embedding_function 自动嵌入时扣减）——此处不再显式扣，防双扣（ADR-011 阶段5）。
     filt = {"category": category} if category else None
     fetch_n = max(n * VECTOR_POOL_MULT, VECTOR_POOL_MIN)
     res = vectorstore.similarity_search_with_score(query, k=fetch_n, filter=filt)
@@ -426,9 +428,8 @@ def _cosine_rank(query: str, docs: list[Document]) -> list[Document]:
     """
     qv = embeddings.embed_query(query)
     dvs = embeddings.embed_documents([d.page_content for d in docs])
-    v_cos: dict[str, float] = {_doc_id(d): _cos(qv, dv) for d, dv in zip(docs, dvs, strict=True)}
-    rank_key = lambda d: (1, 1.0, v_cos[_doc_id(d)])  # noqa: E731
-    return sorted(docs, key=rank_key, reverse=True)
+    v_cos: dict[str, float] = {_doc_id(d): rc.cos(qv, dv) for d, dv in zip(docs, dvs, strict=True)}
+    return sorted(docs, key=lambda d: v_cos[_doc_id(d)], reverse=True)
 
 
 def hybrid_retrieve(
@@ -453,7 +454,6 @@ def hybrid_retrieve(
         return hit
     if not HYBRID:
         docs = [d for d, _ in vector_top(query, k, category, valid=valid)]
-        docs = rc.rerank(query, docs, enabled=RETRIEVAL_RERANK)
         _cache.put(key, docs)
         return docs
     n = max(k * BM25_K_MULT, 4)
@@ -528,7 +528,7 @@ def hybrid_retrieve(
         if settings.rerank_enabled:
             # rerank 开（ADR-011 准度主菜）：锚点保底不动，其余位次由 qwen3-rerank 定序。
             # 跳过 cosine 整池重嵌（rerank 已接管高位定序，避免既重嵌又 rerank 浪费网络往返）。
-            reranked = _rerank_docs(query, rest_docs)
+            reranked = _rerank_docs(_rerank_query(query, units), rest_docs)
             if reranked is not None:
                 docs = [pool[did] for did in anchor_guaranteed] + reranked
             else:
@@ -584,7 +584,7 @@ def grounded_top_score(query: str, category: str | None = None, cutoff: str | No
     try:
         qv = embeddings.embed_query(query)
         dv = embeddings.embed_documents([res[0][0].page_content])[0]
-        return _cos(qv, dv)
+        return rc.cos(qv, dv)
     except Exception:
         return 0.0
 
@@ -622,6 +622,6 @@ def retrieve_for_test(query: str, k: int = 5):
         return [_hit_dict(d, 0.0) for d, _ in res]
     out = []
     for (d, _s), dv in zip(res, dvs, strict=True):
-        out.append(_hit_dict(d, _cos(qv, dv)))
+        out.append(_hit_dict(d, rc.cos(qv, dv)))
     out.sort(key=lambda x: x["score"], reverse=True)
     return out

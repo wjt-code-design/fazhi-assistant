@@ -55,6 +55,7 @@ from prompts import (
     SYSTEM_CHEATING,
     SYSTEM_STUDY,
 )
+from quota_utils import UtilityQuotaExhausted
 from rag_chain import clean_answer, format_docs, make_chain, stream_with_retry, vectorstore
 from retrieval import citation_verify, grounded_top_score, prewarm, retrieve, retrieve_for_test
 from schemas import (
@@ -104,6 +105,14 @@ async def lifespan(_app):
 app = FastAPI(title="AI 法律咨询小助手", lifespan=lifespan)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+async def _utility_quota_exhausted_handler(request: Request, exc: Exception) -> JSONResponse:
+    """embedding 配额耗尽 → 409（ADR-011 阶段5 换班制）：明确报错，不静默降级/放任 429。"""
+    return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+
+app.add_exception_handler(UtilityQuotaExhausted, _utility_quota_exhausted_handler)
 # CORS 源可配置（CORS_ORIGINS 逗号分隔）；另用正则放行任意 localhost 开发端口
 # （Next dev 端口被占用时会自动 +1，硬编码单端口会导致 "Failed to fetch"）。
 _CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]

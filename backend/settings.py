@@ -24,7 +24,6 @@ class Settings(BaseSettings):
 
     # ---- 特性开关 ----
     feature_hybrid: bool = True  # 向量+BM25 RRF 混合检索
-    feature_rerank: bool = False  # cross-encoder 重排（CPU 重，默认关）
     feature_router: bool = True  # 多模型分级路由总开关；False 时主回答退化为旧单模型（get()）
 
     # ---- 多模型配置（可选整体覆盖默认代表表；JSON 数组，元素见 llm_registry.DEFAULT_ROLES 字段） ----
@@ -42,12 +41,14 @@ class Settings(BaseSettings):
     embedding_warn_threshold: float = 0.15  # 剩余 <15% → 后台标黄"快用完"
     embedding_hard_threshold: float = 0.05  # 剩余 <5% → 自动切回 local + 标红
 
-    # ---- 重排序（rerank，准度主菜；qwen3-rerank 按输入 token 计费）----
+    # ---- 重排序（rerank，准度主菜；多模型按配额自动轮换，全耗尽回落 cosine 精排）----
     rerank_enabled: bool = False  # 是否启用 rerank（开则跳过 cosine 精排，见 retrieval）
     rerank_api_key: str = ""
     rerank_base_url: str = "https://dashscope.aliyuncs.com/compatible-api/v1"
-    rerank_model: str = "qwen3-rerank"
-    rerank_quota_total: int = 0  # 0=不启用配额监控
+    rerank_model: str = "qwen3-rerank"  # 兼容：当前模型（body.model 由 _active_rerank_model 定）
+    rerank_models: str = "qwen3-rerank,gte-rerank-v2,qwen3-vl-rerank"  # 轮换序列（逗号分隔，顺序即优先级）
+    rerank_quota_total: int = 0  # 0=不启用配额监控（单模型默认配额）
+    rerank_quota_totals: str = ""  # 逗号分隔，与 rerank_models 对齐（每模型配额）；空则各模型用 rerank_quota_total
     rerank_quota_initial: int = 0
     rerank_warn_threshold: float = 0.15
     rerank_hard_threshold: float = 0.05

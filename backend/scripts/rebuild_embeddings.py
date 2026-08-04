@@ -40,14 +40,13 @@ from rag_chain import (  # noqa: E402
 )
 from settings import settings  # noqa: E402
 
-# 估算：中文 ~1.5 字符/token（与 llm_registry.estimate_tokens 同口径）
-_TOKENS_PER_CHAR = 1 / 1.5
+# 估算：中文 ~1.5 字符/token（唯一实现在 quota_utils.estimate_tokens）
 # 阿里云 text-embedding-v4 单价（元/千 token，内地）
 _PRICE_PER_1K = 0.0005
 
 
 def _char_token_cost(chars: int) -> tuple[float, float]:
-    tokens = int(chars * _TOKENS_PER_CHAR)
+    tokens = max(1, int(chars / 1.5))  # 与 quota_utils.estimate_tokens 同口径（~1.5 字符/token）
     return tokens, tokens * _PRICE_PER_1K / 1000  # 单价是 元/千token
 
 
@@ -158,8 +157,32 @@ def main() -> None:
     sample = new_main.get(limit=1, include=["embeddings"])
     dim = len(sample["embeddings"][0]) if sample.get("embeddings") else "?"
     print(f"新库维度: {dim}（配置 {settings.embedding_dimensions}）{'✅' if str(dim) == str(settings.embedding_dimensions) else '❌ 不匹配'}")
+    # eval_set 抽样召回校验（阶段7 补，ADR-011）：验证新模型语义空间下检索仍命中期望条文
+    try:
+        import json
+
+        eval_path = os.path.join(BASE_DIR, "..", "data", "eval_set.json")
+        eval_set = json.load(open(eval_path, encoding="utf-8"))
+        cases = eval_set if isinstance(eval_set, list) else eval_set.get("cases", eval_set.get("queries", []))
+        from retrieval import retrieve
+
+        sample_cases = cases[:10]
+        hit = 0
+        for c in sample_cases:
+            q = c.get("question") or c.get("query") or ""
+            exp_arts = set(c.get("expected_articles", []))
+            exp_srcs = set(c.get("expected_sources", []))
+            if any(
+                d.metadata.get("article") in exp_arts or d.metadata.get("source") in exp_srcs
+                for d in retrieve(q, k=6)
+            ):
+                hit += 1
+        ok = hit == len(sample_cases)
+        print(f"eval_set 抽样召回: {hit}/{len(sample_cases)}{'✅' if ok else '⚠ 部分未命中（新模型语义空间不同属正常，以完整 eval_retrieval 为准）'}")
+    except Exception as e:
+        print(f"  eval_set 召回校验跳过：{e}")
     print("\n重建完成。旧库未改动（回退=EMBEDDING_PROVIDER 切回 local）。")
-    print("下一步：跑 scripts/eval_retrieval.py 对比召回，确认切换后检索正常。")
+    print("下一步：重启后端 + 跑 scripts/eval_retrieval.py 完整对比召回。")
 
 
 if __name__ == "__main__":

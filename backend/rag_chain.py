@@ -15,9 +15,11 @@ os.environ.setdefault("HF_HUB_OFFLINE", "1")
 os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
 from langchain_chroma import Chroma
+from langchain_core.embeddings import Embeddings
 from langchain_core.output_parsers import StrOutputParser
 from langchain_huggingface import HuggingFaceEmbeddings
 
+import quota_utils  # noqa: E402
 from llm_guard import llm_guard  # noqa: E402
 from settings import settings  # noqa: E402
 
@@ -51,7 +53,43 @@ def _build_embeddings():
     )
 
 
-embeddings = _build_embeddings()
+class QuotaTrackingEmbeddings(Embeddings):
+    """嵌入包装（ADR-011 code-review 阶段5）：所有 embed 调用统一扣减 embedding 配额。
+
+    - Chroma vectorstore/_qa_store 内部经 embedding_function 自动嵌入 → 自动覆盖向量
+      召回 / grounded / QA / 写库 / rebuild 全路径；retrieval.vector_top 显式扣减已移除（防双扣）。
+    - provider=aliyun 且配额耗尽 → 抛 UtilityQuotaExhausted（不调云 API），main 捕获转 409。
+    - local 不耗云 token：仍按配置总量扣（本地场景 quota_total 通常 0 → no-op，安全）。
+    - 扣减在调用成功后（异常不记账）；估算口径 quota_utils.estimate_tokens（~1.5 字符/token）。
+    """
+
+    def __init__(self, inner):
+        self._inner = inner
+
+    def _check(self) -> None:
+        if settings.embedding_provider == "aliyun" and quota_utils.utility_depleted("embedding"):
+            raise quota_utils.UtilityQuotaExhausted(
+                "embedding 配额已耗尽，请切换备用模型重建库，或把 EMBEDDING_PROVIDER 切回 local 用本地 BGE"
+            )
+
+    @staticmethod
+    def _deduct(text: str) -> None:
+        quota_utils.deduct_utility("embedding", quota_utils.estimate_tokens(text))
+
+    def embed_query(self, text: str):
+        self._check()
+        v = self._inner.embed_query(text)
+        self._deduct(text)
+        return v
+
+    def embed_documents(self, texts):
+        self._check()
+        v = self._inner.embed_documents(texts)
+        self._deduct("".join(texts))
+        return v
+
+
+embeddings = QuotaTrackingEmbeddings(_build_embeddings())
 
 # 2. Vector store — Chroma 持久化。collection 名随 provider 派生（语义空间不同，切云须重建）
 _COLLECTION_LOCAL = "legal_provisions_cos"  # hnsw:space=cosine：距离分=1-cos

@@ -11,6 +11,9 @@ os.environ.setdefault("LLM_BASE_URL", "https://test.invalid/v1")
 # 测试固定本地嵌入 + 关闭 rerank——防 CI 联网（云端 embedding/rerank 需真实 key）
 os.environ.setdefault("EMBEDDING_PROVIDER", "local")
 os.environ.setdefault("RERANK_ENABLED", "false")
+# 配额总金额度固定 0（未启用）——防本地跑 pytest 时包装对象把扣减写进真实 quota_used.sqlite
+os.environ.setdefault("EMBEDDING_QUOTA_TOTAL", "0")
+os.environ.setdefault("RERANK_QUOTA_TOTAL", "0")
 
 # 让 tests 能 import backend 顶层模块
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))

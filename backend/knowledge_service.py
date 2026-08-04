@@ -9,7 +9,6 @@
 
 import hashlib
 import io
-import math
 import os
 import threading
 
@@ -19,6 +18,7 @@ from sqlalchemy.orm import Session
 
 import chunking
 import retrieval
+import retrieval_core as rc
 from models import QaCandidate
 from rag_chain import BASE_DIR, QA_COLLECTION_NAME, embeddings, vectorstore
 
@@ -44,13 +44,6 @@ def _collection():
     return vectorstore._collection
 
 
-def _cos(a, b) -> float:
-    dot = sum(x * y for x, y in zip(a, b, strict=True))
-    na = math.sqrt(sum(x * x for x in a)) or 1.0
-    nb = math.sqrt(sum(x * x for x in b)) or 1.0
-    return dot / (na * nb)
-
-
 _QA_IS_COSINE: bool | None = None
 
 
@@ -58,11 +51,7 @@ def _qa_is_cosine() -> bool:
     """qa_pairs collection 是否 cosine 空间（cloud 新库 qa_pairs_te4 是，本地 qa_pairs 是 L2）。"""
     global _QA_IS_COSINE
     if _QA_IS_COSINE is None:
-        try:
-            meta = _qa_store._collection.metadata or {}
-            _QA_IS_COSINE = (meta.get("hnsw:space") or "l2").lower() == "cosine"
-        except Exception:
-            _QA_IS_COSINE = False
+        _QA_IS_COSINE = rc.is_cosine_space(_qa_store._collection)
     return _QA_IS_COSINE
 
 
@@ -251,7 +240,7 @@ def search_qa(query: str, threshold: float = 0.7):
         try:
             qv = embeddings.embed_query(query)
             dv = embeddings.embed_documents([res[0][0].page_content])[0]
-            score = _cos(qv, dv)
+            score = rc.cos(qv, dv)
         except Exception:
             return None
     if score < threshold:

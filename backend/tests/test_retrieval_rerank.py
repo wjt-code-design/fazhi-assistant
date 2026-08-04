@@ -34,6 +34,104 @@ def test_bridge_query_passthrough():
     assert retrieval._bridge_query("公司股东认缴出资的期限是多长？") == "公司股东认缴出资的期限是多长？"
 
 
+# ---------------- QuotaTrackingEmbeddings 包装（扣减 + 耗尽 409，纯 mock） ----------------
+def test_quota_tracking_embeddings(monkeypatch):
+    import quota_store
+    import quota_utils
+    from rag_chain import QuotaTrackingEmbeddings
+    from settings import settings
+    from tests._fake_embeddings import FakeEmbeddings
+
+    inner = FakeEmbeddings()
+    wrapped = QuotaTrackingEmbeddings(inner)
+    calls: list[tuple[str, int]] = []
+    monkeypatch.setattr(quota_store, "record_delta", lambda key, delta: calls.append((key, delta)))
+    monkeypatch.setattr(quota_store, "get_used", lambda key: 0)
+
+    settings.embedding_provider = "aliyun"
+    settings.embedding_quota_total = 1000
+    settings.embedding_quota_initial = 0
+    try:
+        # 云 provider：embed 扣减（成功调用后才记账）
+        wrapped.embed_query("abc")  # estimate_tokens("abc") = 2
+        wrapped.embed_documents(["abc", "def"])  # estimate_tokens("abcdef") = 4
+        assert ("embedding", 2) in calls
+        assert ("embedding", 4) in calls
+        # 耗尽（left=0）→ 抛 UtilityQuotaExhausted，不调 inner
+        monkeypatch.setattr(quota_store, "get_used", lambda key: 1000)
+        try:
+            wrapped.embed_query("abc")
+            raise AssertionError("耗尽应抛 UtilityQuotaExhausted")
+        except quota_utils.UtilityQuotaExhausted:
+            pass
+        # 本地 provider：即使配额 0 也不抛（本地 BGE 无限用）
+        settings.embedding_provider = "local"
+        v = wrapped.embed_query("abc")
+        assert len(v) == 768
+        # 未启用配额（total=0）→ 不抛（防测试污染真实库）
+        settings.embedding_quota_total = 0
+        settings.embedding_provider = "aliyun"
+        assert len(wrapped.embed_query("abc")) == 768
+    finally:
+        settings.embedding_provider = "local"
+        settings.embedding_quota_total = 0
+        settings.embedding_quota_initial = 0
+
+
+# ---------------- rerank 聚焦检索词（锚点优先 + 过短兜底，纯函数） ----------------
+def test_rerank_query_anchor_preferred():
+    import query_understand
+
+    # 罪名锚点 → 用锚点串（聚焦）
+    units = [(q, k) for q, k in [("贩卖毒品罪", query_understand.KIND_ANCHOR)]]
+    assert retrieval._rerank_query("甲贩卖毒品应该如何处罚？", units) == "贩卖毒品罪"
+    # 法名+条号（长度>=8）→ 用锚点
+    units = [("《刑法》第三百四十七条", query_understand.KIND_ANCHOR)]
+    assert retrieval._rerank_query("《刑法》第三百四十七条讲了什么？", units) == "《刑法》第三百四十七条"
+    # 无锚点 → 回落整句（截断）
+    units = [("网购七天无理由退货有法律依据吗？", query_understand.KIND_ORIGINAL)]
+    assert retrieval._rerank_query("网购七天无理由退货有法律依据吗？", units).startswith("网购七天")
+    # 纯条号锚点（短、无语义）→ 回落整句，不硬用条号
+    units = [("第三百四十七条", query_understand.KIND_ANCHOR)]
+    long_q = "贩卖毒品数量巨大，应当如何量刑？" * 10
+    assert retrieval._rerank_query(long_q, units) == long_q[:120]
+    assert "第三百四十七条" not in retrieval._rerank_query(long_q, units)
+
+
+# ---------------- rerank 多模型轮换（配额驱动，纯 mock，非 slow） ----------------
+def test_active_rerank_model_rotation(monkeypatch):
+    import quota_store
+    from settings import settings
+
+    settings.rerank_enabled = True
+    settings.rerank_api_key = "test"
+    settings.rerank_models = "m1,m2,m3"
+    settings.rerank_quota_totals = "100,100,100"
+    settings.rerank_quota_initial = 0
+    settings.rerank_hard_threshold = 0.05
+    monkeypatch.setattr(quota_store, "get_used", lambda key: 0)
+    try:
+        # 全部充足 → 队首 m1
+        assert retrieval._active_rerank_model() == "m1"
+        # m1 耗尽（剩 4% < 5%）→ m2
+        monkeypatch.setattr(quota_store, "get_used", lambda key: 96 if key == "m1" else 0)
+        assert retrieval._active_rerank_model() == "m2"
+        # m1,m2 耗尽 → m3
+        monkeypatch.setattr(quota_store, "get_used", lambda key: 96 if key in ("m1", "m2") else 0)
+        assert retrieval._active_rerank_model() == "m3"
+        # 全耗尽 → None（降级本地余弦精排）
+        monkeypatch.setattr(quota_store, "get_used", lambda key: 96)
+        assert retrieval._active_rerank_model() is None
+        # 未启用（rerank_enabled=false）→ None
+        settings.rerank_enabled = False
+        assert retrieval._active_rerank_model() is None
+    finally:
+        settings.rerank_enabled = False
+        settings.rerank_api_key = ""
+        settings.rerank_models = "qwen3-rerank,gte-rerank-v2,qwen3-vl-rerank"
+        settings.rerank_quota_totals = ""
+
+
 # ---------------- 真实 KB 查准（slow：CI 跳过） ----------------
 @pytest.mark.slow
 def test_high_altitude_fall_precision():

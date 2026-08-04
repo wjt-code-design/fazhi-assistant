@@ -82,8 +82,9 @@ interface UtilityQuotaRow {
   quota_total: number;
   quota_left: number;
   depleted: boolean;
-  warn_threshold: boolean; // <15% 快用完标黄
-  below_threshold: boolean; // <5% 已降级 local 标红
+  warn_threshold: boolean; // <15% 标黄
+  below_threshold: boolean; // <5% 标红
+  fallback: "local_cosine" | "manual_rebuild"; // 耗尽后的行为：rerank=自动降级本地精排；embedding=手动换班
 }
 interface LlmStatus {
   feature_router: boolean;
@@ -917,9 +918,17 @@ export default function AdminPage() {
                               {u.depleted ? (
                                 <Badge kind="error">已耗尽</Badge>
                               ) : u.below_threshold ? (
-                                <Badge kind="error">已降级本地</Badge>
+                                u.fallback === "local_cosine" ? (
+                                  <Badge kind="error">已降级本地精排</Badge>
+                                ) : (
+                                  <Badge kind="error">接近耗尽，请换班</Badge>
+                                )
                               ) : u.warn_threshold ? (
-                                <Badge kind="accent">快用完</Badge>
+                                u.fallback === "manual_rebuild" ? (
+                                  <Badge kind="accent">建议准备换班</Badge>
+                                ) : (
+                                  <Badge kind="accent">快用完</Badge>
+                                )
                               ) : (
                                 <Badge kind="success">充足</Badge>
                               )}
