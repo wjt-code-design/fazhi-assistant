@@ -580,11 +580,18 @@ def retrieve_exam(question: str, k: int = 6) -> list[Document]:
     units = query_understand._split_by_choice(question)
     if len(units) <= 1:
         return hybrid_retrieve(question, k=k)  # 无选项 → 整题检索（fallback）
-    queries = units  # 题干(units[0]) + 每选项
-    per_k = max(3, k // 2)  # 每单元 top-k（控总量：题干+4选项 × 3-4 = 12-20 候选）
-    collected: list[list[Document]] = [None] * len(queries)  # type: ignore[list-item]
-    with ThreadPoolExecutor(max_workers=min(6, len(queries))) as ex:
-        futs = [(i, ex.submit(hybrid_retrieve, q, per_k)) for i, q in enumerate(queries)]
+    # 题干主锚 = **完整问题文本**（含选项信号——实测剥离选项的题干丢关键条：
+    # 高空抛物题裸题干 top-3 全无关，整题检索 1254 排第 1）。选项单元独立补漏
+    # （防"单次整题检索漏项"如死刑复核 252）。题干给足候选，选项瘦身池控总量。
+    head_q = question  # 主锚：含 A-D 选项的完整问题
+    opt_queries = units[1:]  # 每选项独立召回其考点条文
+    head_k = k
+    opt_k = max(2, k // 3)
+    n = 1 + len(opt_queries)
+    collected: list[list[Document]] = [None] * n  # type: ignore[list-item]
+    with ThreadPoolExecutor(max_workers=min(6, n)) as ex:
+        futs = [(0, ex.submit(hybrid_retrieve, head_q, head_k))]
+        futs += [(i + 1, ex.submit(hybrid_retrieve, q, opt_k)) for i, q in enumerate(opt_queries)]
         for i, f in futs:
             try:
                 collected[i] = f.result()
@@ -603,6 +610,50 @@ def retrieve_exam(question: str, k: int = 6) -> list[Document]:
     if not out:
         return hybrid_retrieve(question, k=k)  # 全失败 → 整题兜底
     return out[:k]
+
+
+_supplements_cache: list[dict] | None = None
+
+
+def _load_supplements() -> list[dict]:
+    """加载 scenario_supplements.json（数据驱动，ADR-012 阶段2B）：新增场景零代码改动。"""
+    global _supplements_cache
+    if _supplements_cache is None:
+        import json as _json
+        import os as _os
+
+        path = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "scenario_supplements.json")
+        try:
+            with open(path, encoding="utf-8") as f:
+                _supplements_cache = _json.load(f)
+        except Exception:
+            _supplements_cache = []
+    return _supplements_cache
+
+
+def scenario_supplement_docs(text: str) -> list[Document]:
+    """场景定向补充（数据驱动）：命中关键词 → 前置该场景核心条文（防整题检索漏项）。
+
+    复用 exact_article_lookup 精确取条（条号直查零嵌入零检索），返回的 Document 由
+    调用方前置到检索结果。仅用于非选项题（选项题已走 retrieve_exam 逐项检索）。
+    """
+    t = text or ""
+    out: list[Document] = []
+    seen: set[str] = set()
+    for spec in _load_supplements():
+        if not any(k in t for k in spec.get("keywords", [])):
+            continue
+        for a in spec.get("articles", []):
+            try:
+                docs = exact_article_lookup(a.get("source", ""), a.get("article", ""))
+            except Exception:
+                docs = []
+            for d in docs:
+                did = _doc_id(d)
+                if did not in seen:
+                    seen.add(did)
+                    out.append(d)
+    return out
 
 
 def grounded_top_score(query: str, category: str | None = None, cutoff: str | None = None) -> float:

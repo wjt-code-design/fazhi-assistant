@@ -65,6 +65,7 @@ from retrieval import (
     retrieve,
     retrieve_exam,
     retrieve_for_test,
+    scenario_supplement_docs,
 )
 from schemas import (
     ChatIn,
@@ -324,7 +325,7 @@ def _pre(user_id: int, conversation_id, text: str, image):
         is_exam = query_understand._is_exam_question(text or raw_query)
         if intent == "study_aid":
             if settings.feature_study_retrieval and not query_understand.is_meta_study(text or raw_query):
-                docs = retrieve_exam(rewritten)  # 具体题：分步检索（题干主锚 + 每选项补漏）
+                docs = scenario_supplement_docs(text or raw_query) + retrieve_exam(rewritten)  # 具体题：场景补充 + 分步检索
             else:
                 docs = []  # 元问题/回滚：不检索，邀请发题
             qa_hit = None
@@ -337,12 +338,16 @@ def _pre(user_id: int, conversation_id, text: str, image):
             qa_hit = None
         else:
             if is_exam:
-                docs = retrieve_exam(rewritten)  # 用户直接贴的选项题 → 分步检索
+                # 选项题 → 分步检索 + 场景定向补充前置（死刑复核/正当防卫等核心条防漏）
+                docs = scenario_supplement_docs(text or raw_query) + retrieve_exam(rewritten)
             else:
                 docs = retrieve(rewritten, k=6)  # k4→6：给余弦精排更多候选 + 给模型更全上下文，缓解"对法错条"
             qa_hit = ks.search_qa(rewritten)
-            # 格式条款/消费者权利/消费欺诈场景定向补充（仅非选项题，法考题不适用）
+            # 场景定向补充（仅非选项题，法考题已走 retrieve_exam 逐项检索）
             if not is_exam:
+                # 数据驱动场景补充（ADR-012 阶段2B：死刑复核/正当防卫/毒品等，scenario_supplements.json）
+                docs = scenario_supplement_docs(text or raw_query) + docs
+                # 格式条款/消费者权利/消费欺诈场景定向补充
                 if is_consumer_clause_scenario(text or raw_query):
                     docs = consumer_clause_docs() + docs
                 if is_consumer_fraud_scenario(text or raw_query):

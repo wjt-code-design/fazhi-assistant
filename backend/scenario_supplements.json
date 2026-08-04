@@ -1,0 +1,29 @@
+[
+  {
+    "scenario": "death_review",
+    "keywords": ["死刑复核"],
+    "articles": [
+      {"source": "刑事诉讼法", "article": "第二百四十六条"},
+      {"source": "刑事诉讼法", "article": "第二百四十七条"},
+      {"source": "刑事诉讼法", "article": "第二百四十九条"},
+      {"source": "刑事诉讼法", "article": "第二百五十条"},
+      {"source": "刑事诉讼法", "article": "第二百五十一条"}
+    ]
+  },
+  {
+    "scenario": "self_defense",
+    "keywords": ["正当防卫", "防卫过当"],
+    "articles": [
+      {"source": "刑法", "article": "第二十条"},
+      {"source": "刑法", "article": "第二十一条"}
+    ]
+  },
+  {
+    "scenario": "drug_crime",
+    "keywords": ["贩卖毒品", "非法持有毒品", "运输毒品"],
+    "articles": [
+      {"source": "刑法", "article": "第三百四十七条"},
+      {"source": "刑法", "article": "第三百四十八条"}
+    ]
+  }
+]

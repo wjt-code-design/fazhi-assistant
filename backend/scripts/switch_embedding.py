@@ -55,6 +55,9 @@ MODEL_DIMENSIONS: dict[str, int | None] = {
 
 
 def _env_set(key: str, value: str) -> None:
+    """改 .env 键值。**必须保证每行以换行结尾**（否则后续追加的键会拼到上一行末尾——
+    2026-08-04 换班实测踩坑：RERANK_QUOTA_TOTAL 与 EMBEDDING_MODEL 拼成一行，
+    导致 settings 解析失败、嵌入 400）。"""
     lines: list[str] = []
     found = False
     if os.path.exists(ENV):
@@ -66,7 +69,7 @@ def _env_set(key: str, value: str) -> None:
                 f.write(f"{key}={value}\n")
                 found = True
             else:
-                f.write(line)
+                f.write(line if line.endswith("\n") else line + "\n")  # 补齐换行
         if not found:
             f.write(f"{key}={value}\n")
     print(f"  .env: {key}={value}")

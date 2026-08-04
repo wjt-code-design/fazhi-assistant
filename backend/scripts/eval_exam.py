@@ -36,7 +36,16 @@ import _judge  # noqa: E402
 import clarify  # noqa: E402
 import eval_metrics as M  # noqa: E402
 import intent  # noqa: E402
-from retrieval import _normalize_article, extract_citations, retrieve  # noqa: E402
+import query_understand  # noqa: E402
+from retrieval import (  # noqa: E402
+    _normalize_article,
+    citation_verify,
+    extract_citations,
+    retrieve,
+    retrieve_exam,
+    scenario_supplement_docs,
+)
+from settings import settings  # noqa: E402
 
 DATA = os.path.join(os.path.dirname(__file__), "..", "..", "data", "eval_exam.json")
 OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "benchmark_results")
@@ -58,6 +67,39 @@ def _golden_citation_hit(answer: str, expected_articles: list[str]) -> bool:
     return bool(cited & golds)
 
 
+def _recall_norm(retrieved_articles: list[str], expected_articles: list[str]) -> float:
+    """检索召回（归一化比对）：docs 的 article 元数据 → 归一化集合 → 与金标交集比例。
+
+    与生产口径对齐：scenario 补充/retrieve_exam 的 article 写法（246 / 第二百四十六条）
+    经归一化统一为「第246条」，避免 raw 字符串比对失真。
+    """
+    rev = {_normalize_article(a) for a in retrieved_articles if a}
+    exp = [_normalize_article(a) for a in expected_articles if a]
+    if not exp:
+        return 0.0
+    return sum(1 for a in exp if a in rev) / len(exp)
+
+
+def _production_retrieve(text: str):
+    """模拟生产检索路由（main.py Step A）：与线上同款，recall 才反映真实召回。
+
+    - study_aid 具体题 → retrieve_exam（分步：题干主锚 + 每选项补漏）
+    - 用户直接贴的选项题（无论 intent）→ retrieve_exam
+    - 元问题 → 不检索（短路）
+    - 其余 → 整题检索 + scenario_supplement_docs 场景定向补充前置
+    """
+    it = intent.classify_intent(text)
+    is_exam = query_understand._is_exam_question(text)
+    if it == "study_aid":
+        if settings.feature_study_retrieval and not query_understand.is_meta_study(text):
+            return scenario_supplement_docs(text) + retrieve_exam(text)
+        return []
+    if is_exam:
+        # 选项题也前置场景补充（死刑复核/正当防卫题 retrieve_exam 可能漏核心条）
+        return scenario_supplement_docs(text) + retrieve_exam(text)
+    return scenario_supplement_docs(text) + retrieve(text, k=6)
+
+
 def main() -> int:
     cases = json.load(open(DATA, encoding="utf-8"))
     do_judge = os.getenv("EVAL_LLM_JUDGE", "0") == "1"
@@ -67,9 +109,9 @@ def main() -> int:
     sums = {"recall": 0.0, "cite": 0, "golden": 0, "refuse_ok": 0, "prof": 0}
     for c in cases:
         q = c["question"]
-        docs = retrieve(q, k=6)  # 基线：整题检索；阶段1 后选项题改走 retrieve_exam（按触发）
+        docs = _production_retrieve(q)  # 生产同款路由（retrieve_exam/scenario 补充）
         arts = [d.metadata.get("article", "") for d in docs]
-        rec = M.recall_at_k(arts, c.get("expected_articles", []))
+        rec = _recall_norm(arts, c.get("expected_articles", []))
         # decide 断言（防"说不会"回归）：真实意图下不得拒答
         it = intent.classify_intent(q)
         st = clarify.decide(it, q, bool(docs), False)
@@ -78,7 +120,9 @@ def main() -> int:
             ans = _client.chat(token, q)
         except Exception as e:
             ans = f"[ERR]{e}"
-        cc = M.citation_correct(ans, c.get("expected_articles", []))
+        # cite_ok：回答**有引用 且 全部真实在库**（防编造，复用生产防线 citation_verify）
+        cited_ans = extract_citations(ans or "")
+        cc = bool(cited_ans) and not citation_verify(ans or "")
         golden = _golden_citation_hit(ans, c.get("expected_articles", []))
         row = {
             "id": c["id"], "intent": it, "decide": st,

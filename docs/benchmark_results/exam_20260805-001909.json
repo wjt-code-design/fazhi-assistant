@@ -1,0 +1,217 @@
+{
+ "ts": "20260805-001909",
+ "summary": {
+  "recall@6": 0.9083,
+  "cite_ok": 0.95,
+  "golden_hit": 1.0,
+  "refuse_ok": 1.0,
+  "freeze_hash": "376ee0b3a865",
+  "n": 20,
+  "professional_avg": 2.45
+ },
+ "freeze_hash": "376ee0b3a865",
+ "judge": "qwen3.7-plus text 档 temp=0",
+ "pipeline": "真实 chat API（_client.chat）+ 确定性指标（recall/cite/golden/refuse_ok）",
+ "rows": [
+  {
+   "id": 1,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 3
+  },
+  {
+   "id": 2,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 2
+  },
+  {
+   "id": 3,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 3
+  },
+  {
+   "id": 4,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 3
+  },
+  {
+   "id": 5,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 2
+  },
+  {
+   "id": 6,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 3
+  },
+  {
+   "id": 7,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 3
+  },
+  {
+   "id": 8,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 3
+  },
+  {
+   "id": 9,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 0.67,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 1
+  },
+  {
+   "id": 10,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 3
+  },
+  {
+   "id": 11,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 3
+  },
+  {
+   "id": 12,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 3
+  },
+  {
+   "id": 13,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 0.5,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 2
+  },
+  {
+   "id": 14,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 0.5,
+   "cite_ok": false,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 2
+  },
+  {
+   "id": 15,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 3
+  },
+  {
+   "id": 16,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 2
+  },
+  {
+   "id": 17,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 3
+  },
+  {
+   "id": 18,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 0.5,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 0
+  },
+  {
+   "id": 19,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 3
+  },
+  {
+   "id": 20,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true,
+   "professional": 2
+  }
+ ]
+}

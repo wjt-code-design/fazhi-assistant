@@ -11,6 +11,7 @@ interface Msg {
   imageDataURL?: string; // 本轮刚发送的本地预览
   imgRef?: string; // 历史：原图相对路径
   thumbRef?: string; // 历史：缩略图相对路径
+  sources?: { source: string; article: string }[]; // 参考条文（ADR-012 阶段2C：回答下方折叠展示）
 }
 
 interface ConvItem {
@@ -203,6 +204,14 @@ export default function ChatPage() {
         });
       },
       (meta: ChatMeta) => {
+        setMessages((m) => {
+          const copy = [...m];
+          const last = copy[copy.length - 1];
+          if (last && meta.sources?.length) {
+            copy[copy.length - 1] = { ...last, sources: meta.sources };
+          }
+          return copy;
+        });
         if (meta.conversation_id != null) {
           setConversationId(meta.conversation_id);
           setActiveId(meta.conversation_id);
@@ -376,6 +385,20 @@ export default function ChatPage() {
                           ""
                         ))}
                     </div>
+                    {!streaming && m.sources && m.sources.length > 0 && (
+                      <details className="mt-1.5 text-xs">
+                        <summary className="cursor-pointer select-none text-slate transition-colors hover:text-ink">
+                          参考条文（{m.sources.length}）
+                        </summary>
+                        <div className="mt-1.5 space-y-1">
+                          {m.sources.map((s, si) => (
+                            <div key={si} className="rounded bg-mist px-2.5 py-1.5 font-mono text-[0.78rem] text-ink/80">
+                              {s.source} {s.article}
+                            </div>
+                          ))}
+                        </div>
+                      </details>
+                    )}
                     {!streaming && m.content && (
                       <div className="mt-2">
                         <div className="flex items-center gap-2 text-slate">
