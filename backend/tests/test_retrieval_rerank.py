@@ -136,6 +136,49 @@ def test_active_rerank_model_rotation(monkeypatch):
         settings.rerank_quota_totals = ""
 
 
+def test_rerank_docs_switches_model_on_failure(monkeypatch):
+    """rerank 真实 API 失败 → 标记该模型耗尽 → 自动换下一个（块 2.2 扩展到工具模型）。"""
+    import quota_store
+    import quota_utils
+    from types import SimpleNamespace
+    from settings import settings
+
+    settings.rerank_enabled = True
+    settings.rerank_api_key = "test"
+    settings.rerank_models = "m1,m2"
+    settings.rerank_quota_totals = "100,100"
+    settings.rerank_quota_initial = 0
+    settings.rerank_hard_threshold = 0.05
+    monkeypatch.setattr(quota_store, "get_used", lambda key: 0)
+    depleted: list[str] = []
+    monkeypatch.setattr(quota_utils, "mark_utility_depleted", lambda name: depleted.append(name))
+
+    class FakeClient:
+        def __init__(self):
+            self.calls = []
+
+        def post(self, path, **kw):
+            model = kw["body"]["model"]
+            self.calls.append(model)
+            if model == "m1":
+                raise RuntimeError("InsufficientBalance: 配额耗尽")
+            return {"results": [{"index": 1, "relevance_score": 0.9}, {"index": 0, "relevance_score": 0.5}]}
+
+    fc = FakeClient()
+    monkeypatch.setattr(retrieval, "_get_rerank_client", lambda: fc)
+    docs = [SimpleNamespace(page_content=f"doc{i}", metadata={}) for i in range(2)]
+    try:
+        out = retrieval._rerank_docs("q", docs)
+        assert fc.calls == ["m1", "m2"]  # m1 失败 → 换 m2
+        assert depleted == ["m1"]  # m1 被标记耗尽
+        assert [d.page_content for d in out] == ["doc1", "doc0"]  # m2 结果按分降序
+    finally:
+        settings.rerank_enabled = False
+        settings.rerank_api_key = ""
+        settings.rerank_models = "qwen3-rerank,gte-rerank-v2,qwen3-vl-rerank"
+        settings.rerank_quota_totals = ""
+
+
 # ---------------- 真实 KB 查准（slow：CI 跳过） ----------------
 @pytest.mark.slow
 def test_high_altitude_fall_precision():

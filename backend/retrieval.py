@@ -75,42 +75,49 @@ def _rerank_query(query: str, units: list[tuple[str, str]]) -> str:
 
 
 def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
-    """云 rerank 重排候选池，返回按分数降序的新排序。任何异常/全模型配额耗尽 → None（降级原序）。
+    """云 rerank 重排候选池，返回按分数降序的新排序。耗尽自动换下一个（块 2.2 扩展）。
 
-    - 活跃模型 = _active_rerank_model()（多模型轮换），None → 直接降级
+    - 按 rerank 队列（qwen3-rerank → gte-rerank-v2 → qwen3-vl-rerank）依次尝试：
+      真实 API 失败 → mark_utility_depleted 该模型 → 试下一个；全部失败/未启用 → None（降级原序）
     - query 用锚点检索词（阶段4 _rerank_query），省 token
     - rerank 整个候选池（实测 12-17 条），不裁剪——池外碰不到，池内全排最优
     - 失败/未启用 → None：调用方保持原精排顺序（安全）
     """
-    model = _active_rerank_model()
     client = _get_rerank_client()
-    if client is None or model is None or not docs:
+    if client is None or not docs:
         return None
-    try:
-        resp = client.post(
-            "/reranks",
-            body={
-                "model": model,
-                "query": query,
-                "documents": [d.page_content for d in docs],
-                "top_n": len(docs),
-            },
-            cast_to=dict,
-        )
-        # 配额扣减（ADR-011 阶段E）：rerank 按输入 token 计费（query + documents），
-        # 无真实 usage 返回 → quota_utils.estimate_tokens 近似估算；key = 模型名（per-model 轮换）
-        quota_utils.deduct_utility(
-            model,
-            quota_utils.estimate_tokens(query) + sum(quota_utils.estimate_tokens(d.page_content) for d in docs),
-        )
-        results = (resp or {}).get("results") or []
-        if not results:
-            return None
-        ordered = sorted(results, key=lambda r: r.get("relevance_score", 0.0), reverse=True)
-        idx = [r.get("index", 0) for r in ordered]
-        return [docs[i] for i in idx if 0 <= i < len(docs)]
-    except Exception:
-        return None
+    hard = settings.rerank_hard_threshold
+    for model in quota_utils.rerank_model_list():
+        if not quota_utils.utility_quota_ok(model, hard):
+            continue  # 估算已耗尽（或上轮真实失败已标记）→ 跳过
+        try:
+            resp = client.post(
+                "/reranks",
+                body={
+                    "model": model,
+                    "query": query,
+                    "documents": [d.page_content for d in docs],
+                    "top_n": len(docs),
+                },
+                cast_to=dict,
+            )
+            # 配额扣减（ADR-011 阶段E）：rerank 按输入 token 计费（query + documents），
+            # 无真实 usage 返回 → quota_utils.estimate_tokens 近似估算；key = 模型名（per-model 轮换）
+            quota_utils.deduct_utility(
+                model,
+                quota_utils.estimate_tokens(query) + sum(quota_utils.estimate_tokens(d.page_content) for d in docs),
+            )
+            results = (resp or {}).get("results") or []
+            if not results:
+                return None
+            ordered = sorted(results, key=lambda r: r.get("relevance_score", 0.0), reverse=True)
+            idx = [r.get("index", 0) for r in ordered]
+            return [docs[i] for i in idx if 0 <= i < len(docs)]
+        except Exception:
+            # 真实 API 失败（配额/模型名错）→ 标记该模型耗尽 → 下一个
+            quota_utils.mark_utility_depleted(model)
+            continue
+    return None
 
 # ---- 条号直查路由（阶段7.2）：《法名》第X条 / 法名第X条 → 精确查找，零嵌入零检索 ----
 _ART_FULL_RE = re.compile(

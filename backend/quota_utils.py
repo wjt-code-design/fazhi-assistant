@@ -88,6 +88,16 @@ def utility_quota_ok(name: str, hard: float) -> bool:
     return utility_pct_left(name) >= hard
 
 
+def mark_utility_depleted(name: str) -> None:
+    """工具模型（rerank/embedding）真实失败时标记耗尽（块 2.2 扩展到工具模型）：
+    置 used = total - initial（remaining=0）→ 下次轮换自动跳过，不靠估算。"""
+    total = utility_quota_total_for(name)
+    if total <= 0:
+        return  # 未启用配额监控：无需标记
+    used_target = max(0, total - _quota_initial(name))
+    quota_store.set_used(name, used_target)
+
+
 def rerank_active_model() -> str | None:
     """当前应使用的 rerank 模型（队列第一个配额充足的）；全耗尽/未启用/未配 key → None。
 

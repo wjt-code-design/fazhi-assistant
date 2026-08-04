@@ -56,6 +56,7 @@ from prompts import (
     SYSTEM_CHEATING,
     SYSTEM_STUDY,
 )
+import quota_store
 from quota_utils import UtilityQuotaExhausted
 from rag_chain import clean_answer, embeddings, format_docs, make_chain, stream_with_retry, vectorstore
 from retrieval import (
@@ -1132,11 +1133,23 @@ def admin_llm_status(_admin: User = Depends(require_admin)):
 @app.post("/api/admin/llm-quota")
 @limiter.limit("10/minute")
 async def admin_llm_quota(request: Request, body: LlmQuotaIn, _admin: User = Depends(require_admin)):
-    """配额校准（块 3）：按控制台真实剩余值回写该模型 initial_used，看门狗对齐真实值。
+    """配额校准（块 3）：按控制台真实剩余值回写该模型已用量，看门狗对齐真实值。
 
-    用户决策：后台不展示估算配额数字（时效性太低），但"用完即切"的看门狗依赖 remaining
-    估算——本端点让管理员从控制台读实际值后校准，切换逻辑才有可靠依据。
+    用户决策：后台不展示估算配额数字（时效性太低，控制台为准），但"用完即切"的看门狗
+    依赖 remaining——本端点让管理员从控制台读实际值后校准。
+    - LLM key（text_* / vision_*）→ registry.calibrate（改 initial_used）
+    - 工具模型名（rerank 队列 / embedding 模型名）→ quota_store.set_used
+      （runtime_used = total - remaining - initial，共享 initial 下按模型记）
     """
+    import quota_utils as qu
+    # 工具模型：rerank 队列或当前 embedding 模型
+    if body.key in qu.rerank_model_list() or body.key == qu.embedding_model_key():
+        total = qu.utility_quota_total_for(body.key)
+        initial = qu._quota_initial(body.key)
+        used_target = max(0, total - body.remaining - initial)
+        quota_store.set_used(body.key, used_target)
+        log_audit(_admin.id, "quota.calibrate", target=body.key, detail=f"remaining={body.remaining}")
+        return {"key": body.key, "quota_left": qu.utility_pct_left(body.key) * total, "used": used_target}
     try:
         res = registry.calibrate(body.key, body.remaining)
     except KeyError:

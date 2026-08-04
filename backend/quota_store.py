@@ -50,6 +50,21 @@ def get_used(key: str) -> int:
         con.close()
 
 
+def set_used(key: str, used: int) -> None:
+    """直接设置某 key 累计已用（校准用：管理员从控制台读数后对齐看门狗）。"""
+    _ensure()
+    with _lock:
+        con = _connect()
+        try:
+            con.execute(
+                "INSERT INTO quota(key, used) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET used=excluded.used",
+                (key, max(0, int(used))),
+            )
+            con.commit()
+        finally:
+            con.close()
+
+
 def record_delta(key: str, delta: int) -> int:
     """累加扣减 delta（>=0），返回新的累计值。"""
     if delta <= 0:
