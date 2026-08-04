@@ -30,26 +30,8 @@ _rerank_client_lock = threading.Lock()
 
 
 def _active_rerank_model() -> str | None:
-    """返回当前应使用的 rerank 模型（队列中第一个配额充足的），全耗尽/未启用 → None。
-
-    未启用配额监控（所有模型 total<=0）→ 直接用队列第一个（纯开关模式，不检查配额）。
-    启用后：跳过未配额度的模型（total<=0 视为不可用）——避免错位配置把 total=0 当
-    "充足"卡死轮换、永不降级（B2）。配额只减不增 → 轮换天然"只前进不后退"，无抖动。
-    """
-    if not settings.rerank_enabled or not settings.rerank_api_key:
-        return None
-    models = quota_utils.rerank_model_list()
-    if not models:
-        return None
-    if all(quota_utils.utility_quota_total_for(m) <= 0 for m in models):
-        return models[0]  # 未启用配额监控
-    hard = settings.rerank_hard_threshold
-    for model in models:
-        if quota_utils.utility_quota_total_for(model) <= 0:
-            continue  # 该模型未配额度，跳过
-        if quota_utils.utility_quota_ok(model, hard):
-            return model
-    return None
+    """当前应使用的 rerank 模型（单一来源 quota_utils.rerank_active_model，grilling 最优解 A）。"""
+    return quota_utils.rerank_active_model()
 
 
 def _get_rerank_client():

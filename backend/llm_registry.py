@@ -329,9 +329,8 @@ class LLMRegistry:
                     "fallback": "local_cosine",
                 }
             )
-        degraded = bool(rerank_items) and all(
-            i["below_threshold"] or i["depleted"] for i in rerank_items
-        )
+        # 整体降级 = 有 rerank 配置但当前无可用模型（单一来源 quota_utils.rerank_active_model）
+        degraded = bool(rerank_items) and quota_utils.rerank_active_model() is None
         for i in rerank_items:
             i["degraded"] = degraded
         items.extend(rerank_items)

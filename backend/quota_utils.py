@@ -88,6 +88,29 @@ def utility_quota_ok(name: str, hard: float) -> bool:
     return utility_pct_left(name) >= hard
 
 
+def rerank_active_model() -> str | None:
+    """当前应使用的 rerank 模型（队列第一个配额充足的）；全耗尽/未启用/未配 key → None。
+
+    单一来源（grilling 最优解 A）：retrieval 运行侧与 llm_registry 展示侧共用，避免分歧。
+    未启用配额监控（所有模型 total<=0）→ 直接用队列第一个（纯开关模式）；启用后跳过
+    未配额度的模型（B2），配额只减不增 → 轮换只前进不后退、无抖动。
+    """
+    if not settings.rerank_enabled or not settings.rerank_api_key:
+        return None
+    models = rerank_model_list()
+    if not models:
+        return None
+    if all(utility_quota_total_for(m) <= 0 for m in models):
+        return models[0]
+    hard = settings.rerank_hard_threshold
+    for m in models:
+        if utility_quota_total_for(m) <= 0:
+            continue
+        if utility_quota_ok(m, hard):
+            return m
+    return None
+
+
 def utility_depleted(name: str) -> bool:
     """真实耗尽（剩余 <= 0）；未启用配额（total<=0）→ False（不限制）。"""
     total = utility_quota_total_for(name)
