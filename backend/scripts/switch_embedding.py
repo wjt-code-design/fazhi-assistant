@@ -96,11 +96,52 @@ def _estimate_rebuild_tokens() -> int:
     return estimate_tokens_chars(total_chars)
 
 
+def _port_pid(port: int) -> str | None:
+    """找监听指定端口的 PID（Windows netstat -ano 解析）。"""
+    try:
+        out = subprocess.run(["netstat", "-ano"], capture_output=True, text=True, timeout=10).stdout
+    except Exception:
+        return None
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) >= 5 and f":{port}" in parts[1] and parts[3] == "LISTENING":
+            return parts[4]
+    return None
+
+
+def _restart_backend() -> None:
+    """重启后端（仅 --restart 显式触发，Windows）：停 8000 进程后启动 uvicorn。"""
+    import time
+
+    pid = _port_pid(8000)
+    if pid:
+        print(f"  检测到 8000 端口进程 PID={pid}，正在停止…")
+        subprocess.run(["taskkill", "/PID", pid, "/F"], capture_output=True)
+        for _ in range(20):  # 等端口释放（最多 ~10s）
+            if _port_pid(8000) is None:
+                break
+            time.sleep(0.5)
+    print("  启动后端（uvicorn main:app --port 8000）…")
+    DETACHED = 0x00000008
+    subprocess.Popen(
+        [sys.executable, "-m", "uvicorn", "main:app", "--host", "127.0.0.1", "--port", "8000"],
+        cwd=BACKEND,
+        creationflags=DETACHED | subprocess.CREATE_NEW_PROCESS_GROUP,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    print("  后端已启动（日志在独立进程；8000 端口访问）。")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="embedding 换班：切备用模型并重建向量库")
     ap.add_argument("model", help="目标 embedding 模型名（换班序列之一）")
     ap.add_argument("--dimensions", type=int, default=None, help="目标模型向量维度（默认保持当前配置）")
     ap.add_argument("--dry-run", action="store_true", help="只校验与估算，不改配置不重建")
+    ap.add_argument(
+        "--restart", action="store_true",
+        help="换班后自动重启后端（停 8000 进程再启动；默认不碰服务，只提示手动重启）",
+    )
     args = ap.parse_args()
 
     print(f"当前 embedding provider: {settings.embedding_provider}")
@@ -161,7 +202,12 @@ def main() -> None:
         sys.exit(r.returncode)
 
     print("\n=== 换班完成 ===")
-    print("下一步：重启后端生效（cd backend && venv/Scripts/activate && python -m uvicorn main:app --port 8000）")
+    if args.restart:
+        print("重启后端（--restart）…")
+        _restart_backend()
+    else:
+        print("未传 --restart（默认不碰服务）。请手动重启后端生效：")
+        print("  cd backend && venv\\Scripts\\activate && python -m uvicorn main:app --port 8000")
     print("验证：登录管理员后台看 embedding 配额剩余（= 新模型总额 − 本次重建消耗）。")
 
 

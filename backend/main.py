@@ -132,6 +132,26 @@ def health():
     return {"status": "ok"}
 
 
+@app.get("/api/utility/quota")
+def utility_quota_overview():
+    """公开轻量预警（B 更优版，grilling）：embedding 快用完/耗尽 + rerank 整体降级状态。
+
+    不暴露配额总量（用户端无权限），只返回预警布尔与剩余百分比，驱动前端横幅。
+    """
+    import quota_utils as _qu
+
+    embed_key = _qu.embedding_model_key()
+    monitoring = settings.embedding_quota_total > 0
+    pct = round(_qu.utility_pct_left(embed_key) * 100) if monitoring else 100
+    return {
+        "embedding_warn": monitoring and pct < settings.embedding_warn_threshold * 100,
+        "embedding_depleted": monitoring and _qu.utility_depleted(embed_key),
+        "embedding_pct": pct,
+        "embedding_model": settings.embedding_model,
+        "rerank_degraded": settings.rerank_enabled and _qu.rerank_active_model() is None,
+    }
+
+
 @app.get("/healthz")
 def healthz():
     """深度就绪检查：DB + 向量库 + 模型主机连通（不发起真实 LLM 调用，不耗 token）。"""

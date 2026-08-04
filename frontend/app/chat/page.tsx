@@ -23,6 +23,15 @@ interface ConvItem {
   created_at: string;
 }
 
+// 配额预警（B 更优版，grilling）：/api/utility/quota 公开接口的响应
+interface QuotaWarn {
+  embedding_warn?: boolean;
+  embedding_depleted?: boolean;
+  embedding_pct?: number;
+  embedding_model?: string;
+  rerank_degraded?: boolean;
+}
+
 const MAX_IMAGE_MB = 5;
 const ACCEPT_IMAGE = ["image/jpeg", "image/png"];
 
@@ -65,12 +74,21 @@ export default function ChatPage() {
   const [corrFor, setCorrFor] = useState<number | null>(null);
   const [corrText, setCorrText] = useState("");
   const [fbDone, setFbDone] = useState<Record<number, "up" | "down">>({});
+  const [quotaWarn, setQuotaWarn] = useState<QuotaWarn | null>(null);
 
   useEffect(() => {
     if (!loading) {
       if (!user) router.replace("/login");
     }
   }, [loading, user, router]);
+
+  // 配额预警（B 更优版）：embedding 快用完/耗尽 + rerank 降级 → 顶部横幅（提前量）
+  useEffect(() => {
+    fetch("/api/utility/quota")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => setQuotaWarn(d))
+      .catch(() => {});
+  }, []);
 
   const loadHistory = () => {
     convApi.list().then(setHistory).catch(() => {});
@@ -292,6 +310,24 @@ export default function ChatPage() {
           </button>
           <h1 className="font-serif text-lg font-semibold tracking-tight">法律咨询</h1>
         </header>
+
+        {/* 配额预警横幅（B 更优版）：embedding 快用完/耗尽 或 rerank 已降级 */}
+        {quotaWarn && (quotaWarn.embedding_depleted || quotaWarn.embedding_warn || quotaWarn.rerank_degraded) && (
+          <div
+            className="border-b px-5 py-2 text-xs"
+            style={
+              quotaWarn.embedding_depleted
+                ? { background: "#ef444422", color: "#b91c1c", borderColor: "#ef444455" }
+                : { background: "#f59e0b22", color: "#92400e", borderColor: "#f59e0b55" }
+            }
+          >
+            {quotaWarn.embedding_depleted
+              ? "⚠ embedding 配额已耗尽，问答暂时不可用——请联系管理员换班（docs/换班手册.md）。"
+              : quotaWarn.embedding_warn
+                ? `⚠ embedding 配额接近耗尽（剩 ${quotaWarn.embedding_pct}%），建议尽快换班（docs/换班手册.md）。`
+                : "⚠ rerank 模型已全部耗尽，自动降级本地精排（排序准度略降）。"}
+          </div>
+        )}
 
         {/* 消息流 */}
         <div
