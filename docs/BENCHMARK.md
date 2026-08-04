@@ -14,6 +14,14 @@
 > **评测脚本注意**：`settings.py` 只读 os.environ 不读 .env——跑任何脚本前需自行
 > `load_dotenv`（rebuild/eval 均已内置）。`eval_retrieval.py` 曾漏加，导致切云后
 > 假性复现本地基线（2026-08-04 修复）。
+>
+> **多模型配额（2026-08-04 code-review 修复）**：
+> - **rerank 多模型自动轮换**：qwen3-rerank → gte-rerank-v2 → qwen3-vl-rerank，每模型独立
+>   配额，`<5%` 自动切下一个；全耗尽降级本地 cosine 精排（无重建成本）。锚点 rerank 检索词
+>   实测与整句基线持平（recall@2 1.00 / MRR 0.911，无劣化）。
+> - **embedding 换班制**：不同模型语义空间不同，换班必须重建库（~861K/次，¥0.43）；
+>   配额按**模型名**记账（换班后新模型从 0 起算）。耗尽返回 409 明确报错，不静默降级。
+>   一键换班：`python scripts/switch_embedding.py <模型>`；详见 `docs/换班手册.md`。
 
 ## 总览表
 

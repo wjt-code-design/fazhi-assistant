@@ -85,6 +85,7 @@ interface UtilityQuotaRow {
   warn_threshold: boolean; // <15% 标黄
   below_threshold: boolean; // <5% 标红
   fallback: "local_cosine" | "manual_rebuild"; // 耗尽后的行为：rerank=自动降级本地精排；embedding=手动换班
+  degraded?: boolean; // rerank 队列全部不可用=整体降级本地精排（区别于单模型耗尽仍可轮换）
 }
 interface LlmStatus {
   feature_router: boolean;
@@ -918,8 +919,10 @@ export default function AdminPage() {
                               {u.depleted ? (
                                 <Badge kind="error">已耗尽</Badge>
                               ) : u.below_threshold ? (
-                                u.fallback === "local_cosine" ? (
+                                u.modality === "rerank" && u.degraded ? (
                                   <Badge kind="error">已降级本地精排</Badge>
+                                ) : u.modality === "rerank" ? (
+                                  <Badge kind="error">已用尽，切换下一个</Badge>
                                 ) : (
                                   <Badge kind="error">接近耗尽，请换班</Badge>
                                 )

@@ -26,6 +26,7 @@ load_dotenv(ENV)
 
 from rebuild_embeddings import _COLLECTION_LOCAL, _QA_COLLECTION_LOCAL, _read_old  # noqa: E402
 
+from rag_chain import COLLECTION_NAME, QA_COLLECTION_NAME  # noqa: E402
 from settings import settings  # noqa: E402
 
 # 换班序列（强度降序；换班顺序 = 先强后弱，耗尽再下探）
@@ -39,6 +40,18 @@ SWITCH_SEQUENCE = [
     "tongyi-embedding-vision-flash",  # 弱（轻量）
     "qwen2.5-vl-embedding",  # 弱（轻量）
 ]
+
+# 模型→建议维度（已实测确认填值；None=未确认，执行时查阿里云文档）
+MODEL_DIMENSIONS: dict[str, int | None] = {
+    "text-embedding-v4": 768,
+    "tongyi-embedding-vision-plus": None,
+    "qwen3-vl-embedding": None,
+    "tongyi-embedding-vision-plus-2026-03-06": None,
+    "qwen3.7-text-embedding": None,
+    "tongyi-embedding-vision-flash-2026-03-06": None,
+    "tongyi-embedding-vision-flash": None,
+    "qwen2.5-vl-embedding": None,
+}
 
 
 def _env_set(key: str, value: str) -> None:
@@ -60,19 +73,27 @@ def _env_set(key: str, value: str) -> None:
 
 
 def _estimate_rebuild_tokens() -> int:
-    """读旧库全量字符估算重建 token（与 rebuild --dry-run 同口径）。"""
+    """读**当前活跃库**全量字符估算重建 token（与 rebuild 同口径；B1 修复：数据源=当前库）。"""
     import chromadb
 
+    from quota_utils import estimate_tokens_chars
+
     client = chromadb.PersistentClient(path=os.path.join(BACKEND, "chroma_db"))
-    docs_main, _ = _read_old(client.get_collection(_COLLECTION_LOCAL), _COLLECTION_LOCAL)
+    col = client.get_collection(COLLECTION_NAME)
+    if col.count() == 0 and COLLECTION_NAME != _COLLECTION_LOCAL:
+        col = client.get_collection(_COLLECTION_LOCAL)
+    docs_main, _ = _read_old(col, col.name)
     qa_docs: list[str] = []
     try:
-        qa_data = client.get_collection(_QA_COLLECTION_LOCAL).get(include=["documents"])
+        qa_col = client.get_collection(QA_COLLECTION_NAME)
+        if qa_col.count() == 0 and QA_COLLECTION_NAME != _QA_COLLECTION_LOCAL:
+            qa_col = client.get_collection(_QA_COLLECTION_LOCAL)
+        qa_data = qa_col.get(include=["documents"])
         qa_docs = list(qa_data["documents"] or [])
     except Exception:
         pass
     total_chars = sum(len(d) for d in docs_main) + sum(len(d) for d in qa_docs)
-    return max(1, int(total_chars / 1.5))  # 与 quota_utils.estimate_tokens 同口径（~1.5 字符/token）
+    return estimate_tokens_chars(total_chars)
 
 
 def main() -> None:
@@ -95,6 +116,14 @@ def main() -> None:
     print(f"目标模型: {args.model}（dimensions={'保持 ' + str(settings.embedding_dimensions) if args.dimensions is None else str(args.dimensions)}）")
     if args.model == settings.embedding_model and args.dimensions is None:
         print("⚠ 目标模型与当前相同且维度不变——无需换班。")
+    # 维度校验（B7）：已知维度且与当前不同 → 必须显式 --dimensions 一并改，否则 rebuild 维度校验会失败
+    known_dim = MODEL_DIMENSIONS.get(args.model)
+    target_dim = args.dimensions if args.dimensions is not None else settings.embedding_dimensions
+    if known_dim is None:
+        print(f"⚠ {args.model} 的维度未确认——若 rebuild 校验报维度不匹配，请查阿里云文档后用 --dimensions 指定")
+    elif known_dim != target_dim:
+        print(f"❌ {args.model} 维度 {known_dim} ≠ 当前配置 {settings.embedding_dimensions}——必须用 --dimensions {known_dim} 一并改，否则向量库维度不匹配。")
+        sys.exit(1)
 
     # 配额检查（诚实计费：重建消耗计入当前 embedding 配额）
     from quota_utils import utility_pct_left, utility_quota_total_for

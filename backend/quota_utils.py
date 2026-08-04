@@ -13,9 +13,14 @@ import quota_store
 from settings import settings
 
 
+def estimate_tokens_chars(chars: int) -> int:
+    """中文 token 近似核心（约 1.5 字符 / token）；脚本传**总字符数**时用（与 estimate_tokens 同口径）。"""
+    return max(1, int((chars or 0) / 1.5))
+
+
 def estimate_tokens(text: str) -> int:
-    """中文 token 近似（云端 embedding/rerank 无真实 usage）：约 1.5 字符 / token。"""
-    return max(1, int(len(text or "") / 1.5))
+    """中文 token 近似（云端 embedding/rerank 无真实 usage）：estimate_tokens_chars(len(text))。"""
+    return estimate_tokens_chars(len(text or ""))
 
 
 def _split_csv(v: str) -> list[str]:
@@ -28,10 +33,18 @@ def rerank_model_list() -> list[str]:
     return models or ([settings.rerank_model] if settings.rerank_model else [])
 
 
+def embedding_model_key() -> str:
+    """当前 embedding 模型名（作为配额 key，per-model 记账——换班后新模型从 0 起算）。"""
+    return settings.embedding_model or "embedding"
+
+
 def utility_quota_total_for(key: str) -> int:
-    """某配额 key 的总量：embedding → embedding_quota_total；rerank 模型 → 按
-    rerank_quota_totals 对齐（缺失项回落 rerank_quota_total）；未知名 → rerank_quota_total。"""
-    if key == "embedding":
+    """某配额 key 的总量：
+    - embedding 当前模型名（或旧 "embedding"）→ embedding_quota_total（换班后新模型同额度）
+    - rerank 模型 → rerank_quota_totals 对齐（缺失项回落 rerank_quota_total）
+    - 未知名 → rerank_quota_total
+    """
+    if key in ("embedding", embedding_model_key()):
         return settings.embedding_quota_total
     models = rerank_model_list()
     if key in models:
@@ -45,12 +58,10 @@ def utility_quota_total_for(key: str) -> int:
     return settings.rerank_quota_total
 
 
-def _quota_total(name: str) -> int:
-    return utility_quota_total_for(name)
-
-
 def _quota_initial(name: str) -> int:
-    return settings.embedding_quota_initial if name == "embedding" else settings.rerank_quota_initial
+    if name in ("embedding", embedding_model_key()):
+        return settings.embedding_quota_initial
+    return settings.rerank_quota_initial
 
 
 def deduct_utility(name: str, tokens: int) -> None:

@@ -67,14 +67,17 @@ class QuotaTrackingEmbeddings(Embeddings):
         self._inner = inner
 
     def _check(self) -> None:
-        if settings.embedding_provider == "aliyun" and quota_utils.utility_depleted("embedding"):
+        if settings.embedding_provider == "aliyun" and quota_utils.utility_depleted(
+            quota_utils.embedding_model_key()
+        ):
             raise quota_utils.UtilityQuotaExhausted(
                 "embedding 配额已耗尽，请切换备用模型重建库，或把 EMBEDDING_PROVIDER 切回 local 用本地 BGE"
             )
 
     @staticmethod
     def _deduct(text: str) -> None:
-        quota_utils.deduct_utility("embedding", quota_utils.estimate_tokens(text))
+        # per-model 记账：key = 当前模型名，换班后新模型从 0 起算（B4）
+        quota_utils.deduct_utility(quota_utils.embedding_model_key(), quota_utils.estimate_tokens(text))
 
     def embed_query(self, text: str):
         self._check()

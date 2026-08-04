@@ -111,21 +111,31 @@ def main() -> None:
     print(f"旧库（回退保留）: {_COLLECTION_LOCAL} / {_QA_COLLECTION_LOCAL}")
     print()
 
-    # 1. 读旧库——必须显式 PersistentClient 打开旧 collection：
-    #    切到 aliyun 后 rag_chain.vectorstore 已指向新库（te4，空），不能拿它当旧库
+    # 1. 读数据源——显式 PersistentClient 打开 collection：
+    #    数据源 = **当前活跃库**（换班时 te4 含云端期新增，B1 修复：读 te4 而非本地旧库）；
+    #    首次迁移时当前库（te4）为空 → 回落本地旧库（cos，迁移时刻唯一真值）。
+    #    注意：不能用 rag_chain.vectorstore（provider=aliyun 时它指向的正是目标库）。
     import chromadb
 
     client = chromadb.PersistentClient(path=os.path.join(BASE_DIR, "chroma_db"))
-    old_main = client.get_collection(_COLLECTION_LOCAL)
-    docs_main, metas_main = _read_old(old_main, _COLLECTION_LOCAL)
-    # qa_pairs 旧库（本地名）——同一 client
+    old_main = client.get_collection(COLLECTION_NAME)
+    source_name = COLLECTION_NAME
+    if old_main.count() == 0 and COLLECTION_NAME != _COLLECTION_LOCAL:
+        old_main = client.get_collection(_COLLECTION_LOCAL)
+        source_name = _COLLECTION_LOCAL
+    docs_main, metas_main = _read_old(old_main, source_name)
+    # qa_pairs 同理（优先当前库，空回落本地）
     qa_docs, qa_metas = [], []
+    qa_source = QA_COLLECTION_NAME
     try:
-        qa_col = client.get_collection(_QA_COLLECTION_LOCAL)
+        qa_col = client.get_collection(QA_COLLECTION_NAME)
+        if qa_col.count() == 0 and QA_COLLECTION_NAME != _QA_COLLECTION_LOCAL:
+            qa_col = client.get_collection(_QA_COLLECTION_LOCAL)
+            qa_source = _QA_COLLECTION_LOCAL
         qa_data = qa_col.get(include=["documents", "metadatas"])
         qa_docs = list(qa_data["documents"] or [])
         qa_metas = [dict(m) for m in (qa_data["metadatas"] or [])]
-        print(f"  [{_QA_COLLECTION_LOCAL}] 读旧库 {len(qa_docs)} 条")
+        print(f"  [{qa_source}] 读旧库 {len(qa_docs)} 条")
     except Exception as e:
         print(f"  qa_pairs 读取跳过：{e}")
 
@@ -157,25 +167,31 @@ def main() -> None:
     sample = new_main.get(limit=1, include=["embeddings"])
     dim = len(sample["embeddings"][0]) if sample.get("embeddings") else "?"
     print(f"新库维度: {dim}（配置 {settings.embedding_dimensions}）{'✅' if str(dim) == str(settings.embedding_dimensions) else '❌ 不匹配'}")
-    # eval_set 抽样召回校验（阶段7 补，ADR-011）：验证新模型语义空间下检索仍命中期望条文
+    # eval_set 抽样召回校验（阶段7 补，ADR-011）：验证新模型语义空间下检索仍命中期望条文。
+    # 用 chroma **原生** query 查新库（B5 修复：不能 from retrieval import retrieve——langchain
+    # Chroma 对象缓存了 delete 前的旧 collection UUID，_ensure_new_collection 重建后它已失效）。
     try:
         import json
 
         eval_path = os.path.join(BASE_DIR, "..", "data", "eval_set.json")
         eval_set = json.load(open(eval_path, encoding="utf-8"))
         cases = eval_set if isinstance(eval_set, list) else eval_set.get("cases", eval_set.get("queries", []))
-        from retrieval import retrieve
+        import chromadb as _cd
 
+        _client = _cd.PersistentClient(path=os.path.join(BASE_DIR, "chroma_db"))
+        _col = _client.get_collection(COLLECTION_NAME)
         sample_cases = cases[:10]
         hit = 0
         for c in sample_cases:
             q = c.get("question") or c.get("query") or ""
+            if not q:
+                continue
+            vec = embeddings.embed_query(q)  # 包装对象（新模型，扣减配额）
+            res = _col.query(query_embeddings=[vec], n_results=6, include=["metadatas"])
+            metas = (res.get("metadatas") or [[]])[0] or []
             exp_arts = set(c.get("expected_articles", []))
             exp_srcs = set(c.get("expected_sources", []))
-            if any(
-                d.metadata.get("article") in exp_arts or d.metadata.get("source") in exp_srcs
-                for d in retrieve(q, k=6)
-            ):
+            if any(m.get("article") in exp_arts or m.get("source") in exp_srcs for m in metas):
                 hit += 1
         ok = hit == len(sample_cases)
         print(f"eval_set 抽样召回: {hit}/{len(sample_cases)}{'✅' if ok else '⚠ 部分未命中（新模型语义空间不同属正常，以完整 eval_retrieval 为准）'}")

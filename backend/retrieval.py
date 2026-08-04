@@ -30,14 +30,23 @@ _rerank_client_lock = threading.Lock()
 
 
 def _active_rerank_model() -> str | None:
-    """返回当前应使用的 rerank 模型（队列中第一个配额充足的），全耗尽 → None。
+    """返回当前应使用的 rerank 模型（队列中第一个配额充足的），全耗尽/未启用 → None。
 
-    配额只减不增 → 轮换天然"只前进不后退"，无抖动。未启用/未配 key → None。
+    未启用配额监控（所有模型 total<=0）→ 直接用队列第一个（纯开关模式，不检查配额）。
+    启用后：跳过未配额度的模型（total<=0 视为不可用）——避免错位配置把 total=0 当
+    "充足"卡死轮换、永不降级（B2）。配额只减不增 → 轮换天然"只前进不后退"，无抖动。
     """
     if not settings.rerank_enabled or not settings.rerank_api_key:
         return None
+    models = quota_utils.rerank_model_list()
+    if not models:
+        return None
+    if all(quota_utils.utility_quota_total_for(m) <= 0 for m in models):
+        return models[0]  # 未启用配额监控
     hard = settings.rerank_hard_threshold
-    for model in quota_utils.rerank_model_list():
+    for model in models:
+        if quota_utils.utility_quota_total_for(model) <= 0:
+            continue  # 该模型未配额度，跳过
         if quota_utils.utility_quota_ok(model, hard):
             return model
     return None
@@ -62,19 +71,23 @@ def _get_rerank_client():
     return _rerank_client
 
 
+# 锚点语义判定：含罪名（"罪"）或法名（《》/法/条例/典/规定/办法）才算有语义；
+# 纯条号（"第三百四十七条"/"第一千二百六十条"）无语义 → rerank query 回落整句（B10）。
+_ANCHOR_SEMANTIC_RE = re.compile(r"罪|《|法|条例|典|规定|办法")
+
+
 def _rerank_query(query: str, units: list[tuple[str, str]]) -> str:
-    """rerank 用聚焦检索词：锚点单元优先，过短/纯条号回落整句截断。
+    """rerank 用聚焦检索词：语义锚点优先，纯条号/无锚点回落整句截断。
 
     rerank 对聚焦 query 打分更准（省 token 是附带收益）；但**纯条号锚点无语义**
     （"第三百四十七条"）或过短锚点丢失限定信息时，硬用会损排序准度——回落整句截断。
-    判定：锚点 join 含"罪"（罪名语义）或长度 >= 8（含《法名》等多词）→ 有语义用锚点；
-    否则回落整句前 120 字符（长题干截断避免稀释，实测校准阈值）。
+    判定：锚点含罪名或法名（_ANCHOR_SEMANTIC_RE）→ 有语义用锚点；否则回落整句前 120
+    字符（长题干截断避免稀释，实测校准阈值）。
     """
     anchors = [q for q, kind in units if kind == query_understand.KIND_ANCHOR]
-    if anchors:
-        joined = " ".join(anchors)
-        if any("罪" in a for a in anchors) or len(joined) >= 8:
-            return joined
+    semantic = [a for a in anchors if _ANCHOR_SEMANTIC_RE.search(a)]
+    if semantic:
+        return " ".join(semantic)
     return query[:120]
 
 
@@ -540,6 +553,8 @@ def hybrid_retrieve(
             ranked = _cosine_rank(query, cand_docs)
             docs = [pool[did] for did in anchor_guaranteed] + [d for d in ranked if _doc_id(d) not in ag_seen]
         docs = docs[:k]
+    except quota_utils.UtilityQuotaExhausted:
+        raise  # B3：embedding 配额耗尽必须上达 409，不能被 RRF 兜底吞掉
     except Exception:
         # 嵌入/精排故障：回退到 RRF 序（与旧行为一致）；不写缓存，防一次瞬断长期缓存未精排结果
         docs = [pool[did] for did, _ in sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:k]]

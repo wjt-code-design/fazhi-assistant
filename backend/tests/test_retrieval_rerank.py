@@ -51,14 +51,17 @@ def test_quota_tracking_embeddings(monkeypatch):
     settings.embedding_provider = "aliyun"
     settings.embedding_quota_total = 1000
     settings.embedding_quota_initial = 0
+    settings.embedding_model = "test-embed"
+    key = quota_utils.embedding_model_key()  # per-model key（B4）= settings.embedding_model
+    assert key == "test-embed"
     try:
-        # 云 provider：embed 扣减（成功调用后才记账）
+        # 云 provider：embed 扣减（成功调用后才记账，key=模型名）
         wrapped.embed_query("abc")  # estimate_tokens("abc") = 2
         wrapped.embed_documents(["abc", "def"])  # estimate_tokens("abcdef") = 4
-        assert ("embedding", 2) in calls
-        assert ("embedding", 4) in calls
+        assert (key, 2) in calls
+        assert (key, 4) in calls
         # 耗尽（left=0）→ 抛 UtilityQuotaExhausted，不调 inner
-        monkeypatch.setattr(quota_store, "get_used", lambda key: 1000)
+        monkeypatch.setattr(quota_store, "get_used", lambda k: 1000)
         try:
             wrapped.embed_query("abc")
             raise AssertionError("耗尽应抛 UtilityQuotaExhausted")
@@ -76,6 +79,7 @@ def test_quota_tracking_embeddings(monkeypatch):
         settings.embedding_provider = "local"
         settings.embedding_quota_total = 0
         settings.embedding_quota_initial = 0
+        settings.embedding_model = "text-embedding-v4"
 
 
 # ---------------- rerank 聚焦检索词（锚点优先 + 过短兜底，纯函数） ----------------

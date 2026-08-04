@@ -278,15 +278,16 @@ class LLMRegistry:
         配额 0 表示未启用配额监控，跳过。
         """
         items = []
-        # embedding（单条）
+        # embedding（单条，per-model key：换班后新模型从 0 起算）
         et, ei = settings.embedding_quota_total, settings.embedding_quota_initial
         if et > 0:
-            used = ei + quota_store.get_used("embedding")
+            ek = quota_utils.embedding_model_key()
+            used = ei + quota_store.get_used(ek)
             left = max(0, et - used)
             pct = left / et
             items.append(
                 {
-                    "key": "embedding",
+                    "key": ek,
                     "model": "BGE (local)" if settings.embedding_provider != "aliyun" else settings.embedding_model,
                     "modality": "embedding",
                     "tier": "utility",
@@ -301,8 +302,10 @@ class LLMRegistry:
                     "fallback": "manual_rebuild",
                 }
             )
-        # rerank（每模型一条，按轮换序列）
+        # rerank（每模型一条，按轮换序列；B11：degraded=队列全部不可用=整体降级本地精排，
+        # 区别于单模型耗尽但还有替代可轮换）
         rw, rh = settings.rerank_warn_threshold, settings.rerank_hard_threshold
+        rerank_items: list[dict[str, Any]] = []
         for m in quota_utils.rerank_model_list():
             total = quota_utils.utility_quota_total_for(m)
             if total <= 0:
@@ -310,7 +313,7 @@ class LLMRegistry:
             used = settings.rerank_quota_initial + quota_store.get_used(m)
             left = max(0, total - used)
             pct = left / total
-            items.append(
+            rerank_items.append(
                 {
                     "key": m,
                     "model": m,
@@ -326,6 +329,12 @@ class LLMRegistry:
                     "fallback": "local_cosine",
                 }
             )
+        degraded = bool(rerank_items) and all(
+            i["below_threshold"] or i["depleted"] for i in rerank_items
+        )
+        for i in rerank_items:
+            i["degraded"] = degraded
+        items.extend(rerank_items)
         return items
 
 registry = LLMRegistry()
