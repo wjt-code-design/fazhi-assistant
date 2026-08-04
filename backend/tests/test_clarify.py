@@ -109,6 +109,26 @@ def test_decide_no_false_refuse_from_mis_extracted_law():
     assert clarify.decide("legal_query", exam, True) == "direct"  # 检索命中 → 正常回答
     # 误抽形态：连接词/泛称/疑问 → 不拒答
     assert clarify.decide("legal_query", "这种合同纠纷适用合同法还是民法？", True) == "direct"
+
+
+def test_decide_no_false_refuse_from_org_abbrev():
+    """机构简称「最高法」不被误抽成法名致误拒答（2026-08-04 同类第 3 次）。
+
+    真实 case：死刑复核法考题选项「直接寄送最高法」——「最高法」以"法"结尾、长度合规，
+    被 _plausible_law 判为可信法名，source_in_kb 判不在库 → 误拒答"未收录"，尽管刑诉法
+    246-252（死刑复核全章）已在库且检索命中。修复：机构简称显式免疫。
+    """
+    exam = (
+        "刘某因故意杀人被判处死立执，同案钱某因涉其他案件被另案处理。关于死刑复核程序："
+        "A.刘某辩护律师可讲辩护意见直接寄送最高法 B.报请死刑复核的案件报告中应包括钱某处理情况 "
+        "C.如最高检经复核认为刘某可死缓并限制减刑，可直接改判 "
+        "D.如死刑复核期间最高检提出意见，最高法应当面听取并制作笔录"
+    )
+    assert clarify.decide("legal_query", exam, True) == "direct"  # 检索命中 → 正常回答
+    # 机构简称本身不是法律：不应被当作"不在库的可信法名"触发拒答
+    assert clarify._plausible_law("最高法") is False
+    assert clarify._plausible_law("最高检") is False
+    assert clarify._plausible_law("人民法院") is False
     assert clarify.decide("legal_query", "刑事法怎么规定的？", True) == "direct"
     assert clarify.decide("legal_query", "行政法规定的行政处罚种类", True) == "direct"
 

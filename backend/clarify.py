@@ -56,6 +56,14 @@ _GENERIC_LAWS = (
     "行政法", "刑事法", "民事法", "程序法", "实体法", "经济法",
     "诉讼法", "商法", "宪法学", "刑法学", "民法学",
 )
+# 机构/机关简称误抽（不是法律名称，2026-08-04 case：死刑复核法考题选项「最高法」被
+# 抽成法名 → source_in_kb 判不在库 → 误拒答"未收录"，尽管刑诉法 246-252 已在库且检索
+# 命中。同类第 3 次：毒品法场景词淹没 / 「不管何种刑法学说」/ 本次「最高法」——根因
+# 都是非法律名称的短语被当成法名。机构简称是有限集合，显式免疫最稳。）
+_ORG_SUSPECTS = (
+    "最高法", "最高法院", "最高检", "最高人民检察院", "高法", "高检",
+    "人民法院", "检察院", "法院", "公安机关", "公安部", "司法局", "司法部",
+)
 
 
 def _plausible_law(name: str) -> bool:
@@ -67,6 +75,8 @@ def _plausible_law(name: str) -> bool:
     if any(b in name for b in _JOIN_IMMUNE + _QUERY_WORDS):
         return False
     if name in _GENERIC_LAWS:
+        return False
+    if name in _ORG_SUSPECTS:  # 机构简称（最高法/法院等）不是法律名称，触发拒答免疫
         return False
     if not (name.endswith("法") or name.endswith("条例") or name.endswith("法典")):
         return False
