@@ -863,54 +863,53 @@ export default function AdminPage() {
                   <p className="mt-2 text-xs text-slate">指标为本次运行累计，重启清零；跨重启审计请查后端 legal.chat 日志。</p>
                 </div>
 
+                <div className="card mt-4 px-5 py-4">
+                  <div className="stat-label">当前活跃模型</div>
+                  <div className="mt-1 font-mono text-sm text-ink">
+                    {llmStatus.models.find((m) => !m.depleted && !m.below_threshold)?.model ?? "无可用模型"}
+                  </div>
+                  <p className="mt-2 text-xs text-slate">
+                    token 剩余量以阿里云控制台为准（本地估算时效性太低，已隐藏）。
+                    配额耗尽时系统按队列自动切换到下一个可用模型（依据真实 API 错误，非估算）。
+                    校准真实剩余值请调 <span className="font-mono">POST /api/admin/llm-quota {"{key, remaining}"}</span>。
+                  </p>
+                </div>
+
                 <div className="card mt-4 overflow-x-auto">
                   <table className="law-table">
                     <thead>
-                      <tr><th>模型</th><th>模态</th><th>等级</th><th>剩余配额</th><th>状态</th></tr>
+                      <tr><th>模型</th><th>模态</th><th>等级</th><th>状态</th></tr>
                     </thead>
                     <tbody>
-                      {llmStatus.models.map((m) => {
-                        const pct = m.quota_total > 0 ? Math.max(0, Math.min(100, (m.quota_left / m.quota_total) * 100)) : 0;
-                        return (
-                          <tr key={m.key}>
-                            <td className="max-w-[220px] truncate font-mono text-xs">{m.model}</td>
-                            <td><Badge kind={m.modality === "vision" ? "accent" : "neutral"}>{m.modality}</Badge></td>
-                            <td className="text-slate">{m.tier}</td>
-                            <td className="min-w-[180px]">
-                              <div className="h-2 w-full overflow-hidden rounded bg-mist">
-                                <div className="grad-bar h-full" style={{ width: `${pct}%`, ...(m.depleted ? { background: "var(--error)" } : {}) }} />
-                              </div>
-                              <div className="mt-1 text-xs text-slate">{m.quota_left.toLocaleString()} / {m.quota_total.toLocaleString()}</div>
-                            </td>
-                            <td>
-                              {m.depleted ? <Badge kind="error">已耗尽</Badge> : m.below_threshold ? <Badge kind="accent">将切换</Badge> : <Badge kind="success">可用</Badge>}
-                            </td>
-                          </tr>
-                        );
-                      })}
+                      {llmStatus.models.map((m) => (
+                        <tr key={m.key}>
+                          <td className="max-w-[220px] truncate font-mono text-xs">{m.model}</td>
+                          <td><Badge kind={m.modality === "vision" ? "accent" : "neutral"}>{m.modality}</Badge></td>
+                          <td className="text-slate">{m.tier}</td>
+                          <td>
+                            {m.depleted ? <Badge kind="error">已耗尽</Badge> : m.below_threshold ? <Badge kind="accent">将切换</Badge> : <Badge kind="success">可用</Badge>}
+                          </td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </div>
 
                 {llmStatus.utility_quota && llmStatus.utility_quota.length > 0 && (
                   <div className="card mt-4 px-5 py-4">
-                    <div className="stat-label">工具模型配额（embedding / rerank，云 token）</div>
+                    <div className="stat-label">工具模型状态（embedding / rerank）</div>
                     <div className="mt-3 space-y-3">
-                      {llmStatus.utility_quota.map((u) => {
-                        const pct = u.quota_total > 0 ? Math.max(0, Math.min(100, (u.quota_left / u.quota_total) * 100)) : 0;
-                        return (
-                          <div key={u.key}>
-                            <div className="flex items-center justify-between">
-                              <span className="font-mono text-xs text-ink">
-                                {u.modality === "embedding" ? "Embedding" : "Rerank"} · <span className="text-slate">{u.model}</span>
-                              </span>
-                              <span className="text-xs text-slate">{u.quota_left.toLocaleString()} / {u.quota_total.toLocaleString()} token</span>
-                            </div>
+                      {llmStatus.utility_quota.map((u) => (
+                        <div key={u.key}>
+                          <div className="flex items-center justify-between">
+                            <span className="font-mono text-xs text-ink">
+                              {u.modality === "embedding" ? "Embedding" : "Rerank"} · <span className="text-slate">{u.model}</span>
+                            </span>
                             <div className="mt-1 h-2 w-full overflow-hidden rounded bg-mist">
                               <div
                                 className="h-full"
                                 style={{
-                                  width: `${pct}%`,
+                                  width: "100%",
                                   background: u.depleted ? "var(--error)" : u.below_threshold ? "var(--error)" : u.warn_threshold ? "var(--accent)" : "var(--jade)",
                                 }}
                               />
@@ -935,13 +934,12 @@ export default function AdminPage() {
                               ) : (
                                 <Badge kind="success">充足</Badge>
                               )}
-                              <span className="ml-2 text-slate">剩余 {pct.toFixed(0)}%</span>
                             </div>
                           </div>
-                        );
-                      })}
+                        </div>
+                      ))}
                     </div>
-                    <p className="mt-3 text-xs text-slate">用量按输入文本估算（云 API 无真实 usage）；低于 5% 自动切回本地模型。</p>
+                    <p className="mt-3 text-xs text-slate">状态按本地估算（云 API 无真实 usage）；真实剩余以阿里云控制台为准。</p>
                   </div>
                 )}
               </div>

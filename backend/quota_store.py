@@ -81,6 +81,35 @@ def used_map() -> dict[str, int]:
         con.close()
 
 
+_INIT_PREFIX = "init:"  # 校准行前缀（初始用量覆盖，管理员从控制台读数后写入）
+
+
+def set_initial(key: str, initial_used: int) -> None:
+    """校准持久化：记录某模型校准后的初始用量（quota_left = total - initial - runtime）。"""
+    _ensure()
+    with _lock:
+        con = _connect()
+        try:
+            con.execute(
+                "INSERT INTO quota(key, used) VALUES(?, ?) ON CONFLICT(key) DO UPDATE SET used=excluded.used",
+                (_INIT_PREFIX + key, max(0, int(initial_used))),
+            )
+            con.commit()
+        finally:
+            con.close()
+
+
+def initial_override(key: str) -> int | None:
+    """读取某模型校准后的初始用量覆盖；无 → None。"""
+    _ensure()
+    con = _connect()
+    try:
+        row = con.execute("SELECT used FROM quota WHERE key=?", (_INIT_PREFIX + key,)).fetchone()
+        return int(row[0]) if row else None
+    finally:
+        con.close()
+
+
 def reset(key: str | None = None) -> None:
     """测试/重置用：清空某 key 或全部运行期累计。"""
     _ensure()

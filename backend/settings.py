@@ -26,6 +26,8 @@ class Settings(BaseSettings):
     feature_hybrid: bool = True  # 向量+BM25 RRF 混合检索
     feature_router: bool = True  # 多模型分级路由总开关；False 时主回答退化为旧单模型（get()）
     feature_study_retrieval: bool = True  # ADR-012：study_aid 具体题分步检索（False 一键回滚"不检索"）
+    feature_study_cache: bool = True  # 法考题(study_aid)进回答缓存白名单（False 回滚=仅 legal_query 可缓存）
+    feature_similar_cache: bool = True  # BGE 近重复命中（结构护栏防错答；False 只精确 key 命中）
 
     # ---- 多模型配置（可选整体覆盖默认代表表；JSON 数组，元素见 llm_registry.DEFAULT_ROLES 字段） ----
     # 留空则用 llm_registry 内置的 8 代表模型默认表（base_url/api_key 复用上面的 LLM_*）

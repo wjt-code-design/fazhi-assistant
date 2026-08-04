@@ -57,9 +57,11 @@ from prompts import (
     SYSTEM_STUDY,
 )
 from quota_utils import UtilityQuotaExhausted
-from rag_chain import clean_answer, format_docs, make_chain, stream_with_retry, vectorstore
+from rag_chain import clean_answer, embeddings, format_docs, make_chain, stream_with_retry, vectorstore
 from retrieval import (
+    _normalize_article,
     citation_verify,
+    extract_citations,
     grounded_top_score,
     prewarm,
     retrieve,
@@ -74,6 +76,7 @@ from schemas import (
     FeedbackIn,
     KnowledgeAddIn,
     KnowledgeTestIn,
+    LlmQuotaIn,
     LlmSwitchIn,
     LoginIn,
     MessageOut,
@@ -474,9 +477,14 @@ def _cutoff() -> str:
 
 
 def _cacheable(pre: dict) -> bool:
-    """仅安全形态可缓存：法律咨询 + 无图 + 首轮 + 检索命中。"""
+    """仅安全形态可缓存：法律咨询/法考题(study_aid) + 无图 + 首轮 + 检索命中。
+
+    study_aid 白名单由 feature_study_cache 控制（ADR-012 后法考题答案自检通过率高——
+    评测 19/20 带库内引用，写闸见 _cache_write_ok，防"引在库但答非所问"入缓存）。"""
+    intent = pre.get("intent")
+    ok_intent = intent == "legal_query" or (settings.feature_study_cache and intent == "study_aid")
     return (
-        pre.get("intent") == "legal_query"
+        ok_intent
         and not pre.get("image")
         and not pre.get("recent")
         and bool(pre.get("sources"))
@@ -486,6 +494,55 @@ def _cacheable(pre: dict) -> bool:
 def _cache_key(pre: dict) -> str:
     ids = [f"{s.get('source', '')}|{s.get('article', '')}" for s in (pre.get("sources") or [])]
     return answer_cache.make_key(pre.get("rewritten", ""), pre.get("intent", ""), _cutoff(), ids)
+
+
+def _cache_write_ok(pre: dict, answer: str) -> bool:
+    """确定性缓存写闸（审查 C2）：study_aid 答案的引用必须全部命中本轮检索返回条文。
+
+    自检（quality.self_check）只是"无实体"门禁——查引用是否在库，不保证"引对题"
+    （引在库但答非所问）。法考题答案与检索条文强绑定，故写缓存前追加确定性校验：
+    引用条号 ⊆ 检索 sources 的条号集合，防止"引对库内条但语义不对题"的坏答案被
+    TTL 6h 缓存放大给所有同 key 用户。legal_query 维持现状（自检已覆盖）。
+    """
+    if pre.get("intent") != "study_aid":
+        return True
+    retrieved = {_normalize_article(s.get("article", "")) for s in (pre.get("sources") or []) if s.get("article")}
+    if not retrieved:
+        return False
+    cited = {_normalize_article(a) for _, a, _ in extract_citations(answer or "")}
+    return bool(cited) and cited <= retrieved
+
+
+def _cache_guards(text: str) -> tuple[str, int, str]:
+    """近重复护栏：极性/选项数/标号体系（确定性纯函数，query_understand）。"""
+    return (
+        query_understand._polarity(text),
+        query_understand.option_count(text),
+        query_understand._label_system(text),
+    )
+
+
+def _embed_question(text: str) -> list[float] | None:
+    """本地 BGE 嵌入（零成本）；失败静默返回 None（不阻塞主流程）。"""
+    try:
+        return embeddings.embed_query(text or "")
+    except Exception:
+        return None
+
+
+def _similar_cache_hit(pre: dict) -> dict | None:
+    """近重复命中（feature_similar_cache，grilling 定稿）：嵌入输入 + 护栏 → get_similar。
+
+    仅当精确 key miss 时调用；护栏不一致（极性/选项数/标号体系）→ miss，安全。
+    """
+    try:
+        emb = _embed_question(pre.get("rewritten") or "")
+        if not emb:
+            return None
+        pol, cnt, lab = _cache_guards(pre.get("rewritten") or "")
+        return answer_cache.get_similar(emb, polarity=pol, option_count=cnt, label_system=lab)
+    except Exception:
+        return None
 
 
 @dataclass
@@ -590,9 +647,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
 
     async def stream():
         try:
-            # 分支0：缓存命中 → 零 token 直返
-            if cache_hit:
-                ca = cache_hit["answer"]
+            # 分支0：缓存命中（精确 key 优先，近重复兜底 feature_similar_cache）→ 零 token 直返
+            hit = cache_hit
+            if not hit and cache_key and settings.feature_similar_cache:
+                hit = await run_in_threadpool(_similar_cache_hit, pre)
+            if hit:
+                ca = hit["answer"]
                 _f0 = time.perf_counter()  # 缓存命中：首帧≈总耗时（瞬时，用于首帧埋点分段标注）
                 yield f"data: {json.dumps({'content': ca}, ensure_ascii=False)}\n\n"
                 routing_metrics.record("cache", False, "pass", "hit", checked=False)
@@ -663,17 +723,36 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         print(f"[chat-post] {e}", flush=True)
                 return
 
-            # 分支2：旗舰 / legacy 流式（保留多配置空答重试 + 流末引用校验）
+            # 分支2：旗舰 / legacy 流式（空答重试 + 配额耗尽自动换模型 块2.2）
+            current = {"key": flag_key}
+
             def make_chain_fn(_i, disabled):
-                if use_router and flag_key:
-                    llm = registry.variant_of(flag_key, disabled) if disabled else flag_llm
-                else:
-                    llm = registry.get() if _i == 0 else registry.variant(disabled)
+                # 首次用已 pick 的模型；重试（空答/配额耗尽 mark_depleted 后）重新 pick →
+                # 自动落到下一个可用后备模型
+                if use_router:
+                    if _i == 0 and current["key"]:
+                        key = current["key"]
+                        llm = registry.variant_of(key, disabled) if disabled else flag_llm
+                    else:
+                        key, llm, _ = _safe_pick(modality, tier or "flag")
+                        current["key"] = key
+                        if disabled:
+                            llm = registry.variant_of(key, disabled)
+                    return make_chain(llm)
+                llm = registry.get() if _i == 0 else registry.variant(disabled)
                 return make_chain(llm)
+
+            def _on_quota_exhausted(_e):
+                # 配额型错误（真实 API 报错，非估算）→ 立即 mark_depleted，下一轮落后备
+                if use_router and current["key"]:
+                    registry.mark_depleted(current["key"], "quota_error")
 
             chunks = []
             _f0 = None
-            async for piece in stream_with_retry(make_chain_fn, messages, [(False, 0.0), (True, 0.5), (False, 0.5)]):
+            async for piece in stream_with_retry(
+                make_chain_fn, messages, [(False, 0.0), (True, 0.5), (False, 0.5)],
+                on_quota_exhausted=_on_quota_exhausted,
+            ):
                 if _f0 is None:
                     _f0 = time.perf_counter()  # 真流式：首个 token 时刻（首帧埋点）
                 chunks.append(piece)
@@ -711,23 +790,33 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             if use_router and answer and pre["intent"] != "chitchat":  # 闲聊豁免质检（无检索语境）
                 sv = quality.self_check(answer, bool(pre["sources"]))
                 if sv.ok:
-                    if cache_key:
-                        answer_cache.put(cache_key, answer, pre["sources"])
+                    # 写缓存三闸（审查 C2/C3）：非降级（降级答案不入缓存，防缓存用户
+                    # 看不到免责注）+ 确定性写闸（study_aid 引用 ⊆ 检索条文）
+                    if cache_key and not flag_degraded and _cache_write_ok(pre, answer):
+                        emb = await run_in_threadpool(_embed_question, pre.get("rewritten") or "")
+                        pol, cnt, lab = _cache_guards(pre.get("rewritten") or "")
+                        answer_cache.put(
+                            cache_key, answer, pre["sources"],
+                            embedding=emb, polarity=pol, option_count=cnt, label_system=lab,
+                            model=registry.model_of(flag_key) if use_router else "",
+                        )
                 else:
                     verdict_flag = sv.reason
-                    answer += NOTE_COMPLEX
-                    yield f"data: {json.dumps({'content': NOTE_COMPLEX}, ensure_ascii=False)}\n\n"
+                    # 法考题(study_aid)自检 FAIL 只不写缓存，不加"较复杂"注（解析型回答
+                    # 常引格式条文/库外表达，注语义违和且误导；审查 I3）
+                    if pre["intent"] != "study_aid":
+                        answer += NOTE_COMPLEX
+                        yield f"data: {json.dumps({'content': NOTE_COMPLEX}, ensure_ascii=False)}\n\n"
             # S2：回退模型本身已不可用 → 明说降级，不静默烧耗尽模型（闲聊豁免：降级注不适合闲聊语境）
             if use_router and flag_degraded and answer and pre["intent"] != "chitchat":
                 verdict_flag = "low_quota"
                 answer += NOTE_QUOTA
                 yield f"data: {json.dumps({'content': NOTE_QUOTA}, ensure_ascii=False)}\n\n"
-            # 流式无真实 usage → 按输出 + 主要输入估算扣减（补输入，避免长期低估）
+            # 流式无真实 usage → 按输出 + 主要输入估算扣减（补输入，避免长期低估）。
+            # thinking 模型 reasoning_content 不计入估算 → ×thinking_mult 近似（审查 K1）
             if use_router and flag_key and answer:
-                registry.deduct(
-                    flag_key,
-                    estimate_tokens(answer) + estimate_tokens(pre.get("context", "") + pre.get("user_text", "")),
-                )
+                est = estimate_tokens(answer) + estimate_tokens(pre.get("context", "") + pre.get("user_text", ""))
+                registry.deduct(flag_key, est * registry.thinking_mult(flag_key))
             routing_metrics.record(
                 (tier or "flag") if use_router else "legacy", False, verdict_flag, "miss",
                 checked=bool(use_router and answer),
@@ -1027,13 +1116,32 @@ async def admin_llm_switch(request: Request, body: LlmSwitchIn, _admin: User = D
 
 @app.get("/api/admin/llm-status")
 def admin_llm_status(_admin: User = Depends(require_admin)):
-    """模型配额 + 路由运行态指标（仅管理员；普通用户接口不返回模型信息）。"""
+    """模型配额 + 路由运行态指标（仅管理员；普通用户接口不返回模型信息）。
+
+    前端只展示当前活跃模型与切换原因，不渲染估算配额数字（用户决策：估算时效性太低）。
+    """
     return {
         "feature_router": settings.feature_router,
         "models": registry.status(),
         "utility_quota": registry.utility_quota_status(),  # embedding/rerank 配额（ADR-011 阶段E）
         "metrics": routing_metrics.snapshot(),
     }
+
+
+@app.post("/api/admin/llm-quota")
+@limiter.limit("10/minute")
+async def admin_llm_quota(request: Request, body: LlmQuotaIn, _admin: User = Depends(require_admin)):
+    """配额校准（块 3）：按控制台真实剩余值回写该模型 initial_used，看门狗对齐真实值。
+
+    用户决策：后台不展示估算配额数字（时效性太低），但"用完即切"的看门狗依赖 remaining
+    估算——本端点让管理员从控制台读实际值后校准，切换逻辑才有可靠依据。
+    """
+    try:
+        res = registry.calibrate(body.key, body.remaining)
+    except KeyError:
+        raise HTTPException(status_code=404, detail=f"未知模型 key: {body.key}")
+    log_audit(_admin.id, "llm.quota_calibrate", target=body.key, detail=f"remaining={body.remaining}")
+    return res
 
 
 # ==================== 管理员：操作审计 ====================

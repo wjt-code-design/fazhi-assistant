@@ -89,6 +89,11 @@ class LRU:
         with self._lock:
             return len(self._d)
 
+    def items(self):
+        """快照迭代（线程安全，拷贝）：供近重复命中余弦扫描（answer_cache.get_similar）。"""
+        with self._lock:
+            return list(self._d.items())
+
 
 def rrf(rankings: list[list[str]], k: int = RRF_K) -> dict[str, float]:
     """Reciprocal Rank Fusion。rankings=多个按相关性排序的 doc-id 列表；返回 id->融合分。纯函数。"""

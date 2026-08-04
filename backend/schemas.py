@@ -137,6 +137,11 @@ class LlmSwitchIn(BaseModel):
     model: str | None = Field(default=None, min_length=1, max_length=64)
 
 
+class LlmQuotaIn(BaseModel):
+    key: str = Field(min_length=1, max_length=64)
+    remaining: int = Field(ge=0)  # 控制台真实剩余 token（管理员读数校准）
+
+
 class FeedbackIn(BaseModel):
     conversation_id: int | None = None
     question: str = Field(..., min_length=1, max_length=4000)

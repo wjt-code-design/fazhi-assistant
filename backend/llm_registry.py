@@ -29,11 +29,31 @@ DEFAULT_QUOTA = 1_000_000
 # base_url / api_key 复用 settings；可在 .env 用 LLM_MODELS_JSON 整体覆盖。
 DEFAULT_ROLES: list[dict[str, Any]] = [
     # priority：同 (modality, tier) 内能力优先级，小=优先；配额只判可用与否，不参与排序。
-    # 精简为 2 个强可控模型：thinking/视觉推理模型与 deepseek-r1 在边缘 case（库外问题被检索召回
-    # 无关条文时）会据无关条文硬答、不可控，故剔除。text 轻量档空缺时 _safe_pick 回退默认全模态
-    # 强模型兜底（历史对边缘 case 诚实拒答/答对），消除轻量硬答风险；省配额靠缓存命中 + 不升级。
-    {"key": "text_flag", "model": "qwen3.7-plus", "modality": "text", "tier": "flag", "priority": 0, "capabilities": ["text"], "disable_thinking": True, "initial_used": 28580},  # 关深度思考：法律引用无需长思考，关后 24s→3s 且引用更直接
+    # 2026-08-05 因配额耗尽重引 thinking 兜底（ADR-010 反向决策）：受缓存写闸（引用⊆检索）
+    # / citation_verify / self_check / refuse 四防线约束，仅作最后兜底；切换后须跑 eval_exam 验证。
+    # 文本队列按**质量序**（用户确认，质量优先）：强模型优先，弱模型兜底。
+    # priority 强弱依据用户给出的从弱到强排名反转而来；改 priority 一行即可换序。
+    # quota_total 默认 100 万，initial_used 待管理员用 /api/admin/llm-quota 校准真实值。
+    {"key": "text_flag", "model": "qwen3.7-plus", "modality": "text", "tier": "flag", "priority": 0, "capabilities": ["text"], "disable_thinking": True, "initial_used": 28580},  # 现役旗舰；关深度思考：法律引用无需长思考
+    {"key": "text_ds_flash", "model": "deepseek-v4-flash", "modality": "text", "tier": "flag", "priority": 1, "capabilities": ["text"], "disable_thinking": True},  # 用户确认：最强非思考模型
+    {"key": "text_max_37d", "model": "qwen3.7-max-2026-06-08", "modality": "text", "tier": "flag", "priority": 2, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_max_37", "model": "qwen3.7-max", "modality": "text", "tier": "flag", "priority": 3, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_max_37pv", "model": "qwen3.7-max-preview", "modality": "text", "tier": "flag", "priority": 4, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_max_36pv", "model": "qwen3.6-max-preview", "modality": "text", "tier": "flag", "priority": 5, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_ds_pro", "model": "deepseek-v4-pro", "modality": "text", "tier": "flag", "priority": 6, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_kimi", "model": "kimi-k2.6", "modality": "text", "tier": "flag", "priority": 7, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_glm52", "model": "glm-5.2", "modality": "text", "tier": "flag", "priority": 8, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_glm5", "model": "glm-5", "modality": "text", "tier": "flag", "priority": 9, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_plus_36", "model": "qwen3.6-plus", "modality": "text", "tier": "flag", "priority": 10, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_plus_35", "model": "qwen3.5-plus-2026-02-15", "modality": "text", "tier": "flag", "priority": 11, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_qwen_plus", "model": "qwen-plus-2025-07-28", "modality": "text", "tier": "flag", "priority": 12, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_ds_flash0731", "model": "deepseek-v4-flash-0731", "modality": "text", "tier": "flag", "priority": 13, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_flash_37", "model": "qwen3.7-flash-2026-07-15", "modality": "text", "tier": "flag", "priority": 14, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_flash_35", "model": "qwen3.5-flash-2026-02-23", "modality": "text", "tier": "flag", "priority": 15, "capabilities": ["text"], "disable_thinking": True},
+    {"key": "text_thinking_32b", "model": "qwen3-vl-32b-thinking", "modality": "text", "tier": "flag", "priority": 16, "capabilities": ["text"], "disable_thinking": False},  # 思考专属版，仅最后兜底
+    {"key": "text_thinking_235b", "model": "qwen3-vl-235b-a22b-thinking", "modality": "text", "tier": "flag", "priority": 17, "capabilities": ["text"], "disable_thinking": False},  # 思考专属版，仅最后兜底
     {"key": "vision_flag", "model": "qwen3.5-omni-plus-2026-03-15", "modality": "vision", "tier": "flag", "priority": 0, "capabilities": ["text", "vision"], "disable_thinking": True, "initial_used": 140644},  # 关深度思考，图片回答同样提速
+    {"key": "vision_rt", "model": "qwen3.5-omni-plus-realtime", "modality": "vision", "tier": "flag", "priority": 1, "capabilities": ["text", "vision"], "disable_thinking": True},
 ]
 
 # 各模态的 tier 回退链（请求某 tier 时，从该 tier 起沿链向上找未耗尽的）
@@ -87,7 +107,9 @@ def _build(cfg: dict[str, Any]) -> ChatOpenAI:
     if not cfg.get("api_key") or not cfg.get("base_url"):
         raise RuntimeError("缺少 LLM_API_KEY / LLM_BASE_URL，请在 backend/.env 配置")
     model_kwargs: dict[str, Any] = {}
-    if cfg.get("disable_thinking"):
+    # thinking:disabled 是 DashScope qwen 专属参数；deepseek/glm/kimi 经兼容端点
+    # 可能 400（审查 I6）——只对 qwen 系发，第三方模型默认无思考不改行为
+    if cfg.get("disable_thinking") and str(cfg.get("model", "")).startswith("qwen"):
         model_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
     return ChatOpenAI(
         model=cfg["model"],
@@ -147,6 +169,11 @@ class LLMRegistry:
                     initial_used=int(r.get("initial_used", 0)),
                     runtime_used=quota_store.get_used(key),
                 )
+                # 校准覆盖（块 3）：管理员从控制台读数后用 /api/admin/llm-quota 校准，
+                # 覆盖默认 initial_used——看门狗 remaining 与真实值对齐
+                ov = quota_store.initial_override(key)
+                if ov is not None:
+                    e.initial_used = ov
                 e.llm = _build(cfg)
                 self._entries[key] = e
 
@@ -248,6 +275,40 @@ class LLMRegistry:
                 return e.model
             d = self._default_entry()
             return d.model if d else ""
+
+    def thinking_mult(self, key: str | None) -> int:
+        """思考模型扣减系数（审查 K1：流式无真实 usage，thinking 的 reasoning_content 不进入
+        本地估算——×3 近似，防看门狗失明导致"剩<5% 自动跳过"不按时触发）。"""
+        with self._lock:
+            e = self._entries.get(key) if key else None
+            if e and not e.cfg.get("disable_thinking", True):
+                return 3
+            return 1
+
+    def mark_depleted(self, key: str, reason: str) -> None:
+        """配额耗尽即时失效（块 2.2：依据真实 API 错误，不靠估算）。置 remaining=0，
+        该模型立即 unavailable；下一请求/同请求重试自动落后备。"""
+        with self._lock:
+            e = self._entries.get(key)
+            if not e or e.depleted:
+                return
+            e.runtime_used += max(0, e.quota_left)
+        quota_store.record_delta(key, 0)  # 校准列由 /api/admin/llm-quota 持久化；此处内存即时生效
+
+    def calibrate(self, key: str, remaining: int) -> dict[str, Any]:
+        """配额校准（块 3）：按控制台真实剩余值回写 initial_used，看门狗对齐真实值。
+
+        quota_left = quota_total - initial_used - runtime_used；设 remaining=R →
+        initial_used = quota_total - R - runtime_used（下限 0）。持久化到 quota_store，
+        重启后 _load 自动应用。"""
+        with self._lock:
+            e = self._entries.get(key)
+            if not e:
+                raise KeyError(f"未知模型 key: {key}")
+            new_init = max(0, e.quota_total - int(remaining) - e.runtime_used)
+            e.initial_used = new_init
+        quota_store.set_initial(key, new_init)
+        return {"key": key, "model": e.model, "quota_left": e.quota_left, "initial_used": e.initial_used}
 
     def status(self) -> list[dict[str, Any]]:
         """管理员用：各模型配额与可用状态。"""

@@ -119,30 +119,59 @@ def make_chain(llm):
     return llm | StrOutputParser()
 
 
-async def stream_with_retry(make_chain_fn, messages, configs):
+async def stream_with_retry(make_chain_fn, messages, configs, on_quota_exhausted=None):
     """流式生成 + 空答多配置重试（异步生成器，边收边 yield，真流式）。
 
     make_chain_fn(i, disabled) -> 可 astream 的链；configs = [(disabled, wait_seconds), ...]。
     依次尝试：首个产生非空内容即返回；全部为空则 yield 结束后返回（调用方据此判定为空）。
+
+    配额耗尽自动换模型（块 2.2，用户核心要求）：astream 抛配额型错误（HTTP 429 /
+    InsufficientBalance / QuotaExhausted / 限流）→ 调 on_quota_exhausted(err)（调用方
+    mark_depleted 当前 key）→ 下一次循环重新 make_chain_fn（内部重新 pick 落后备）→
+    用下一模型重试当前请求。配额错误多在首帧前（请求被拒），已 yield 的部分内容会保留。
 
     并发门控：整个生成过程占一个全局 LLM 并发位（async 路径），超限排队超时抛
     LLMBusyError → 调用方降级「服务繁忙」。突增时不会无界并发打向供应商。
     """
     async with llm_guard:
         for i, (disabled, wait) in enumerate(configs):
-            chain = make_chain_fn(i, disabled)
-            chunks = []
-            async for piece in chain.astream(messages):
-                if piece:
-                    chunks.append(piece)
-                    yield piece
-            if "".join(chunks):
-                return
-            if wait:
-                await asyncio.sleep(wait)
+            try:
+                chain = make_chain_fn(i, disabled)
+                chunks = []
+                async for piece in chain.astream(messages):
+                    if piece:
+                        chunks.append(piece)
+                        yield piece
+                if "".join(chunks):
+                    return
+                if wait:
+                    await asyncio.sleep(wait)
+            except Exception as e:
+                if on_quota_exhausted and _is_quota_error(e):
+                    on_quota_exhausted(e)  # mark_depleted 当前模型 → 下次循环重新 pick 落后备
+                    if wait:
+                        await asyncio.sleep(wait)
+                    continue
+                raise
 
 
 _THINK_RE = re.compile(r"<think>.*?</think>", re.S)
+
+# 配额型错误信号（块 2.2 换模型判定）：HTTP 429 / 余额不足 / 配额耗尽 / 限流
+_QUOTA_ERR_MARKS = (
+    "quota", "QuotaExhausted", "InsufficientBalance", "Throttling", "Throttle",
+    "RateLimit", "limit", "限流", "配额", "余额不足", "429",
+)
+
+
+def _is_quota_error(e: Exception) -> bool:
+    """是否配额型错误（用于 mark_depleted 换模型）。宁可多判（标记后校准端点可恢复），
+    不可漏判（否则耗尽后反复失败不切换）。"""
+    code = getattr(e, "status_code", None) or getattr(e, "status", None)
+    if code == 429:
+        return True
+    msg = str(e)
+    return any(m in msg for m in _QUOTA_ERR_MARKS)
 
 
 def clean_answer(text: str) -> str:

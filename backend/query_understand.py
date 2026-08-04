@@ -130,6 +130,53 @@ def _split_by_choice(text: str) -> list[str]:
     return [p for p in best if len(p) >= 4][:SLICE_MAX]
 
 
+def _stem(text: str) -> str:
+    """取题干段（第一个选项标号之前）。无选项 → 整段。确定性纯函数（缓存护栏用）。"""
+    t = text or ""
+    best = len(t)
+    for fmt in _OPTION_FMTS:
+        m = fmt.search(t)
+        if m and m.start() < best:
+            best = m.start()
+    return t[:best]
+
+
+def _polarity(text: str) -> str:
+    """题干极性：'true'/'false'/''（中性）。确定性纯函数（防否定词盲区，审查 K4）。
+
+    只在题干段（选项标号前）判定，避免选项内容里的"错误/正确"字眼干扰。
+    "不正确"先于"正确"匹配（子串包含关系）。
+    """
+    stem = _stem(text)
+    if "不正确" in stem or "错误的" in stem or "错误的是" in stem or "错误" in stem:
+        return "false"
+    if "正确" in stem:
+        return "true"
+    return ""
+
+
+def _label_system(text: str) -> str:
+    """选项标号体系：'A-D'/'①-⑧'/'1-8'/'none'。确定性纯函数（审查 C4：答案"选B"
+    不能展示给 ①②③④ 的题——标号体系不一致不同 key/不同命中判定）。"""
+    t = text or ""
+    if _OPTION_FMTS[0].search(t) or _OPTION_FMTS[1].search(t):  # A：/A. 等
+        return "A-D"
+    if _OPTION_FMTS[2].search(t):  # ①-⑧
+        return "circ"
+    if _OPTION_FMTS[3].search(t):  # 1. 等
+        return "num"
+    return "none"
+
+
+def option_count(text: str) -> int:
+    """选项个数（按题面出现的选项标号统计）。确定性纯函数（缓存护栏：4 选 vs 5 选不同题）。"""
+    t = text or ""
+    counts = []
+    for fmt in _OPTION_FMTS:
+        counts.append(len([m for m in fmt.finditer(t)]))
+    return max(counts, default=0)
+
+
 def _split_by_sentence(text: str) -> list[str]:
     """按中文标点切句，取较长句（保留有信息量的），上限 SLICE_MAX。"""
     parts = [s.strip() for s in _SENT_SPLIT_RE.split(text)]

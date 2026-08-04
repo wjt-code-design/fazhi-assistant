@@ -92,6 +92,18 @@
   - 流式路径无真实 usage，按输出长度估算扣减（标注「近似」）。
   - `routing_metrics` 为进程内运行态，重启清零；跨重启审计看 `legal.chat` 日志。
   - LLM 有固有波动，full 门禁为 release 前抽查，允许偶发重跑，非 100% 稳定。
+- **反向决策（2026-08-05，配额耗尽背景下重引 thinking 兜底）**：
+  - 原因：qwen3.7-plus 配额将尽，需启用大后备队列保服务连续。用户提供同 API 内 17 文本 +
+    2 视觉模型；按**质量序**注册（deepseek-v4-flash 最强非思考 → max 系 → plus 系 → flash 系 →
+    thinking 垫底），改 priority 一行可换序。
+  - 风险收敛：thinking 模型（qwen3-vl-32b/235b-thinking）恢复 ADR-010 曾剔除的"库外据无关条文
+    硬答"风险，仅作最后兜底；受缓存写闸（引用 ⊆ 检索条文）/citation_verify/self_check/refuse
+    四防线约束，切换后须跑 eval_exam 验证（golden_hit 降 → 降 priority）。
+  - **配额可信度整改**：本地估算（流式无真实 usage，按输出长度估）与阿里云控制台真实值偏差大
+    （qwen3.7-plus 本地显示 585K，控制台接近耗尽）——后台**移除估算数字展示**（用户决策），
+    改为只显示当前活跃模型 + 切换原因；新增 `/api/admin/llm-quota` 校准端点（管理员读控制台后
+    回写 remaining），看门狗以校准值 + **真实 API 错误即时切换**（`mark_depleted`，不靠估算）双保险。
+  - thinking 扣减 ×3 系数（reasoning_content 不计入本地估算，防看门狗失明）。
 
 ---
 

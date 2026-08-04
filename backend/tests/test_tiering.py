@@ -114,7 +114,35 @@ def test_cacheable_only_safe_form():
     assert main._cacheable(p) is False  # 无命中不缓存
     p = _pre(sources=True)
     p["intent"] = "study_aid"
-    assert main._cacheable(p) is False
+    assert main._cacheable(p) is True  # 法考题白名单（feature_study_cache=True，ADR-012 后解析答案可缓存）
+    p["sources"] = []
+    assert main._cacheable(p) is False  # 检索无命中仍不缓存
+    p = _pre(sources=True)
+    p["intent"] = "study_aid"
+    old = main.settings.feature_study_cache
+    main.settings.feature_study_cache = False
+    try:
+        assert main._cacheable(p) is False  # flag 关 → 回滚仅 legal_query 可缓存
+    finally:
+        main.settings.feature_study_cache = old
+
+
+def test_cache_write_ok_study_aid_gate():
+    """法考题写缓存确定性写闸（审查 C2）：引用必须全部命中本轮检索条文。"""
+    pre = _pre(sources=True)
+    pre["intent"] = "study_aid"
+    # 引用在检索条文中 → 可写
+    assert main._cache_write_ok(pre, "依据《劳动合同法》第十九条，试用期最长六个月。") is True
+    # 引用了库内但非本轮检索条文 → 不写（防"引在库但答非所问"入缓存）
+    assert main._cache_write_ok(pre, "依据《民法典》第一千一百六十五条，应承担侵权责任。") is False
+    # 无引用 → 不写
+    assert main._cache_write_ok(pre, "这道题选 A。") is False
+    # 检索无命中 → 不写
+    p2 = _pre(sources=False)
+    p2["intent"] = "study_aid"
+    assert main._cache_write_ok(p2, "依据《劳动合同法》第十九条。") is False
+    # legal_query 维持现状（自检已覆盖）
+    assert main._cache_write_ok(_pre(sources=True), "依据《劳动合同法》第十九条。") is True
 
 
 def test_cache_key_stable_and_cutoff_sensitive():
