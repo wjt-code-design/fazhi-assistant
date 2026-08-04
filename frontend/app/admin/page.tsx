@@ -65,32 +65,7 @@ interface AuditRow {
   detail: string;
   created_at?: string;
 }
-interface LlmModelRow {
-  key: string;
-  model: string;
-  modality: string;
-  tier: string;
-  quota_total: number;
-  quota_left: number;
-  depleted: boolean;
-  below_threshold: boolean;
-}
-interface UtilityQuotaRow {
-  key: string;
-  model: string;
-  modality: string;
-  quota_total: number;
-  quota_left: number;
-  depleted: boolean;
-  warn_threshold: boolean; // <15% 标黄
-  below_threshold: boolean; // <5% 标红
-  fallback: "local_cosine" | "manual_rebuild"; // 耗尽后的行为：rerank=自动降级本地精排；embedding=手动换班
-  degraded?: boolean; // rerank 队列全部不可用=整体降级本地精排（区别于单模型耗尽仍可轮换）
-}
 interface LlmStatus {
-  feature_router: boolean;
-  models: LlmModelRow[];
-  utility_quota: UtilityQuotaRow[];
   metrics: {
     total: number;
     tier_mix: { light: number; flag: number; cache: number; legacy: number };

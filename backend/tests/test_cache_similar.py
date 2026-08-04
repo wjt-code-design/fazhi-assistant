@@ -14,7 +14,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 import answer_cache
 import retrieval_core as rc
-from query_understand import _label_system, _polarity, option_count
+from query_understand import _label_system, _options_fingerprint, _polarity, option_count
 
 
 def _v(*xs):
@@ -47,12 +47,29 @@ def test_option_count():
     assert option_count("普通问题") == 0
 
 
+# ---------------- 选项内容指纹（审查 C4 修复） ----------------
+def test_options_fingerprint_same_question_different_format():
+    a = _options_fingerprint("下列说法正确的是？A.甲承担 B.乙免责 C.丙赔偿 D.丁无责")
+    b = _options_fingerprint("下列说法正确的是？A：甲承担 B：乙免责 C：丙赔偿 D：丁无责")
+    assert a == b and a != ""  # 标号分隔符差异 → 同指纹
+
+
+def test_options_fingerprint_different_options_differ():
+    a = _options_fingerprint("下列说法正确的是？A.甲承担 B.乙免责 C.丙赔偿 D.丁无责")
+    b = _options_fingerprint("下列说法正确的是？A.甲承担 B.乙免责 C.是 D.否")
+    assert a != b  # 选项内容不同 → 不同指纹（短选项不被过滤，C1 反例）
+
+
+def test_options_fingerprint_non_option_is_empty():
+    assert _options_fingerprint("试用期最长多久？") == ""
+
+
 # ---------------- get_similar ----------------
-def _put(key, text_vec, pol="", cnt=0, lab="", answer="缓存答案"):
+def _put(key, text_vec, pol="", cnt=0, lab="", fp="", answer="缓存答案"):
     answer_cache.put(
         key, answer, [{"source": "民法典", "article": "第一千一百六十五条"}],
         embedding=text_vec, polarity=pol, option_count=cnt, label_system=lab,
-        model="qwen3.7-plus",
+        options_fingerprint=fp, model="qwen3.7-plus",
     )
 
 
@@ -88,6 +105,27 @@ def test_get_similar_label_system_mismatch_misses():
     assert answer_cache.get_similar(
         _v(0.99, 0.1, 0), polarity="true", option_count=4, label_system="circ",
     ) is None
+
+
+def test_get_similar_option_content_mismatch_misses():
+    """审查 C4 修复：同题干换选项内容，余弦虽高但指纹不同 → 必须 miss（防"选B"错位）。"""
+    answer_cache.clear()
+    _put("k1", _v(1, 0, 0), pol="true", cnt=4, lab="A-D", fp="甲\x1f乙\x1f丙\x1f丁")
+    assert answer_cache.get_similar(
+        _v(0.99, 0.1, 0), polarity="true", option_count=4, label_system="A-D",
+        options_fingerprint="甲\x1f乙\x1f是\x1f否",
+    ) is None
+
+
+def test_get_similar_option_fingerprint_match_hits():
+    """同题换说法（标号分隔符差异，指纹一致）→ 命中。"""
+    answer_cache.clear()
+    _put("k1", _v(1, 0, 0), pol="true", cnt=4, lab="A-D", fp="甲\x1f乙\x1f丙\x1f丁")
+    hit = answer_cache.get_similar(
+        _v(0.99, 0.1, 0), polarity="true", option_count=4, label_system="A-D",
+        options_fingerprint="甲\x1f乙\x1f丙\x1f丁",
+    )
+    assert hit is not None and hit["answer"] == "缓存答案"
 
 
 def test_get_similar_below_threshold_misses():

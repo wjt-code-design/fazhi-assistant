@@ -177,6 +177,35 @@ def option_count(text: str) -> int:
     return max(counts, default=0)
 
 
+_OPT_LABEL_RE = re.compile(r"^[A-HＡ-Ｈ①-⑧1-8]?[：:.、)）]")
+
+
+def _options_fingerprint(text: str) -> str:
+    """选项内容指纹（近重复护栏，审查 C4 修复）：剥选项标号+去空白，按序拼接。
+
+    同题换说法（标号分隔符/空白差异）→ 同指纹；**不同选项内容 → 不同指纹**——
+    防"同题干换选项但余弦仍 ≥0.95"把旧题"选B"答案错位下发（reviewer 确认的 blocker）。
+
+    无选项/解析失败 → ''（不参与指纹比对，仅靠余弦+其余护栏）。绝不过滤短选项、
+    不截断（复用 _split_by_choice 的 len>=4 过滤会丢短选项——C1 反例已证）。
+    """
+    t = text or ""
+    best: list[str] | None = None
+    best_n = 0
+    for fmt in _OPTION_FMTS:
+        parts = [p for p in fmt.split(t) if p.strip()]
+        n = len(parts)
+        if n >= 3 and n > best_n:  # 与 _split_by_choice 同口径探测（>=3 段才算选项题）
+            best, best_n = parts, n
+    if best is None or len(best) < 3:
+        return ""
+    options = []
+    for seg in best[1:]:  # best[0] 是题干
+        s = _OPT_LABEL_RE.sub("", seg)
+        options.append(re.sub(r"\s+", "", s))
+    return "\x1f".join(options)
+
+
 def _split_by_sentence(text: str) -> list[str]:
     """按中文标点切句，取较长句（保留有信息量的），上限 SLICE_MAX。"""
     parts = [s.strip() for s in _SENT_SPLIT_RE.split(text)]

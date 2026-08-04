@@ -93,9 +93,9 @@
   - `routing_metrics` 为进程内运行态，重启清零；跨重启审计看 `legal.chat` 日志。
   - LLM 有固有波动，full 门禁为 release 前抽查，允许偶发重跑，非 100% 稳定。
 - **反向决策（2026-08-05，配额耗尽背景下重引 thinking 兜底）**：
-  - 原因：qwen3.7-plus 配额将尽，需启用大后备队列保服务连续。用户提供同 API 内 17 文本 +
-    2 视觉模型；按**质量序**注册（deepseek-v4-flash 最强非思考 → max 系 → plus 系 → flash 系 →
-    thinking 垫底），改 priority 一行可换序。
+  - 原因：qwen3.7-plus 配额将尽，需启用大后备队列保服务连续。用户提供同 API 内 17 后备
+    文本 + 2 视觉模型（连同 qwen3.7-plus 共 18 文本）；按**质量序**注册（deepseek-v4-flash
+    最强非思考 → max 系 → plus 系 → flash 系 → thinking 垫底），改 priority 一行可换序。
   - 风险收敛：thinking 模型（qwen3-vl-32b/235b-thinking）恢复 ADR-010 曾剔除的"库外据无关条文
     硬答"风险，仅作最后兜底；受缓存写闸（引用 ⊆ 检索条文）/citation_verify/self_check/refuse
     四防线约束，切换后须跑 eval_exam 验证（golden_hit 降 → 降 priority）。

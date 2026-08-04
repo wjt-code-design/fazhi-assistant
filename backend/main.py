@@ -514,12 +514,16 @@ def _cache_write_ok(pre: dict, answer: str) -> bool:
     return bool(cited) and cited <= retrieved
 
 
-def _cache_guards(text: str) -> tuple[str, int, str]:
-    """近重复护栏：极性/选项数/标号体系（确定性纯函数，query_understand）。"""
+def _cache_guards(text: str) -> tuple[str, int, str, str]:
+    """近重复护栏：极性/选项数/标号体系/选项内容指纹（确定性纯函数，query_understand）。
+
+    指纹（审查 C4 修复）：同题干换选项内容必须 miss——防旧题"选B"答案错位下发。
+    """
     return (
         query_understand._polarity(text),
         query_understand.option_count(text),
         query_understand._label_system(text),
+        query_understand._options_fingerprint(text),
     )
 
 
@@ -540,8 +544,8 @@ def _similar_cache_hit(pre: dict) -> dict | None:
         emb = _embed_question(pre.get("rewritten") or "")
         if not emb:
             return None
-        pol, cnt, lab = _cache_guards(pre.get("rewritten") or "")
-        return answer_cache.get_similar(emb, polarity=pol, option_count=cnt, label_system=lab)
+        pol, cnt, lab, fp = _cache_guards(pre.get("rewritten") or "")
+        return answer_cache.get_similar(emb, polarity=pol, option_count=cnt, label_system=lab, options_fingerprint=fp)
     except Exception:
         return None
 
@@ -796,10 +800,11 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     # 看不到免责注）+ 确定性写闸（study_aid 引用 ⊆ 检索条文）
                     if cache_key and not flag_degraded and _cache_write_ok(pre, answer):
                         emb = await run_in_threadpool(_embed_question, pre.get("rewritten") or "")
-                        pol, cnt, lab = _cache_guards(pre.get("rewritten") or "")
+                        pol, cnt, lab, fp = _cache_guards(pre.get("rewritten") or "")
                         answer_cache.put(
                             cache_key, answer, pre["sources"],
                             embedding=emb, polarity=pol, option_count=cnt, label_system=lab,
+                            options_fingerprint=fp,
                             model=registry.model_of(flag_key) if use_router else "",
                         )
                 else:

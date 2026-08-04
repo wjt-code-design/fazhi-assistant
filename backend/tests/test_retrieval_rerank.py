@@ -105,6 +105,7 @@ def test_rerank_query_anchor_preferred():
 # ---------------- rerank 多模型轮换（配额驱动，纯 mock，非 slow） ----------------
 def test_active_rerank_model_rotation(monkeypatch):
     import quota_store
+    import quota_utils
     from settings import settings
 
     settings.rerank_enabled = True
@@ -116,19 +117,19 @@ def test_active_rerank_model_rotation(monkeypatch):
     monkeypatch.setattr(quota_store, "get_used", lambda key: 0)
     try:
         # 全部充足 → 队首 m1
-        assert retrieval._active_rerank_model() == "m1"
+        assert quota_utils.rerank_active_model() == "m1"
         # m1 耗尽（剩 4% < 5%）→ m2
         monkeypatch.setattr(quota_store, "get_used", lambda key: 96 if key == "m1" else 0)
-        assert retrieval._active_rerank_model() == "m2"
+        assert quota_utils.rerank_active_model() == "m2"
         # m1,m2 耗尽 → m3
         monkeypatch.setattr(quota_store, "get_used", lambda key: 96 if key in ("m1", "m2") else 0)
-        assert retrieval._active_rerank_model() == "m3"
+        assert quota_utils.rerank_active_model() == "m3"
         # 全耗尽 → None（降级本地余弦精排）
         monkeypatch.setattr(quota_store, "get_used", lambda key: 96)
-        assert retrieval._active_rerank_model() is None
+        assert quota_utils.rerank_active_model() is None
         # 未启用（rerank_enabled=false）→ None
         settings.rerank_enabled = False
-        assert retrieval._active_rerank_model() is None
+        assert quota_utils.rerank_active_model() is None
     finally:
         settings.rerank_enabled = False
         settings.rerank_api_key = ""

@@ -287,13 +287,16 @@ class LLMRegistry:
 
     def mark_depleted(self, key: str, reason: str) -> None:
         """配额耗尽即时失效（块 2.2：依据真实 API 错误，不靠估算）。置 remaining=0，
-        该模型立即 unavailable；下一请求/同请求重试自动落后备。"""
+        该模型立即 unavailable；下一请求/同请求重试自动落后备。
+
+        仅改内存 runtime_used（本进程立即生效）；持久化由 /api/admin/llm-quota 校准
+        端点或重启后初始值负责——耗尽是运行期事实，内存标记足够（重启即恢复默认，
+        需管理员按控制台校准真实剩余）。"""
         with self._lock:
             e = self._entries.get(key)
             if not e or e.depleted:
                 return
             e.runtime_used += max(0, e.quota_left)
-        quota_store.record_delta(key, 0)  # 校准列由 /api/admin/llm-quota 持久化；此处内存即时生效
 
     def calibrate(self, key: str, remaining: int) -> dict[str, Any]:
         """配额校准（块 3）：按控制台真实剩余值回写 initial_used，看门狗对齐真实值。

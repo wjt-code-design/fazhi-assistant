@@ -30,11 +30,6 @@ _rerank_client = None
 _rerank_client_lock = threading.Lock()
 
 
-def _active_rerank_model() -> str | None:
-    """当前应使用的 rerank 模型（单一来源 quota_utils.rerank_active_model，grilling 最优解 A）。"""
-    return quota_utils.rerank_active_model()
-
-
 def _get_rerank_client():
     """懒构建 rerank OpenAI client。未启用/未配 key → None。"""
     global _rerank_client

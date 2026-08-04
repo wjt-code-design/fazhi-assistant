@@ -44,11 +44,12 @@ def put(
     polarity: str = "",
     option_count: int = 0,
     label_system: str = "",
+    options_fingerprint: str = "",
     model: str = "",
 ) -> None:
     """写入（调用方须先确认 self_check PASS + 写闸 _cache_write_ok）。
 
-    近重复命中所需元数据（embedding/护栏/model）由调用方 main.py 提供；
+    近重复命中所需元数据（embedding/护栏/指纹/model）由调用方 main.py 提供；
     get_similar 对无 embedding 的旧条目跳过（不参与近重复命中，仅精确 key 可命中）。
     """
     _cache.put(key, {
@@ -59,6 +60,7 @@ def put(
         "polarity": polarity,
         "option_count": option_count,
         "label_system": label_system,
+        "options_fingerprint": options_fingerprint,
         "model": model,
     })
 
@@ -69,12 +71,14 @@ def get_similar(
     polarity: str = "",
     option_count: int = 0,
     label_system: str = "",
+    options_fingerprint: str = "",
 ) -> dict | None:
-    """BGE 近重复命中（审查 C2/C4，grilling 定稿）：余弦扫描 + 结构护栏。
+    """BGE 近重复命中（审查 C2/C4，grilling 定稿 + 指纹修复）：余弦扫描 + 结构护栏。
 
     命中 = 余弦 ≥ NEAR_DUP_THRESHOLD AND 极性一致（防否定词盲区）AND 选项数一致
-    AND 标号体系一致（防答案"选B"错位展示给 ①-④ 题）。返回最佳条目或 None。
-    本地 BGE 嵌入零成本；512 条线性扫描 trivial。
+    AND 标号体系一致 AND **选项内容指纹一致**（审查 C4 修复：同题干换选项内容必须
+    miss——防旧题"选B"答案错位下发）。指纹为空时跳过该比对（非选项题/解析失败）。
+    返回最佳条目或 None。本地 BGE 嵌入零成本；512 条线性扫描 trivial。
     """
     if not q_embedding:
         return None
@@ -91,6 +95,9 @@ def get_similar(
             or v.get("option_count") != option_count
             or v.get("label_system") != label_system
         ):
+            continue
+        # 选项内容指纹（C4 修复）：两侧非空才比对；空指纹（非选项题）跳过
+        if options_fingerprint and v.get("options_fingerprint") and options_fingerprint != v.get("options_fingerprint"):
             continue
         s = rc.cos(q_embedding, v["embedding"])
         if s > best_score:
