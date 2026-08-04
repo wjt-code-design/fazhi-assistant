@@ -1,0 +1,162 @@
+[
+  {
+    "id": 1,
+    "type": "法考选择题",
+    "question": "关于死刑复核程序，下列说法正确的是？A.死刑由最高人民法院核准 B.中级人民法院判处死刑缓期执行的案件由最高人民法院核准 C.最高人民法院复核死刑案件不必讯问被告人 D.死刑复核期间最高人民检察院提出意见的，最高人民法院应当面听取并制作笔录",
+    "expected_sources": ["刑事诉讼法"],
+    "expected_articles": ["第二百四十六条"],
+    "options_verdict": {"A": true, "B": false, "C": false, "D": false}
+  },
+  {
+    "id": 2,
+    "type": "法考选择题",
+    "question": "甲深夜回家遭乙持刀抢劫，甲在搏斗中夺刀将乙刺成重伤。关于甲的行为，下列说法正确的是？A.甲构成正当防卫，不负刑事责任 B.甲构成故意伤害罪 C.甲构成防卫过当 D.乙属于不法侵害，甲可以对其进行无过当防卫",
+    "expected_sources": ["刑法"],
+    "expected_articles": ["第二十条"],
+    "options_verdict": {"A": true, "B": false, "C": false, "D": false}
+  },
+  {
+    "id": 3,
+    "type": "法考选择题",
+    "question": "关于毒品犯罪，下列说法正确的是？A.贩卖毒品无论数量多少，都应当追究刑事责任 B.非法持有毒品数量较少的，构成非法持有毒品罪 C.运输毒品罪与贩卖毒品罪不可能同时成立 D.毒品犯罪不涉及共同犯罪",
+    "expected_sources": ["刑法"],
+    "expected_articles": ["第三百四十七条"],
+    "options_verdict": {"A": true, "B": false, "C": false, "D": false}
+  },
+  {
+    "id": 4,
+    "type": "法考选择题",
+    "question": "张某从高楼抛下物品致楼下行人受伤。关于侵权责任，下列说法正确的是？A.由侵权人承担侵权责任 B.难以确定具体侵权人的，由可能加害的建筑物使用人平均补偿 C.物业服务企业未采取必要安全保障措施的，无需承担任何责任 D.上述说法都不正确",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第一千二百五十四条"],
+    "options_verdict": {"A": true, "B": false, "C": false, "D": false}
+  },
+  {
+    "id": 5,
+    "type": "法考选择题",
+    "question": "关于法定继承，下列说法正确的是？A.第一顺序继承人为配偶、子女、父母 B.第二顺序继承人为兄弟姐妹、祖父母、外祖父母 C.丧偶儿媳对公婆尽了主要赡养义务的，不作为第一顺序继承人 D.遗产分割时应当保留胎儿的继承份额",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第一千一百二十七条"],
+    "options_verdict": {"A": true, "B": true, "C": false, "D": true}
+  },
+  {
+    "id": 6,
+    "type": "法考选择题",
+    "question": "关于自然人之间的借款合同，下列说法正确的是？A.自贷款人提供借款时成立 B.自双方当事人在合同上签字时成立 C.自双方达成口头约定时成立 D.无需实际交付借款即成立",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第六百七十九条"],
+    "options_verdict": {"A": true, "B": false, "C": false, "D": false}
+  },
+  {
+    "id": 7,
+    "type": "法考选择题",
+    "question": "关于劳动合同的试用期，下列说法正确的是？A.劳动合同期限三年以上的，试用期不得超过六个月 B.试用期可以单独签订 C.同一用人单位与同一劳动者可以多次约定试用期 D.试用期不包含在劳动合同期限内",
+    "expected_sources": ["劳动合同法"],
+    "expected_articles": ["第十九条"],
+    "options_verdict": {"A": true, "B": false, "C": false, "D": false}
+  },
+  {
+    "id": 8,
+    "type": "法考选择题",
+    "question": "机动车发生交通事故造成损害，属于该机动车一方责任的，关于赔偿顺序，下列说法正确的是？A.先由承保交强险的保险人在限额内赔偿 B.不足部分由承保商业三者险的保险人按约定赔偿 C.仍不足的由侵权人赔偿 D.交强险赔完后不足部分一律由侵权人自行承担",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第一千二百一十三条"],
+    "options_verdict": {"A": true, "B": true, "C": true, "D": false}
+  },
+  {
+    "id": 9,
+    "type": "法考选择题",
+    "question": "关于处理个人信息，下列说法正确的是？A.应当遵循合法、正当、必要和诚信原则 B.应当遵循最小必要原则 C.处理敏感个人信息应当取得个人单独同意 D.个人信息处理者无需公开处理规则",
+    "expected_sources": ["个人信息保护法"],
+    "expected_articles": ["第五条", "第六条", "第二十九条"],
+    "options_verdict": {"A": true, "B": true, "C": true, "D": false}
+  },
+  {
+    "id": 10,
+    "type": "法考选择题",
+    "question": "关于注册商标的有效期，下列说法正确的是？A.有效期为十年 B.自核准注册之日起计算 C.有效期满需要继续使用的，应当在期满前十二个月内申请续展 D.续展注册的有效期仍为十年",
+    "expected_sources": ["商标法"],
+    "expected_articles": ["第三十九条", "第四十条"],
+    "options_verdict": {"A": true, "B": true, "C": true, "D": true}
+  },
+  {
+    "id": 11,
+    "type": "法考选择题",
+    "question": "关于行政复议的受案范围，下列说法正确的是？A.对行政处罚决定不服的可以申请行政复议 B.对行政强制措施不服的可以申请行政复议 C.对行政机关作出的不予行政许可的决定不服的可以申请行政复议 D.对行政机关作出的行政处分不服的可以申请行政复议",
+    "expected_sources": ["行政复议法"],
+    "expected_articles": ["第十一条"],
+    "options_verdict": {"A": true, "B": true, "C": true, "D": false}
+  },
+  {
+    "id": 12,
+    "type": "法考选择题",
+    "question": "关于网购七天无理由退货，下列说法正确的是？A.消费者定作的商品不适用七天无理由退货 B.鲜活易腐的商品不适用七天无理由退货 C.在线下载的数字商品不适用七天无理由退货 D.所有网购商品都适用七天无理由退货",
+    "expected_sources": ["消费者权益保护法"],
+    "expected_articles": ["第二十五条"],
+    "options_verdict": {"A": true, "B": true, "C": true, "D": false}
+  },
+  {
+    "id": 13,
+    "type": "法考选择题",
+    "question": "关于股东未按期足额缴纳出资的责任，下列说法正确的是？A.应当向公司足额缴纳 B.还应当向已按期足额缴纳出资的股东承担违约责任 C.公司可以要求其赔偿给公司造成的损失 D.未按期缴纳不影响其股东权利",
+    "expected_sources": ["公司法"],
+    "expected_articles": ["第四十九条", "第五十条"],
+    "options_verdict": {"A": true, "B": true, "C": true, "D": false}
+  },
+  {
+    "id": 14,
+    "type": "法考选择题",
+    "question": "关于保证担保，下列说法正确的是？A.当事人在保证合同中约定保证人与债务人对债务承担连带责任的，为连带责任保证 B.一般保证的保证人在主合同纠纷未经审判或仲裁前，可拒绝向债权人承担保证责任 C.保证人承担保证责任后有权向债务人追偿 D.保证期间内债权人未主张权利的，保证人不再承担保证责任",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第六百八十六条", "第六百八十七条", "第六百九十一条", "第七百条"],
+    "options_verdict": {"A": true, "B": true, "C": true, "D": true}
+  },
+  {
+    "id": 15,
+    "type": "法考选择题",
+    "question": "关于离婚冷静期，下列说法正确的是？A.协议离婚的，自婚姻登记机关收到离婚登记申请之日起三十日内可以撤回申请 B.三十日届满后三十日内双方应亲自到婚姻登记机关申请发给离婚证 C.离婚冷静期适用于诉讼离婚 D.离婚冷静期不适用于诉讼离婚",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第一千零七十七条"],
+    "options_verdict": {"A": true, "B": true, "C": false, "D": true}
+  },
+  {
+    "id": 16,
+    "type": "法考选择题",
+    "question": "关于劳动争议的解决，下列说法正确的是？A.劳动争议需先申请劳动仲裁，对仲裁裁决不服才可起诉 B.劳动争议可以直接向人民法院提起诉讼 C.追索劳动报酬的仲裁裁决为终局裁决 D.劳动争议仲裁免费",
+    "expected_sources": ["劳动争议调解仲裁法"],
+    "expected_articles": ["第五条", "第四十七条"],
+    "options_verdict": {"A": true, "B": false, "C": true, "D": true}
+  },
+  {
+    "id": 17,
+    "type": "法考选择题",
+    "question": "关于格式条款，下列说法正确的是？A.提供格式条款一方不合理地免除或减轻其责任、加重对方责任的条款无效 B.对格式条款有两种以上解释的，应当作出不利于提供格式条款一方的解释 C.提供格式条款的一方未履行提示或说明义务，对方可以主张该条款不成为合同内容 D.格式条款一律无效",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第四百九十六条", "第四百九十七条", "第四百九十八条"],
+    "options_verdict": {"A": true, "B": true, "C": true, "D": false}
+  },
+  {
+    "id": 18,
+    "type": "法考选择题",
+    "question": "关于侵权责任的构成，下列说法正确的是？A.一般侵权责任的构成要件包括过错、违法行为、损害事实和因果关系 B.无过错责任原则不以行为人有过错为前提 C.紧急避险造成损害的，由引起险情发生的人承担赔偿责任 D.受害人故意造成损害的，行为人一般不承担责任",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第一千一百六十五条", "第一千一百六十六条", "第一千一百七十四条", "第一千一百七十五条"],
+    "options_verdict": {"A": true, "B": true, "C": true, "D": true}
+  },
+  {
+    "id": 19,
+    "type": "法考选择题",
+    "question": "关于诉讼时效，下列说法正确的是？A.向人民法院请求保护民事权利的诉讼时效期间为三年 B.诉讼时效期间自权利人知道或应当知道权利受损害及义务人之日起计算 C.诉讼时效期间届满后，义务人同意履行的不得以诉讼时效届满抗辩 D.诉讼时效届满后权利人丧失实体权利",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第一百八十八条", "第一百九十二条"],
+    "options_verdict": {"A": true, "B": true, "C": true, "D": false}
+  },
+  {
+    "id": 20,
+    "type": "法考选择题",
+    "question": "关于定金，下列说法正确的是？A.当事人可以约定一方向对方给付定金作为债权的担保 B.定金合同自实际交付定金时成立 C.给付定金的一方不履行约定的债务的，无权要求返还定金 D.收受定金的一方不履行约定的债务的，应当双倍返还定金",
+    "expected_sources": ["民法典"],
+    "expected_articles": ["第五百八十六条", "第五百八十七条"],
+    "options_verdict": {"A": true, "B": true, "C": true, "D": true}
+  }
+]

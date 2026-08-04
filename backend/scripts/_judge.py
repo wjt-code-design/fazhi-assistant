@@ -164,3 +164,31 @@ def exam_fabricated(llm, question: str, answer: str) -> tuple[bool, str]:
         return v == "fabricated", v
     except Exception:
         return True, "judge_error"
+
+
+# professional 专业度判据（阶段0，ADR-012）：**只评主观维度**（结构完整性/逐项论证/法理易错点），
+# **不含"条文适用正确性"**——该维度由 eval_exam 的 expected_articles 金标做确定性比对（评审点2：
+# LLM judge 判"这条法条适用对不对"等于让它做法考判断题，会和 LLM 答案系统性同频，无背书价值）。
+_PROFESSIONAL_PROMPT = (
+    "你是法律专业度评测裁判。用户给了法考题/法律问题，助手给出回答。从三个主观维度评分：\n"
+    "1. 结构完整性：是否按「考点识别→逐项分析→结论」组织（法考选择题应逐项判断 A/B/C/D）\n"
+    "2. 论证有据：每项判断是否给出条文依据与理由，而非空泛断言\n"
+    "3. 法理/易错点：是否点出关键法理、易混考点或常见陷阱\n"
+    "评分：\n"
+    "- 3：三方面都做到，解析专业完整\n"
+    "- 2：基本做到，个别项缺依据或结构略散\n"
+    "- 1：有解析但结构松散/依据不足/未点法理\n"
+    "- 0：没有解析，仅一句结论或拒答\n"
+    "只输出一个 JSON 对象：{\"score\": 0 或 1 或 2 或 3, \"reason\": \"一句话理由\"}"
+)
+
+
+def professional(llm, question: str, answer: str) -> int:
+    """判回答的专业度（结构/论证/法理），返回 0-3。异常 → 0（保守）。"""
+    try:
+        r = llm.invoke(
+            [SystemMessage(content=_PROFESSIONAL_PROMPT), HumanMessage(content=f"问题：{question}\n\n回答：{answer[:1200]}")]
+        )
+        return _parse_score(str(r.content or "")) or 0
+    except Exception:
+        return 0

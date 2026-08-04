@@ -28,6 +28,7 @@ import clarify
 import complexity
 import knowledge_service as ks
 import quality
+import query_understand
 import routing_metrics
 from audit import log_audit
 from auth import create_token, get_current_user, hash_password, require_admin, verify_password
@@ -57,7 +58,14 @@ from prompts import (
 )
 from quota_utils import UtilityQuotaExhausted
 from rag_chain import clean_answer, format_docs, make_chain, stream_with_retry, vectorstore
-from retrieval import citation_verify, grounded_top_score, prewarm, retrieve, retrieve_for_test
+from retrieval import (
+    citation_verify,
+    grounded_top_score,
+    prewarm,
+    retrieve,
+    retrieve_exam,
+    retrieve_for_test,
+)
 from schemas import (
     ChatIn,
     ConversationDetail,
@@ -309,10 +317,16 @@ def _pre(user_id: int, conversation_id, text: str, image):
         else:
             rewritten = raw_query
 
-        # 意图分流（Step A）：学习辅助/元问题不做条文检索，避免「考试题」被误检索成作弊罪条文堆砌
+        # 意图分流（Step A，阶段1 ADR-012）：study_aid 具体题走分步检索（逐项有据）；
+        # 元问题短路不检索（避免「你能做题吗」召回作弊罪条文堆砌）；选项题（用户直接
+        # 贴题无关键词）无论 intent 都走分步检索（防"单次整题检索漏项"）。
         intent = classify_intent(text or raw_query)
+        is_exam = query_understand._is_exam_question(text or raw_query)
         if intent == "study_aid":
-            docs = []
+            if settings.feature_study_retrieval and not query_understand.is_meta_study(text or raw_query):
+                docs = retrieve_exam(rewritten)  # 具体题：分步检索（题干主锚 + 每选项补漏）
+            else:
+                docs = []  # 元问题/回滚：不检索，邀请发题
             qa_hit = None
         elif intent == "cheating_request":
             docs = cheating_docs()
@@ -322,15 +336,17 @@ def _pre(user_id: int, conversation_id, text: str, image):
             docs = []
             qa_hit = None
         else:
-            docs = retrieve(rewritten, k=6)  # k4→6：给余弦精排更多候选 + 给模型更全上下文，缓解"对法错条"
+            if is_exam:
+                docs = retrieve_exam(rewritten)  # 用户直接贴的选项题 → 分步检索
+            else:
+                docs = retrieve(rewritten, k=6)  # k4→6：给余弦精排更多候选 + 给模型更全上下文，缓解"对法错条"
             qa_hit = ks.search_qa(rewritten)
-            # 格式条款/消费者权利场景：通用检索常召回消保法25/24但漏掉民法典496/497，
-            # 定向补充作否定无效条款的兜底依据（与提示词 CITATION_SELECTION_RULE 配套）
-            if is_consumer_clause_scenario(text or raw_query):
-                docs = consumer_clause_docs() + docs
-            # 消费欺诈/退一赔三：检索 top-k 常漏消保法55条，定向补充
-            if is_consumer_fraud_scenario(text or raw_query):
-                docs = consumer_fraud_docs() + docs
+            # 格式条款/消费者权利/消费欺诈场景定向补充（仅非选项题，法考题不适用）
+            if not is_exam:
+                if is_consumer_clause_scenario(text or raw_query):
+                    docs = consumer_clause_docs() + docs
+                if is_consumer_fraud_scenario(text or raw_query):
+                    docs = consumer_fraud_docs() + docs
         context = format_docs(docs)
         sources = [
             {

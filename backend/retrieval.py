@@ -10,6 +10,7 @@
 import re
 import threading
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
 from langchain_core.documents import Document
@@ -560,6 +561,48 @@ def retrieve(
         if exact:
             return exact
     return hybrid_retrieve(query, k, category, cutoff)
+
+
+def retrieve_exam(question: str, k: int = 6) -> list[Document]:
+    """分步分析型检索（ADR-012）：拆题干+每选项 → 逐项并发检索 → 合并去重。
+
+    解决"单次整题检索漏项"（死刑复核 252 漏召回）：每个选项独立召回其考点条文，
+    题干结果作**主锚（优先）**，选项结果作**扩展补漏**（评审点4 合并权重）。
+
+    实现要点：
+    - `query_understand._split_by_choice` 拆解（多格式）；无法识别选项 → 整题 fallback
+    - **ThreadPoolExecutor 并发**（grilling 自审修正：_pre 在 run_in_threadpool 线程里
+      无 event loop，asyncio.gather 不可用）
+    - 每单元走 `hybrid_retrieve`（内部已含锚点保底 + rerank），合并后按"题干→选项"
+      顺序收集（题干主锚在前），去重截 k
+    - 任一单元异常 → 跳过该单元不崩（fallback 链：逐项 → 题干 → 整题）
+    """
+    units = query_understand._split_by_choice(question)
+    if len(units) <= 1:
+        return hybrid_retrieve(question, k=k)  # 无选项 → 整题检索（fallback）
+    queries = units  # 题干(units[0]) + 每选项
+    per_k = max(3, k // 2)  # 每单元 top-k（控总量：题干+4选项 × 3-4 = 12-20 候选）
+    collected: list[list[Document]] = [None] * len(queries)  # type: ignore[list-item]
+    with ThreadPoolExecutor(max_workers=min(6, len(queries))) as ex:
+        futs = [(i, ex.submit(hybrid_retrieve, q, per_k)) for i, q in enumerate(queries)]
+        for i, f in futs:
+            try:
+                collected[i] = f.result()
+            except Exception:
+                collected[i] = []  # 该单元失败 → 跳过，不崩
+    out: list[Document] = []
+    seen: set[str] = set()
+    for docs in collected:  # 按题干→选项顺序（题干主锚优先）
+        if not docs:
+            continue
+        for d in docs:
+            did = _doc_id(d)
+            if did not in seen:
+                seen.add(did)
+                out.append(d)
+    if not out:
+        return hybrid_retrieve(question, k=k)  # 全失败 → 整题兜底
+    return out[:k]
 
 
 def grounded_top_score(query: str, category: str | None = None, cutoff: str | None = None) -> float:

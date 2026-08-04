@@ -46,6 +46,20 @@ _QUESTION_CRIME = ("什么罪", "何罪", "何种罪", "哪罪", "啥罪")
 _CHOICE_RE = re.compile(r"[A-D]：")
 _JUDGE_MARKS = ("错误的是", "正确的是", "下列说法", "哪一项", "哪些说法")
 
+# 选项切分多格式（阶段1，ADR-012）：真实法考题格式多样，逐格式探测选段数最多的。
+# 选项标记 = 大写字母/圈号数字/阿拉伯数字 + 分隔符（：:.、)））。
+_OPTION_FMTS = (
+    re.compile(r"(?=[A-HＡ-Ｈ][：:])"),    # A：/Ａ：
+    re.compile(r"(?=[A-HＡ-Ｈ][.、)）])"),  # A. A、 A) A）
+    re.compile(r"(?=[①-⑧])"),            # ①②
+    re.compile(r"(?=[1-8][.、)）])"),      # 1. 1、
+)
+
+# 元问题能力询问句式（阶段1）：纯"你能做题吗"类，未给具体题 → 短路不检索。
+# 反向（错放不可错杀，评审点7）：任何含法条/罪名/选项特征的文本即使句首像元问题也必须走检索。
+_META_Q_RE = re.compile(r"^(你|那?你)?(能不能|能|可以|会|可不可以)[^。？]{0,15}(做|解决|回答|处理|分析|讲解|帮)[^。？]{0,15}[。？]?$")
+_META_HELP_RE = re.compile(r"^(帮我|请帮我|麻烦帮我|你帮我)[^。？]{0,15}(做|解决|回答|处理|分析|讲解|看看|解答|理解)[^。？]{0,15}[。？]?$")
+
 # 中文标点切句
 _SENT_SPLIT_RE = re.compile(r"[，。？；！、\n]")
 
@@ -80,10 +94,40 @@ def _is_exam_question(text: str) -> bool:
     return bool(_CHOICE_RE.search(text)) or any(m in text for m in _JUDGE_MARKS)
 
 
+def is_meta_study(text: str) -> bool:
+    """元问题识别（阶段1，ADR-012）：仅询问能力、未给具体题 → True（短路不检索）。
+
+    反向用例（评审点7：错放不可错杀）：任何含法条引用/罪名/选项特征的文本，即使
+    句首像元问题（"你能…刑法题吗"），**必须走检索**——短路代价=完全漏项（比多
+    检索一次贵得多）。正向仅命中"纯能力询问"短句式才短路；否则**默认偏检索**。
+    """
+    t = (text or "").strip()
+    if not t:
+        return True
+    if extract_law_refs(t) or extract_crimes(t) or _is_exam_question(t):
+        return False  # 有具体内容 → 非元问题
+    if len(t) <= 40 and (_META_Q_RE.search(t) or _META_HELP_RE.search(t)):
+        return True
+    return False  # 默认偏检索（不确定时宁可多检索）
+
+
 def _split_by_choice(text: str) -> list[str]:
-    """按选项切分：题干 + 每个选项独立成段。保留选项前缀（A：…）供检索定位。"""
-    parts = re.split(r"(?=[A-D]：)", text)
-    return [p.strip() for p in parts if len(p.strip()) >= 4][:SLICE_MAX]
+    """按选项切分（多格式鲁棒，阶段1）：题干 + 每选项独立段，保留前缀供检索定位。
+
+    逐格式探测（A：/A./A、/(A)/①②/1.），选切出段数最多且 >= 3 的格式；
+    均无法识别 → 返回 [整题]（fallback，不崩）。选项内含"："（如"正确的是：…"）
+    因标记前置字母要求不会误切。
+    """
+    best: list[str] | None = None
+    best_n = 0
+    for fmt in _OPTION_FMTS:
+        parts = [p.strip() for p in fmt.split(text) if p.strip()]
+        n = len(parts)
+        if n >= 3 and n > best_n:
+            best, best_n = parts, n
+    if best is None:
+        return [text]
+    return [p for p in best if len(p) >= 4][:SLICE_MAX]
 
 
 def _split_by_sentence(text: str) -> list[str]:

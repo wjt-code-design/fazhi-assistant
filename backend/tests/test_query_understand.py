@@ -90,6 +90,53 @@ def test_decompose_plain_long_text_splits():
     assert len(units) >= 2
 
 
+# ---------------- is_meta_study：元问题识别（阶段1，ADR-012） ----------------
+def test_is_meta_study_positive():
+    # 纯能力询问（未给具体题）→ 短路不检索
+    assert query_understand.is_meta_study("你能解决考试题吗？")
+    assert query_understand.is_meta_study("可以帮我做题吗？")
+    assert query_understand.is_meta_study("你会分析法律案例吗？")
+    assert query_understand.is_meta_study("请帮我讲解一下这道题")
+    assert query_understand.is_meta_study("" or "")  # 空 → 短路
+
+
+def test_is_meta_study_negative():
+    # 具体内容 → 必须检索（错放不可错杀：即使句首像元问题）
+    assert not query_understand.is_meta_study("刑法第二十条怎么理解")  # 条号
+    assert not query_understand.is_meta_study("贩卖毒品罪如何处罚")  # 罪名
+    assert not query_understand.is_meta_study("正当防卫的构成要件是什么")  # 具体问题（默认偏检索）
+    assert not query_understand.is_meta_study("关于死刑复核程序，下列说法正确的是？A.死刑由最高法核准")  # 选项
+    # 反向：句首像元问题但后面跟具体题 → 必须检索
+    assert not query_understand.is_meta_study(
+        "你能帮我分析这道题吗？甲乙二人对丙素有仇怨，丙掏出铁棍击打乙。A.如果乙成立正当防卫，甲也成立正当防卫"
+    )
+
+
+# ---------------- _split_by_choice：多格式选项切分（阶段1） ----------------
+def test_split_by_choice_formats():
+    # A：格式（选项内容 >4 字，不被 len>=4 过滤）
+    parts = query_understand._split_by_choice("以下说法正确的是A：死刑由最高法核准 B：中级法院复核 C：最高法应讯问 D：最高检可提意见")
+    assert len(parts) == 5 and parts[1].startswith("A：")
+    # A. 格式
+    parts = query_understand._split_by_choice("以下说法正确的是A.选项一正确 B.选项二正确 C.选项三正确 D.选项四正确")
+    assert len(parts) == 5 and parts[1].startswith("A.")
+    # A、格式
+    assert len(query_understand._split_by_choice("以下说法正确的是A、选项一正确 B、选项二正确 C、选项三正确 D、选项四正确")) == 5
+    # 圈号 ①②
+    assert len(query_understand._split_by_choice("以下说法正确的是①选项一正确 ②选项二正确 ③选项三正确 ④选项四正确")) == 5
+    # 数字 1.
+    assert len(query_understand._split_by_choice("以下关于借款合同的表述1.甲出借十万元 2.乙借入十万元 3.双方约定利息 4.乙方按期归还")) == 5
+    # 无选项 → fallback 整题
+    assert query_understand._split_by_choice("正当防卫的构成要件是什么") == ["正当防卫的构成要件是什么"]
+
+
+def test_split_by_choice_exam_long():
+    # 真实法考题（A：格式）→ 题干 + 4 选项
+    parts = query_understand._split_by_choice(_EXAM_LONG_Q)
+    assert len(parts) >= 4  # 题干 + 至少 3 选项
+    assert "甲负责携带" in parts[0]  # 题干保留完整
+
+
 def test_hybrid_retrieve_exam_long_recalls_core_articles():
     """T1 核心回归：长题干法考题必须召回刑法 347（运输毒品罪）/348（非法持有毒品罪）。"""
     from retrieval import hybrid_retrieve  # 延迟 import（会加载 BGE）
