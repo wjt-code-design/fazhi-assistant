@@ -86,10 +86,19 @@ def test_decide_refuse_marks():
 
 
 def test_decide_refuse_out_of_kb_source():
-    # 问题指名的来源不在库 → 拒答（即使检索到相近条文）
-    assert clarify.decide("legal_query", "工伤保险条例里规定的工伤认定标准是什么？", True) == "refuse"
-    assert clarify.decide("legal_query", "根据合同法第五十二条，合同无效的情形有哪些？", True) == "refuse"
-    assert clarify.decide("legal_query", "婚姻法规定的夫妻共同财产怎么分割？", True) == "refuse"
+    """库外裸名法名的诚实拒答：仅在**无据**（检索未命中）时触发（2026-08-04 根治）。
+
+    根治：有据（检索命中相近条文）时裸名不在库不再拒答——检索有据还答"未收录"正是
+    误拒答（伤害体验），宁可基于库内相近条文尽力回答；书引《X法》确凿点名不受此限。
+    """
+    # 无据 → 裸名可信法名不在库 → 诚实拒答
+    assert clarify.decide("legal_query", "工伤保险条例里规定的工伤认定标准是什么？", False) == "refuse"
+    assert clarify.decide("legal_query", "根据合同法第五十二条，合同无效的情形有哪些？", False) == "refuse"
+    assert clarify.decide("legal_query", "婚姻法规定的夫妻共同财产怎么分割？", False) == "refuse"
+    # 有据 → 不因裸名不在库拒答（根治：有据尽力回答，杜绝误拒答）
+    assert clarify.decide("legal_query", "工伤保险条例里规定的工伤认定标准是什么？", True) == "direct"
+    # 书引《X法》确凿点名：即使有据也不硬答（用户明确指名该部法）
+    assert clarify.decide("legal_query", "《工伤保险条例》里的认定标准", True) == "refuse"
 
 
 def test_decide_no_false_refuse_from_mis_extracted_law():

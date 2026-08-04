@@ -157,13 +157,23 @@ def decide(
     判定顺序（优先级从高到低）：
     1. 意图分流（chitchat → chat；非 legal_query → direct 走既有路径）
     2. 库外硬信号（司法解释/部门规章等层级词）→ refuse
-    3. 问题指名的来源不在库（如「工伤保险条例」「合同法」）→ refuse
-       ——检索会命中相近条文且余弦分不低（标定实测 0.65-0.77），置信度分分不出库外
-    4. 信息不足（指代不明/泛咨询/宽泛问）→ clarify（先于命中判定：没事实没法答准）
-    5. 有据（命中）→ direct（弱命中也宁答，自检兜底）；无据 → refuse
+    3. 书引《X法》= 用户确凿点名该部法，不在库 → refuse
+       （用户明确写书名号指名，诚实拒答；即使检索命中相近条文也不硬答）
+    4. 裸名法名：**有据（检索命中）→ 一律不因裸名不在库拒答**（2026-08-04 根治）。
+       无据 → 保留"确凿点名的可信法名不在库"诚实拒答。
+    5. 信息不足（指代不明/泛咨询/宽泛问）→ clarify（先于命中判定：没事实没法答准）
+    6. 有据（命中）→ direct（弱命中也宁答，自检兜底）；无据 → refuse
 
     intent 由 classify_intent 给出；has_sources 为本轮是否检索命中；clarified_once
     为本会话是否已反问过（防死循环，由编排层维护）。
+
+    **根治说明（2026-08-04，同类第 3 次：毒品法场景词 /「不管何种刑法学说」/
+    「最高法」机构简称）**：误拒答根因是把非法律名称的短语（机构简称/疑问词/通用词/
+    连接短语）当法名，判"不在库"→ 拒答"未收录"，尽管知识库有相关条文且检索命中。
+    裸名是否"像法名"靠启发式永远有漏网变体。根治：**有据时裸名一律不因不在库拒答**
+    ——误抽短语几乎不可能命中在库法名集合，且检索有据时拒答"未收录"是伤害体验的
+    误拒答，宁可基于库内相近条文尽力回答（agent 提示词第 7 条 + self_check 兜底），
+    也不错误拒绝。书引《X法》是确凿点名，保留诚实拒答（无据场景）。
     """
     if intent == "chitchat":
         return "chat"
@@ -172,15 +182,16 @@ def decide(
     t = text or ""
     if any(m in t for m in REFUSE_MARKS):
         return "refuse"
-    for name in extract_source_names(t):
-        # 不在库的法名 → 拒答。但只对"可信法名"（具体法律名称）拒答：
-        # 书引《X法》精确指名始终可信；裸名需通过 _plausible_law 判定——
-        # 「刑法和民法」「合同纠纷适用…」「行政法泛称」等误抽形态不触发拒答
-        #（2026-08-04 修复：法考题「不管何种刑法学说」曾被误抽成法名致误拒答）。
-        if not R.source_in_kb(name) and (
-            name.startswith("《") or _plausible_law(name)
-        ):
+    # 书引《X法》：确凿点名。用 _SOURCE_QUOTE_RE 直接扫书名号（extract_source_names
+    # 已去书名号，无法区分书引/裸名），不在库 → 诚实拒答。
+    for m in _SOURCE_QUOTE_RE.finditer(t):
+        if not R.source_in_kb(canon_source(m.group(1).strip())):
             return "refuse"
+    # 裸名：无据时保留"可信法名不在库"诚实拒答；有据时不拒答（根治误拒答）。
+    if not has_sources:
+        for name in extract_source_names(t):
+            if not R.source_in_kb(name) and _plausible_law(name):
+                return "refuse"
     if detect_underspecified(t) and not clarified_once:
         return "clarify"
     # 已反问过一次，或问题信息充分：有据直接答（含弱命中），无据诚实拒答（不再反问循环）
@@ -195,9 +206,11 @@ CLARIFY_PROMPT = (
     "信息越具体，我的分析越准确。"
 )
 
-# 诚实拒答模板：库未覆盖时直接说明（措辞命中 quality._HONEST_REFUSE_MARKS 的「未收录」，
-# 保证若路径意外经过 self_check 也能 PASS）
+# 诚实拒答模板：库未覆盖时说明（措辞命中 quality._HONEST_REFUSE_MARKS 的「未收录」，
+# 保证若路径意外经过 self_check 也能 PASS）。2026-08-04 优化：不再一味拒绝——引导用户
+# 补充法律领域/事实，主动邀请进入「基于库内相近条文尽力分析」的路径（更机智，非机械拒答）。
 REFUSE_PROMPT = (
-    "您的问题涉及的内容未收录在当前知识库中，我无法给出准确的条文依据。"
-    "建议咨询专业律师；也可向我提供更具体的问题（先告知涉及的法律领域与事实经过）。"
+    "您的问题所涉法律条文暂未收录在当前知识库中，我暂时无法给出准确的条文依据。"
+    "若您能补充：① 具体涉及的法律领域（如合同、劳动、侵权）；② 基本事实经过，"
+    "我可以基于知识库中相关领域的条文尽力分析；您也可直接指明某部法律，我帮您核对是否收录。"
 )
