@@ -220,9 +220,16 @@ def count_docs(status: str | None = None) -> int:
 
 
 # ==================== qa_pairs（受控沉淀采纳后） ====================
-def add_qa_pair(question: str, answer: str, evidence: str = "") -> None:
+def add_qa_pair(question: str, answer: str, evidence: str = "", fingerprint: str = "") -> None:
+    """QA 对入库（answer/evidence/options_fingerprint 存 metadata，question 作向量检索入口）。
+
+    fingerprint（选项内容指纹，审查 C4 护栏）：直返前校验同题干换选项内容必须 miss。
+    """
     _qa_store.add_documents(
-        [Document(page_content=question, metadata={"answer": answer, "evidence": evidence, "origin": "qa"})]
+        [Document(
+            page_content=question,
+            metadata={"answer": answer, "evidence": evidence, "origin": "qa", "options_fingerprint": fingerprint},
+        )]
     )
 
 
@@ -249,6 +256,8 @@ def search_qa(query: str, threshold: float = 0.7):
         "question": res[0][0].page_content,
         "answer": res[0][0].metadata.get("answer", ""),
         "score": round(score, 4),
+        "evidence": res[0][0].metadata.get("evidence", ""),
+        "fingerprint": res[0][0].metadata.get("options_fingerprint", ""),
     }
 
 

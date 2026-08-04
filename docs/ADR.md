@@ -104,6 +104,17 @@
     改为只显示当前活跃模型 + 切换原因；新增 `/api/admin/llm-quota` 校准端点（管理员读控制台后
     回写 remaining），看门狗以校准值 + **真实 API 错误即时切换**（`mark_depleted`，不靠估算）双保险。
   - thinking 扣减 ×3 系数（reasoning_content 不计入本地估算，防看门狗失明）。
+- **QA 持久语义缓存（2026-08-05，ADR-012 补充）**：
+  - 背景：用户智谱平台 glm-4.5-air（文本）+ glm-4.1v-thinking-flashx（多模态）各 ~1000 万免费
+    token，8-23 到期——需在到期前消耗 token 换取**持久价值**。
+  - 决策：`scripts/gen_qa_corpus.py` 用 **glm-4.5-air 只烧智谱 token** 批量预生成 ~61 道
+    法考高频/重点/难点解析（刑法/民法/刑诉/民诉/行政/商经知/宪法/劳动），验证（引用在库）
+    后入 qa_pairs 持久库（含 options_fingerprint + evidence）；main.py 新增 **search_qa
+    高阈值直返分支**（score≥0.92 + 选项指纹一致 + evidence 时效校验 → 零 LLM 直返）。
+  - **质量责任**：生成后逐条人工验收 60 条（法律结论全部正确）；修复 18 条 evidence 错位
+    （重derive为答案实际首引用）+ 1 条条号归一（第1254条→第一千二百五十四条）。
+  - 智谱模型经 `provider="zhipu"` 注册（独立 base_url=open.bigmodel.cn/api/paas/v4 + key），
+    glm-4.5-air 进文本队列、glm-4.1v-thinking-flashx 进视觉队列（thinking 仅最后兜底）。
 
 ---
 

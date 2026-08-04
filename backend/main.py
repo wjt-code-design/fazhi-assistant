@@ -62,6 +62,7 @@ from rag_chain import clean_answer, embeddings, format_docs, make_chain, stream_
 from retrieval import (
     _normalize_article,
     citation_verify,
+    exact_article_lookup,
     extract_citations,
     grounded_top_score,
     prewarm,
@@ -538,7 +539,7 @@ def _embed_question(text: str) -> list[float] | None:
 def _similar_cache_hit(pre: dict) -> dict | None:
     """近重复命中（feature_similar_cache，grilling 定稿）：嵌入输入 + 护栏 → get_similar。
 
-    仅当精确 key miss 时调用；护栏不一致（极性/选项数/标号体系）→ miss，安全。
+    仅当精确 key miss 时调用；护栏不一致（极性/选项数/标号体系/指纹）→ miss，安全。
     """
     try:
         emb = _embed_question(pre.get("rewritten") or "")
@@ -548,6 +549,36 @@ def _similar_cache_hit(pre: dict) -> dict | None:
         return answer_cache.get_similar(emb, polarity=pol, option_count=cnt, label_system=lab, options_fingerprint=fp)
     except Exception:
         return None
+
+
+_QA_DIRECT_RETURN_THRESHOLD = 0.92  # QA 语义直返阈值（审查护栏：低于则回落 LLM）
+
+
+def _qa_direct_return(pre: dict) -> str | None:
+    """QA 持久语义缓存直返（8-23 智谱免费 token 预生成语料）：高阈值 + 指纹 + 时效护栏。
+
+    命中返回预生成解析答案（零 LLM）；任一护栏不过 → None（回落 LLM 生成）。
+    - score ≥ 0.92（search_qa 余弦，接近同一问法）
+    - 选项指纹护栏（审查 C4）：选项题同题干换选项内容必须 miss
+    - evidence 时效校验：source|article 在库且仍有效（exact_article_lookup）
+    """
+    qa = pre.get("qa_hit")
+    if not qa or qa.get("score", 0) < _QA_DIRECT_RETURN_THRESHOLD:
+        return None
+    q = pre.get("rewritten") or ""
+    q_fp = query_understand._options_fingerprint(q)
+    stored_fp = qa.get("fingerprint") or ""
+    if q_fp and stored_fp and q_fp != stored_fp:
+        return None  # 同题干换选项内容 → 直返必错（C4）
+    evidence = qa.get("evidence") or ""
+    if "|" in evidence:
+        src, art = evidence.split("|", 1)
+        try:
+            if not exact_article_lookup(src, art):
+                return None  # 证据条文已失效/不在库 → 不直返
+        except Exception:
+            return None
+    return qa.get("answer") or None
 
 
 @dataclass
@@ -671,6 +702,27 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield "data: [DONE]\n\n"
                 try:
                     await run_in_threadpool(_post, pre, ca, False)
+                except Exception as e:
+                    print(f"[chat-post] {e}", flush=True)
+                return
+
+            # 分支0.2：QA 持久语义缓存直返（8-23 智谱免费 token 预生成语料，零 LLM）
+            # 高阈值 + 选项指纹 + evidence 时效三护栏；仅命中才直返，否则回落 LLM
+            qa_ans = _qa_direct_return(pre)
+            if qa_ans:
+                _f0 = time.perf_counter()
+                yield f"data: {json.dumps({'content': qa_ans}, ensure_ascii=False)}\n\n"
+                routing_metrics.record("qa_cache", False, "pass", "hit", checked=False)
+                log_account(
+                    model="qa_cache", tier="qa_cache", cache="hit", token_est=0,
+                    first_ms=round((_f0 - t0) * 1000, 1),
+                    ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
+                    conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
+                )
+                yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+                try:
+                    await run_in_threadpool(_post, pre, qa_ans, False)
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
                 return

@@ -15,7 +15,8 @@ class Settings(BaseSettings):
     llm_api_key: str = ""
     llm_base_url: str = ""
     llm_model: str = "qwen3.5-omni-plus-2026-03-15"
-    zhipuai_api_key: str = ""  # 旧名兼容
+    zhipuai_api_key: str = ""  # 旧名兼容（智谱平台 key，8-23 到期免费 token）
+    zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4"  # 智谱 OpenAI 兼容端点
 
     # ---- 鉴权 ----
     jwt_secret: str = ""

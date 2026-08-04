@@ -52,8 +52,10 @@ DEFAULT_ROLES: list[dict[str, Any]] = [
     {"key": "text_flash_35", "model": "qwen3.5-flash-2026-02-23", "modality": "text", "tier": "flag", "priority": 15, "capabilities": ["text"], "disable_thinking": True},
     {"key": "text_thinking_32b", "model": "qwen3-vl-32b-thinking", "modality": "text", "tier": "flag", "priority": 16, "capabilities": ["text"], "disable_thinking": False},  # 思考专属版，仅最后兜底
     {"key": "text_thinking_235b", "model": "qwen3-vl-235b-a22b-thinking", "modality": "text", "tier": "flag", "priority": 17, "capabilities": ["text"], "disable_thinking": False},  # 思考专属版，仅最后兜底
+    {"key": "text_glm45air", "model": "glm-4.5-air", "provider": "zhipu", "modality": "text", "tier": "flag", "priority": 18, "capabilities": ["text"], "disable_thinking": True},  # 智谱免费（8-23 到期）：强文本后备
     {"key": "vision_flag", "model": "qwen3.5-omni-plus-2026-03-15", "modality": "vision", "tier": "flag", "priority": 0, "capabilities": ["text", "vision"], "disable_thinking": True, "initial_used": 140644},  # 关深度思考，图片回答同样提速
     {"key": "vision_rt", "model": "qwen3.5-omni-plus-realtime", "modality": "vision", "tier": "flag", "priority": 1, "capabilities": ["text", "vision"], "disable_thinking": True},
+    {"key": "vision_glm41v", "model": "glm-4.1v-thinking-flashx", "provider": "zhipu", "modality": "vision", "tier": "flag", "priority": 2, "capabilities": ["text", "vision"], "disable_thinking": False},  # 智谱多模态思考版，视觉最后兜底
 ]
 
 # 各模态的 tier 回退链（请求某 tier 时，从该 tier 起沿链向上找未耗尽的）
@@ -149,10 +151,17 @@ class LLMRegistry:
             self._entries = {}
             for r in _load_roles():
                 key = r["key"]
+                provider = r.get("provider", "aliyun")
+                if provider == "zhipu":  # 智谱平台（8-23 到期免费 token）：独立 base_url/key
+                    base_url = r.get("base_url") or settings.zhipu_base_url
+                    api_key = r.get("api_key") or settings.zhipuai_api_key
+                else:
+                    base_url = r.get("base_url") or settings.llm_base_url
+                    api_key = r.get("api_key") or settings.api_key
                 cfg = {
                     "model": r["model"],
-                    "base_url": r.get("base_url") or settings.llm_base_url,
-                    "api_key": r.get("api_key") or settings.api_key,
+                    "base_url": base_url,
+                    "api_key": api_key,
                     "capabilities": list(r.get("capabilities", ["text"])),
                     "disable_thinking": bool(r.get("disable_thinking", False)),
                     "timeout": int(r.get("timeout", 120)),
