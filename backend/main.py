@@ -50,6 +50,7 @@ from models import AuditLog, Conversation, Feedback, Message, QaCandidate, User
 from multimodal import MEDIA_DIR, build_vision_content, describe_image, persist_image, validate_image
 from observability import RequestIdMiddleware, log_account, setup_logging
 from prompts import (
+    _EXAM_TYPE_SUFFIX,
     IMAGE_GUIDANCE,
     OUTPUT_FORMAT_RULE,
     SYSTEM_BASE,
@@ -265,6 +266,8 @@ def _build_messages(pre: dict) -> list:
         sys_text = SYSTEM_BASE
     sys_text += OUTPUT_FORMAT_RULE
     sys_text += CITATION_SELECTION_RULE
+    if pre.get("is_exam"):  # 法考题题型指令（决策 6，防多选漏答）：按 question_type 动态追加
+        sys_text += _EXAM_TYPE_SUFFIX[query_understand.question_type(pre.get("user_text") or "")]
     if pre.get("image"):
         sys_text += IMAGE_GUIDANCE
     if pre["summary"]:
@@ -294,6 +297,17 @@ def _build_messages(pre: dict) -> list:
     return [SystemMessage(content=sys_text)] + history + [HumanMessage(content=final_content)]
 
 
+def _rewrite_for_retrieval(raw_query: str, recent_ser: list, recent: list, has_options: bool) -> str:
+    """检索分支的惰性改写（决策 2/3，query rewrite v3）：完整带选项法考题自带题干 → 跳过；
+    有历史 → LLM 改写。意图已在调用前判定为检索分支；此处只按「有无历史 + 是否完整法考题」
+    决定是否烧改写调用（grilling：自包含正则 gate 账目不成立，只保留这两个确定判据）。
+    """
+    if not recent_ser or has_options:
+        return raw_query
+    with llm_guard:  # 多轮改写是 LLM 调用，同样占并发位
+        return rewrite_query(registry.get(), recent, raw_query)
+
+
 def _pre(user_id: int, conversation_id, text: str, image):
     """流式前的全部准备（独立会话，线程池内执行）。校验失败抛 ValueError。"""
     db = SessionLocal()
@@ -317,37 +331,36 @@ def _pre(user_id: int, conversation_id, text: str, image):
         raw_query = " ".join(p for p in [text or "", desc] if p).strip()
         if not raw_query:
             raw_query = "请描述并分析图片中的法律相关内容"
-        if recent_ser:
-            with llm_guard:  # 多轮改写是 LLM 调用，同样占并发位
-                rewritten = rewrite_query(registry.get(), recent, raw_query)
-        else:
-            rewritten = raw_query
-
-        # 意图分流（Step A，阶段1 ADR-012）：study_aid 具体题走分步检索（逐项有据）；
-        # 元问题短路不检索（避免「你能做题吗」召回作弊罪条文堆砌）；选项题（用户直接
-        # 贴题无关键词）无论 intent 都走分步检索（防"单次整题检索漏项"）。
+        # 意图先判（raw，不改写）：非检索分支（chitchat/cheating/元问题）完全不碰改写（决策 2）
         intent = classify_intent(text or raw_query)
         is_exam = query_understand._is_exam_question(text or raw_query)
+        has_options = query_understand.has_exam_options(text or raw_query)
+
         if intent == "study_aid":
             if settings.feature_study_retrieval and not query_understand.is_meta_study(text or raw_query):
+                rewritten = _rewrite_for_retrieval(raw_query, recent_ser, recent, has_options)  # 具体题：惰性改写
                 docs = scenario_supplement_docs(text or raw_query) + retrieve_exam(rewritten)  # 具体题：场景补充 + 分步检索
             else:
+                rewritten = raw_query  # 元问题/回滚：不检索不改写
                 docs = []  # 元问题/回滚：不检索，邀请发题
             qa_hit = None
         elif intent == "cheating_request":
+            rewritten = raw_query
             docs = cheating_docs()
             qa_hit = None
         elif intent == "chitchat":
             # 闲聊：不检索（零上下文，纯聊天），也不参与 RAG 质检（任务2）
+            rewritten = raw_query
             docs = []
             qa_hit = None
         else:
+            rewritten = _rewrite_for_retrieval(raw_query, recent_ser, recent, has_options)
             if is_exam:
                 # 选项题 → 分步检索 + 场景定向补充前置（死刑复核/正当防卫等核心条防漏）
                 docs = scenario_supplement_docs(text or raw_query) + retrieve_exam(rewritten)
             else:
                 docs = retrieve(rewritten, k=6)  # k4→6：给余弦精排更多候选 + 给模型更全上下文，缓解"对法错条"
-            qa_hit = ks.search_qa(rewritten)
+            qa_hit = ks.search_qa(rewritten)  # 保持 raw（决策 4：桥接只归检索层，不进 QA 缓存）
             # 场景定向补充（仅非选项题，法考题已走 retrieve_exam 逐项检索）
             if not is_exam:
                 # 数据驱动场景补充（ADR-012 阶段2B：死刑复核/正当防卫/毒品等，scenario_supplements.json）
@@ -401,6 +414,8 @@ def _pre(user_id: int, conversation_id, text: str, image):
             thumb_rel=thumb_rel,
             rewritten=rewritten,
             intent=intent,
+            is_exam=is_exam,
+            has_options=has_options,
         )
     finally:
         db.close()
@@ -422,7 +437,9 @@ def _post(pre: dict, answer: str, curate: bool = True):
         db.commit()
 
         # 受控沉淀：高有据 + 含引用 + 非空答 → 入待审
-        if curate:
+        # 沉淀闸（决策 7）：只收真实法律咨询——study_aid 法考题错答（多选漏答）可被采纳污染
+        # qa_pairs；cheating 问答本就不该沉淀；chitchat/meta 无引用本就不沉淀。
+        if curate and pre.get("intent") == "legal_query":
             grounded = grounded_top_score(pre["rewritten"])
             q = pre["user_text"] or pre["rewritten"]
             if q and should_curate(grounded, answer):

@@ -180,3 +180,44 @@
     非管线退化（golden_hit 0.95 已超基线 0.8）。
 - **运维警示**：8000 端口曾出现系统 Python 幽灵 uvicorn 反复抢端口——评测/换班前必须
   确认端口归属并杀干净；embedding 配额以阿里云控制台为准。
+
+---
+
+## ADR-013 Query Rewrite 重构 + 题型感知作答 + 沉淀收窄（2026-08-05）
+
+- **背景**：① 改写先于意图分流（chitchat/cheating/元问题白烧 LLM 改写）；② `SYSTEM_STUDY`
+  不告诉模型单选/多选，多选题干无"多选"字眼时模型给一个坚定答案 → 漏答；③ 沉淀对所有
+  intent 开放，法考题错答可被采纳污染 qa_pairs。经 grilling 对抗审查（5 角度 + 汇总）修订。
+- **决策**：
+  1. **分层职责**：词面桥接 `_bridge_query` 只归检索层（`hybrid_retrieve`，缓存 key 前），
+     **不进 search_qa**；话语改写 `rewrite_query` 只做多轮指代消解。
+  2. **意图后置改写**（main.py `_pre` 重排）：意图先判（raw）→ 非检索分支（chitchat/
+     cheating/meta）`rewritten=raw_query` 零改写；检索分支走 `_rewrite_for_retrieval`
+     （有历史 + 非完整法考题才调 LLM）。
+  3. **完整法考题短路**：`has_exam_options`（带真实选项标号 `_OPTION_FMTS`）→ 自带题干
+     跳过改写——完整考题改写冗余（长输入烧 token）+ 有风险（改写可能动选项/极性）。
+  4. **题型感知作答**（决策 6）：`question_type`（多选/单选/不定项/unknown）→ `_build_messages`
+     对法考题动态追加 `_EXAM_TYPE_SUFFIX`。unknown 兜底 =「列出所有正确项 + 注明推断，
+     切勿默认单选」——单选误判 unknown 不漏答。多选误判 single 仅当题干真有"单选"字样且
+     实为多选（出题不会这样写）。
+  5. **沉淀收窄到 legal_query**（决策 7）：`_post` 闸 `curate and intent=="legal_query"`——
+     一次解决 cheating 翻转、study_aid 法考题错答污染、chitchat/meta 无引用不沉淀。
+     `/api/feedback` 的 `create_candidate`（main.py:1258）独立路径不受影响。
+  6. **桥接扩充流程**（证据门槛）：用户词在库法条无 → 替换映射唯一 → 复现
+     `hybrid_retrieve(k=6)` 漏目标条而桥接句召回 top-6 → 才加 pattern + 回归测试。不投机加。
+- **0.6 阈值评估（用户疑问澄清）**：代码无 8.4/0.84 自动收录。机制 = 0.6 入待审队列
+  （`DEFAULT_GROUNDED_THRESHOLD`）+ 管理员人工 approved 才写 qa_pairs。**不建议加
+  "有据分 > X 自动收录"**——`grounded_top_score` 区分不了库内外（标定：库外工伤保险条例
+  0.677 也高分），固定余弦分不能保证答对，自动收录会放污染。
+- **明确不做（grilling 依据）**：
+  - **正则自包含 gate**：缓存确定性论据是死路径（`_cacheable` 要求首轮，多轮从不算 key）；
+    `以下|如下` 命中法考题题干 `_JUDGE_MARKS` 系统性误烧完整法考题；MIN=4 漏省略追问
+    （"赔偿标准是多少"）致召回回退。多轮非考题保持改写现状。
+  - **search_qa 双通桥接**：桥接目标词在 ~204 条 qa_pairs 零命中、方向与语料错配
+    （库存口语措辞，桥接拉向法言）、raw miss 是常态致成本算反。
+  - **不改 `rewrite_query` 提示词**、**不改 0.6 阈值**（入队过滤器够用，人工审是质量闸）。
+- **代价 / 诚实标注**：study_aid 优质答案不再自动进待审——法考题持久复用由 gen_qa_corpus
+  脚本（204 条已人工验收）承担；沉淀收窄的污染防护收益 > 丢失的 study_aid 复用价值。
+  改动影响面：`query_understand.py`（+2 纯函数）、`prompts.py`（+1 常量表）、`main.py`
+  （重排 + 接线 + 闸）；`memory.py`/`retrieval.py`/`knowledge_service.py` 零改动。
+  测试：260 passed（含新增 test_pre_rewrite_order.py 集成 + test_query_understand 单测）。

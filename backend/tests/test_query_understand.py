@@ -167,3 +167,37 @@ def test_hybrid_retrieve_plain_long_text():
     docs = hybrid_retrieve(q, k=6)
     arts = {d.metadata.get("article", "") for d in docs}
     assert "第一千二百零九条" in arts, f"应召回出借车辆责任条文1209，实际无：{arts}"
+
+
+# ---------------- 法考题选项/题型判定（query rewrite v3，决策 3/6） ----------------
+def test_has_exam_options_full_question_true():
+    """完整带选项标号（A：…）法考题 → 自带题干，跳过改写。"""
+    assert query_understand.has_exam_options("下列说法正确的是：A：甲 B：乙 C：丙 D：丁") is True
+    # 圈号/数字标号格式同样识别
+    assert query_understand.has_exam_options("以下正确的是 ①甲 ②乙 ③丙 ④丁") is True
+    assert query_understand.has_exam_options("正确的有 1.甲 2.乙 3.丙 4.丁") is True
+
+
+def test_has_exam_options_no_options_false():
+    """无选项标号 → False（裸判断措辞是多轮省略型，必须改写）。"""
+    assert query_understand.has_exam_options("正确的是") is False
+    assert query_understand.has_exam_options("试用期最长多久") is False
+    assert query_understand.has_exam_options("高空抛物致人损害由谁承担责任？") is False
+
+
+def test_question_type_multi():
+    assert query_understand.question_type("下列哪些说法正确") == "multi"
+    assert query_understand.question_type("以下正确的有") == "multi"
+    assert query_understand.question_type("本题为多选") == "multi"
+
+
+def test_question_type_single_and_indeterminate():
+    assert query_understand.question_type("本题为单选题") == "single"
+    assert query_understand.question_type("单项选择") == "single"
+    assert query_understand.question_type("不定项选择") == "indeterminate"
+
+
+def test_question_type_unknown_defaults():
+    """无题型词 → unknown（兜底：列出所有正确项 + 注明推断，防多选漏答）。"""
+    assert query_understand.question_type("下列说法正确的是") == "unknown"
+    assert query_understand.question_type("试用期最长多久") == "unknown"

@@ -206,6 +206,32 @@ def _options_fingerprint(text: str) -> str:
     return "\x1f".join(options)
 
 
+def has_exam_options(text: str) -> bool:
+    """带真实选项标号（A：/A./①/1. 等）的完整法考题 → 自带题干，改写冗余（决策 3）。
+
+    用 _OPTION_FMTS（与 _split_by_choice/_label_system/option_count 同源判据）而非
+    _is_exam_question：后者含 _JUDGE_MARKS（裸"正确的是"单独出现即 True）——裸判断
+    措辞作多轮追问是省略型，必须改写补全话题；带选项标号才意味着完整题干。
+    """
+    return any(f.search(text or "") for f in _OPTION_FMTS)
+
+
+def question_type(text: str) -> str:
+    """法考题题型：'indeterminate'/'multi'/'single'/'unknown'。确定性纯函数（作答提示用）。
+
+    决策 6：SYSTEM_STUDY 不告诉模型单选/多选 → 多选题干无"多选"字眼时模型只给一个
+    坚定答案 → 漏答。unknown 兜底（列出所有正确项 + 注明推断）吸收误判，不漏答。
+    """
+    t = text or ""
+    if "不定项" in t:
+        return "indeterminate"
+    if any(k in t for k in ("多选", "多项", "哪些", "正确的有", "符合的有")):
+        return "multi"
+    if any(k in t for k in ("单选", "单项")):
+        return "single"
+    return "unknown"
+
+
 def _split_by_sentence(text: str) -> list[str]:
     """按中文标点切句，取较长句（保留有信息量的），上限 SLICE_MAX。"""
     parts = [s.strip() for s in _SENT_SPLIT_RE.split(text)]
