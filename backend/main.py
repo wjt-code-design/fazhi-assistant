@@ -742,16 +742,17 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 llm = registry.get() if _i == 0 else registry.variant(disabled)
                 return make_chain(llm)
 
-            def _on_quota_exhausted(_e):
-                # 配额型错误（真实 API 报错，非估算）→ 立即 mark_depleted，下一轮落后备
+            def _on_model_failure(_e):
+                # 任何失败（配额耗尽/模型名错/瞬时错误，真实 API 报错非估算）→ 立即
+                # mark_depleted，下一轮落后备——确保没人盯梢也能自动切换（用户核心要求）
                 if use_router and current["key"]:
-                    registry.mark_depleted(current["key"], "quota_error")
+                    registry.mark_depleted(current["key"], "model_failure")
 
             chunks = []
             _f0 = None
             async for piece in stream_with_retry(
                 make_chain_fn, messages, [(False, 0.0), (True, 0.5), (False, 0.5)],
-                on_quota_exhausted=_on_quota_exhausted,
+                on_model_failure=_on_model_failure,
             ):
                 if _f0 is None:
                     _f0 = time.perf_counter()  # 真流式：首个 token 时刻（首帧埋点）

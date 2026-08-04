@@ -11,7 +11,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 
 import llm_registry as R
-from rag_chain import _is_quota_error, stream_with_retry
+from rag_chain import stream_with_retry
 
 
 class QuotaChain:
@@ -31,13 +31,6 @@ class OkChain:
             yield p
 
 
-def test_is_quota_error_detects():
-    assert _is_quota_error(RuntimeError("InsufficientBalance")) is True
-    assert _is_quota_error(RuntimeError("quota exceeded")) is True
-    assert _is_quota_error(RuntimeError("429 Too Many Requests")) is True
-    assert _is_quota_error(RuntimeError("Connection reset")) is False
-
-
 def test_stream_switches_model_on_quota_error():
     """首个模型配额错误 → mark_depleted → 重试落到第二个模型 → 返回其答案。"""
     calls = []
@@ -46,14 +39,14 @@ def test_stream_switches_model_on_quota_error():
         calls.append(i)
         return QuotaChain() if i == 0 else OkChain()
 
-    def on_quota(e):
+    def on_fail(e):
         calls.append("depleted")
 
     async def run():
         out = []
         async for piece in stream_with_retry(
             make_chain_fn, [], [(False, 0.0), (False, 0.0)],
-            on_quota_exhausted=on_quota,
+            on_model_failure=on_fail,
         ):
             out.append(piece)
         return "".join(out)
@@ -63,25 +56,56 @@ def test_stream_switches_model_on_quota_error():
     assert calls[0] == 0 and calls[1] == "depleted" and calls[2] == 1  # 首模型错误 → 标记 → 换模型
 
 
-def test_stream_non_quota_error_propagates():
-    """非配额型错误（如连接重置）→ 原样上抛，不切换模型。"""
+def test_stream_switches_on_any_error_not_just_quota():
+    """非配额型错误（模型名配错/瞬时失败）也换模型——确保没人盯梢也能前进队列（用户核心要求）。"""
 
     class BrokenChain:
         async def astream(self, messages):
             if False:
                 yield None
-            raise RuntimeError("Connection reset by peer")
+            raise RuntimeError("ModelNotExist: unknown-model")
+
+    calls = []
+
+    def make_chain_fn(i, disabled):
+        calls.append(i)
+        return BrokenChain() if i == 0 else OkChain()
+
+    def on_fail(e):
+        calls.append("depleted")
+
+    async def run():
+        out = []
+        async for piece in stream_with_retry(
+            make_chain_fn, [], [(False, 0.0), (False, 0.0), (False, 0.0)],
+            on_model_failure=on_fail,
+        ):
+            out.append(piece)
+        return "".join(out)
+
+    assert asyncio.run(run()) == "答案"
+    assert calls == [0, "depleted", 1]  # 非配额错误 → 仍标记并换模型
+
+
+def test_stream_all_models_fail_propagates():
+    """最后一个 config 仍失败 → 上抛（全队列确实不可用时诚实报错，不静默）。"""
+
+    class BrokenChain:
+        async def astream(self, messages):
+            if False:
+                yield None
+            raise RuntimeError("InsufficientBalance")
 
     def make_chain_fn(i, disabled):
         return BrokenChain()
 
-    def on_quota(e):
-        raise AssertionError("不应触发换模型")
+    def on_fail(e):
+        pass
 
     async def run():
         async for _ in stream_with_retry(
-            make_chain_fn, [], [(False, 0.0)],
-            on_quota_exhausted=on_quota,
+            make_chain_fn, [], [(False, 0.0), (False, 0.0)],
+            on_model_failure=on_fail,
         ):
             pass
 
@@ -89,7 +113,7 @@ def test_stream_non_quota_error_propagates():
         asyncio.run(run())
         assert False, "应上抛"
     except RuntimeError as e:
-        assert "Connection reset" in str(e)
+        assert "InsufficientBalance" in str(e)
 
 
 def test_mark_depleted_makes_model_unavailable():

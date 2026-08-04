@@ -836,19 +836,7 @@ export default function AdminPage() {
             {/* ===== 模型配额与路由（仅管理员可见） ===== */}
             {!loadingData && section === "models" && llmStatus && (
               <div>
-                <SectionTitle>模型配额与分级路由</SectionTitle>
-                <div className="card mt-4 flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-                  <div>
-                    <div className="stat-label">多模型分级路由</div>
-                    <div className="mt-1 text-sm text-slate">
-                      简单问题走轻量模型省配额，复杂/图片走旗舰；剩余 &lt;5% 自动切换。模型信息不对普通用户展示。
-                    </div>
-                  </div>
-                  <Badge kind={llmStatus.feature_router ? "success" : "neutral"} dot>
-                    {llmStatus.feature_router ? "已启用" : "已关闭（单模型）"}
-                  </Badge>
-                </div>
-
+                <SectionTitle>模型路由</SectionTitle>
                 <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
                   <div className="stat-card"><div className="stat-value">{llmStatus.metrics.total}</div><div className="stat-label">本轮累计回答</div></div>
                   <div className="stat-card"><div className="stat-value text-accent">{(llmStatus.metrics.cache_hit_rate * 100).toFixed(1)}%</div><div className="stat-label">缓存命中率（零 token）</div></div>
@@ -864,84 +852,13 @@ export default function AdminPage() {
                 </div>
 
                 <div className="card mt-4 px-5 py-4">
-                  <div className="stat-label">当前活跃模型</div>
-                  <div className="mt-1 font-mono text-sm text-ink">
-                    {llmStatus.models.find((m) => !m.depleted && !m.below_threshold)?.model ?? "无可用模型"}
-                  </div>
-                  <p className="mt-2 text-xs text-slate">
-                    token 剩余量以阿里云控制台为准（本地估算时效性太低，已隐藏）。
-                    配额耗尽时系统按队列自动切换到下一个可用模型（依据真实 API 错误，非估算）。
-                    校准真实剩余值请调 <span className="font-mono">POST /api/admin/llm-quota {"{key, remaining}"}</span>。
+                  <div className="stat-label">自动切换（无需人工盯梢）</div>
+                  <p className="mt-1 text-sm text-slate">
+                    任一模型配额耗尽时，系统捕获真实 API 错误 → 立即标记该模型耗尽 → 沿
+                    队列（20 模型）自动切换到下一个可用模型，当前请求与后续请求均自动落后备，
+                    不中断服务。token 剩余量请直接在阿里云控制台查看，本后台不再展示。
                   </p>
                 </div>
-
-                <div className="card mt-4 overflow-x-auto">
-                  <table className="law-table">
-                    <thead>
-                      <tr><th>模型</th><th>模态</th><th>等级</th><th>状态</th></tr>
-                    </thead>
-                    <tbody>
-                      {llmStatus.models.map((m) => (
-                        <tr key={m.key}>
-                          <td className="max-w-[220px] truncate font-mono text-xs">{m.model}</td>
-                          <td><Badge kind={m.modality === "vision" ? "accent" : "neutral"}>{m.modality}</Badge></td>
-                          <td className="text-slate">{m.tier}</td>
-                          <td>
-                            {m.depleted ? <Badge kind="error">已耗尽</Badge> : m.below_threshold ? <Badge kind="accent">将切换</Badge> : <Badge kind="success">可用</Badge>}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                {llmStatus.utility_quota && llmStatus.utility_quota.length > 0 && (
-                  <div className="card mt-4 px-5 py-4">
-                    <div className="stat-label">工具模型状态（embedding / rerank）</div>
-                    <div className="mt-3 space-y-3">
-                      {llmStatus.utility_quota.map((u) => (
-                        <div key={u.key}>
-                          <div className="flex items-center justify-between">
-                            <span className="font-mono text-xs text-ink">
-                              {u.modality === "embedding" ? "Embedding" : "Rerank"} · <span className="text-slate">{u.model}</span>
-                            </span>
-                            <div className="mt-1 h-2 w-full overflow-hidden rounded bg-mist">
-                              <div
-                                className="h-full"
-                                style={{
-                                  width: "100%",
-                                  background: u.depleted ? "var(--error)" : u.below_threshold ? "var(--error)" : u.warn_threshold ? "var(--accent)" : "var(--jade)",
-                                }}
-                              />
-                            </div>
-                            <div className="mt-1 text-xs">
-                              {u.depleted ? (
-                                <Badge kind="error">已耗尽</Badge>
-                              ) : u.below_threshold ? (
-                                u.modality === "rerank" && u.degraded ? (
-                                  <Badge kind="error">已降级本地精排</Badge>
-                                ) : u.modality === "rerank" ? (
-                                  <Badge kind="error">已用尽，切换下一个</Badge>
-                                ) : (
-                                  <Badge kind="error">接近耗尽，请换班</Badge>
-                                )
-                              ) : u.warn_threshold ? (
-                                u.fallback === "manual_rebuild" ? (
-                                  <Badge kind="accent">建议准备换班</Badge>
-                                ) : (
-                                  <Badge kind="accent">快用完</Badge>
-                                )
-                              ) : (
-                                <Badge kind="success">充足</Badge>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="mt-3 text-xs text-slate">状态按本地估算（云 API 无真实 usage）；真实剩余以阿里云控制台为准。</p>
-                  </div>
-                )}
               </div>
             )}
           </div>
