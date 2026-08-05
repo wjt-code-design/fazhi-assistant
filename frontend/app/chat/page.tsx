@@ -3,7 +3,8 @@ import { useEffect, useRef, useState, FormEvent, ClipboardEvent, DragEvent } fro
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { streamChat, convApi, loadMediaSrc, chatFile, ChatMeta, AnalysisStep, feedbackApi } from "@/lib/api";
-import { Logo, Spinner, EmptyState } from "@/components/ui";
+import { Logo, Spinner } from "@/components/ui";
+import { annotate } from "@/lib/annotate";
 
 interface Msg {
   role: "user" | "assistant";
@@ -44,6 +45,23 @@ interface FileInfo {
   chars: number;
   truncated: boolean;
 }
+
+// 空状态：场景直达卡
+const SCENES = [
+  { icon: "📄", title: "审合同", desc: "贴 / 传 / 拍合同", q: "请帮我审查这份合同的风险点" },
+  { icon: "📚", title: "法考答题", desc: "刷题对答案", q: "帮我解答一道法考选择题" },
+  { icon: "💰", title: "被拖欠工资", desc: "劳动维权", q: "公司拖欠我三个月工资，该怎么维权？" },
+  { icon: "⚖️", title: "离婚财产分割", desc: "婚姻家事", q: "离婚时财产分割有哪些规定？" },
+];
+// 空状态：每日法条（前端硬编码高频常识，随机一条；点击提问走正常管线）
+const DAILY_LAWS = [
+  { src: "劳动合同法", art: "第十九条", text: "试用期最长不得超过六个月", q: "劳动合同试用期最长是多久？" },
+  { src: "民法典", art: "第五百八十五条", text: "违约金过分高于损失可请求法院调减", q: "违约金太高可以要求降低吗？" },
+  { src: "民法典", art: "第一百八十八条", text: "普通诉讼时效为三年", q: "普通诉讼时效是几年？" },
+  { src: "劳动法", art: "第四十四条", text: "安排延长工作时间应支付加班费", q: "加班费怎么计算？" },
+];
+// 流式三态：法典速查字符（检索期轮换）
+const CODEX = ["§", "¶", "†", "‡"];
 
 function ChatImage({ dataURL, imgRef, thumbRef }: { dataURL?: string; imgRef?: string; thumbRef?: string }) {
   const [src, setSrc] = useState<string | undefined>(dataURL);
@@ -90,6 +108,8 @@ export default function ChatPage() {
   const [corrText, setCorrText] = useState("");
   const [fbDone, setFbDone] = useState<Record<number, "up" | "down">>({});
   const [quotaWarn, setQuotaWarn] = useState<QuotaWarn | null>(null);
+  const [codexIdx, setCodexIdx] = useState(0); // 流式三态：法典速查字符轮换
+  const [dailyLaw] = useState(() => DAILY_LAWS[Math.floor(Math.random() * DAILY_LAWS.length)]); // 每日法条（固定一次）
 
   useEffect(() => {
     if (!loading) {
@@ -111,6 +131,13 @@ export default function ChatPage() {
   useEffect(() => {
     if (user) loadHistory();
   }, [user]);
+
+  // 流式三态·检索期：法典速查字符轮换（streaming 且尚未输出时）
+  useEffect(() => {
+    if (!streaming) return;
+    const t = setInterval(() => setCodexIdx((i) => (i + 1) % CODEX.length), 260);
+    return () => clearInterval(t);
+  }, [streaming]);
 
   // 自动滚动到底部：只在用户贴近底部时跟随（不打断向上阅读）；
   // 流式输出期间用即时滚动（避免 smooth 平滑动画"追着文字跑"的卡顿）
@@ -244,34 +271,25 @@ export default function ChatPage() {
     if (f && ACCEPT_IMAGE.includes(f.type)) acceptImageFile(f);
   }
 
-  async function send(e?: FormEvent) {
-    e?.preventDefault();
-    const text = input.trim();
-    const contentToSend = fileContent ?? text;
-    if ((!contentToSend && !pendingImage) || streaming) return;
+  // 核心发送：普通 send 与空状态快捷提问共用（streamChat 回调原样，零逻辑改动）
+  async function doSend(contentText: string, image?: string | null, display?: string, truncated?: boolean) {
+    if ((!contentText && !image) || streaming) return;
     const userMsg: Msg = {
       role: "user",
-      content: fileContent
-        ? `[文件：${fileInfo?.name ?? "已上传文件"}（${fileInfo?.chars ?? ""}字）]`
-        : text || "[图片]",
-      imageDataURL: pendingImage || undefined,
+      content: display || contentText || "[图片]",
+      imageDataURL: image || undefined,
     };
     const aiMsg: Msg = { role: "assistant", content: "" };
     setMessages((m) => [...m, userMsg, aiMsg]);
-    const imageToSend = pendingImage;
-    setInput("");
-    setPendingImage(null);
-    setFileContent(null);
-    setFileInfo(null);
     setStreaming(true);
 
     let acc = "";
     await streamChat(
       {
         conversationId,
-        content: contentToSend,
-        image: imageToSend || undefined,
-        truncated: fileInfo?.truncated || undefined, // 文件上传超长截断信号穿透
+        content: contentText,
+        image: image || undefined,
+        truncated,
       },
       (chunk) => {
         acc += chunk;
@@ -318,6 +336,30 @@ export default function ChatPage() {
     loadHistory();
   }
 
+  function send(e?: FormEvent) {
+    e?.preventDefault();
+    const text = input.trim();
+    const contentToSend = fileContent ?? text;
+    if (!contentToSend && !pendingImage) return;
+    const display = fileContent
+      ? `[文件：${fileInfo?.name ?? "已上传文件"}（${fileInfo?.chars ?? ""}字）]`
+      : undefined;
+    const imageToSend = pendingImage;
+    const truncated = fileInfo?.truncated || undefined; // 文件上传超长截断信号穿透
+    setInput("");
+    setPendingImage(null);
+    setFileContent(null);
+    setFileInfo(null);
+    doSend(contentToSend, imageToSend, display, truncated);
+  }
+
+  // 空状态快捷提问（场景直达 / 每日法条）：直接发，不走输入框
+  function quickSend(q: string) {
+    if (streaming) return;
+    setSidebarOpen(false);
+    doSend(q);
+  }
+
   async function sendFeedback(i: number, rating: "up" | "down", correction?: string) {
     const ai = messages[i];
     const prev = messages[i - 1];
@@ -346,7 +388,7 @@ export default function ChatPage() {
 
       {/* 侧栏：历史会话 */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-[280px] flex-col bg-ink text-white shadow-2xl transition-transform duration-300 ease-out md:static md:translate-x-0 md:shadow-none ${
+        className={`sidebar-glow relative fixed inset-y-0 left-0 z-30 flex w-[280px] flex-col bg-ink text-white shadow-2xl transition-transform duration-300 ease-out md:static md:translate-x-0 md:shadow-none ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -438,8 +480,76 @@ export default function ChatPage() {
           onDrop={onDrop}
           onDragOver={(e) => e.preventDefault()}
         >
-          <div className="mx-auto max-w-3xl">
-            {messages.length === 0 && <EmptyState title="请输入您的法律问题" hint="支持文字、粘贴或拖拽图片；可连续追问" />}
+          <div className="mx-auto max-w-[44rem]">
+            {messages.length === 0 && (
+              <div className="fade-in pt-6">
+                {/* 欢迎语 */}
+                <p className="mb-7 text-center font-serif text-xl font-semibold tracking-tight text-ink md:text-[1.4rem]">
+                  你好，{user.username}，今天想咨询什么？
+                </p>
+                {/* 场景直达卡 */}
+                <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+                  {SCENES.map((s) => (
+                    <button
+                      key={s.title}
+                      type="button"
+                      onClick={() => quickSend(s.q)}
+                      className="glass-card group rounded-xl px-4 py-4 text-left transition-transform duration-200 hover:-translate-y-0.5"
+                    >
+                      <span className="text-xl">{s.icon}</span>
+                      <p className="mt-2 text-sm font-medium text-ink">{s.title}</p>
+                      <p className="mt-0.5 text-xs text-slate">{s.desc}</p>
+                    </button>
+                  ))}
+                </div>
+                {/* 每日法条 */}
+                <div className="glass-card mb-6 rounded-xl px-5 py-4">
+                  <p className="text-xs tracking-wide text-slate">每日法条</p>
+                  <button
+                    type="button"
+                    onClick={() => quickSend(dailyLaw.q)}
+                    className="mt-1.5 block text-left text-sm leading-relaxed text-ink transition-colors hover:text-accent"
+                  >
+                    <span className="law-ref">
+                      《{dailyLaw.src}》{dailyLaw.art}
+                    </span>{" "}
+                    — {dailyLaw.text}
+                  </button>
+                </div>
+                {/* 用法引导 */}
+                <p className="mb-6 text-center text-xs tracking-wide text-slate/80">
+                  ① 贴文字 / 传文件 / 拍照　→　② 逐条追问　→　③ 查看参考条文
+                </p>
+                {/* 最近会话 */}
+                {history.length > 0 && (
+                  <div className="mb-6">
+                    <p className="mb-2 text-center text-xs text-slate">最近会话</p>
+                    <div className="flex flex-wrap justify-center gap-2">
+                      {history.slice(0, 3).map((h) => (
+                        <button
+                          key={h.id}
+                          type="button"
+                          onClick={() => selectConv(h)}
+                          className="max-w-[220px] truncate rounded-full border border-mist bg-white/60 px-3 py-1.5 text-xs text-ink transition-colors hover:border-accent hover:text-accent"
+                        >
+                          {h.title || h.preview || "新对话"}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {/* 法条速查（P1 面板，占位） */}
+                <div className="text-center">
+                  <button
+                    type="button"
+                    onClick={() => alert("法条速查即将上线")}
+                    className="rounded-full border border-mist bg-white/60 px-4 py-2 text-xs text-slate transition-colors hover:border-accent hover:text-accent"
+                  >
+                    § 法条速查（即将上线）
+                  </button>
+                </div>
+              </div>
+            )}
             {messages.map((m, i) =>
               m.role === "user" ? (
                 <div key={i} className="page-enter mb-6 flex items-end justify-end gap-2.5">
@@ -472,12 +582,23 @@ export default function ChatPage() {
                     <div
                       className={`bubble-ai whitespace-pre-wrap px-5 py-4 text-[0.9375rem] leading-[1.75] text-ink ${
                         streaming && i === messages.length - 1 && m.content ? "streaming-cursor" : ""
+                      } ${streaming && i === messages.length - 1 && m.content ? "streaming-aura" : ""} ${
+                        streaming && i === messages.length - 1 && !m.content ? "overflow-hidden" : ""
                       }`}
                     >
-                      {m.content ||
-                        (streaming && i === messages.length - 1 ? (
-                          <span className="text-slate">
-                            正在检索法律条文
+                      {m.content ? (
+                        streaming && i === messages.length - 1 ? (
+                          // 流式期：纯文本（不标注，防半截标签）
+                          <span className="whitespace-pre-wrap">{m.content}</span>
+                        ) : (
+                          // 完成/历史：语义标注（法条/时效/金额；引号内不标）
+                          <span className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: annotate(m.content) }} />
+                        )
+                      ) : streaming && i === messages.length - 1 ? (
+                        // 检索期三态：合同模式=分析中（step 胶囊已是进度）；普通问答=法典速查+扫描光
+                        m.steps && m.steps.length > 0 ? (
+                          <span className="flex items-center gap-2 text-slate">
+                            正在生成风险评估报告
                             <span className="typing-dots">
                               <i />
                               <i />
@@ -485,8 +606,15 @@ export default function ChatPage() {
                             </span>
                           </span>
                         ) : (
-                          ""
-                        ))}
+                          <span className="flex items-center gap-2 text-slate">
+                            <span className="codex-char text-accent">{CODEX[codexIdx]}</span>
+                            正在检索法律条文
+                            <span className="scan-beam" />
+                          </span>
+                        )
+                      ) : (
+                        ""
+                      )}
                     </div>
                     {!streaming && m.sources && m.sources.length > 0 && (
                       <details className="mt-1.5 text-xs">
@@ -529,8 +657,8 @@ export default function ChatPage() {
         </div>
 
         {/* 输入区 */}
-        <form onSubmit={send} className="border-t border-mist bg-paper px-4 py-4 md:px-8">
-          <div className="mx-auto max-w-3xl">
+        <form onSubmit={send} className="border-t border-white/40 bg-white/45 px-4 py-4 backdrop-blur-md md:px-8 pb-safe">
+          <div className="mx-auto max-w-[44rem]">
             {pendingImage && (
               <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-mist bg-parchment p-1.5">
                 <img src={pendingImage} alt="待发送" className="h-12 w-12 rounded object-cover" />
