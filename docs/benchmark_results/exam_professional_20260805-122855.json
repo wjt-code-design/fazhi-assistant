@@ -1,0 +1,91 @@
+{
+ "ts": "20260805-122855",
+ "summary": {
+  "professional_avg": 2.8,
+  "judge": "glm-5.1",
+  "freeze_hash": "376ee0b3a865",
+  "n": 20
+ },
+ "rows": [
+  {
+   "id": 1,
+   "professional": 3
+  },
+  {
+   "id": 2,
+   "professional": 3
+  },
+  {
+   "id": 3,
+   "professional": 3
+  },
+  {
+   "id": 4,
+   "professional": 3
+  },
+  {
+   "id": 5,
+   "professional": 2
+  },
+  {
+   "id": 6,
+   "professional": 3
+  },
+  {
+   "id": 7,
+   "professional": 3
+  },
+  {
+   "id": 8,
+   "professional": 3
+  },
+  {
+   "id": 9,
+   "professional": 2
+  },
+  {
+   "id": 10,
+   "professional": 3
+  },
+  {
+   "id": 11,
+   "professional": 3
+  },
+  {
+   "id": 12,
+   "professional": 3
+  },
+  {
+   "id": 13,
+   "professional": 3
+  },
+  {
+   "id": 14,
+   "professional": 3
+  },
+  {
+   "id": 15,
+   "professional": 3
+  },
+  {
+   "id": 16,
+   "professional": 2
+  },
+  {
+   "id": 17,
+   "professional": 3
+  },
+  {
+   "id": 18,
+   "professional": 2
+  },
+  {
+   "id": 19,
+   "professional": 3
+  },
+  {
+   "id": 20,
+   "professional": 3
+  }
+ ]
+}

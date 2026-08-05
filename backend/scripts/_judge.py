@@ -6,14 +6,33 @@ temperature=0 只作用于 judge 调用（bind 覆盖），不影响生产回答
 """
 
 import json
+import os
 
 from langchain_core.messages import HumanMessage, SystemMessage
+from langchain_openai import ChatOpenAI
 
 from llm_registry import registry
 
 
 def pick_text_llm():
-    """text 档旗舰且 temperature=0。bind 返回 Runnable 包装，invoke 可用。"""
+    """text 档 judge。优先级（2026-08-05）：JUDGE_MODEL（原始模型名，直接走百炼）>
+    JUDGE_MODEL_KEY（registry key）> 默认旗舰 qwen3.7-plus。temperature=0 确定性。
+
+    judge 是主观评分（0-3）非正确性闸门（金标是确定性比对），模型固定即可保趋势可比。
+    - JUDGE_MODEL=glm-5.1：阿里云百炼 glm-5.1（1M 配额，3s/次，比智谱 glm-4.5-air 快 17 倍）
+    - JUDGE_MODEL_KEY=text_glm45air：registry key 方式（智谱免费量）
+    """
+    model = os.getenv("JUDGE_MODEL", "")
+    if model:
+        from settings import settings
+
+        return ChatOpenAI(model=model, api_key=settings.llm_api_key, base_url=settings.llm_base_url, temperature=0)
+    key = os.getenv("JUDGE_MODEL_KEY", "")
+    if key:
+        try:
+            return registry.pick_by_key(key).bind(temperature=0)
+        except KeyError:
+            pass  # 指定模型不可用 → 回落默认旗舰
     _, llm = registry.pick("text", "flag")
     return llm.bind(temperature=0)
 

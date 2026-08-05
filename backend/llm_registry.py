@@ -230,6 +230,17 @@ class LLMRegistry:
             return self.config()
 
     # ---------- 路由接口（主回答用） ----------
+    def pick_by_key(self, key: str) -> ChatOpenAI:
+        """按 key 取指定模型实例（judge 等指定模型场景——如智谱免费量做专业度评分）。
+
+        unavailable（耗尽/低于阈值）→ KeyError，调用方回落默认。
+        """
+        with self._lock:
+            e = self._entries.get(key)
+            if e is None or e.llm is None or e.unavailable:
+                raise KeyError(f"模型不可用: {key}")
+            return e.llm
+
     def pick(self, modality: str, tier: str) -> tuple[str, ChatOpenAI]:
         """按 (modality, tier) 选模型：从请求 tier 沿回退链找首个可用；全不可用抛 QuotaExhausted。"""
         with self._lock:
