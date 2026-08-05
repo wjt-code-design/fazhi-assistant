@@ -103,3 +103,24 @@ class Feedback(Base):
     rating = Column(String(8), nullable=False)  # up / down
     correction = Column(Text, default="")  # 用户纠错/期望答案（可选）
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AnalysisRun(Base):
+    """合同评估运行记录（ADR-015 二期：条款数/命中法条/风险等级/耗时，审计与评测用）。
+
+    每次合同评估在报告生成后写入一行；失败不阻断主流程（record 是增强不是契约）。
+    source_type：image=多模态转写合同，text=手打/文件上传（文件前端解析后即 text）。
+    """
+
+    __tablename__ = "analysis_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=True, index=True)
+    source_type = Column(String(16), default="text")
+    clause_count = Column(Integer, default=0)
+    article_count = Column(Integer, default=0)
+    risk_level = Column(String(8), default="")
+    truncated = Column(Boolean, default=False)
+    duration_ms = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)

@@ -49,7 +49,7 @@ from intent import classify_intent
 from llm_guard import LLMBusyError, llm_guard
 from llm_registry import QuotaExhausted, estimate_tokens, registry
 from memory import compress, load_context, needs_compress, recent_messages, rewrite_query
-from models import AuditLog, Conversation, Feedback, Message, QaCandidate, User
+from models import AnalysisRun, AuditLog, Conversation, Feedback, Message, QaCandidate, User
 from multimodal import MEDIA_DIR, build_vision_content, describe_image, persist_image, validate_image
 from observability import RequestIdMiddleware, log_account, setup_logging
 from prompts import (
@@ -486,6 +486,38 @@ def _pre(user_id: int, conversation_id, text: str, image):
         db.close()
 
 
+def _record_analysis(
+    user_id: int | None,
+    conv_id: int | None,
+    source_type: str,
+    clause_count: int,
+    article_count: int,
+    risk_level: str,
+    truncated: bool,
+    duration_ms: int,
+):
+    """合同评估运行记录写库（analysis_runs，审计/评测用）。失败不阻断主流程。"""
+    db = SessionLocal()
+    try:
+        db.add(
+            AnalysisRun(
+                user_id=user_id,
+                conversation_id=conv_id,
+                source_type=source_type,
+                clause_count=clause_count,
+                article_count=article_count,
+                risk_level=risk_level,
+                truncated=truncated,
+                duration_ms=duration_ms,
+            )
+        )
+        db.commit()
+    except Exception as e:
+        print(f"[analysis-run] {e}", flush=True)
+    finally:
+        db.close()
+
+
 def _post(pre: dict, answer: str, curate: bool = True):
     """流式后的写库 + 受控沉淀 + 压缩（独立会话，线程池内，不阻塞用户该轮）。
 
@@ -747,6 +779,36 @@ async def chat_file(request: Request, file: UploadFile = File(...), user: User =
     return await run_in_threadpool(_do)
 
 
+@app.get("/api/admin/analysis-runs")
+@limiter.limit("30/minute")
+async def admin_analysis_runs(request: Request, limit: int = 50, admin: User = Depends(require_admin)):
+    """合同评估运行记录（analysis_runs，审计用）。倒序返回最近 N 条（≤200）。"""
+
+    def _do():
+        db = SessionLocal()
+        try:
+            rows = db.query(AnalysisRun).order_by(AnalysisRun.created_at.desc()).limit(min(limit, 200)).all()
+            return [
+                {
+                    "id": r.id,
+                    "user_id": r.user_id,
+                    "conversation_id": r.conversation_id,
+                    "source_type": r.source_type,
+                    "clause_count": r.clause_count,
+                    "article_count": r.article_count,
+                    "risk_level": r.risk_level,
+                    "truncated": r.truncated,
+                    "duration_ms": r.duration_ms,
+                    "created_at": r.created_at.isoformat() if r.created_at else None,
+                }
+                for r in rows
+            ]
+        finally:
+            db.close()
+
+    return await run_in_threadpool(_do)
+
+
 @app.post("/api/chat")
 @limiter.limit("60/minute")
 async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
@@ -932,6 +994,16 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 )
                 yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
+                # analysis_runs 审计记录（二期）：失败不阻断主流程
+                try:
+                    await run_in_threadpool(
+                        _record_analysis,
+                        user.id, pre["conv_id"], "image" if pre.get("image") else "text",
+                        len(cd["blocks"]), len(_hit_arts), cd["level"],
+                        bool(cd.get("truncated")), int((time.perf_counter() - t0) * 1000),
+                    )
+                except Exception as e:
+                    print(f"[analysis-run] {e}", flush=True)
                 try:
                     await run_in_threadpool(_post, pre, answer, False)
                 except Exception as e:
