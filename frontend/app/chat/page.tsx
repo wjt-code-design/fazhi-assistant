@@ -2,9 +2,12 @@
 import { useEffect, useRef, useState, FormEvent, ClipboardEvent, DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { streamChat, convApi, loadMediaSrc, chatFile, ChatMeta, AnalysisStep, feedbackApi } from "@/lib/api";
+import { streamChat, convApi, loadMediaSrc, chatFile, ChatMeta, AnalysisStep, feedbackApi, lawApi, LawDetail, LawItem } from "@/lib/api";
 import { Logo, Spinner } from "@/components/ui";
 import { annotate } from "@/lib/annotate";
+import { LawCard } from "@/components/LawCard";
+import { useHoverCapable } from "@/lib/usePointer";
+import { usePointerGlow } from "@/lib/usePointerGlow";
 
 interface Msg {
   role: "user" | "assistant";
@@ -110,6 +113,14 @@ export default function ChatPage() {
   const [quotaWarn, setQuotaWarn] = useState<QuotaWarn | null>(null);
   const [codexIdx, setCodexIdx] = useState(0); // 流式三态：法典速查字符轮换
   const [dailyLaw] = useState(() => DAILY_LAWS[Math.floor(Math.random() * DAILY_LAWS.length)]); // 每日法条（固定一次）
+  // 法条速查面板 + 法条悬浮卡（P1）
+  const [lawPanel, setLawPanel] = useState(false);
+  const [lawQ, setLawQ] = useState("");
+  const [lawResults, setLawResults] = useState<LawItem[]>([]);
+  const [lawDetail, setLawDetail] = useState<LawDetail | null>(null);
+  const [lawPopup, setLawPopup] = useState<{ law: LawDetail; x: number; y: number } | null>(null);
+  const hoverCapable = useHoverCapable(); // 桌面纯鼠标 → hover；触屏/Mac 触控板 → click
+  usePointerGlow(scrollRef); // 指针光晕（仅 hover:hover）
 
   useEffect(() => {
     if (!loading) {
@@ -360,6 +371,36 @@ export default function ChatPage() {
     doSend(q);
   }
 
+  // 法条悬浮卡：解析 .law-ref 文本 → 后端查原文（未命中/失败返回 null，前端降级纯文本）
+  async function fetchLawRef(el: Element): Promise<LawDetail | null> {
+    const m = (el.textContent || "").match(/《([^》]+)》第\s*([一二三四五六七八九十百千零0-9]+)\s*条/);
+    if (!m) return null;
+    try {
+      return await lawApi.detail(m[1], m[2]);
+    } catch {
+      return null;
+    }
+  }
+
+  async function doLawSearch() {
+    const q = lawQ.trim();
+    if (!q) return;
+    try {
+      setLawResults(await lawApi.search(q));
+      setLawDetail(null);
+    } catch {
+      setLawResults([]);
+    }
+  }
+
+  async function openLawDetail(item: LawItem) {
+    try {
+      setLawDetail(await lawApi.detail(item.source, item.article));
+    } catch {
+      setLawDetail(null);
+    }
+  }
+
   async function sendFeedback(i: number, rating: "up" | "down", correction?: string) {
     const ai = messages[i];
     const prev = messages[i - 1];
@@ -472,13 +513,45 @@ export default function ChatPage() {
         {/* 消息流 */}
         <div
           ref={scrollRef}
-          className="scroll-contain flex-1 overflow-y-auto px-4 py-6 md:px-8"
+          className="scroll-contain pointer-glow flex-1 overflow-y-auto px-4 py-6 md:px-8"
           onScroll={(e) => {
             const el = e.currentTarget;
             setIsNearBottom(el.scrollHeight - el.scrollTop - el.clientHeight < 80);
           }}
           onDrop={onDrop}
           onDragOver={(e) => e.preventDefault()}
+          onPointerOver={async (e) => {
+            // 法条悬浮卡：桌面 hover 显示浮层
+            if (!hoverCapable) return;
+            const ref = (e.target as Element).closest(".law-ref");
+            if (!ref) {
+              setLawPopup(null);
+              return;
+            }
+            const law = await fetchLawRef(ref);
+            if (law) {
+              const r = ref.getBoundingClientRect();
+              setLawPopup({ law, x: r.left, y: r.bottom + 8 });
+            }
+          }}
+          onPointerLeave={() => {
+            if (hoverCapable) setLawPopup(null);
+          }}
+          onClick={async (e) => {
+            // 法条卡：触屏/Mac 触控板 click toggle（同条再点收起）
+            const ref = (e.target as Element).closest(".law-ref");
+            if (!ref) {
+              setLawPopup(null);
+              return;
+            }
+            const law = await fetchLawRef(ref);
+            if (law) {
+              const r = ref.getBoundingClientRect();
+              setLawPopup((p) =>
+                p && p.law.source === law.source && p.law.article === law.article ? null : { law, x: r.left, y: r.bottom + 8 }
+              );
+            }
+          }}
         >
           <div className="mx-auto max-w-[44rem]">
             {messages.length === 0 && (
@@ -538,14 +611,14 @@ export default function ChatPage() {
                     </div>
                   </div>
                 )}
-                {/* 法条速查（P1 面板，占位） */}
+                {/* 法条速查（P1 搜索面板） */}
                 <div className="text-center">
                   <button
                     type="button"
-                    onClick={() => alert("法条速查即将上线")}
+                    onClick={() => setLawPanel(true)}
                     className="rounded-full border border-mist bg-white/60 px-4 py-2 text-xs text-slate transition-colors hover:border-accent hover:text-accent"
                   >
-                    § 法条速查（即将上线）
+                    § 法条速查
                   </button>
                 </div>
               </div>
@@ -763,6 +836,70 @@ export default function ChatPage() {
             </p>
           </div>
         </form>
+
+        {/* 法条悬浮卡浮层（hover 桌面 / click 触屏+Mac 触控板） */}
+        {lawPopup && (
+          <div
+            className="fixed z-50 w-80"
+            style={{
+              left: Math.max(8, Math.min(lawPopup.x, window.innerWidth - 328)),
+              top: Math.min(lawPopup.y, window.innerHeight - 160),
+            }}
+          >
+            <LawCard law={lawPopup.law} compact />
+          </div>
+        )}
+
+        {/* 法条速查面板（P1） */}
+        {lawPanel && (
+          <div
+            className="fixed inset-0 z-40 flex items-center justify-center bg-ink/30 p-4 backdrop-blur-sm"
+            onClick={() => setLawPanel(false)}
+          >
+            <div className="glass-card w-full max-w-xl rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between">
+                <h3 className="font-serif text-lg font-semibold text-ink">法条速查</h3>
+                <button type="button" onClick={() => setLawPanel(false)} className="rounded px-2 text-slate transition-colors hover:text-ink" aria-label="关闭">
+                  ✕
+                </button>
+              </div>
+              <div className="mt-3 flex gap-2">
+                <input
+                  className="input flex-1"
+                  value={lawQ}
+                  onChange={(e) => setLawQ(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && doLawSearch()}
+                  placeholder="输入关键词或法条号，如「试用期」「民法典 585」"
+                />
+                <button type="button" onClick={doLawSearch} className="btn btn-primary shrink-0">
+                  搜索
+                </button>
+              </div>
+              {lawResults.length > 0 && (
+                <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
+                  {lawResults.map((r, i) => (
+                    <button
+                      key={`${r.source}-${r.article}-${i}`}
+                      type="button"
+                      onClick={() => openLawDetail(r)}
+                      className="block w-full rounded-lg border border-mist bg-white/70 px-3 py-2 text-left transition-colors hover:border-accent"
+                    >
+                      <p className="text-sm font-medium text-ink">
+                        《{r.source}》{r.article}
+                      </p>
+                      <p className="mt-0.5 line-clamp-2 text-xs text-slate">{r.preview}</p>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {lawDetail && (
+                <div className="mt-3">
+                  <LawCard law={lawDetail} />
+                </div>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

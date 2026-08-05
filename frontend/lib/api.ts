@@ -204,6 +204,28 @@ export const feedbackApi = {
   }) => api.post<{ id: number }>("/api/feedback", b),
 };
 
+// ==================== 法条（法条悬浮卡 / 速查面板，P1） ====================
+export interface LawDetail {
+  source: string;
+  article: string;
+  content: string;
+  status?: string;
+  effective_from?: string;
+  effective_to?: string;
+}
+export interface LawItem {
+  source: string;
+  article: string;
+  preview: string;
+  content: string;
+  status?: string;
+}
+export const lawApi = {
+  detail: (source: string, article: string) =>
+    api.get<LawDetail>(`/api/law?source=${encodeURIComponent(source)}&article=${encodeURIComponent(article)}`),
+  search: (q: string) => api.get<LawItem[]>(`/api/law/search?q=${encodeURIComponent(q)}`),
+};
+
 // ==================== 受鉴权媒体（历史图片，Blob 缓存） ====================
 const mediaCache = new Map<string, string>();
 export async function loadMediaSrc(ref: string): Promise<string | null> {

@@ -772,3 +772,22 @@
   border-radius: 8px;
   animation: sealStamp 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
+
+/* ===== 批5 · P1 交互 ===== */
+/* 指针光晕（--mx/--my 由 usePointerGlow 写） */
+.pointer-glow {
+  position: relative;
+}
+.pointer-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(400px at var(--mx, 50%) var(--my, 50%), rgba(255, 143, 169, 0.08), transparent 70%);
+}
+/* 移动端（coarse）：隐藏 hover 浮层（法条卡走 inline 展开），禁用光晕 */
+@media (pointer: coarse) {
+  .pointer-glow::before {
+    display: none;
+  }
+}

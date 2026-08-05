@@ -817,6 +817,60 @@ async def admin_analysis_runs(request: Request, limit: int = 50, admin: User = D
     return await run_in_threadpool(_do)
 
 
+@app.get("/api/law")
+@limiter.limit("60/minute")
+async def law_detail(request: Request, source: str, article: str, user: User = Depends(get_current_user)):
+    """法条原文（前端法条悬浮卡 / 速查面板，P1）。复用 exact_article_lookup，未命中 404。"""
+
+    def _do():
+        docs = exact_article_lookup(source, article)
+        if not docs:
+            return None
+        d = docs[0]
+        return {
+            "source": d.metadata.get("source", source),
+            "article": d.metadata.get("article", article),
+            "content": d.page_content,
+            "status": d.metadata.get("status", ""),
+            "effective_from": d.metadata.get("effective_from", ""),
+            "effective_to": d.metadata.get("effective_to", ""),
+        }
+
+    res = await run_in_threadpool(_do)
+    if res is None:
+        raise HTTPException(status_code=404, detail="未找到该法条")
+    return res
+
+
+@app.get("/api/law/search")
+@limiter.limit("60/minute")
+async def law_search(request: Request, q: str, user: User = Depends(get_current_user)):
+    """法条搜索（速查面板）：关键词/条号 → 库内法条去重列表。"""
+
+    def _do():
+        docs = retrieve(q, k=8)
+        seen, out = set(), []
+        for d in docs:
+            src = d.metadata.get("source", "")
+            art = d.metadata.get("article", "")
+            key = (src, art)
+            if not art or key in seen:
+                continue
+            seen.add(key)
+            out.append(
+                {
+                    "source": src,
+                    "article": art,
+                    "preview": d.page_content[:80],
+                    "content": d.page_content,
+                    "status": d.metadata.get("status", ""),
+                }
+            )
+        return out
+
+    return await run_in_threadpool(_do)
+
+
 @app.post("/api/chat")
 @limiter.limit("60/minute")
 async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
