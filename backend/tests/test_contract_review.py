@@ -71,3 +71,17 @@ def test_contract_split_keeps_preamble():
     segs = D.contract_split(t)
     texts = [c for _, c in segs]
     assert any("本合同由甲方与乙方" in c for c in texts), "引言/首段被丢弃"
+
+
+# ---------------- 劳动法域隔离（is_labor_clause） ----------------
+def test_is_labor_clause_boundary_words():
+    """code-review 边界盲区（2026-08-06）：纯"试用期"条款此前未判为劳动 → 含"解除"会错绑民法典563。"""
+    assert D.is_labor_clause("试用期三个月，试用期工资按转正工资的80%支付") is True
+    assert D.is_labor_clause("甲方为乙方缴纳社会保险及住房公积金") is True
+    assert D.is_labor_clause("乙方提前三十日解除劳动合同，应支付赔偿金") is True
+
+
+def test_is_labor_clause_not_misclassify_services():
+    """"培训"不进特征词：培训服务合同（消费场景）不得判为劳动，保留格式条款映射。"""
+    assert D.is_labor_clause("本合同约定培训课程费用一经收取概不退款") is False
+    assert D.is_labor_clause("甲方将房屋出租给乙方，租金每月三千元") is False

@@ -317,7 +317,6 @@ def _rewrite_for_retrieval(raw_query: str, recent_ser: list, recent: list, has_o
         return rewrite_query(registry.get(), recent, raw_query)
 
 
-_CLAUSE_MAPPING_CACHE: dict | None = None
 # 会话级合同状态（code-review #1：续聊短句追问不脱离合同路径；内存集，重启清空）
 _contract_convs: set[int] = set()
 

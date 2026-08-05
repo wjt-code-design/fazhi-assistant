@@ -273,17 +273,30 @@ def load_clause_supplements() -> dict:
     return _CLAUSE_MAPPING_CACHE
 
 
+# 劳动条款特征词（code-review 边界盲区修复，2026-08-06）：扩充至试用期/工资/社保等，
+# 纯"试用期"条款若含"解除"不再漏判为劳动。不纳入"培训"——培训服务合同（消费场景）会误伤。
+_LABOR_KEYWORDS = (
+    "劳动合同", "竞业", "劳动报酬", "经济补偿", "试用期", "工资", "社保",
+    "社会保险", "住房公积金", "服务期", "带薪年休假",
+)
+
+
+def is_labor_clause(clause_text: str) -> bool:
+    """劳动条款判定（contract_supplement_docs 法域隔离用）。"""
+    return any(k in (clause_text or "") for k in _LABOR_KEYWORDS)
+
+
 def contract_supplement_docs(clause_text: str) -> list:
     """条款 → 数据驱动法条（contract_clause_supplements.json 精确直查）；未命中回落一次检索。
 
-    - 合同类型→法域杜绝错绑：劳动合同/竞业类条款只引劳动法，不命中民法典通用条款
+    - 合同类型→法域杜绝错绑：劳动条款只引劳动法，不命中民法典通用条款（含"解除"——
+      劳动解除走劳动合同法36/39/46/47/87，不引民法典563）
     - 时效别名：json 键"诉讼时效"同时匹配含"时效"的条款
     """
     from retrieval import exact_article_lookup, retrieve  # noqa: PLC0415
 
     mapping = load_clause_supplements()
-    labor = any(k in clause_text for k in ("劳动合同", "竞业", "劳动报酬", "经济补偿"))
-    # 劳动条款跳过民事通用条款（含"解除"——劳动解除走劳动合同法36/39/46/47/87，不引民法典563）
+    labor = is_labor_clause(clause_text)
     _CIVIL_GENERIC = ("违约金", "定金", "担保", "抵押", "免责", "租赁", "借款", "买卖", "格式条款", "解除")
     matched: list = []
     for kw, specs in mapping.items():
