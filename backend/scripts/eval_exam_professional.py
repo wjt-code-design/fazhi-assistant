@@ -21,6 +21,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env
 
 import _client  # noqa: E402
 import _judge  # noqa: E402
+from multi_extract import multi_ok  # noqa: E402 纯逻辑，不拉 BGE
 
 # 注意：不 import eval_exam / quality / retrieval——它们模块级拉 BGE+Chroma（~440MB），
 # 与后端双 BGE 造成内存竞争触发 Windows segfault（2026-08-05 实测）。本脚本只 chat+judge。
@@ -58,6 +59,8 @@ def main() -> int:
     judge_llm = _judge.pick_text_llm()
     rows = []
     prof_sum = 0.0
+    multi_sum = 0
+    multi_n = 0
     for c in cases:
         q = c["question"]
         try:
@@ -66,8 +69,16 @@ def main() -> int:
             ans = f"[ERR]{e}"
         p = _judge.professional(judge_llm, q, ans)
         prof_sum += p
-        rows.append({"id": c["id"], "professional": p})
-        print(f"[{c['id']}] prof={p}", flush=True)
+        # multi_ok（多选全选对，确定性抽取，零成本）：判非多选 → None
+        mok = multi_ok(ans or "", c.get("options_verdict"))
+        if mok is not None:
+            multi_n += 1
+            multi_sum += 1 if mok else 0
+        rows.append({"id": c["id"], "professional": p, "multi_ok": mok})
+        line = f"[{c['id']}] prof={p}"
+        if mok is not None:
+            line += f" multi={int(mok)}"
+        print(line, flush=True)
         time.sleep(1.2)  # 限流退避
     n = len(cases) or 1
     summary = {
@@ -76,6 +87,8 @@ def main() -> int:
         "freeze_hash": hashlib.sha256(open(DATA, "rb").read()).hexdigest()[:12],
         "n": n,
     }
+    if multi_n:
+        summary["multi_ok"] = round(multi_sum / multi_n, 4)
     print(f"\n{json.dumps(summary, ensure_ascii=False)}")
     os.makedirs(OUT_DIR, exist_ok=True)
     ts = time.strftime("%Y%m%d-%H%M%S")

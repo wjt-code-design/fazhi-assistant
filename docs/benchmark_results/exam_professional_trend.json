@@ -4,5 +4,23 @@
   "professional_avg": 2.8,
   "freeze_hash": "376ee0b3a865",
   "n": 20
+ },
+ {
+  "ts": "20260805-125544",
+  "professional_avg": 2.85,
+  "freeze_hash": "376ee0b3a865",
+  "n": 20
+ },
+ {
+  "ts": "20260805-130337",
+  "professional_avg": 2.9,
+  "freeze_hash": "376ee0b3a865",
+  "n": 20
+ },
+ {
+  "ts": "20260805-132142",
+  "professional_avg": 2.9,
+  "freeze_hash": "376ee0b3a865",
+  "n": 20
  }
 ]

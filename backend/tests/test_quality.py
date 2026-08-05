@@ -120,6 +120,44 @@ def test_answer_declared_correct_item_format():
     assert Q._answer_declared_correct(ans) == {"A", "B"}
 
 
+def test_answer_declared_correct_dash_format():
+    """qa_cache 的 glm 答案格式「X. 内容 —— 正确」识别（2026-08-05 实测）。"""
+    ans = (
+        "**A. 消费者定作的商品不适用七天无理由退货 —— 正确**\n"
+        "**B. 鲜活易腐的商品不适用七天无理由退货 —— 正确**\n"
+        "**C. 在线下载的数字商品不适用七天无理由退货 —— 正确**\n"
+        "**D. 所有网购商品都适用七天无理由退货 —— 错误**\n"
+    )
+    assert Q._answer_declared_correct(ans) == {"A", "B", "C"}
+
+
+def test_answer_declared_correct_dash_hedge_and_neutral():
+    """hedge（法理正确）算正确；无法判断 → 中性（不计数）。"""
+    ans = (
+        "**A. 应当遵循合法正当必要诚信原则 —— 依据不足（但法理正确）**\n"
+        "**B. 应当遵循最小必要原则 —— 正确**\n"
+        "**C. 处理敏感个人信息应当取得个人单独同意 —— 错误（表述不严谨）**\n"
+        "**D. 无需公开处理规则 —— 无法判断**\n"
+    )
+    assert Q._answer_declared_correct(ans) == {"A", "B"}
+
+
+def test_answer_declared_correct_conclusion():
+    """结论段抽取：'正确的是 A、B、C'（独立判断行格式的答案靠结论兜底）。"""
+    ans = (
+        "**A. 向人民法院请求保护民事权利的诉讼时效期间为三年**\n"
+        "**判断：正确。**依据《民法典》第一百八十八条……\n"
+        "**B. 诉讼时效期间自权利人知道或应当知道权利受损害及义务人之日起计算**\n"
+        "**判断：正确。**……\n"
+        "**C. 诉讼时效期间届满后，义务人同意履行的不得以诉讼时效届满抗辩**\n"
+        "**判断：正确。**……\n"
+        "**D. 诉讼时效届满后权利人丧失实体权利**\n"
+        "**判断：错误。**……\n"
+        "**结论：**本题中说法正确的选项为 **A、B、C**。\n"
+    )
+    assert Q._answer_declared_correct(ans) == {"A", "B", "C"}
+
+
 def test_multi_incomplete_single_option_flagged():
     """多选题型 + 回答只声明 1 个正确选项 → 疑似漏答。"""
     assert Q.multi_incomplete(_MULTI_Q, _ANS_SINGLE) is True

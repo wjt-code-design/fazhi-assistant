@@ -37,7 +37,7 @@ import clarify  # noqa: E402
 import eval_metrics as M  # noqa: E402
 import intent  # noqa: E402
 import query_understand  # noqa: E402
-from quality import _answer_declared_correct  # noqa: E402
+from multi_extract import _answer_declared_correct  # noqa: E402
 from retrieval import (  # noqa: E402
     _normalize_article,
     citation_verify,

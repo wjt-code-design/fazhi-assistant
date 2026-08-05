@@ -10,12 +10,12 @@
 
 自检不保证「引对题」（引在库≠引对条文），那是语义层，靠 full 门禁 + QA 人工沉淀兜底。
 """
-import re
 from dataclasses import dataclass
 
 import query_understand
 import retrieval as R
 from domain_rules import MIN_ANSWER_LEN, VAGUE_PHRASES
+from multi_extract import _answer_declared_correct  # 纯逻辑模块（不拉 BGE）
 
 # 诚实拒答信号（无命中场景的合理回答，不算失败）
 _HONEST_REFUSE_MARKS = (
@@ -77,33 +77,7 @@ def self_check(answer: str, context_present: bool, in_kb=None) -> Verdict:
 
 
 # ---------------- 多选完整性（决策 8，2026-08-05） ----------------
-# 兼容两种逐项判断格式（实测模型输出）：
-# ① `X项判断：正确/错误`（实际输出格式，2026-08-05 eval 实测）
-# ② `…【判断】正确/错误`（SYSTEM_STUDY 标准格式——回找上一【判断】后块内首个选项标号）
-# 结论段（"A、B 正确"）不参与——避免与逐项判断重复/误读。格式不符 → 保守空集。
-_VERDICT_RE = re.compile(r"([A-H])项?判断\s*[：:]\s*(正确|错误|不正确)")
-_VERDICT_BLOCK_RE = re.compile(r"【判断】\s*(正确|错误|不正确)")
-_OPT_LABEL_RE = re.compile(r"([A-H])[．.、:：]")
-
-
-def _answer_declared_correct(answer: str) -> set[str]:
-    """从回答抽取被判「正确」的选项字母。兼容 X项判断 / 【判断】两种格式。"""
-    out: set[str] = set()
-    t = answer or ""
-    for m in _VERDICT_RE.finditer(t):  # 格式①：X项判断：正确
-        if m.group(2) == "正确":
-            out.add(m.group(1))
-    for m in _VERDICT_BLOCK_RE.finditer(t):  # 格式②：【判断】正确 —— 块内首个标号
-        if m.group(1) != "正确":
-            continue
-        prev = t.rfind("【判断】", 0, m.start())
-        seg = t[(prev + 4) if prev >= 0 else 0 : m.start()]
-        lm = _OPT_LABEL_RE.search(seg)
-        if lm:
-            out.add(lm.group(1))
-    return out
-
-
+# _answer_declared_correct 已移至 multi_extract.py（纯逻辑，不拉 BGE，judge 基线共用）。
 def multi_incomplete(question: str, answer: str) -> bool:
     """多选完整性症状检测：多选题型（题干含 多选/哪些/正确的有）+ 回答只声明 1 个正确项。
 
