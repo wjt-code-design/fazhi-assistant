@@ -23,6 +23,8 @@
   "借款": [
     {"source": "民法典", "article": "第六百六十七条"},
     {"source": "民法典", "article": "第六百六十八条"},
+    {"source": "民法典", "article": "第六百七十七条"},
+    {"source": "民法典", "article": "第六百七十九条"},
     {"source": "民法典", "article": "第六百八十条"}
   ],
   "担保": [
@@ -43,7 +45,12 @@
   ],
   "劳动合同": [
     {"source": "劳动合同法", "article": "第二十二条"},
-    {"source": "劳动合同法", "article": "第二十五条"}
+    {"source": "劳动合同法", "article": "第二十五条"},
+    {"source": "劳动合同法", "article": "第三十六条"},
+    {"source": "劳动合同法", "article": "第三十九条"},
+    {"source": "劳动合同法", "article": "第四十六条"},
+    {"source": "劳动合同法", "article": "第四十七条"},
+    {"source": "劳动合同法", "article": "第八十七条"}
   ],
   "竞业": [
     {"source": "劳动合同法", "article": "第二十三条"},
@@ -52,5 +59,41 @@
   "买卖": [
     {"source": "民法典", "article": "第五百九十五条"},
     {"source": "民法典", "article": "第五百九十八条"}
+  ],
+  "试用期": [
+    {"source": "劳动合同法", "article": "第十九条"},
+    {"source": "劳动合同法", "article": "第二十条"},
+    {"source": "劳动合同法", "article": "第二十一条"}
+  ],
+  "经济补偿": [
+    {"source": "劳动合同法", "article": "第四十六条"},
+    {"source": "劳动合同法", "article": "第四十七条"},
+    {"source": "劳动合同法", "article": "第八十七条"}
+  ],
+  "最终解释权": [
+    {"source": "民法典", "article": "第四百九十六条"},
+    {"source": "民法典", "article": "第四百九十七条"},
+    {"source": "民法典", "article": "第四百九十八条"},
+    {"source": "消费者权益保护法", "article": "第二十六条"}
+  ],
+  "概不": [
+    {"source": "民法典", "article": "第五百零六条"},
+    {"source": "民法典", "article": "第四百九十七条"},
+    {"source": "消费者权益保护法", "article": "第二十六条"}
+  ],
+  "转租": [
+    {"source": "民法典", "article": "第七百一十五条"},
+    {"source": "民法典", "article": "第七百一十六条"}
+  ],
+  "瑕疵": [
+    {"source": "民法典", "article": "第六百一十二条"},
+    {"source": "民法典", "article": "第六百一十三条"},
+    {"source": "民法典", "article": "第六百一十七条"}
+  ],
+  "没收": [
+    {"source": "民法典", "article": "第五百八十五条"}
+  ],
+  "保密": [
+    {"source": "劳动合同法", "article": "第二十三条"}
   ]
 }

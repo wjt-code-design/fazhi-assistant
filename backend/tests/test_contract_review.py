@@ -50,9 +50,9 @@ def test_clause_risk_tags():
 
 
 def test_rubric_high_risk():
-    clauses = [("一、", "违约金20%，定金双倍，违约方赔偿一切损失"), ("二、", "任何情况下均免责")]
+    clauses = [("一、", "违约金20%，定金双倍，任何情况下概不负责"), ("二、", "最终解释权归甲方")]
     level, _ = D.rubric_risk_level(clauses)
-    assert level in ("高", "极高")
+    assert level == "极高"  # 双 high 词（概不+最终解释权）触发极高
 
 
 def test_rubric_low_risk():

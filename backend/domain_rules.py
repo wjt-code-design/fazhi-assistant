@@ -8,7 +8,11 @@
 domain_rules ↔ retrieval 循环依赖——retrieval 需要本模块的 canon_source 等常量）。
 """
 
+import json
+import os
 import re
+
+from settings import settings
 
 
 def _lookup_all(specs: list[tuple[str, str]]):
@@ -153,10 +157,11 @@ _REVIEW_VERBS = ("审查", "审核", "评估", "审一下", "帮我审", "分析
 _CONTRACT_NOUNS = ("合同", "协议", "条款", "甲方", "乙方", "违约金", "定金", "押金", "担保", "抵押", "保密", "竞业", "租赁", "借款", "解除", "违约责任", "付款", "签署", "买卖")
 
 # 风险关键词 → 严重度标签（rubric 打分 + 分析提示共用）
+# 2026-08-06 eval 校准：移除"解除/赔偿"（中性词，正常解除权/责任条款误报高，rubric 虚高、coverage 虚低）。
 CONTRACT_RISK_KEYWORDS = {
     "免责": "high", "概不": "high", "单方": "high", "空白": "high", "最终解释权": "high",
     "违约金": "mid", "定金": "mid", "押金": "mid", "担保": "mid", "抵押": "mid",
-    "违约责任": "mid", "赔偿": "mid", "解除": "mid", "管辖": "mid", "仲裁": "mid",
+    "违约责任": "mid", "管辖": "mid", "仲裁": "mid",
     "保密": "low", "竞业": "mid", "时效": "mid",
 }
 
@@ -246,3 +251,81 @@ def rubric_risk_level(clauses: list[tuple[str, str]]) -> tuple[str, str]:
     else:
         level = "低"
     return level, f"高风险词命中 {hi} 处、中风险词 {mid} 处、涉风险条款 {risk_clauses} 条"
+
+
+# ==================== 合同数据构建（main/eval 共用单一来源，2026-08-06） ====================
+# 从 main.py 迁入：IO 函数与纯函数同仓，eval 脚本可干净复用（不 import main 触发顶层副作用）。
+_CLAUSE_MAPPING_CACHE: dict | None = None
+
+
+def load_clause_supplements() -> dict:
+    """模块级缓存加载 contract_clause_supplements.json（避免每条款重复磁盘读）。"""
+    global _CLAUSE_MAPPING_CACHE
+    if _CLAUSE_MAPPING_CACHE is None:
+        mapping_path = os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), "contract_clause_supplements.json"
+        )
+        try:
+            with open(mapping_path, encoding="utf-8") as _f:
+                _CLAUSE_MAPPING_CACHE = json.load(_f)
+        except Exception:
+            _CLAUSE_MAPPING_CACHE = {}
+    return _CLAUSE_MAPPING_CACHE
+
+
+def contract_supplement_docs(clause_text: str) -> list:
+    """条款 → 数据驱动法条（contract_clause_supplements.json 精确直查）；未命中回落一次检索。
+
+    - 合同类型→法域杜绝错绑：劳动合同/竞业类条款只引劳动法，不命中民法典通用条款
+    - 时效别名：json 键"诉讼时效"同时匹配含"时效"的条款
+    """
+    from retrieval import exact_article_lookup, retrieve  # noqa: PLC0415
+
+    mapping = load_clause_supplements()
+    labor = any(k in clause_text for k in ("劳动合同", "竞业", "劳动报酬", "经济补偿"))
+    # 劳动条款跳过民事通用条款（含"解除"——劳动解除走劳动合同法36/39/46/47/87，不引民法典563）
+    _CIVIL_GENERIC = ("违约金", "定金", "担保", "抵押", "免责", "租赁", "借款", "买卖", "格式条款", "解除")
+    matched: list = []
+    for kw, specs in mapping.items():
+        hit = kw in clause_text or (kw == "诉讼时效" and "时效" in clause_text)
+        if not hit:
+            continue
+        if labor and kw in _CIVIL_GENERIC:
+            continue  # 劳动合同条款不命中民事通用条款（杜绝错绑）
+        for s in specs:
+            matched += exact_article_lookup(s.get("source", ""), s.get("article", ""))
+    if not matched:
+        matched = retrieve(clause_text, k=3)  # 未命中回落语义检索
+    return matched
+
+
+def build_contract_data(text: str) -> dict:
+    """确定性骨架：切分条款 → 每条款配法条 → 证据块 + rubric 风险等级。"""
+    t = (text or "").strip()
+    truncated = len(t) > settings.contract_max_chars
+    if truncated:
+        t = t[: settings.contract_max_chars]
+    clauses = contract_split(t)
+    blocks = []
+    all_docs: list = []
+    for idx, (label, seg) in enumerate(clauses, 1):
+        docs = contract_supplement_docs(seg)
+        all_docs += docs
+        blocks.append(
+            {
+                "n": idx,
+                "label": label,
+                "text": seg[:600],
+                "articles": sorted({d.metadata.get("article", "") for d in docs})[:3],
+                "tags": clause_risk_tags(seg),
+            }
+        )
+    level, basis = rubric_risk_level(clauses)
+    return {
+        "truncated": truncated,
+        "need_clarify": len(t) < 80,  # 触发但无合同全文（如"帮我审合同"）→ 反问要内容
+        "blocks": blocks,
+        "docs": all_docs,
+        "level": level,
+        "basis": basis,
+    }

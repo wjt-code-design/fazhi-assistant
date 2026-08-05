@@ -285,3 +285,52 @@
   - **金标再版治理**：freeze_hash 因 id20/16/13 修改而变化（75bfbd80724e → 再版），旧基线
     376ee0b3a865 不再跨阶段可比，阶段对比须注明口径变化。**LLM 非确定性**：单次 judge 有 ±1 噪声
     （id9/20 翻转），multi_ok 数字 = 真实基线 + 波动，多次跑取中位数更稳。
+
+## ADR-015 合同评估 eval 基线（2026-08-06，ADR-014 二期门控）
+
+**决策**：合同评估一期交付后，先建 eval 基线量真实缺口，再决定二期投入（反脆弱顺序，不盲上多步成本）。
+
+**新增**：
+- `data/eval_contract.json`：6 份合成合同基线题集（租赁/劳动/借款/买卖/健身霸王条款/长商铺），遵循真实合同模板含典型陷阱。
+  **金标不手写**，由确定性骨架（contract_split + rubric + 命中条文）即时生成，防 metric-gaming。
+- `backend/contract_verify.py`：确定性 verifier（零 LLM）——coverage（漏条款）/ fabricated_fragments（编造）/
+  structure_score（R_n 五要素）/ level_match（报告等级 vs rubric）/ cited_articles（条文提取）。16 例单测。
+- `backend/scripts/eval_contract.py`：**两步运行**（Windows 单 BGE 进程纪律）——`--golden`（停后端，确定性骨架
+  含 BGE 检索 → 条款/命中集/rubric 落盘）+ `--report`（起后端，真实 chat API no_cache + 纯函数 verifier，
+  **严禁 import retrieval**——模块级加载 BGE，双进程冲突）。
+- `_build_contract_data`/`_contract_supplement_docs` 从 main.py 迁入 domain_rules.py（单一来源，eval 可干净复用）。
+
+**基线结果（6 份合同，真实 LLM no_cache）**：
+| 指标 | 值 | 解读 |
+|---|---|---|
+| trigger_ok | 1.0 | 触发判定全对 |
+| structure_avg | 1.0 | R_n 五要素模板 100% 遵守（一期模板约束强） |
+| coverage | 0.90 | 漏条款少；漏的 C6 转租/不可抗力为低风险条款（打标过宽所致） |
+| fab_total | 44 | **人工复核全部为改写/修改建议文本，非虚构条款**——一期无编造 |
+| cite_supported | 0.5 | 报告条文一半不在骨架命中集（**骨架映射弱，报告引用多为合理**） |
+| level_match | 3 match / 3 diff_adj / 0 far | 无风险等级夸大；报告系统性偏低半级（rubric 偏严） |
+
+**真实缺口（按价值排序）**：
+1. **骨架条款→法条映射覆盖不全**（cite_supported 0.5 主因）：试用期→劳动法19、借款利息→民法典677/679/680、
+   格式条款/最终解释权→497/498、免责→506、转租→715 等常见风险点未映射或未命中，报告被迫靠 LLM 内部知识
+   补条文（有"建议核对"诚实标注，仍有错条风险）。补 `contract_clause_supplements.json` 一行 json 成本最低收益最大。
+2. **coverage 风险打标过宽**：风险关键词把"解除/赔偿"等中性词当风险点，低风险条款计入"应覆盖"，coverage 虚低。
+   需区分"真实风险条款"与"含风险词条款"。
+3. **rubric 偏严**：报告等级系统性低半级（极高→高/高→中），无夸大但基准需校准。
+
+**补映射执行（同日，eval 闭环）**：补 `contract_clause_supplements.json`（新增键：试用期→劳动19/20/21、
+最终解释权→民496-498+消保26、概不→民506/497+消保26、转租→民715/716、瑕疵→民612/613/617、没收→民585、
+经济补偿→劳动46/47/87；扩充：借款+677/679、劳动合同+36/39/46/47/87）+ `_CIVIL_GENERIC` 加"解除"（防劳动条款
+错绑民法典563）+ 移除"解除/赔偿"中性风险词（rubric/coverage 虚高虚低）。重跑基线：
+| 指标 | 修复前 | 修复后 |
+|---|---|---|
+| coverage | 0.90 | **1.0**（漏条款清零） |
+| cite_supported | 0.5 | **1.0**（报告条文全在命中集） |
+| level_match | 3/3/0 | **4 match / 1 diff_adj / 0 far** |
+| structure | 1.0 | 0.93（LLM 单次输出波动，长报告尾条目五要素整体完整） |
+| fab_total | 44 | 30（人工复核全为改写/修改建议，非虚构条款） |
+一期骨架缺口基本补齐。剩余已知：C1/C3 报告等级差半级（rubric 对"没收押金/高利"敏感度不足，diff_adj 可接受）、
+report_level 曾被 markdown 加粗干扰（已修 `_LEVEL_RE`）。
+
+**二期决策**：先 commit 基线 + 映射（eval 门控达标），再上文件上传/图片/SSE 进度功能。功能通道只是换输入，
+骨架质量已达标。

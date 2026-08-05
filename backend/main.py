@@ -37,15 +37,13 @@ from curation import should_curate
 from database import SessionLocal, get_db, init_db
 from domain_rules import (
     CITATION_SELECTION_RULE,
+    build_contract_data,
     cheating_docs,
-    clause_risk_tags,
     consumer_clause_docs,
     consumer_fraud_docs,
-    contract_split,
     is_consumer_clause_scenario,
     is_consumer_fraud_scenario,
     is_contract_review,
-    rubric_risk_level,
 )
 from intent import classify_intent
 from llm_guard import LLMBusyError, llm_guard
@@ -324,77 +322,6 @@ _CLAUSE_MAPPING_CACHE: dict | None = None
 _contract_convs: set[int] = set()
 
 
-def _load_clause_supplements() -> dict:
-    """模块级缓存加载 contract_clause_supplements.json（code-review #4：避免每条款重复磁盘读）。"""
-    global _CLAUSE_MAPPING_CACHE
-    if _CLAUSE_MAPPING_CACHE is None:
-        import json as _json
-
-        mapping_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contract_clause_supplements.json")
-        try:
-            with open(mapping_path, encoding="utf-8") as _f:
-                _CLAUSE_MAPPING_CACHE = _json.load(_f)
-        except Exception:
-            _CLAUSE_MAPPING_CACHE = {}
-    return _CLAUSE_MAPPING_CACHE
-
-
-def _contract_supplement_docs(clause_text: str) -> list:
-    """条款 → 数据驱动法条（contract_clause_supplements.json 精确直查）；未命中回落一次检索。
-
-    确定性骨架（2026-08-06）：
-    - #2 合同类型→法域杜绝错绑：劳动合同/竞业类条款只引劳动法，不命中民法典通用条款（违约金/定金等）
-    - #7 时效别名：json 键"诉讼时效"同时匹配含"时效"的条款（原先"时效"命中标签却查不到条文）
-    """
-    mapping = _load_clause_supplements()
-    labor = any(k in clause_text for k in ("劳动合同", "竞业", "劳动报酬", "经济补偿"))
-    _CIVIL_GENERIC = ("违约金", "定金", "担保", "抵押", "免责", "租赁", "借款", "买卖", "格式条款")
-    matched: list = []
-    for kw, specs in mapping.items():
-        hit = kw in clause_text or (kw == "诉讼时效" and "时效" in clause_text)
-        if not hit:
-            continue
-        if labor and kw in _CIVIL_GENERIC:
-            continue  # 劳动合同条款不命中民事通用条款（杜绝错绑）
-        for s in specs:
-            matched += exact_article_lookup(s.get("source", ""), s.get("article", ""))
-    if not matched:
-        matched = retrieve(clause_text, k=3)  # 未命中回落语义检索
-    return matched
-
-
-def _build_contract_data(text: str) -> dict:
-    """确定性骨架：切分条款 → 每条款配法条 → 证据块 + rubric 风险等级。"""
-    t = (text or "").strip()
-    truncated = len(t) > settings.contract_max_chars
-    if truncated:
-        t = t[: settings.contract_max_chars]
-    clauses = contract_split(t)
-    blocks = []
-    all_docs: list = []
-    for idx, (label, seg) in enumerate(clauses, 1):
-        docs = _contract_supplement_docs(seg)
-        all_docs += docs
-        blocks.append(
-            {
-                "n": idx,
-                "label": label,
-                "text": seg[:600],
-                "articles": sorted({d.metadata.get("article", "") for d in docs})[:3],
-                "tags": clause_risk_tags(seg),
-            }
-        )
-    level, basis = rubric_risk_level(clauses)
-    return {
-        "truncated": truncated,
-        "need_clarify": len(t) < 80,  # 触发但无合同全文（如"帮我审合同"）→ 反问要内容
-        "blocks": blocks,
-        "docs": all_docs,
-        "level": level,
-        "basis": basis,
-    }
-
-
 def _contract_messages(pre: dict, cd: dict) -> list:
     """组装合同报告 messages（SYSTEM_CONTRACT_REVIEW + 分条款证据块）。"""
     evidence = []
@@ -480,7 +407,7 @@ def _pre(user_id: int, conversation_id, text: str, image):
                             prev = m["content"] or ""
                             break
                     contract_text = ((prev + "\n" + (text or "")) if prev else (text or raw_query)).strip()
-                contract_data = _build_contract_data(contract_text)
+                contract_data = build_contract_data(contract_text)
                 docs = contract_data["docs"]
                 qa_hit = None
             else:
