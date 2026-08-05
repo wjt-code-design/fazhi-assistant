@@ -21,6 +21,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".env
 
 import _client  # noqa: E402
 import _judge  # noqa: E402
+
 from multi_extract import multi_ok  # noqa: E402 纯逻辑，不拉 BGE
 
 # 注意：不 import eval_exam / quality / retrieval——它们模块级拉 BGE+Chroma（~440MB），

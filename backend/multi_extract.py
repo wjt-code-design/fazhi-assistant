@@ -59,7 +59,11 @@ def _answer_declared_correct(answer: str) -> set[str]:
 
 
 def multi_ok(answer: str, options_verdict: dict | None) -> bool | None:
-    """多选全选对判定：options_verdict 金标（{A: true/false}）→ 回答是否列出全部正确项。
+    """多选全选对判定：options_verdict 金标（{A: true/false}）→ 回答是否**恰好**列出全部正确项。
+
+    语义 = 不漏选（true_letters ⊆ declared）**且**不误选（declared ⊆ true_letters），
+    即 `declared == true_letters`——把金标为假的选项声明成"正确"（选多了）不算全选对
+    （2026-08-05 diagnosing-bugs：原 `<=` 只查不漏选，误选假项也返回 True，基准被高估）。
 
     非多选（正确项 ≤1）→ None（不参与 multi_ok 统计）。确定性纯函数，零成本。
     """
@@ -68,4 +72,4 @@ def multi_ok(answer: str, options_verdict: dict | None) -> bool | None:
     if len(true_letters) <= 1:
         return None
     declared = _answer_declared_correct(answer or "")
-    return bool(true_letters and true_letters <= declared)
+    return bool(true_letters and declared == true_letters)
