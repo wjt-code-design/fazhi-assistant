@@ -170,7 +170,7 @@ _CONTRACT_LABEL_RE = re.compile(
     r"^\s*(第[一二三四五六七八九十百千零〇0-9]+条|[一二三四五六七八九十]+、|"
     r"[\(（]?[0-9]+[\)）、.．])"
 )
-_MIN_CONTRACT_LEN = 150  # 长文本触发下限（贴了文书）
+_MIN_CONTRACT_LEN = 80  # 触发下限（短合同 ~100 字含 2+ 合同名词也应触发；口语短句如"违约金怎么算"仍不触发）
 
 
 def is_contract_review(text: str) -> bool:
@@ -201,6 +201,12 @@ def contract_split(text: str) -> list[tuple[str, str]]:
     if not marks:
         return [("全文", t)]
     out: list[tuple[str, str]] = []
+    # 保留首个标记前的引言/首段（2026-08-06 diagnosing-bugs：原实现只遍历条标，
+    # 条标之前内容无归属被丢弃——结构性漏条款）
+    if marks[0].start() > 0:
+        pre = t[: marks[0].start()].strip()
+        if pre:
+            out.append(("前言", pre))
     for i, m in enumerate(marks):
         end = marks[i + 1].start() if i + 1 < len(marks) else len(t)
         seg = t[m.start():end].strip()

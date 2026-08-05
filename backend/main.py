@@ -319,24 +319,45 @@ def _rewrite_for_retrieval(raw_query: str, recent_ser: list, recent: list, has_o
         return rewrite_query(registry.get(), recent, raw_query)
 
 
+_CLAUSE_MAPPING_CACHE: dict | None = None
+# 会话级合同状态（code-review #1：续聊短句追问不脱离合同路径；内存集，重启清空）
+_contract_convs: set[int] = set()
+
+
+def _load_clause_supplements() -> dict:
+    """模块级缓存加载 contract_clause_supplements.json（code-review #4：避免每条款重复磁盘读）。"""
+    global _CLAUSE_MAPPING_CACHE
+    if _CLAUSE_MAPPING_CACHE is None:
+        import json as _json
+
+        mapping_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contract_clause_supplements.json")
+        try:
+            with open(mapping_path, encoding="utf-8") as _f:
+                _CLAUSE_MAPPING_CACHE = _json.load(_f)
+        except Exception:
+            _CLAUSE_MAPPING_CACHE = {}
+    return _CLAUSE_MAPPING_CACHE
+
+
 def _contract_supplement_docs(clause_text: str) -> list:
     """条款 → 数据驱动法条（contract_clause_supplements.json 精确直查）；未命中回落一次检索。
 
-    确定性骨架（2026-08-06）：合同类型→法域映射杜绝错绑（劳动合同违约金不命中民法典格式条款）。
+    确定性骨架（2026-08-06）：
+    - #2 合同类型→法域杜绝错绑：劳动合同/竞业类条款只引劳动法，不命中民法典通用条款（违约金/定金等）
+    - #7 时效别名：json 键"诉讼时效"同时匹配含"时效"的条款（原先"时效"命中标签却查不到条文）
     """
-    import json as _json
-
-    mapping_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contract_clause_supplements.json")
-    try:
-        with open(mapping_path, encoding="utf-8") as _f:
-            mapping = _json.load(_f)
-    except Exception:
-        mapping = {}
+    mapping = _load_clause_supplements()
+    labor = any(k in clause_text for k in ("劳动合同", "竞业", "劳动报酬", "经济补偿"))
+    _CIVIL_GENERIC = ("违约金", "定金", "担保", "抵押", "免责", "租赁", "借款", "买卖", "格式条款")
     matched: list = []
     for kw, specs in mapping.items():
-        if kw in clause_text:
-            for s in specs:
-                matched += exact_article_lookup(s.get("source", ""), s.get("article", ""))
+        hit = kw in clause_text or (kw == "诉讼时效" and "时效" in clause_text)
+        if not hit:
+            continue
+        if labor and kw in _CIVIL_GENERIC:
+            continue  # 劳动合同条款不命中民事通用条款（杜绝错绑）
+        for s in specs:
+            matched += exact_article_lookup(s.get("source", ""), s.get("article", ""))
     if not matched:
         matched = retrieve(clause_text, k=3)  # 未命中回落语义检索
     return matched
@@ -417,12 +438,13 @@ def _pre(user_id: int, conversation_id, text: str, image):
         intent = classify_intent(text or raw_query)
         is_exam = query_understand._is_exam_question(text or raw_query)
         has_options = query_understand.has_exam_options(text or raw_query)
-        # 合同 / 文书风险评估（确定性骨架，2026-08-06）：legal_query + 无图 + 触发判定命中
+        # 合同 / 文书风险评估（确定性骨架，2026-08-06）：legal_query + 无图 + 触发命中
+        # 或本会话上轮已进合同模式（续聊短句追问不脱离合同路径，code-review #1）
         contract_mode = (
             settings.feature_multi_analyze
             and intent == "legal_query"
             and not image
-            and is_contract_review(text or raw_query)
+            and (is_contract_review(text or raw_query) or conv.id in _contract_convs)
         )
 
         if intent == "study_aid":
@@ -443,27 +465,39 @@ def _pre(user_id: int, conversation_id, text: str, image):
             docs = []
             qa_hit = None
         else:
-            rewritten = _rewrite_for_retrieval(raw_query, recent_ser, recent, has_options)
             if contract_mode:
-                # 合同 / 文书风险评估：确定性骨架短路单轮检索 + QA（省 12k 文本 embedding/rerank）
-                contract_data = _build_contract_data(text or raw_query)
+                # 合同 / 文书风险评估：确定性骨架短路单轮检索 + QA（省 12k embedding）；
+                # 不改写（code-review #8：续聊不烧 LLM rewrite）
+                rewritten = raw_query
+                if is_contract_review(text or raw_query):
+                    _contract_convs.add(conv.id)  # 会话级合同状态（#1：续聊不断裂）
+                    contract_text = text or raw_query
+                else:
+                    # 续聊追问：拼上轮最近的合同文本
+                    prev = ""
+                    for m in reversed(recent_ser):
+                        if m["role"] == "user" and is_contract_review(m["content"] or ""):
+                            prev = m["content"] or ""
+                            break
+                    contract_text = ((prev + "\n" + (text or "")) if prev else (text or raw_query)).strip()
+                contract_data = _build_contract_data(contract_text)
                 docs = contract_data["docs"]
                 qa_hit = None
-            elif is_exam:
-                # 选项题 → 分步检索 + 场景定向补充前置（死刑复核/正当防卫等核心条防漏）
-                docs = scenario_supplement_docs(text or raw_query) + retrieve_exam(rewritten)
             else:
-                docs = retrieve(rewritten, k=6)  # k4→6：给余弦精排更多候选 + 给模型更全上下文，缓解"对法错条"
-            qa_hit = ks.search_qa(rewritten)  # 保持 raw（决策 4：桥接只归检索层，不进 QA 缓存）
-            # 场景定向补充（仅非选项题，法考题已走 retrieve_exam 逐项检索）
-            if not is_exam:
-                # 数据驱动场景补充（ADR-012 阶段2B：死刑复核/正当防卫/毒品等，scenario_supplements.json）
-                docs = scenario_supplement_docs(text or raw_query) + docs
-                # 格式条款/消费者权利/消费欺诈场景定向补充
-                if is_consumer_clause_scenario(text or raw_query):
-                    docs = consumer_clause_docs() + docs
-                if is_consumer_fraud_scenario(text or raw_query):
-                    docs = consumer_fraud_docs() + docs
+                rewritten = _rewrite_for_retrieval(raw_query, recent_ser, recent, has_options)
+                if is_exam:
+                    # 选项题 → 分步检索 + 场景定向补充前置（死刑复核/正当防卫等核心条防漏）
+                    docs = scenario_supplement_docs(text or raw_query) + retrieve_exam(rewritten)
+                else:
+                    docs = retrieve(rewritten, k=6)  # k4→6：给余弦精排更多候选 + 给模型更全上下文
+                qa_hit = ks.search_qa(rewritten)  # 保持 raw（决策 4：桥接只归检索层，不进 QA 缓存）
+                # 场景定向补充（仅非选项题，法考题已走 retrieve_exam 逐项检索）
+                if not is_exam:
+                    docs = scenario_supplement_docs(text or raw_query) + docs
+                    if is_consumer_clause_scenario(text or raw_query):
+                        docs = consumer_clause_docs() + docs
+                    if is_consumer_fraud_scenario(text or raw_query):
+                        docs = consumer_fraud_docs() + docs
         context = format_docs(docs)
         sources = [
             {
@@ -900,6 +934,9 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 answer = "".join(chunks)
                 if answer:
                     bad = citation_verify(answer)
+                    if cache_key:
+                        # 继承回答缓存（code-review #5：重复贴同一合同零重烧）
+                        answer_cache.put(cache_key, answer, pre["sources"], model="contract_review")
                     if bad:
                         note = "\n\n> 注：报告引用 " + "、".join(bad) + " 未在知识库中检索到，建议核对。"
                         answer += note

@@ -59,3 +59,15 @@ def test_rubric_low_risk():
     clauses = [("一、", "本合同一式两份，双方各执一份")]
     level, _ = D.rubric_risk_level(clauses)
     assert level == "低"
+
+
+def test_contract_split_keeps_preamble():
+    """首条标记前的引言/首段必须保留（2026-08-06 diagnosing-bugs：当前被丢弃，结构性漏条款）。"""
+    t = (
+        "本合同由甲方与乙方于2026年签订，双方本着自愿原则达成如下协议。\n"
+        "第一条 甲方将房屋出租给乙方。\n"
+        "第二条 租金每月3000元。"
+    )
+    segs = D.contract_split(t)
+    texts = [c for _, c in segs]
+    assert any("本合同由甲方与乙方" in c for c in texts), "引言/首段被丢弃"
