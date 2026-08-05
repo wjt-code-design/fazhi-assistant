@@ -17,3 +17,15 @@ os.environ.setdefault("RERANK_QUOTA_TOTAL", "0")
 
 # 让 tests 能 import backend 顶层模块
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _disable_rate_limit(monkeypatch):
+    """禁限流（测试基建）：模块级 slowapi Limiter 跨测试共享计数，全量跑时
+    login/upload 累计超 10/min → 偶发 429（flaky，2026-08-06 test_phase5 暴露）。
+    测试不测限流行为，禁用后契约测试稳定。"""
+    import main  # noqa: PLC0415
+
+    monkeypatch.setattr(main.limiter, "enabled", False)

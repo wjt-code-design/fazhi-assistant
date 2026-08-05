@@ -77,6 +77,20 @@ export interface ChatMeta {
   sources?: { source: string; article: string }[];
 }
 
+// 文件→文本（合同评估/普通问答输入，二期）：复用后端 knowledge_service 解析
+export interface ChatFileResult {
+  file_name: string;
+  ext: string;
+  chars: number;
+  truncated: boolean;
+  text: string;
+}
+export function chatFile(file: File): Promise<ChatFileResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  return api.upload<ChatFileResult>("/api/chat/file", fd);
+}
+
 export async function streamChat(
   payload: ChatPayload,
   onChunk: (text: string) => void,

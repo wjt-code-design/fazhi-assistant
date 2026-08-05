@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, FormEvent, ClipboardEvent, DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { streamChat, convApi, loadMediaSrc, ChatMeta, feedbackApi } from "@/lib/api";
+import { streamChat, convApi, loadMediaSrc, chatFile, ChatMeta, feedbackApi } from "@/lib/api";
 import { Logo, Spinner, EmptyState } from "@/components/ui";
 
 interface Msg {
@@ -35,6 +35,14 @@ interface QuotaWarn {
 
 const MAX_IMAGE_MB = 5;
 const ACCEPT_IMAGE = ["image/jpeg", "image/png"];
+const MAX_FILE_MB = 10; // 与后端 _MAX_UPLOAD_BYTES 一致
+const ACCEPT_FILE = [".txt", ".md", ".pdf", ".docx"];
+
+interface FileInfo {
+  name: string;
+  chars: number;
+  truncated: boolean;
+}
 
 function ChatImage({ dataURL, imgRef, thumbRef }: { dataURL?: string; imgRef?: string; thumbRef?: string }) {
   const [src, setSrc] = useState<string | undefined>(dataURL);
@@ -72,6 +80,9 @@ export default function ChatPage() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
   const fileRef = useRef<HTMLInputElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
+  const [fileContent, setFileContent] = useState<string | null>(null);
   const [corrFor, setCorrFor] = useState<number | null>(null);
   const [corrText, setCorrText] = useState("");
   const [fbDone, setFbDone] = useState<Record<number, "up" | "down">>({});
@@ -155,6 +166,26 @@ export default function ChatPage() {
     reader.readAsDataURL(file);
   }
 
+  async function handleFileUpload(file: File) {
+    const ext = "." + (file.name.split(".").pop() || "").toLowerCase();
+    if (!ACCEPT_FILE.includes(ext)) {
+      alert("仅支持 txt / md / pdf / docx 文件");
+      return;
+    }
+    if (file.size > MAX_FILE_MB * 1024 * 1024) {
+      alert(`文件不能超过 ${MAX_FILE_MB}MB`);
+      return;
+    }
+    try {
+      const res = await chatFile(file);
+      setFileInfo({ name: res.file_name, chars: res.chars, truncated: res.truncated });
+      setFileContent(res.text);
+      setInput(""); // 文件内容作为本轮发送内容，清空手输文本
+    } catch (err) {
+      alert(`文件解析失败：${err instanceof Error ? err.message : err}`);
+    }
+  }
+
   function onPaste(e: ClipboardEvent) {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -179,10 +210,13 @@ export default function ChatPage() {
   async function send(e?: FormEvent) {
     e?.preventDefault();
     const text = input.trim();
-    if ((!text && !pendingImage) || streaming) return;
+    const contentToSend = fileContent ?? text;
+    if ((!contentToSend && !pendingImage) || streaming) return;
     const userMsg: Msg = {
       role: "user",
-      content: text || "[图片]",
+      content: fileContent
+        ? `[文件：${fileInfo?.name ?? "已上传文件"}（${fileInfo?.chars ?? ""}字）]`
+        : text || "[图片]",
       imageDataURL: pendingImage || undefined,
     };
     const aiMsg: Msg = { role: "assistant", content: "" };
@@ -190,11 +224,13 @@ export default function ChatPage() {
     const imageToSend = pendingImage;
     setInput("");
     setPendingImage(null);
+    setFileContent(null);
+    setFileInfo(null);
     setStreaming(true);
 
     let acc = "";
     await streamChat(
-      { conversationId, content: text, image: imageToSend || undefined },
+      { conversationId, content: contentToSend, image: imageToSend || undefined },
       (chunk) => {
         acc += chunk;
         setMessages((m) => {
@@ -436,6 +472,16 @@ export default function ChatPage() {
                 </button>
               </div>
             )}
+            {fileInfo && (
+              <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-mist bg-parchment px-2.5 py-1.5 text-sm text-ink">
+                <span className="text-slate">📄</span>
+                <span className="max-w-[220px] truncate">{fileInfo.name}</span>
+                <span className="text-slate/70">已解析 {fileInfo.chars} 字{fileInfo.truncated ? "（超长已截断）" : ""}</span>
+                <button type="button" onClick={() => { setFileInfo(null); setFileContent(null); }} className="rounded px-1 text-slate hover:text-error" aria-label="移除文件">
+                  ✕
+                </button>
+              </div>
+            )}
             <div className="flex items-center gap-2">
               <input ref={fileRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => e.target.files?.[0] && acceptImageFile(e.target.files[0])} />
               <button
@@ -452,6 +498,20 @@ export default function ChatPage() {
                   <polyline points="21 15 16 10 5 21" />
                 </svg>
               </button>
+              <input ref={fileInputRef} type="file" accept=".txt,.md,.pdf,.docx" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={streaming}
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-mist text-slate transition-colors hover:bg-mist hover:text-ink disabled:opacity-50"
+                aria-label="上传文件"
+                title="上传文件（txt/md/pdf/docx，≤10MB）"
+              >
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
+                  <polyline points="13 2 13 9 20 9" />
+                </svg>
+              </button>
               <textarea
                 className="input flex-1 !rounded-[6px] !py-3 resize-none max-h-[160px]"
                 rows={2}
@@ -461,12 +521,12 @@ export default function ChatPage() {
                   if (e.key === "Enter" && e.ctrlKey) send();  // Enter 换行，Ctrl+Enter 发送
                 }}
                 onPaste={onPaste}
-                placeholder="请输入您的法律问题…（Enter 换行，Ctrl+Enter 发送；可粘贴/拖拽图片，支持连续追问）"
+                placeholder="请输入您的法律问题…（可上传 txt/pdf/docx 文件审合同，支持连续追问）"
                 disabled={streaming}
               />
               <button
                 type="submit"
-                disabled={streaming || (!input.trim() && !pendingImage)}
+                disabled={streaming || (!input.trim() && !pendingImage && !fileContent)}
                 className="btn btn-primary h-11 w-11 shrink-0 !rounded-[6px] !p-0"
                 aria-label="发送"
               >

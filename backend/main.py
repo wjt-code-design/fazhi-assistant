@@ -707,6 +707,36 @@ def _invoke_llm(messages, llm=None) -> str:
     return resp.content if resp else ""
 
 
+@app.post("/api/chat/file")
+@limiter.limit("20/minute")
+async def chat_file(request: Request, file: UploadFile = File(...), user: User = Depends(get_current_user)):
+    """文件→文本（合同评估/普通问答输入，二期）。复用 knowledge_service 解析
+    （txt/md/pdf/docx，魔数校验），零 LLM 零 BGE。前端拿文本后走现有 /api/chat 管线。
+    """
+    raw = await file.read()
+    try:
+        ext = ks.validate_upload(file.filename, raw)
+    except ValueError as ve:
+        raise HTTPException(status_code=400, detail=str(ve)) from ve
+
+    def _do():
+        text = ks.parse_uploaded(file.filename, raw)
+        if not text.strip():
+            raise HTTPException(status_code=400, detail="未从文件中识别到文字（可能是扫描版或空文件）")
+        truncated = len(text) > settings.contract_max_chars
+        if truncated:
+            text = text[: settings.contract_max_chars]
+        return {
+            "file_name": file.filename,
+            "ext": ext,
+            "chars": len(text),
+            "truncated": truncated,
+            "text": text,
+        }
+
+    return await run_in_threadpool(_do)
+
+
 @app.post("/api/chat")
 @limiter.limit("60/minute")
 async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
