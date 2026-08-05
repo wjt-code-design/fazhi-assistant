@@ -882,6 +882,16 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     return
                 cm = _contract_messages(pre, cd)
                 _f0 = None
+                # SSE 分析进度（二期）：报告生成前回放确定性骨架已完成的步骤——真实数据，非虚假进度条
+                _hit_arts = sorted(
+                    {d.metadata.get("article", "") for d in cd.get("docs", []) if d.metadata.get("article")}
+                )
+                _steps = [
+                    {"label": "解析合同", "detail": f"识别 {len(cd['blocks'])} 个条款"},
+                    {"label": "匹配法条", "detail": f"定位 {len(_hit_arts)} 条法条依据"},
+                    {"label": "风险初判", "detail": f"总体风险等级：{cd['level']}"},
+                ]
+                yield f"data: {json.dumps({'type': 'step', 'steps': _steps}, ensure_ascii=False)}\n\n"
                 chunks = []
                 async for piece in stream_with_retry(
                     lambda _i, _d: make_chain(flag_llm if _i == 0 else registry.variant(True)),

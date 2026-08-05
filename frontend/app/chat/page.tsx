@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, FormEvent, ClipboardEvent, DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { streamChat, convApi, loadMediaSrc, chatFile, ChatMeta, feedbackApi } from "@/lib/api";
+import { streamChat, convApi, loadMediaSrc, chatFile, ChatMeta, AnalysisStep, feedbackApi } from "@/lib/api";
 import { Logo, Spinner, EmptyState } from "@/components/ui";
 
 interface Msg {
@@ -12,6 +12,7 @@ interface Msg {
   imgRef?: string; // 历史：原图相对路径
   thumbRef?: string; // 历史：缩略图相对路径
   sources?: { source: string; article: string }[]; // 参考条文（ADR-012 阶段2C：回答下方折叠展示）
+  steps?: AnalysisStep[]; // 合同评估分析进度（SSE step 事件）
 }
 
 interface ConvItem {
@@ -259,6 +260,17 @@ export default function ChatPage() {
           copy[copy.length - 1] = { ...copy[copy.length - 1], content: `出错了：${err}` };
           return copy;
         });
+      },
+      (steps) => {
+        // 合同评估分析进度（SSE step 事件）：更新最后一条 AI 消息的步骤区
+        setMessages((m) => {
+          const copy = [...m];
+          const last = copy[copy.length - 1];
+          if (last && last.role === "assistant") {
+            copy[copy.length - 1] = { ...last, steps };
+          }
+          return copy;
+        });
       }
     );
     setStreaming(false);
@@ -402,6 +414,20 @@ export default function ChatPage() {
                 <div key={i} className="page-enter mb-6 flex items-start justify-start gap-2.5">
                   <span className="logo-seal mt-0.5 h-8 w-8 shrink-0 text-sm">§</span>
                   <div className="max-w-[85%] md:max-w-[80%]">
+                    {m.steps && m.steps.length > 0 && (
+                      <div className="mb-2 flex flex-wrap gap-1.5">
+                        {m.steps.map((s, si) => (
+                          <span
+                            key={si}
+                            className="inline-flex items-center gap-1 rounded-full border border-mist bg-parchment px-2.5 py-1 text-xs text-slate"
+                          >
+                            <span className="text-emerald-600">✓</span>
+                            <span className="font-medium text-ink">{s.label}</span>
+                            <span>{s.detail}</span>
+                          </span>
+                        ))}
+                      </div>
+                    )}
                     <div
                       className={`bubble-ai whitespace-pre-wrap px-5 py-4 text-[0.9375rem] leading-[1.75] text-ink ${
                         streaming && i === messages.length - 1 && m.content ? "streaming-cursor" : ""

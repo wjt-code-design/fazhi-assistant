@@ -91,11 +91,18 @@ export function chatFile(file: File): Promise<ChatFileResult> {
   return api.upload<ChatFileResult>("/api/chat/file", fd);
 }
 
+// 合同评估分析进度（SSE step 事件）：确定性骨架已完成的步骤回放
+export interface AnalysisStep {
+  label: string;
+  detail: string;
+}
+
 export async function streamChat(
   payload: ChatPayload,
   onChunk: (text: string) => void,
   onMeta: (meta: ChatMeta) => void,
-  onError: (msg: string) => void
+  onError: (msg: string) => void,
+  onSteps?: (steps: AnalysisStep[]) => void
 ): Promise<void> {
   const token = getToken();
   const body: Record<string, unknown> = {};
@@ -140,6 +147,9 @@ export async function streamChat(
         const p = JSON.parse(line.slice(6));
         if (p.error) onError(p.error);
         else if (typeof p.content === "string") onChunk(p.content);
+        if (p.type === "step" && Array.isArray(p.steps) && onSteps) {
+          onSteps(p.steps);
+        }
         if (p.conversation_id !== undefined || p.sources !== undefined) {
           onMeta({ conversation_id: p.conversation_id, sources: p.sources });
         }
