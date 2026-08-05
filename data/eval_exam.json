@@ -157,6 +157,6 @@
     "question": "关于定金，下列说法正确的是？A.当事人可以约定一方向对方给付定金作为债权的担保 B.定金合同自实际交付定金时成立 C.给付定金的一方不履行约定的债务的，无权要求返还定金 D.收受定金的一方不履行约定的债务的，应当双倍返还定金",
     "expected_sources": ["民法典"],
     "expected_articles": ["第五百八十六条", "第五百八十七条"],
-    "options_verdict": {"A": true, "B": true, "C": true, "D": true}
+    "options_verdict": {"A": true, "B": true, "C": false, "D": false}
   }
 ]

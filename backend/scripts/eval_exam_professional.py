@@ -65,7 +65,7 @@ def main() -> int:
     for c in cases:
         q = c["question"]
         try:
-            ans = _client.chat(token, q)
+            ans = _client.chat(token, q, no_cache=True)
         except Exception as e:
             ans = f"[ERR]{e}"
         p = _judge.professional(judge_llm, q, ans)

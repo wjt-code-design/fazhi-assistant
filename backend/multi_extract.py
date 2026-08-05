@@ -25,8 +25,8 @@ _OPT_LABEL_RE = re.compile(r"([A-H])[．.、:：]")
 _LETTER_RUN = r"[A-H](?:\s*[、，,和及与\s]*[A-H]){0,7}"
 # 后缀**必选**（防"【判断】正确\n**B"跨段误匹配）：只匹配结论标记（正确的是/答案为/的选项为…）
 # 允许选项被 ** 加粗包裹（markdown 结论常写成 **A、B、C**）
-_CONCLUSION_RE = re.compile(r"正确(?:的是|的选项为|选项为|的答案为|答案为|项为|的有|项有)[为是：:]?\s*[（(]?\*{0,2}(" + _LETTER_RUN + r")")
-_CONCLUSION_PRE_RE = re.compile(r"\*{0,2}(" + _LETTER_RUN + r")\*{0,2}\s*(?:说法|选项|均)?正确")
+_CONCLUSION_RE = re.compile(r"正确(?:的是|的选项为|选项为|的答案为|答案为|项为|的有|项有|答案)[为是：:]?\s*[（(]?\*{0,2}(" + _LETTER_RUN + r")")
+_CONCLUSION_PRE_RE = re.compile(r"\*{0,2}(" + _LETTER_RUN + r")\*{0,2}\s*(?:四个选项|所有选项|全部选项)?\s*的?(?:说法|表述|选项)?\s*(?:均|都|全部)?正确")
 
 
 def _answer_declared_correct(answer: str) -> set[str]:
@@ -58,6 +58,30 @@ def _answer_declared_correct(answer: str) -> set[str]:
     return out
 
 
+# 全选信号（multi_ok 兜底，2026-08-05 Step 1）：答案结论无字母（"全选"/"四项均正确"等表述）时的补抽。
+# 仅当 未抽到任何字母结论 且 无显式错误判定 时，视为声明全部选项正确——避免把
+# "逐项 C 错误…但结论全选" 的自相矛盾答案奖励为全对。
+_FULL_SELECT_RE = re.compile(
+    r"全选|全部正确|全部选项|四项均正确|四项都正确|四项说法均正确|均为正确"
+    r"|所有选项[^。\n]{0,4}(?:均|都)?正确|四个选项[^。\n]{0,8}(?:均|都)?正确"
+)
+
+
+def _has_explicit_wrong(answer: str) -> bool:
+    """是否显式判定了某选项「错误/不正确」（全选信号的抑制守卫）。"""
+    t = answer or ""
+    for m in _VERDICT_RE.finditer(t):
+        if m.group(2) != "正确":
+            return True
+    for m in _VERDICT_BLOCK_RE.finditer(t):
+        if m.group(1) != "正确":
+            return True
+    for m in _VERDICT_DASH_RE.finditer(t):
+        if "错误" in m.group(2) or "不正确" in m.group(2):
+            return True
+    return False
+
+
 def multi_ok(answer: str, options_verdict: dict | None) -> bool | None:
     """多选全选对判定：options_verdict 金标（{A: true/false}）→ 回答是否**恰好**列出全部正确项。
 
@@ -71,5 +95,9 @@ def multi_ok(answer: str, options_verdict: dict | None) -> bool | None:
     true_letters = {k for k, v in ov.items() if v}
     if len(true_letters) <= 1:
         return None
-    declared = _answer_declared_correct(answer or "")
-    return bool(true_letters and declared == true_letters)
+    ans = answer or ""
+    declared = _answer_declared_correct(ans)
+    # 全选信号兜底（id10 类）：无字母结论 + 命中全选表述 + 无显式错误判定 → 视为全选。
+    if _FULL_SELECT_RE.search(ans) and not declared and not _has_explicit_wrong(ans):
+        declared |= set(ov.keys())
+    return bool(declared == true_letters)

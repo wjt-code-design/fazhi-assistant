@@ -29,6 +29,7 @@ import complexity
 import knowledge_service as ks
 import quality
 import query_understand
+import quota_store
 import routing_metrics
 from audit import log_audit
 from auth import create_token, get_current_user, hash_password, require_admin, verify_password
@@ -51,13 +52,13 @@ from multimodal import MEDIA_DIR, build_vision_content, describe_image, persist_
 from observability import RequestIdMiddleware, log_account, setup_logging
 from prompts import (
     _EXAM_TYPE_SUFFIX,
+    _EXAM_VERDICT_RULE,
     IMAGE_GUIDANCE,
     OUTPUT_FORMAT_RULE,
     SYSTEM_BASE,
     SYSTEM_CHEATING,
     SYSTEM_STUDY,
 )
-import quota_store
 from quota_utils import UtilityQuotaExhausted
 from rag_chain import clean_answer, embeddings, format_docs, make_chain, stream_with_retry, vectorstore
 from retrieval import (
@@ -264,10 +265,11 @@ def _build_messages(pre: dict) -> list:
         sys_text = SYSTEM_CHEATING
     else:
         sys_text = SYSTEM_BASE
+    if pre.get("is_exam"):  # 法考题题型指令 + 判断规则：紧接 SYSTEM 主体，优先于格式规则（2026-08-05 前移）
+        sys_text += _EXAM_TYPE_SUFFIX[query_understand.question_type(pre.get("user_text") or "")]
+        sys_text += _EXAM_VERDICT_RULE
     sys_text += OUTPUT_FORMAT_RULE
     sys_text += CITATION_SELECTION_RULE
-    if pre.get("is_exam"):  # 法考题题型指令（决策 6，防多选漏答）：按 question_type 动态追加
-        sys_text += _EXAM_TYPE_SUFFIX[query_understand.question_type(pre.get("user_text") or "")]
     if pre.get("image"):
         sys_text += IMAGE_GUIDANCE
     if pre["summary"]:
@@ -287,7 +289,10 @@ def _build_messages(pre: dict) -> list:
         qa_note = (
             f"此前已确认的问答（可优先参考）：\n问：{pre['qa_hit']['question']}\n答：{pre['qa_hit']['answer']}\n\n"
         )
-    context_block = f"相关法律条文：\n{pre['context'] or '（无直接命中条文）'}\n\n{qa_note}"
+    context_block = (
+        f"本题相关法律条文（以下均为本题判断依据，含场景补充条文，可全部直接引用）：\n"
+        f"{pre['context'] or '（无直接命中条文）'}\n\n{qa_note}"
+    )
     user_text = pre["user_text"]
     if pre["image"]:
         final_text = f"{context_block}用户问题：{user_text or '请结合图片内容回答相关法律问题。'}"
@@ -692,7 +697,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             pre["intent"], text, bool(pre["sources"]),
             _clarified.get(pre["conv_id"], False),
         )
-    cache_key = _cache_key(pre) if (use_router and _cacheable(pre)) else None
+    cache_key = None if body.no_cache else (_cache_key(pre) if (use_router and _cacheable(pre)) else None)
     cache_hit = answer_cache.get(cache_key) if cache_key else None
     flag_key = flag_llm = None
     if use_router and not use_light:
@@ -725,7 +730,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
 
             # 分支0.2：QA 持久语义缓存直返（8-23 智谱免费 token 预生成语料，零 LLM）
             # 高阈值 + 选项指纹 + evidence 时效三护栏；仅命中才直返，否则回落 LLM
-            qa_ans = _qa_direct_return(pre)
+            qa_ans = None if body.no_cache else _qa_direct_return(pre)
             if qa_ans:
                 _f0 = time.perf_counter()
                 yield f"data: {json.dumps({'content': qa_ans}, ensure_ascii=False)}\n\n"
@@ -1241,7 +1246,7 @@ async def admin_llm_quota(request: Request, body: LlmQuotaIn, _admin: User = Dep
     try:
         res = registry.calibrate(body.key, body.remaining)
     except KeyError:
-        raise HTTPException(status_code=404, detail=f"未知模型 key: {body.key}")
+        raise HTTPException(status_code=404, detail=f"未知模型 key: {body.key}") from None
     log_audit(_admin.id, "llm.quota_calibrate", target=body.key, detail=f"remaining={body.remaining}")
     return res
 

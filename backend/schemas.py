@@ -42,6 +42,7 @@ class ChatIn(BaseModel):
     content: str | None = Field(default=None, max_length=4000)  # 文本（优先）
     conversation_id: int | None = None  # 续聊；空=新建
     image: str | None = Field(default=None, description="data URL 或 http URL；base64 不写库")
+    no_cache: bool = False  # 绕过 QA/答案缓存直返（评测脚本用，测真实 LLM）
 
 
 # ===== 会话 / 消息 =====

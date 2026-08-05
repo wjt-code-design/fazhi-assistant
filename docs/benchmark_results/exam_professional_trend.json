@@ -28,5 +28,17 @@
   "professional_avg": 2.8,
   "freeze_hash": "376ee0b3a865",
   "n": 20
+ },
+ {
+  "ts": "20260805-205549",
+  "professional_avg": 2.85,
+  "freeze_hash": "376ee0b3a865",
+  "n": 20
+ },
+ {
+  "ts": "20260805-221054",
+  "professional_avg": 2.9,
+  "freeze_hash": "75072b9f8949",
+  "n": 20
  }
 ]

@@ -50,9 +50,9 @@ def login() -> str:
     return _retry_429(_do)
 
 
-def chat(token: str, q: str, timeout: int = 180) -> str:
-    """调 chat API（SSE），拼 content 返回。带 429 退避。"""
-    body = {"conversation_id": None, "question": q, "content": q}
+def chat(token: str, q: str, timeout: int = 180, no_cache: bool = False) -> str:
+    """调 chat API（SSE），拼 content 返回。带 429 退避。no_cache 绕过 QA/答案缓存（评测用）。"""
+    body = {"conversation_id": None, "question": q, "content": q, "no_cache": no_cache}
 
     def _do():
         req = urllib.request.Request(

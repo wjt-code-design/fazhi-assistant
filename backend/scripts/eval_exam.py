@@ -117,7 +117,7 @@ def main() -> int:
         st = clarify.decide(it, q, bool(docs), False)
         refuse_ok = st != "refuse"
         try:
-            ans = _client.chat(token, q)
+            ans = _client.chat(token, q, no_cache=True)
         except Exception as e:
             ans = f"[ERR]{e}"
         # cite_ok：回答**有引用 且 全部真实在库**（防编造，复用生产防线 citation_verify）
@@ -127,16 +127,16 @@ def main() -> int:
         # multi_ok（决策 8）：多选金标 options_verdict → 回答是否**恰好**列出全部正确项
         # （不漏选也不误选）。统一 multi_extract.multi_ok 单一来源——2026-08-05
         # diagnosing-bugs：原内联 `<=` 只查不漏选，误选假项也算对，基准被高估。
-        mok = multi_ok(ans or "", c.get("options_verdict"))
-        is_multi = mok is not None
+        multi_ok_result = multi_ok(ans or "", c.get("options_verdict"))
+        is_multi = multi_ok_result is not None
         if is_multi:
             sums["multi_n"] += 1
-            sums["multi"] += 1 if mok else 0
+            sums["multi"] += 1 if multi_ok_result else 0
         row = {
             "id": c["id"], "intent": it, "decide": st,
             "recall@6": round(rec, 2), "cite_ok": bool(cc),
             "golden_hit": bool(golden), "refuse_ok": bool(refuse_ok),
-            "multi_ok": mok,
+            "multi_ok": multi_ok_result,
         }
         sums["recall"] += rec
         sums["cite"] += 1 if cc else 0
@@ -144,7 +144,7 @@ def main() -> int:
         sums["refuse_ok"] += 1 if refuse_ok else 0
         line = f"[{c['id']}] {it}/{st} recall@6={rec:.2f} cite={int(cc)} golden={int(golden)} refuse_ok={int(refuse_ok)}"
         if is_multi:
-            line += f" multi={int(bool(mok))}"
+            line += f" multi={int(bool(multi_ok_result))}"
         if do_judge:
             p = _judge.professional(judge_llm, q, ans)
             sums["prof"] += p

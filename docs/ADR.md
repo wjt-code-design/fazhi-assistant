@@ -254,3 +254,26 @@
 - **代价 / 诚实标注**：动态 k 已回退（见决策 1）——多条文题 recall 上限（id14 剩 691、
   id18 剩 1175 两条金标与选项语义不映射，金标数据边界）为已知局限。完整 eval 在 rerank
   激活下烧 ~40万 gte-rerank-v2 token，留待配额充裕时跑。测试 268 passed。
+- **补记（2026-08-05 晚，multi_ok 深修 + 缓存污染发现）**：
+  - **病灶分类**（8 失败案例逐一读答案）：抽取盲区 2（id8/10 答案判对正则漏）+ 检索缺口 2 可修
+    （id5 胎儿 1155、id16 终局裁决 47/仲裁费 53）+ 真实错判 3（id14/18/20）+ 金标版本冲突 1
+    （id13 新公司法 49(3) 无旧法 28(2) 违约责任表述）。
+  - **Step 1 抽取层**：`_answer_declared_correct` 结论正则加"正确答案："变体 + "四个选项的说法均正确"
+    中间件；`multi_ok` 加全选信号（双守卫）。multi_ok 0.43→0.57（id8/10 转正，通过案例零回归）。
+  - **Step 2 检索**：scenario_supplements.json 加 statutory_inheritance（1155）/labor_dispute（47/53）。
+    DEBUG 证实 1155 进上下文（docs_n=9 第 3 位），但 qa_cache 直返导致模型"引用条文却断言未包含"。
+  - **关键发现——judge 基线被 qa_cache 污染**：后端日志 `tier=qa_cache cache=hit`——20 题答案大部分
+    来自 search_qa 高阈值直返（智谱免费 token 预生成 204 条语料），从未走实时 LLM。所有早期 judge
+    multi_ok 数字（0.43/0.57/0.64）均失真。修复：`/api/chat` 加 `no_cache` 参数（schemas.ChatIn +
+    _qa_direct_return + answer_cache 绕过），eval 脚本传 no_cache=True 测真实 LLM。
+  - **Step 3 决策（用户拍板）**：id20 定金金标 C/D→False（民法典 587 定金罚则需"致使不能实现合同目的"
+    要件，题面锚点 [586,587] 自洽；模型 declared={A,B} 通过）；id13 版本冲突仅标注不自动改。
+  - **Phase 1（workflow 综合审查 → 归因修复 + prompt B′）**：context_block 显式声明"本题相关法律条文
+    （以下均为本题判断依据，含场景补充条文）"——修模型"清单重建遗漏"（引用 1155 却报未包含）；
+    `_EXAM_VERDICT_RULE` 重写为真伪判定五条（子集省略→对 / 超集扩大→错 / 明文冲突→错 / 严禁声称
+    未包含）并位置前移到 OUTPUT_FORMAT 之前（原尾部追加被 SYSTEM_BASE 压制无效）。
+  - **真实基线（绕缓存 no_cache=True）**：multi_ok 0.5714（8/14）。id5 转正（归因修复，D 判正确）、
+    id16 D 转正（仲裁免费）、id20 通过（金标配合）；id9/20 在 judge 与重跑间翻转 = **LLM 非确定性，
+    单次 judge 有噪声**。剩余真实失败：id13（版本冲突）、id14 B（prompt a 条未转正）、id16 C
+    （超集扩大，待 Phase 2 改金标）、id18（真实模型能力短板，A/C/D 全判错，待深查）。
+  - 测试 283 passed（含新增 test_multi_extract 8 例 + test_scenario_supplement 4 例 slow）。
