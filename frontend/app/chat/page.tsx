@@ -80,10 +80,12 @@ export default function ChatPage() {
   const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const imageInputRef = useRef<HTMLInputElement>(null); // 图片选择
+  const fileInputRef = useRef<HTMLInputElement>(null); // 文件（txt/pdf/docx）选择
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
+  const [listening, setListening] = useState(false); // 语音输入（Web Speech API）录音中
+  const recRef = useRef<{ stop: () => void } | null>(null);
   const [corrFor, setCorrFor] = useState<number | null>(null);
   const [corrText, setCorrText] = useState("");
   const [fbDone, setFbDone] = useState<Record<number, "up" | "down">>({});
@@ -185,6 +187,40 @@ export default function ChatPage() {
     } catch (err) {
       alert(`文件解析失败：${err instanceof Error ? err.message : err}`);
     }
+  }
+
+  function toggleVoice() {
+    // 语音转文字（二期）：浏览器 Web Speech API，zh-CN 连续识别，实时填入输入框。
+    // 零后端零依赖；Chrome/Edge 支持，Safari/Firefox 不支持时禁用提示。
+    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      alert("当前浏览器不支持语音输入，请用 Chrome 或 Edge");
+      return;
+    }
+    if (listening) {
+      recRef.current?.stop();
+      setListening(false);
+      return;
+    }
+    const rec = new SR();
+    rec.lang = "zh-CN";
+    rec.continuous = true;
+    rec.interimResults = true;
+    recRef.current = rec;
+    rec.onresult = (e: any) => {
+      let text = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        text += e.results[i][0].transcript;
+      }
+      setInput((prev) => (prev ? prev + text : text));
+    };
+    rec.onend = () => setListening(false);
+    rec.onerror = () => {
+      setListening(false);
+      alert("语音识别失败，请检查麦克风权限后重试");
+    };
+    rec.start();
+    setListening(true);
   }
 
   function onPaste(e: ClipboardEvent) {
@@ -514,10 +550,10 @@ export default function ChatPage() {
               </div>
             )}
             <div className="flex items-center gap-2">
-              <input ref={fileRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => e.target.files?.[0] && acceptImageFile(e.target.files[0])} />
+              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => e.target.files?.[0] && acceptImageFile(e.target.files[0])} />
               <button
                 type="button"
-                onClick={() => fileRef.current?.click()}
+                onClick={() => imageInputRef.current?.click()}
                 disabled={streaming}
                 className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-mist text-slate transition-colors hover:bg-mist hover:text-ink disabled:opacity-50"
                 aria-label="上传图片"
@@ -543,6 +579,29 @@ export default function ChatPage() {
                   <polyline points="13 2 13 9 20 9" />
                 </svg>
               </button>
+              <button
+                type="button"
+                onClick={toggleVoice}
+                disabled={streaming}
+                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
+                  listening
+                    ? "border-error bg-error/10 text-error"
+                    : "border-mist text-slate hover:bg-mist hover:text-ink"
+                }`}
+                aria-label={listening ? "停止录音" : "语音输入"}
+                title={listening ? "停止录音" : "语音输入（Chrome/Edge，说中文）"}
+              >
+                {listening ? (
+                  <span className="h-3.5 w-3.5 animate-pulse rounded-full bg-error" />
+                ) : (
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
+                    <line x1="12" y1="19" x2="12" y2="23" />
+                    <line x1="8" y1="23" x2="16" y2="23" />
+                  </svg>
+                )}
+              </button>
               <textarea
                 className="input flex-1 !rounded-[6px] !py-3 resize-none max-h-[160px]"
                 rows={2}
@@ -552,7 +611,7 @@ export default function ChatPage() {
                   if (e.key === "Enter" && e.ctrlKey) send();  // Enter 换行，Ctrl+Enter 发送
                 }}
                 onPaste={onPaste}
-                placeholder="请输入您的法律问题…（可上传 txt/pdf/docx 文件审合同，支持连续追问）"
+                placeholder="请输入您的法律问题…（可上传文件/图片审合同，支持语音输入、连续追问）"
                 disabled={streaming}
               />
               <button

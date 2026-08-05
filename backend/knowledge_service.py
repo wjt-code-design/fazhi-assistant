@@ -112,6 +112,19 @@ def parse_uploaded(filename: str, raw: bytes) -> str:
     return text.strip()
 
 
+def parse_upload_or_raise(filename: str, raw: bytes) -> tuple[str, str]:
+    """校验并解析上传文件，返回 (ext, text)。校验/空文本失败抛 ValueError（调用方转 400）。
+
+    chat_file（合同评估输入）与 admin_upload（知识库）共用，消除 validate+parse+空检查重复
+    （code-review Standards，2026-08-06）。
+    """
+    ext = validate_upload(filename, raw)
+    text = parse_uploaded(filename, raw)
+    if not text.strip():
+        raise ValueError("未从文件中识别到文字（可能是扫描版或空文件）")
+    return ext, text
+
+
 def add_chunks(
     pairs: list,
     source: str,

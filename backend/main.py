@@ -497,24 +497,27 @@ def _record_analysis(
     user_id: int | None,
     conv_id: int | None,
     source_type: str,
-    clause_count: int,
-    article_count: int,
-    risk_level: str,
-    truncated: bool,
+    cd: dict,
     duration_ms: int,
 ):
-    """合同评估运行记录写库（analysis_runs，审计/评测用）。失败不阻断主流程。"""
+    """合同评估运行记录写库（analysis_runs，审计/评测用）。失败不阻断主流程。
+
+    传确定性骨架 contract_data（cd）而非 8 个位置参数（code-review Standards 收敛）。
+    """
     db = SessionLocal()
     try:
+        article_count = len(
+            {d.metadata.get("article", "") for d in cd.get("docs", []) if d.metadata.get("article")}
+        )
         db.add(
             AnalysisRun(
                 user_id=user_id,
                 conversation_id=conv_id,
                 source_type=source_type,
-                clause_count=clause_count,
+                clause_count=len(cd.get("blocks", [])),
                 article_count=article_count,
-                risk_level=risk_level,
-                truncated=truncated,
+                risk_level=cd.get("level", ""),
+                truncated=bool(cd.get("truncated")),
                 duration_ms=duration_ms,
             )
         )
@@ -764,23 +767,21 @@ async def chat_file(request: Request, file: UploadFile = File(...), user: User =
     """
     raw = await file.read()
     try:
-        ext = ks.validate_upload(file.filename, raw)
+        ext, text = ks.parse_upload_or_raise(file.filename, raw)  # 与 admin_upload 共用（code-review Standards）
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve)) from ve
 
     def _do():
-        text = ks.parse_uploaded(file.filename, raw)
-        if not text.strip():
-            raise HTTPException(status_code=400, detail="未从文件中识别到文字（可能是扫描版或空文件）")
-        truncated = len(text) > settings.contract_max_chars
+        t = text
+        truncated = len(t) > settings.contract_max_chars
         if truncated:
-            text = text[: settings.contract_max_chars]
+            t = t[: settings.contract_max_chars]
         return {
             "file_name": file.filename,
             "ext": ext,
-            "chars": len(text),
+            "chars": len(t),
             "truncated": truncated,
-            "text": text,
+            "text": t,
         }
 
     return await run_in_threadpool(_do)
@@ -1006,8 +1007,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     await run_in_threadpool(
                         _record_analysis,
                         user.id, pre["conv_id"], "image" if pre.get("image") else "text",
-                        len(cd["blocks"]), len(_hit_arts), cd["level"],
-                        bool(cd.get("truncated")), int((time.perf_counter() - t0) * 1000),
+                        cd, int((time.perf_counter() - t0) * 1000),
                     )
                 except Exception as e:
                     print(f"[analysis-run] {e}", flush=True)
@@ -1367,14 +1367,11 @@ def admin_delete_knowledge(doc_id: str, _admin: User = Depends(require_admin)):
 async def admin_upload(request: Request, file: UploadFile = File(...), admin: User = Depends(require_admin)):
     raw = await file.read()
     try:
-        ks.validate_upload(file.filename, raw)
+        _ext, text = ks.parse_upload_or_raise(file.filename, raw)  # 与 chat_file 共用（code-review Standards）
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve)) from ve
 
     def _do():
-        text = ks.parse_uploaded(file.filename, raw)
-        if not text:
-            raise HTTPException(status_code=400, detail="未从文件中识别到文字（可能是扫描版或空文件）")
         fh = ks.file_hash(raw)
         source = os.path.splitext(file.filename)[0]
         # 版本递增（阶段6）：同 hash 重传时 version+1，审计语义正确

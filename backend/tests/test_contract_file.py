@@ -76,15 +76,22 @@ def test_upload_requires_auth(client):
 def test_record_analysis_writes_row(client):
     import main
     from database import SessionLocal
+    from langchain_core.documents import Document
     from models import AnalysisRun
 
-    main._record_analysis(1, 2, "text", 3, 7, "高", False, 999)
+    cd = {
+        "blocks": [{"n": 1}, {"n": 2}, {"n": 3}],
+        "docs": [Document(page_content="x", metadata={"article": "第五百八十五条"})],
+        "level": "高",
+        "truncated": False,
+    }
+    main._record_analysis(1, 2, "text", cd, 999)
     db = SessionLocal()
     try:
         row = db.query(AnalysisRun).filter_by(conversation_id=2).first()
         assert row is not None
         assert row.source_type == "text"
-        assert row.clause_count == 3 and row.article_count == 7
+        assert row.clause_count == 3 and row.article_count == 1
         assert row.risk_level == "高"
         assert row.duration_ms == 999
     finally:

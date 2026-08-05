@@ -149,9 +149,7 @@ export async function streamChat(
         const p = JSON.parse(line.slice(6));
         if (p.error) onError(p.error);
         else if (typeof p.content === "string") onChunk(p.content);
-        if (p.type === "step" && Array.isArray(p.steps) && onSteps) {
-          onSteps(p.steps);
-        }
+        else if (p.type === "step" && Array.isArray(p.steps) && onSteps) onSteps(p.steps);
         if (p.conversation_id !== undefined || p.sources !== undefined) {
           onMeta({ conversation_id: p.conversation_id, sources: p.sources });
         }
