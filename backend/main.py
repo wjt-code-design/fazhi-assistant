@@ -408,8 +408,12 @@ def _pre(user_id: int, conversation_id, text: str, image):
                     # 续聊追问：拼上轮最近的合同文本
                     prev = ""
                     for m in reversed(recent_ser):
-                        if m["role"] == "user" and is_contract_review(m["content"] or ""):
-                            prev = m["content"] or ""
+                        content = m["content"] or ""
+                        if m["role"] == "user" and is_contract_review(content):
+                            # 图片合同（二期）：转写全文存于 image_desc，用户请求词在 content——
+                            # 拼 image_desc（含全部条文），否则续聊找不到合同全文而反问要内容
+                            idesc = m.get("image_desc") or ""
+                            prev = idesc if is_contract_review(idesc) else content
                             break
                     contract_text = ((prev + "\n" + (text or "")) if prev else (text or raw_query)).strip()
                 contract_data = build_contract_data(contract_text)
