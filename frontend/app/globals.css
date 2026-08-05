@@ -10,38 +10,53 @@
    ============================================================ */
 
 :root {
-  /* ---------- 色彩：冷云灰 + 青蓝 ---------- */
-  --ink: #1a2332; /* 文字 / 深色气泡 / 深色侧栏 */
-  --ink-2: #243044; /* 深色面板第二层次 */
-  --parchment: #f4f6f9; /* 冷云灰 · 页面底 */
+  /* ========== 色彩：樱花海（Sakura Sea）——海盐蓝底 × 樱花粉点缀 ========== */
+  --ink: #2a3b5c; /* 深墨蓝 · 文字 / 深色气泡 / 深色侧栏 */
+  --ink-2: #35476b; /* 深色面板第二层次 */
+  --parchment: #eff6ff; /* 樱海浅底 · 页面底 */
   --paper: #ffffff; /* 卡片底 */
-  --slate: #64748b; /* 冷灰蓝 · 次要文字 */
-  --accent: #0284c7; /* 青蓝 · 单色强调（细节） */
-  --accent-deep: #0369a1; /* 青蓝加深（hover / 强调文字） */
-  --accent-tint: rgba(2, 132, 199, 0.1);
-  --jade: #2d6a4f; /* 墨绿 · 成功语义 */
-  --jade-tint: #ddf0e6;
-  --mist: #e2e8f0; /* 冷灰 · 边框 / 分割线 */
-  --mist-2: #f1f5f9; /* 更浅冷灰 · 表格 hover */
-  --error: #dc2626; /* 错误语义 */
-  --error-tint: #fdecec;
+  --slate: #6b7fa3; /* 冷灰蓝 · 次要文字 */
+  --accent: #f56b8c; /* 樱花粉深 · 单色强调（可读文字 / 细节） */
+  --accent-deep: #e0527a; /* 樱花粉更深（hover / 强调文字） */
+  --accent-tint: rgba(245, 107, 140, 0.1);
+  --jade: #3fb68b; /* 玉绿 · 成功语义 */
+  --jade-tint: #ddf3ec;
+  --mist: #d9e7f7; /* 淡蓝灰 · 边框 / 分割线 */
+  --mist-2: #f0f6ff; /* 更浅 · 表格 hover */
+  --error: #e06060; /* 错误语义 */
+  --error-tint: #fcebeb;
+  --sea: #6bb3f0; /* 海盐蓝 · 法条引用 / 辅助点缀 */
 
-  /* 青蓝渐变 · 仅填充型元素 */
-  --grad: linear-gradient(135deg, #06b6d4 0%, #2563eb 100%);
-  --grad-hover: linear-gradient(135deg, #0891b2 0%, #1d4ed8 100%);
+  /* 背景渐变：海盐蓝底 */
+  --bg-start: #d6ecff;
+  --bg-mid: #c3dbff;
+  --bg-end: #eff6ff;
+  --bg-grad: linear-gradient(160deg, #d6ecff 0%, #c3dbff 55%, #eff6ff 100%);
 
-  /* 圆角基元 · 全局统一 6px（仅聊天气泡做不对称角、徽章做胶囊例外） */
+  /* 樱花能量流渐变 · 仅填充型元素（主按钮 / 印章 Logo / 流式光标） */
+  --grad: linear-gradient(135deg, #ff8fa9 0%, #f56b8c 100%);
+  --grad-hover: linear-gradient(135deg, #f47a98 0%, #e0527a 100%);
+
+  /* 圆角基元 · 全局统一 6px */
   --radius: 6px;
+
+  /* 玻璃质感 */
+  --glass: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.7);
 
   /* ---------- 字体 ---------- */
   --font-serif: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif;
   --font-sans: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
 
-  /* ---------- 阴影（中性冷灰，无暖调） ---------- */
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.05);
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 2px 8px rgba(15, 23, 42, 0.05);
-  --shadow-md: 0 2px 6px rgba(15, 23, 42, 0.05), 0 10px 24px -8px rgba(15, 23, 42, 0.12);
-  --shadow-lg: 0 4px 12px rgba(15, 23, 42, 0.06), 0 20px 44px -12px rgba(15, 23, 42, 0.18);
+  /* ---------- 阴影（樱海调，墨蓝而非冷灰） ---------- */
+  --shadow-xs: 0 1px 2px rgba(42, 59, 92, 0.05);
+  --shadow-sm: 0 1px 2px rgba(42, 59, 92, 0.04), 0 2px 8px rgba(42, 59, 92, 0.05);
+  --shadow-md: 0 2px 6px rgba(42, 59, 92, 0.05), 0 10px 24px -8px rgba(42, 59, 92, 0.12);
+  --shadow-lg: 0 4px 12px rgba(42, 59, 92, 0.06), 0 20px 44px -12px rgba(42, 59, 92, 0.18);
+  --shadow-xl: 0 10px 30px rgba(42, 59, 92, 0.08), 0 30px 60px -16px rgba(42, 59, 92, 0.2);
+
+  /* 樱花粉发光（聚焦 / 强调） */
+  --glow: 0 0 20px -4px rgba(255, 143, 169, 0.3);
 
   /* ---------- 动效曲线 ---------- */
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
@@ -55,14 +70,38 @@
   }
   body {
     background-color: var(--parchment);
+    background-image: var(--bg-grad);
+    background-attachment: fixed;
     color: var(--ink);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     text-rendering: optimizeLegibility;
     font-feature-settings: "tnum"; /* 数字等宽，表格/统计对齐更整齐 */
   }
+  /* 氛围光斑：左上樱花粉 + 右下海盐蓝，固定不随滚动 */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(560px 420px at 8% 0%, rgba(255, 143, 169, 0.14), transparent 70%),
+      radial-gradient(680px 520px at 96% 100%, rgba(107, 179, 240, 0.18), transparent 70%);
+  }
+  /* 噪点纹理：消除大色块塑料感，零请求（SVG data-URI） */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.03;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.6'/></svg>");
+  }
   ::selection {
-    background: rgba(2, 132, 199, 0.18);
+    background: rgba(255, 143, 169, 0.18);
   }
 
   /* ---------- 统一滚动条（冷灰） ---------- */
@@ -137,11 +176,71 @@
   30%           { transform: translateY(-4px); opacity: 1; }
 }
 @keyframes pulseDot {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(2, 132, 199, 0.4); }
-  50%      { box-shadow: 0 0 0 5px rgba(2, 132, 199, 0); }
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 143, 169, 0.45); }
+  50%      { box-shadow: 0 0 0 6px rgba(255, 143, 169, 0); }
+}
+/* 流式能量流：气泡左竖线 / 底部进度条的樱花渐变位移 */
+@keyframes energyFlow {
+  0%   { background-position: 0 0; }
+  100% { background-position: 40px 0; }
+}
+/* 检索扫描光：自 AI 气泡顶到底扫过 */
+@keyframes scanBeam {
+  0%   { top: -56px; opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+/* 落印确认：印章过冲回弹落下 */
+@keyframes sealStamp {
+  0%   { transform: scale(2.4) rotate(6deg); opacity: 0; }
+  60%  { transform: scale(0.94) rotate(-12deg); opacity: 1; }
+  80%  { transform: scale(1.04) rotate(-12deg); }
+  100% { transform: scale(1) rotate(-12deg); opacity: 1; }
+}
+/* 气泡左竖线生长 */
+@keyframes lineGrow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+/* 印章下压回弹（钤印门） */
+@keyframes sealPress {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(0.86); }
+  60%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+/* 呼吸发光（待钤 / 流式） */
+@keyframes glowBreathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 143, 169, 0.35), var(--glow); }
+  50%      { box-shadow: 0 0 0 10px rgba(255, 143, 169, 0), 0 0 28px -2px rgba(255, 143, 169, 0.5); }
+}
+/* 表单自墨心凝结浮现 */
+@keyframes condenseIn {
+  0%   { opacity: 0; filter: blur(12px); transform: scale(0.85); }
+  100% { opacity: 1; filter: blur(0); transform: scale(1); }
 }
 
 @layer components {
+  /* ===== 玻璃卡片 / 渐变描边（樱花海） ===== */
+  .glass-card {
+    background: var(--glass);
+    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), var(--shadow-xl);
+  }
+  /* 渐变描边（上亮下暗）——浅色玻璃 UI 的勾边质感 */
+  .glow-line {
+    border: 0;
+    padding: 1px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.25));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
   /* ===== 签名母题：青蓝左竖线（细节，单色） ===== */
   .law-border-l {
     border-left: 3px solid var(--accent);
