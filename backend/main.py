@@ -745,10 +745,16 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
     # 区分不了库外，见 clarify 模块注释——不为此调 grounded_top_score）。
     strategy = "direct"
     if use_router and pre["intent"] in ("legal_query", "chitchat"):
-        strategy = clarify.decide(
-            pre["intent"], text, bool(pre["sources"]),
-            _clarified.get(pre["conv_id"], False),
-        )
+        if pre.get("contract_data"):
+            # 合同模式：信息确认闸由分支0.3 need_clarify 负责（触发但无合同全文时反问），
+            # 通用 clarify 不得拦截续聊短句（"那利息24%算吗"被判信息不足会绕开合同路径，
+            # 2026-08-06 验收发现，第二轮"第二条违约金"direct 而第三轮被误拦）
+            strategy = "direct"
+        else:
+            strategy = clarify.decide(
+                pre["intent"], text, bool(pre["sources"]),
+                _clarified.get(pre["conv_id"], False),
+            )
     cache_key = None if body.no_cache else (_cache_key(pre) if (use_router and _cacheable(pre)) else None)
     cache_hit = answer_cache.get(cache_key) if cache_key else None
     flag_key = flag_llm = None
