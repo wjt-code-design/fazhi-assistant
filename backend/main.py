@@ -364,12 +364,13 @@ def _pre(user_id: int, conversation_id, text: str, image):
         intent = classify_intent(text or raw_query)
         is_exam = query_understand._is_exam_question(text or raw_query)
         has_options = query_understand.has_exam_options(text or raw_query)
-        # 合同 / 文书风险评估（确定性骨架，2026-08-06）：legal_query + 无图 + 触发命中
-        # 或本会话上轮已进合同模式（续聊短句追问不脱离合同路径，code-review #1）
+        # 合同 / 文书风险评估（确定性骨架，2026-08-06）：legal_query + 触发命中
+        # 或本会话上轮已进合同模式（续聊短句追问不脱离合同路径，code-review #1）。
+        # 2026-08-06 图片识别合同（二期）：去 not image——多模态转写出的合同全文（desc）
+        # 触发 is_contract_review 即进合同路径；普通图片描述不触发，走原多模态问答。
         contract_mode = (
             settings.feature_multi_analyze
             and intent == "legal_query"
-            and not image
             and (is_contract_review(text or raw_query) or conv.id in _contract_convs)
         )
 
@@ -397,7 +398,12 @@ def _pre(user_id: int, conversation_id, text: str, image):
                 rewritten = raw_query
                 if is_contract_review(text or raw_query):
                     _contract_convs.add(conv.id)  # 会话级合同状态（#1：续聊不断裂）
-                    contract_text = text or raw_query
+                    # 图片合同（二期）：contract_text 用多模态转写全文（desc），不含用户请求词；
+                    # 文字合同用 raw。desc 需单独判定是合同（防普通图片摘要误入）。
+                    if image and desc and is_contract_review(desc):
+                        contract_text = desc
+                    else:
+                        contract_text = text or raw_query
                 else:
                     # 续聊追问：拼上轮最近的合同文本
                     prev = ""
