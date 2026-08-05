@@ -101,7 +101,7 @@
     "question": "关于股东未按期足额缴纳出资的责任，下列说法正确的是？A.应当向公司足额缴纳 B.还应当向已按期足额缴纳出资的股东承担违约责任 C.公司可以要求其赔偿给公司造成的损失 D.未按期缴纳不影响其股东权利",
     "expected_sources": ["公司法"],
     "expected_articles": ["第四十九条", "第五十条"],
-    "options_verdict": {"A": true, "B": true, "C": true, "D": false}
+    "options_verdict": {"A": true, "B": false, "C": true, "D": false}
   },
   {
     "id": 14,
@@ -125,7 +125,7 @@
     "question": "关于劳动争议的解决，下列说法正确的是？A.劳动争议需先申请劳动仲裁，对仲裁裁决不服才可起诉 B.劳动争议可以直接向人民法院提起诉讼 C.追索劳动报酬的仲裁裁决为终局裁决 D.劳动争议仲裁免费",
     "expected_sources": ["劳动争议调解仲裁法"],
     "expected_articles": ["第五条", "第四十七条"],
-    "options_verdict": {"A": true, "B": false, "C": true, "D": true}
+    "options_verdict": {"A": true, "B": false, "C": false, "D": true}
   },
   {
     "id": 17,

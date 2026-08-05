@@ -43,5 +43,16 @@
       {"source": "劳动争议调解仲裁法", "article": "第四十七条"},
       {"source": "劳动争议调解仲裁法", "article": "第五十三条"}
     ]
+  },
+  {
+    "scenario": "tort_liability",
+    "keywords": ["侵权责任"],
+    "articles": [
+      {"source": "民法典", "article": "第一千一百六十五条"},
+      {"source": "民法典", "article": "第一千一百六十六条"},
+      {"source": "民法典", "article": "第一百八十二条"},
+      {"source": "民法典", "article": "第一千一百七十四条"},
+      {"source": "民法典", "article": "第一千一百七十五条"}
+    ]
   }
 ]
