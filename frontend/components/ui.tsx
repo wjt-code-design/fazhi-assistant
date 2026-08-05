@@ -52,7 +52,7 @@ export function StatCard({ label, value, icon }: { label: string; value: ReactNo
         <div className="stat-label">{label}</div>
       </div>
       {icon && (
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[rgba(2,132,199,0.10)] text-accent">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[var(--accent-tint)] text-accent">
           {icon}
         </span>
       )}
@@ -84,4 +84,9 @@ export function SectionTitle({ children }: { children: ReactNode }) {
 /** 骨架屏块 */
 export function Skeleton({ className = "" }: { className?: string }) {
   return <div className={`skeleton ${className}`} />;
+}
+
+/** 玻璃卡片（樱花海 glass-card 包装，可传覆盖类） */
+export function GlassCard({ children, className = "" }: { children: ReactNode; className?: string }) {
+  return <div className={`glass-card ${className}`}>{children}</div>;
 }
