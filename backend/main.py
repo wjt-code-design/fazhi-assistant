@@ -845,6 +845,9 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     answer = ""
             else:
                 answer = clean_answer(answer)
+            # 多选完整性症状（决策 8）：多选题型 + 回答只声明 1 个正确项 → 疑似漏答。
+            # 流式已发出，只能追加确定性核对注（不静默）+ 拦缓存（防错答传播）。纯函数零成本。
+            multi_bad = bool(answer) and quality.multi_incomplete(pre.get("user_text") or "", answer)
             if answer:
                 bad_cites = citation_verify(answer)
                 if bad_cites:
@@ -857,6 +860,16 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         user_id=user.id,
                         detail=";".join(bad_cites)[:300],
                     )
+                if multi_bad:
+                    note = "\n\n> ⚠️ 本题可能为多选题，上述回答似乎只给出了一个正确选项，请核对是否遗漏。"
+                    answer += note
+                    yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
+                    log_account(
+                        kind="multi_incomplete",
+                        conv_id=pre["conv_id"],
+                        user_id=user.id,
+                        detail=(pre.get("user_text") or "")[:200],
+                    )
             if not answer:
                 yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
             # S3+S6：旗舰流式路径也跑自检 + 写缓存（让缓存/自检对 text 生效，不只轻量分支）。
@@ -867,7 +880,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 if sv.ok:
                     # 写缓存三闸（审查 C2/C3）：非降级（降级答案不入缓存，防缓存用户
                     # 看不到免责注）+ 确定性写闸（study_aid 引用 ⊆ 检索条文）
-                    if cache_key and not flag_degraded and _cache_write_ok(pre, answer):
+                    # + 多选漏答不入缓存（决策 8：防错答传播给近重复题）
+                    if cache_key and not flag_degraded and _cache_write_ok(pre, answer) and not multi_bad:
                         emb = await run_in_threadpool(_embed_question, pre.get("rewritten") or "")
                         pol, cnt, lab, fp = _cache_guards(pre.get("rewritten") or "")
                         answer_cache.put(

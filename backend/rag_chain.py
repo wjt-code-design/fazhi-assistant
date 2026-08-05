@@ -8,6 +8,7 @@
 import asyncio
 import os
 import re
+import threading
 
 # 运行期默认离线用本地缓存，避免对 huggingface.co 的在线校验（部分环境 SSL 校验失败）。
 # 缓存缺失需回退在线时走 HF_ENDPOINT 镜像；建库/种子脚本会显式置 HF_HUB_OFFLINE=0 覆盖此默认。
@@ -61,10 +62,15 @@ class QuotaTrackingEmbeddings(Embeddings):
     - provider=aliyun 且配额耗尽 → 抛 UtilityQuotaExhausted（不调云 API），main 捕获转 409。
     - local 不耗云 token：仍按配置总量扣（本地场景 quota_total 通常 0 → no-op，安全）。
     - 扣减在调用成功后（异常不记账）；估算口径 quota_utils.estimate_tokens（~1.5 字符/token）。
+    - **并发锁（2026-08-05 稳定性修正）**：BGE（HuggingFaceEmbeddings）是共享单例，
+      retrieve_exam 的 ThreadPoolExecutor 多线程并发 encode 在 Windows 偶发原生 segfault
+      （onnxruntime 多线程访问不稳）。全局锁串行化编码，消除竞态；嵌入是 CPU 快路径，
+      锁开销可忽略。Chroma 查询为并发读（SQLite/HNSW 读安全）不锁。
     """
 
     def __init__(self, inner):
         self._inner = inner
+        self._lock = threading.Lock()
 
     def _check(self) -> None:
         if settings.embedding_provider == "aliyun" and quota_utils.utility_depleted(
@@ -81,13 +87,15 @@ class QuotaTrackingEmbeddings(Embeddings):
 
     def embed_query(self, text: str):
         self._check()
-        v = self._inner.embed_query(text)
+        with self._lock:
+            v = self._inner.embed_query(text)
         self._deduct(text)
         return v
 
     def embed_documents(self, texts):
         self._check()
-        v = self._inner.embed_documents(texts)
+        with self._lock:
+            v = self._inner.embed_documents(texts)
         self._deduct("".join(texts))
         return v
 

@@ -221,3 +221,35 @@
   改动影响面：`query_understand.py`（+2 纯函数）、`prompts.py`（+1 常量表）、`main.py`
   （重排 + 接线 + 闸）；`memory.py`/`retrieval.py`/`knowledge_service.py` 零改动。
   测试：260 passed（含新增 test_pre_rewrite_order.py 集成 + test_query_understand 单测）。
+
+---
+
+## ADR-014 回答质量提升：动态 k + 多选完整性 + judge 趋势 + rerank 降级根治（2026-08-05）
+
+- **背景**：回答质量三短板——① 多条文题受 k=6 截断 recall 0.9083；② SYSTEM_STUDY 多选漏答
+  （用户实测"多选只给一个坚定答案"）；③ 论证深度无持续量化。另有 **Windows 偶发 segfault**
+  阻塞 eval（diagnosing-bugs 根治）。
+- **决策**：
+  1. **动态 k**（retrieve_exam，测量驱动）：`k=None` 默认带选项题用 h10/o4/c12 深池——
+     实测 recall@6 0.9083→0.9625（恢复 id9/13 满、id14 0.75）。根因：题干主锚 head_k=k 随
+     k 膨胀挤占截断位、选项专属金标条被 out[:k] 截掉。显式 k → 旧行为兼容。并发上限
+     6→3（降内存峰值，非根因但防御）。
+  2. **多选完整性**：`quality._answer_declared_correct`（兼容 "X项判断：正确" / "【判断】正确"
+     两格式）+ `multi_incomplete`（多选题型 + 回答只声明 1 项 → 症状标记）。main.py 流式路径
+     追加确定性核对注 + 拦缓存写（防错答传播）。eval 加 `multi_ok` 指标（用已有
+     options_verdict 金标，无需改冻结题集）。
+  3. **professional judge 趋势**：eval_exam `EVAL_LLM_JUDGE=1` 追加 professional_avg 到
+     exam_professional_trend.json，跨跑对比论证深度。
+  4. **rerank 降级根治（诊断结论）**：本地配额库误标 3 个 rerank 模型全耗尽（used=1M×3，
+     实际 gte/vl 满 1M）→ `rerank_active_model()`=None → 即使 rerank_enabled=true 也掉进
+     `_cosine_rank` 整池重嵌（retrieval.py:428 每次 embed_documents 10-17 条）→ 持续真实
+     检索（缓存 miss）→ BGE 嵌入量暴涨 → onnxruntime Windows 偶发原生 segfault。**修复**：
+     `/api/admin/llm-quota` 校准回写（gte/vl used=0）→ rerank 恢复 → cosine 路径被跳过 →
+     15/15 稳定压测无崩溃。**教训**：本地配额是估算扣减（ADR-011），不可信——rerank/embedding
+     降级会静默改变检索路径（本地重嵌）引发隐藏崩溃，以控制台校准为准。
+- **明确不做**：不回退动态 k（recall 收益真实且 rerank 恢复后稳定）；不重构 `_cosine_rank`
+  复用 Chroma 距离（降级路径为稀有回退，估值不值改动风险）。
+- **代价 / 诚实标注**：动态 k 加深池 → 每次法考题检索更慢（CPU BGE）+ 答案上下文更长
+  （12 docs vs 6，token 略增）；id14 剩 691、id18 剩 1175 两条金标与选项语义不映射（金标
+  数据边界，非管线退化）。完整 eval 在 rerank 激活下烧 ~40万 gte-rerank-v2 token，留待
+  配额充裕时跑。测试 268 passed。

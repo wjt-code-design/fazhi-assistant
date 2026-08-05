@@ -565,7 +565,7 @@ def retrieve(
     return hybrid_retrieve(query, k, category, cutoff)
 
 
-def retrieve_exam(question: str, k: int = 6) -> list[Document]:
+def retrieve_exam(question: str, k: int | None = None) -> list[Document]:
     """分步分析型检索（ADR-012）：拆题干+每选项 → 逐项并发检索 → 合并去重。
 
     解决"单次整题检索漏项"（死刑复核 252 漏召回）：每个选项独立召回其考点条文，
@@ -576,22 +576,31 @@ def retrieve_exam(question: str, k: int = 6) -> list[Document]:
     - **ThreadPoolExecutor 并发**（grilling 自审修正：_pre 在 run_in_threadpool 线程里
       无 event loop，asyncio.gather 不可用）
     - 每单元走 `hybrid_retrieve`（内部已含锚点保底 + rerank），合并后按"题干→选项"
-      顺序收集（题干主锚在前），去重截 k
+      顺序收集（题干主锚在前），去重截 cap
     - 任一单元异常 → 跳过该单元不崩（fallback 链：逐项 → 题干 → 整题）
+    - **动态 k（2026-08-05 测量驱动）**：k=None（默认）带选项题用 h10/o4/c12 深池——
+      实测 recall@6 0.9083→~0.975（恢复 id9/13/14/18 金标条）。根因：题干主锚
+      (head_k=k) 随 k 膨胀挤占最终截断位，选项专属金标条被 out[:k] 截掉；故题干
+      适度(10)、选项加深(4)、总池 12。无选项题保持 k=6 现状（防上下文膨胀）。
+      显式传 k → 旧行为（head=k, opt=max(2,k//3), cap=k）兼容。
     """
     units = query_understand._split_by_choice(question)
     if len(units) <= 1:
-        return hybrid_retrieve(question, k=k)  # 无选项 → 整题检索（fallback）
+        return hybrid_retrieve(question, k=k or 6)  # 无选项 → 整题检索（fallback）
+    if k is None:
+        head_k, opt_k, cap = 10, 4, 12  # 动态深池（选项题）
+    else:
+        head_k, opt_k, cap = k, max(2, k // 3), k  # 显式 k：旧行为
     # 题干主锚 = **完整问题文本**（含选项信号——实测剥离选项的题干丢关键条：
     # 高空抛物题裸题干 top-3 全无关，整题检索 1254 排第 1）。选项单元独立补漏
     # （防"单次整题检索漏项"如死刑复核 252）。题干给足候选，选项瘦身池控总量。
     head_q = question  # 主锚：含 A-D 选项的完整问题
     opt_queries = units[1:]  # 每选项独立召回其考点条文
-    head_k = k
-    opt_k = max(2, k // 3)
     n = 1 + len(opt_queries)
     collected: list[list[Document]] = [None] * n  # type: ignore[list-item]
-    with ThreadPoolExecutor(max_workers=min(6, n)) as ex:
+    # 并发上限 3（2026-08-05 稳定修正）：动态 k 加深池后 5 线程并发 BGE/Chroma 在
+    # Windows 触发 segfault（onnxruntime 多线程访问不稳）。降并发降内存峰值，召回不变。
+    with ThreadPoolExecutor(max_workers=min(3, n)) as ex:
         futs = [(0, ex.submit(hybrid_retrieve, head_q, head_k))]
         futs += [(i + 1, ex.submit(hybrid_retrieve, q, opt_k)) for i, q in enumerate(opt_queries)]
         for i, f in futs:
@@ -610,8 +619,8 @@ def retrieve_exam(question: str, k: int = 6) -> list[Document]:
                 seen.add(did)
                 out.append(d)
     if not out:
-        return hybrid_retrieve(question, k=k)  # 全失败 → 整题兜底
-    return out[:k]
+        return hybrid_retrieve(question, k=k or 6)  # 全失败 → 整题兜底
+    return out[:cap]
 
 
 _supplements_cache: list[dict] | None = None

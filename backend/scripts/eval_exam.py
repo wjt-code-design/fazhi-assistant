@@ -37,6 +37,7 @@ import clarify  # noqa: E402
 import eval_metrics as M  # noqa: E402
 import intent  # noqa: E402
 import query_understand  # noqa: E402
+from quality import _answer_declared_correct  # noqa: E402
 from retrieval import (  # noqa: E402
     _normalize_article,
     citation_verify,
@@ -106,7 +107,7 @@ def main() -> int:
     token = _client.login()
     judge_llm = _judge.pick_text_llm() if do_judge else None
     rows = []
-    sums = {"recall": 0.0, "cite": 0, "golden": 0, "refuse_ok": 0, "prof": 0}
+    sums = {"recall": 0.0, "cite": 0, "golden": 0, "refuse_ok": 0, "multi": 0, "multi_n": 0, "prof": 0}
     for c in cases:
         q = c["question"]
         docs = _production_retrieve(q)  # 生产同款路由（retrieve_exam/scenario 补充）
@@ -124,16 +125,29 @@ def main() -> int:
         cited_ans = extract_citations(ans or "")
         cc = bool(cited_ans) and not citation_verify(ans or "")
         golden = _golden_citation_hit(ans, c.get("expected_articles", []))
+        # multi_ok（决策 8）：多选金标 options_verdict → 回答是否列出全部正确项（防漏答）。
+        # 确定性抽取回答判定的正确选项字母（SYSTEM_STUDY 逐项判断格式）。
+        ov = c.get("options_verdict") or {}
+        true_letters = {k for k, v in ov.items() if v}
+        is_multi = len(true_letters) > 1
+        declared = _answer_declared_correct(ans or "")
+        multi_ok = bool(true_letters and true_letters <= declared) if is_multi else None
+        if is_multi:
+            sums["multi_n"] += 1
+            sums["multi"] += 1 if multi_ok else 0
         row = {
             "id": c["id"], "intent": it, "decide": st,
             "recall@6": round(rec, 2), "cite_ok": bool(cc),
             "golden_hit": bool(golden), "refuse_ok": bool(refuse_ok),
+            "multi_ok": multi_ok,
         }
         sums["recall"] += rec
         sums["cite"] += 1 if cc else 0
         sums["golden"] += 1 if golden else 0
         sums["refuse_ok"] += 1 if refuse_ok else 0
         line = f"[{c['id']}] {it}/{st} recall@6={rec:.2f} cite={int(cc)} golden={int(golden)} refuse_ok={int(refuse_ok)}"
+        if is_multi:
+            line += f" multi={int(bool(multi_ok))}"
         if do_judge:
             p = _judge.professional(judge_llm, q, ans)
             sums["prof"] += p
@@ -151,6 +165,8 @@ def main() -> int:
         "freeze_hash": _freeze_hash(),
         "n": n,
     }
+    if sums["multi_n"]:
+        summary["multi_ok"] = round(sums["multi"] / sums["multi_n"], 4)
     if do_judge:
         summary["professional_avg"] = round(sums["prof"] / n, 4)
     print(f"\n{json.dumps(summary, ensure_ascii=False)}")
@@ -171,8 +187,34 @@ def main() -> int:
         )
         f.write("\n")
     print(f"落盘：{out}")
+    if do_judge:
+        _append_professional_trend(out, ts, summary)
     print(f"基线题集冻结 hash：{_freeze_hash()}（阶段1/2/3 对比须一致）")
     return 0
+
+
+def _append_professional_trend(out: str, ts: str, summary: dict):
+    """professional judge 趋势（2026-08-05）：每次 judge 跑追加 professional_avg，跨跑对比论证深度。"""
+    trend_path = os.path.join(os.path.dirname(out), "exam_professional_trend.json")
+    trend: list = []
+    if os.path.exists(trend_path):
+        try:
+            with open(trend_path, encoding="utf-8") as f:
+                trend = json.load(f)
+        except Exception:
+            trend = []
+    trend.append(
+        {
+            "ts": ts,
+            "professional_avg": summary.get("professional_avg"),
+            "freeze_hash": summary.get("freeze_hash"),
+            "n": summary.get("n"),
+        }
+    )
+    with open(trend_path, "w", encoding="utf-8") as f:
+        json.dump(trend, f, ensure_ascii=False, indent=1)
+        f.write("\n")
+    print(f"professional 趋势追加：{trend_path}")
 
 
 if __name__ == "__main__":

@@ -201,3 +201,19 @@ def test_question_type_unknown_defaults():
     """无题型词 → unknown（兜底：列出所有正确项 + 注明推断，防多选漏答）。"""
     assert query_understand.question_type("下列说法正确的是") == "unknown"
     assert query_understand.question_type("试用期最长多久") == "unknown"
+
+
+def test_retrieve_exam_dynamic_k_larger_pool():
+    """动态 k（2026-08-05）：4 选项题默认深池（h10/o4/c12）→ 池 > 旧 k=6 且 ≤12。"""
+    from retrieval import retrieve_exam  # 延迟 import（会加载 BGE）
+
+    docs = retrieve_exam(_EXAM_LONG_Q)  # 默认 → 动态深池
+    assert 10 <= len(docs) <= 12, f"动态池应 ≥10（题干主锚）且 ≤12（cap），实际 {len(docs)}"
+
+
+def test_retrieve_exam_explicit_k_preserves_old_cap():
+    """显式传 k=6 → 旧行为 cap=6（兼容调用方）。"""
+    from retrieval import retrieve_exam  # 延迟 import（会加载 BGE）
+
+    docs = retrieve_exam(_EXAM_LONG_Q, k=6)
+    assert len(docs) <= 6, f"显式 k=6 应截断 ≤6，实际 {len(docs)}"

@@ -74,3 +74,68 @@ def test_self_check_no_hit_answered_fail():
 def test_self_check_vague_fails():
     v = Q.self_check("这个要看相关规定处理，具体需要咨询专业人士给出法律意见。", True, in_kb=_kb_true)
     assert v.ok is False and v.reason == "vague"
+
+
+# ---------------- 多选完整性（决策 8，query rewrite v3 后续） ----------------
+_MULTI_Q = (
+    "根据《劳动合同法》，下列关于试用期的说法正确的有："
+    "A. 试用期最长不得超过六个月 "
+    "B. 同一用人单位与同一劳动者只能约定一次试用期 "
+    "C. 试用期包含在劳动合同期限内 "
+    "D. 试用期可以单独签订"
+)
+
+_ANS_SINGLE = (
+    "**A. 试用期最长不得超过六个月**【判断】正确\n"
+    "**B. 同一用人单位与同一劳动者只能约定一次试用期**【判断】错误\n"
+    "**C. 试用期包含在劳动合同期限内**【判断】错误\n"
+    "**D. 试用期可以单独签订**【判断】错误\n"
+    "本题正确答案为 A。"
+)
+
+_ANS_FULL = (
+    "**A. 试用期最长不得超过六个月**【判断】正确\n"
+    "**B. 同一用人单位与同一劳动者只能约定一次试用期**【判断】正确\n"
+    "**C. 试用期包含在劳动合同期限内**【判断】正确\n"
+    "**D. 试用期可以单独签订**【判断】错误\n"
+    "本题正确答案为 A、B、C。"
+)
+
+
+def test_answer_declared_correct_extracts():
+    assert Q._answer_declared_correct(_ANS_FULL) == {"A", "B", "C"}
+    assert Q._answer_declared_correct(_ANS_SINGLE) == {"A"}
+    assert Q._answer_declared_correct("") == set()
+    assert Q._answer_declared_correct("无结构化逐项判断") == set()
+
+
+def test_answer_declared_correct_item_format():
+    """实际模型输出格式「X项判断：正确」也识别（2026-08-05 eval 实测）。"""
+    ans = (
+        "**A项判断：正确。**根据《民法典》第一千一百二十七条……\n"
+        "**B项判断：正确。**……\n"
+        "**C项判断：错误。**……\n"
+        "**D项判断：错误。**……\n"
+    )
+    assert Q._answer_declared_correct(ans) == {"A", "B"}
+
+
+def test_multi_incomplete_single_option_flagged():
+    """多选题型 + 回答只声明 1 个正确选项 → 疑似漏答。"""
+    assert Q.multi_incomplete(_MULTI_Q, _ANS_SINGLE) is True
+
+
+def test_multi_incomplete_full_not_flagged():
+    assert Q.multi_incomplete(_MULTI_Q, _ANS_FULL) is False
+
+
+def test_multi_incomplete_single_select_not_flagged():
+    """单选/unknown 题型（'下列说法正确的是'）→ 不触发。"""
+    q = "关于劳动合同试用期，下列说法正确的是：A. 六个月 B. 三个月 C. 一年 D. 两年"
+    assert Q.multi_incomplete(q, _ANS_SINGLE) is False
+
+
+def test_multi_incomplete_indeterminate_not_flagged():
+    """不定项可合法只有 1 个正确项 → 不触发。"""
+    q = "关于下列情形，属于不定项选择的是：A. 甲 B. 乙 C. 丙 D. 丁"
+    assert Q.multi_incomplete(q, _ANS_SINGLE) is False
