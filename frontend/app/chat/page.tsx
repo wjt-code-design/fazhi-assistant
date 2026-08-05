@@ -630,7 +630,9 @@ export default function ChatPage() {
                 )}
               </button>
             </div>
-            <p className="mt-2 text-center text-xs text-slate/70">回答仅供参考，不构成正式法律意见</p>
+            <p className="mt-2 text-center text-xs text-slate/70">
+              回答仅供参考，不构成正式法律意见；法律可能修订，请以最新规定为准
+            </p>
           </div>
         </form>
       </div>
