@@ -337,7 +337,7 @@ def _contract_messages(pre: dict, cd: dict) -> list:
     return [SystemMessage(content=sys_text), HumanMessage(content=user_content)]
 
 
-def _pre(user_id: int, conversation_id, text: str, image):
+def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool = False):
     """流式前的全部准备（独立会话，线程池内执行）。校验失败抛 ValueError。"""
     db = SessionLocal()
     try:
@@ -409,14 +409,21 @@ def _pre(user_id: int, conversation_id, text: str, image):
                     prev = ""
                     for m in reversed(recent_ser):
                         content = m["content"] or ""
-                        if m["role"] == "user" and is_contract_review(content):
-                            # 图片合同（二期）：转写全文存于 image_desc，用户请求词在 content——
-                            # 拼 image_desc（含全部条文），否则续聊找不到合同全文而反问要内容
-                            idesc = m.get("image_desc") or ""
+                        idesc = m.get("image_desc") or ""
+                        # 图片合同：转写全文存于 image_desc，用户请求词在 content（仅传图时为"[图片]"）。
+                        # 仅传图场景 content 非合同文本——须以 image_desc 是合同转写为准（code-review 2026-08-06）
+                        is_contract_msg = is_contract_review(content) or (
+                            content == "[图片]" and is_contract_review(idesc)
+                        )
+                        if m["role"] == "user" and is_contract_msg:
                             prev = idesc if is_contract_review(idesc) else content
                             break
                     contract_text = ((prev + "\n" + (text or "")) if prev else (text or raw_query)).strip()
                 contract_data = build_contract_data(contract_text)
+                if client_truncated:
+                    # 文件上传超长截断信号穿透（截到恰 12000 时 build_contract_data 判不出
+                    # len>limit，code-review 2026-08-06）——报告"未覆盖条款段"尾注 + analysis_runs 才准确
+                    contract_data["truncated"] = True
                 docs = contract_data["docs"]
                 qa_hit = None
             else:
@@ -819,7 +826,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
     if not text and not image:
         raise HTTPException(status_code=400, detail="请输入问题或上传图片")
     try:
-        pre = await run_in_threadpool(_pre, user.id, body.conversation_id, text, image)
+        pre = await run_in_threadpool(_pre, user.id, body.conversation_id, text, image, body.truncated)
     except ValueError as ve:
         raise HTTPException(status_code=400, detail=str(ve)) from ve
     except LLMBusyError:

@@ -71,6 +71,7 @@ export interface ChatPayload {
   conversationId?: number | null;
   content?: string;
   image?: string; // data URL
+  truncated?: boolean; // 客户端已截断（文件上传超长）——穿透给合同评估/analysis_runs
 }
 export interface ChatMeta {
   conversation_id?: number;
@@ -109,6 +110,7 @@ export async function streamChat(
   if (payload.content !== undefined) body.content = payload.content;
   if (payload.conversationId != null) body.conversation_id = payload.conversationId;
   if (payload.image) body.image = payload.image;
+  if (payload.truncated) body.truncated = payload.truncated;
 
   const res = await fetch(`${API_URL}/api/chat`, {
     method: "POST",

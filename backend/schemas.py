@@ -43,6 +43,7 @@ class ChatIn(BaseModel):
     conversation_id: int | None = None  # 续聊；空=新建
     image: str | None = Field(default=None, description="data URL 或 http URL；base64 不写库")
     no_cache: bool = False  # 绕过 QA/答案缓存直返（评测脚本用，测真实 LLM）
+    truncated: bool = False  # 客户端已截断（文件上传超长）：穿透给合同评估/analysis_runs（截到恰 12000 时服务端判不出）
 
 
 # ===== 会话 / 消息 =====

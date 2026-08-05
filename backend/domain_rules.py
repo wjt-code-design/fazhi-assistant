@@ -303,6 +303,8 @@ def contract_supplement_docs(clause_text: str) -> list:
         hit = kw in clause_text or (kw == "诉讼时效" and "时效" in clause_text)
         if not hit:
             continue
+        if kw == "担保" and "保修" in clause_text:
+            continue  # "承担保修"含子串"担保"，属保修条款非担保合同（code-review 2026-08-06）
         if labor and kw in _CIVIL_GENERIC:
             continue  # 劳动合同条款不命中民事通用条款（杜绝错绑）
         for s in specs:

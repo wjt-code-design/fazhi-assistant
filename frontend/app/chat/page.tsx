@@ -231,7 +231,12 @@ export default function ChatPage() {
 
     let acc = "";
     await streamChat(
-      { conversationId, content: contentToSend, image: imageToSend || undefined },
+      {
+        conversationId,
+        content: contentToSend,
+        image: imageToSend || undefined,
+        truncated: fileInfo?.truncated || undefined, // 文件上传超长截断信号穿透
+      },
       (chunk) => {
         acc += chunk;
         setMessages((m) => {
