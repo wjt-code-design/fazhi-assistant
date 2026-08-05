@@ -8,6 +8,8 @@
 domain_rules ↔ retrieval 循环依赖——retrieval 需要本模块的 canon_source 等常量）。
 """
 
+import re
+
 
 def _lookup_all(specs: list[tuple[str, str]]):
     """按 (source, article) 精确查找，返回 Document 列表（顺序 = 传入顺序）。"""
@@ -141,3 +143,100 @@ CITATION_SELECTION_RULE = (
     "“排除或限制消费者权利、加重消费者责任的条款无效”，不要只泛泛说“格式条款风险”却不落到具体条文；"
     "涉及交强险/机动车事故赔偿顺位引用《民法典》第一千二百一十三条。"
 )
+
+
+# ==================== 合同 / 文书风险评估（确定性骨架，2026-08-06） ====================
+# 对抗收敛更优解：不靠 LLM 规划点（12000 字喂入只产出 ≤5 点，已证失败形态），
+# 纯函数保证"不漏真实条款"。is_contract_review 触发 + contract_split 切条款 +
+# 风险关键词打标签 + rubric 打分。零 LLM、零检索（条款切分层）。
+_REVIEW_VERBS = ("审查", "审核", "评估", "审一下", "帮我审", "分析风险", "风险点", "把关", "有没有问题", "帮忙看看", "帮我看看")
+_CONTRACT_NOUNS = ("合同", "协议", "条款", "甲方", "乙方", "违约金", "定金", "押金", "担保", "抵押", "保密", "竞业", "租赁", "借款", "解除", "违约责任", "付款", "签署", "买卖")
+
+# 风险关键词 → 严重度标签（rubric 打分 + 分析提示共用）
+CONTRACT_RISK_KEYWORDS = {
+    "免责": "high", "概不": "high", "单方": "high", "空白": "high", "最终解释权": "high",
+    "违约金": "mid", "定金": "mid", "押金": "mid", "担保": "mid", "抵押": "mid",
+    "违约责任": "mid", "赔偿": "mid", "解除": "mid", "管辖": "mid", "仲裁": "mid",
+    "保密": "low", "竞业": "mid", "时效": "mid",
+}
+
+# 合同条款段落标记（contract_split 用）：第X条 / 一、 / （一）/ 1. / 1、 / 条款
+_CONTRACT_SPLIT_MARK = re.compile(
+    r"(?m)^(?=\s*(?:第[一二三四五六七八九十百千零〇0-9]+条|"
+    r"[一二三四五六七八九十]+、|（[一二三四五六七八九十]+）|"
+    r"[\(（]?[0-9]+[\)）、.．]|条款))"
+)
+_CONTRACT_LABEL_RE = re.compile(
+    r"^\s*(第[一二三四五六七八九十百千零〇0-9]+条|[一二三四五六七八九十]+、|"
+    r"[\(（]?[0-9]+[\)）、.．])"
+)
+_MIN_CONTRACT_LEN = 150  # 长文本触发下限（贴了文书）
+
+
+def is_contract_review(text: str) -> bool:
+    """触发判定：显式审查请求 + 合同名词，或长文本（≥150 字）+ ≥2 合同名词/含当事人词。
+
+    防误报：裸"审查"（审查起诉阶段）需配合同名词；"违约金怎么算"等短句无审查动词不触发。
+    """
+    t = text or ""
+    if any(v in t for v in _REVIEW_VERBS) and any(n in t for n in _CONTRACT_NOUNS):
+        return True
+    if len(t) >= _MIN_CONTRACT_LEN and (
+        sum(1 for n in _CONTRACT_NOUNS if n in t) >= 2 or "甲方" in t or "乙方" in t
+    ):
+        return True
+    return False
+
+
+def contract_split(text: str) -> list[tuple[str, str]]:
+    """确定性条款切分：按段落标记（第X条/一、/1.…）切分，返回 [(label, content)]。
+
+    纯逻辑、零 LLM，结构性保证"不遗漏真实条款"。无标记 → 整段作为一条（label="全文"）；
+    切不动的复杂格式（表格/附件）兜底为整段，不硬切。
+    """
+    t = (text or "").strip()
+    if not t:
+        return []
+    marks = list(_CONTRACT_SPLIT_MARK.finditer(t))
+    if not marks:
+        return [("全文", t)]
+    out: list[tuple[str, str]] = []
+    for i, m in enumerate(marks):
+        end = marks[i + 1].start() if i + 1 < len(marks) else len(t)
+        seg = t[m.start():end].strip()
+        if not seg:
+            continue
+        lm = _CONTRACT_LABEL_RE.match(seg)
+        out.append((lm.group(1) if lm else f"段{i+1}", seg))
+    return out or [("全文", t)]
+
+
+def clause_risk_tags(clause_text: str) -> list[str]:
+    """风险关键词打标签：命中返回风险词列表（rubric 打分 + 分析提示用）。"""
+    t = clause_text or ""
+    return [k for k in CONTRACT_RISK_KEYWORDS if k in t]
+
+
+def rubric_risk_level(clauses: list[tuple[str, str]]) -> tuple[str, str]:
+    """总体风险等级 rubric 打分（确定性，防"极高风险"夸大）。
+
+    分数 = 高风险词命中×2 + 中风险词命中×1；等级：极高/高/中/低。
+    返回 (等级, 判定依据)。
+    """
+    hi = mid = risk_clauses = 0
+    for _, seg in clauses:
+        tags = clause_risk_tags(seg)
+        hi += sum(1 for k in tags if CONTRACT_RISK_KEYWORDS[k] == "high")
+        mid += sum(1 for k in tags if CONTRACT_RISK_KEYWORDS[k] == "mid")
+        if tags:
+            risk_clauses += 1
+    score = hi * 2 + mid
+    if hi >= 2 and risk_clauses >= 2:
+        level = "极高"
+    elif score >= 5 or hi >= 2:
+        level = "高"
+    elif score >= 2:
+        level = "中"
+    else:
+        level = "低"
+    return level, f"高风险词命中 {hi} 处、中风险词 {mid} 处、涉风险条款 {risk_clauses} 条"

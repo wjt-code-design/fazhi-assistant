@@ -57,6 +57,10 @@ class Settings(BaseSettings):
     rerank_warn_threshold: float = 0.15
     rerank_hard_threshold: float = 0.05
 
+    # ---- 合同 / 文书风险评估（确定性骨架，2026-08-06）----
+    feature_multi_analyze: bool = True  # 合同评估开关（一键回滚）
+    contract_max_chars: int = 12000  # 合同文本上限（之上截取并在报告注明）
+
     # ---- 图片限制 ----
     image_max_mb: int = 5
     image_max_px: int = 6000

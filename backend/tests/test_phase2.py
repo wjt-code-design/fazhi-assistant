@@ -77,7 +77,7 @@ def test_chatin_flexible_and_maxlen():
     assert ChatIn(image="data:image/png;base64,xxx").image is not None
     assert ChatIn().content is None
     try:
-        ChatIn(content="x" * 4001)
+        ChatIn(content="x" * 12001)  # 上限 4000→12000（2026-08-06 合同评估，契约容量）
     except pydantic.ValidationError:
         pass
     else:

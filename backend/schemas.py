@@ -39,7 +39,7 @@ class UserUpdateIn(BaseModel):
 # ===== 问答（多轮 + 多模态，向后兼容旧 question 字段） =====
 class ChatIn(BaseModel):
     question: str | None = Field(default=None, max_length=2000)  # 旧客户端兼容
-    content: str | None = Field(default=None, max_length=4000)  # 文本（优先）
+    content: str | None = Field(default=None, max_length=12000)  # 文本（优先；合同上限，之上截取注明）
     conversation_id: int | None = None  # 续聊；空=新建
     image: str | None = Field(default=None, description="data URL 或 http URL；base64 不写库")
     no_cache: bool = False  # 绕过 QA/答案缓存直返（评测脚本用，测真实 LLM）

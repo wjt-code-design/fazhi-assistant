@@ -38,10 +38,14 @@ from database import SessionLocal, get_db, init_db
 from domain_rules import (
     CITATION_SELECTION_RULE,
     cheating_docs,
+    clause_risk_tags,
     consumer_clause_docs,
     consumer_fraud_docs,
+    contract_split,
     is_consumer_clause_scenario,
     is_consumer_fraud_scenario,
+    is_contract_review,
+    rubric_risk_level,
 )
 from intent import classify_intent
 from llm_guard import LLMBusyError, llm_guard
@@ -53,10 +57,12 @@ from observability import RequestIdMiddleware, log_account, setup_logging
 from prompts import (
     _EXAM_TYPE_SUFFIX,
     _EXAM_VERDICT_RULE,
+    CONTRACT_CLARIFY_PROMPT,
     IMAGE_GUIDANCE,
     OUTPUT_FORMAT_RULE,
     SYSTEM_BASE,
     SYSTEM_CHEATING,
+    SYSTEM_CONTRACT_REVIEW,
     SYSTEM_STUDY,
 )
 from quota_utils import UtilityQuotaExhausted
@@ -313,6 +319,77 @@ def _rewrite_for_retrieval(raw_query: str, recent_ser: list, recent: list, has_o
         return rewrite_query(registry.get(), recent, raw_query)
 
 
+def _contract_supplement_docs(clause_text: str) -> list:
+    """条款 → 数据驱动法条（contract_clause_supplements.json 精确直查）；未命中回落一次检索。
+
+    确定性骨架（2026-08-06）：合同类型→法域映射杜绝错绑（劳动合同违约金不命中民法典格式条款）。
+    """
+    import json as _json
+
+    mapping_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "contract_clause_supplements.json")
+    try:
+        with open(mapping_path, encoding="utf-8") as _f:
+            mapping = _json.load(_f)
+    except Exception:
+        mapping = {}
+    matched: list = []
+    for kw, specs in mapping.items():
+        if kw in clause_text:
+            for s in specs:
+                matched += exact_article_lookup(s.get("source", ""), s.get("article", ""))
+    if not matched:
+        matched = retrieve(clause_text, k=3)  # 未命中回落语义检索
+    return matched
+
+
+def _build_contract_data(text: str) -> dict:
+    """确定性骨架：切分条款 → 每条款配法条 → 证据块 + rubric 风险等级。"""
+    t = (text or "").strip()
+    truncated = len(t) > settings.contract_max_chars
+    if truncated:
+        t = t[: settings.contract_max_chars]
+    clauses = contract_split(t)
+    blocks = []
+    all_docs: list = []
+    for idx, (label, seg) in enumerate(clauses, 1):
+        docs = _contract_supplement_docs(seg)
+        all_docs += docs
+        blocks.append(
+            {
+                "n": idx,
+                "label": label,
+                "text": seg[:600],
+                "articles": sorted({d.metadata.get("article", "") for d in docs})[:3],
+                "tags": clause_risk_tags(seg),
+            }
+        )
+    level, basis = rubric_risk_level(clauses)
+    return {
+        "truncated": truncated,
+        "need_clarify": len(t) < 80,  # 触发但无合同全文（如"帮我审合同"）→ 反问要内容
+        "blocks": blocks,
+        "docs": all_docs,
+        "level": level,
+        "basis": basis,
+    }
+
+
+def _contract_messages(pre: dict, cd: dict) -> list:
+    """组装合同报告 messages（SYSTEM_CONTRACT_REVIEW + 分条款证据块）。"""
+    evidence = []
+    for b in cd["blocks"]:
+        arts = "、".join(b["articles"]) or "（无命中条文，依据为检索结果）"
+        tags = "、".join(b["tags"]) or "无"
+        evidence.append(f"[{b['n']}. {b['label']}] 风险标签：{tags}\n{b['text']}\n（相关条文：{arts}）")
+    sys_text = SYSTEM_BASE + SYSTEM_CONTRACT_REVIEW
+    sys_text += f"\n（本份合同总体风险等级：{cd['level']}——判定依据：{cd['basis']}）"
+    if cd.get("truncated"):
+        sys_text += "\n（合同过长已截取前段，末尾请列出'未覆盖条款段'清单，建议用户分段审查）"
+    evidence_block = "\n\n".join(evidence)
+    user_content = f"【合同（分条款）】\n{evidence_block}\n\n请按模板输出合同风险评估报告。"
+    return [SystemMessage(content=sys_text), HumanMessage(content=user_content)]
+
+
 def _pre(user_id: int, conversation_id, text: str, image):
     """流式前的全部准备（独立会话，线程池内执行）。校验失败抛 ValueError。"""
     db = SessionLocal()
@@ -340,6 +417,13 @@ def _pre(user_id: int, conversation_id, text: str, image):
         intent = classify_intent(text or raw_query)
         is_exam = query_understand._is_exam_question(text or raw_query)
         has_options = query_understand.has_exam_options(text or raw_query)
+        # 合同 / 文书风险评估（确定性骨架，2026-08-06）：legal_query + 无图 + 触发判定命中
+        contract_mode = (
+            settings.feature_multi_analyze
+            and intent == "legal_query"
+            and not image
+            and is_contract_review(text or raw_query)
+        )
 
         if intent == "study_aid":
             if settings.feature_study_retrieval and not query_understand.is_meta_study(text or raw_query):
@@ -360,7 +444,12 @@ def _pre(user_id: int, conversation_id, text: str, image):
             qa_hit = None
         else:
             rewritten = _rewrite_for_retrieval(raw_query, recent_ser, recent, has_options)
-            if is_exam:
+            if contract_mode:
+                # 合同 / 文书风险评估：确定性骨架短路单轮检索 + QA（省 12k 文本 embedding/rerank）
+                contract_data = _build_contract_data(text or raw_query)
+                docs = contract_data["docs"]
+                qa_hit = None
+            elif is_exam:
                 # 选项题 → 分步检索 + 场景定向补充前置（死刑复核/正当防卫等核心条防漏）
                 docs = scenario_supplement_docs(text or raw_query) + retrieve_exam(rewritten)
             else:
@@ -421,6 +510,7 @@ def _pre(user_id: int, conversation_id, text: str, image):
             intent=intent,
             is_exam=is_exam,
             has_options=has_options,
+            contract_data=(contract_data if contract_mode else None),
         )
     finally:
         db.close()
@@ -687,6 +777,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             tier = "flag"  # 轻量准入不通过 → 升旗舰
     # 仅当该 modality+tier 真有模型时才走轻量缓冲路径；否则短文本走旗舰流式（避免回退 omni 非流式的 awkward 路径）
     use_light = use_router and tier == "light" and modality == "text" and registry.has_role("text", "light")
+    if pre.get("contract_data") and use_router:
+        use_light = False  # 合同评估强制旗舰流式（确定性骨架的报告生成）
     # ---- 低置信反问策略（任务2，feature_router 关 → 不启用，旧行为零变化）----
     # legal_query：库外硬信号/指名来源不在库 → 诚实拒答；信息不足 → 反问；其余直接答。
     # chitchat：直接聊（_pre 已不检索）。纯规则决策，零额外嵌入（标定结论：置信度分
@@ -767,6 +859,62 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield "data: [DONE]\n\n"
                 try:
                     await run_in_threadpool(_post, pre, msg)
+                except Exception as e:
+                    print(f"[chat-post] {e}", flush=True)
+                return
+
+            # 分支0.3：合同 / 文书风险评估（确定性骨架，2026-08-06）
+            if pre.get("contract_data"):
+                cd = pre["contract_data"]
+                if cd.get("need_clarify"):
+                    # 信息确认闸：触发但无合同全文 → 零 LLM 反问要内容/范围/立场/类型
+                    _f0 = time.perf_counter()
+                    yield f"data: {json.dumps({'content': CONTRACT_CLARIFY_PROMPT}, ensure_ascii=False)}\n\n"
+                    routing_metrics.record("contract_clarify", False, "pass", "miss", checked=False)
+                    log_account(
+                        model="rule", tier="contract_clarify", cache="miss", token_est=0,
+                        first_ms=round((_f0 - t0) * 1000, 1),
+                        ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
+                        conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
+                    )
+                    yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
+                    yield "data: [DONE]\n\n"
+                    try:
+                        await run_in_threadpool(_post, pre, CONTRACT_CLARIFY_PROMPT, False)
+                    except Exception as e:
+                        print(f"[chat-post] {e}", flush=True)
+                    return
+                cm = _contract_messages(pre, cd)
+                _f0 = None
+                chunks = []
+                async for piece in stream_with_retry(
+                    lambda _i, _d: make_chain(flag_llm if _i == 0 else registry.variant(True)),
+                    cm,
+                    [(False, 0.0), (True, 0.5), (False, 0.5)],
+                    on_model_failure=lambda _e: None,
+                ):
+                    if _f0 is None:
+                        _f0 = time.perf_counter()
+                    chunks.append(piece)
+                    yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"
+                answer = "".join(chunks)
+                if answer:
+                    bad = citation_verify(answer)
+                    if bad:
+                        note = "\n\n> 注：报告引用 " + "、".join(bad) + " 未在知识库中检索到，建议核对。"
+                        answer += note
+                        yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
+                routing_metrics.record("contract_review", False, "pass", "miss", checked=False)
+                log_account(
+                    model="contract_review", tier="contract_review", cache="miss",
+                    first_ms=round((_f0 or 0.0) * 1000, 1),
+                    ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
+                    conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
+                )
+                yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
+                yield "data: [DONE]\n\n"
+                try:
+                    await run_in_threadpool(_post, pre, answer, False)
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
                 return
