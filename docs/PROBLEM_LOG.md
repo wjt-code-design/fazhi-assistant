@@ -111,6 +111,7 @@
 | rubric 对高息/没收押金敏感度不足 | 记录 | 报告比 rubric 更警惕，非夸大（level_match 无 diff_far） |
 | Standards 判断项（chat_file 代码重复、_record_analysis 长参数、前端校验重复） | 健康度优化 | 非缺陷，标二期 |
 | eval/测试基建 | 已根治 | 全量 pytest 曾 flaky（slowapi 限流跨测试共享），conftest 禁限流 fixture 根治 |
+| 前端 `next start` 产物反复损坏/丢失（BUILD_ID / webpack-runtime MODULE_NOT_FOUND） | 已根治 | 根因：残留 `next dev`（3100 端口，早前会话遗留）持续向 `.next` 写编译产物，与 `next start` 生产构建并发踩踏。运维：起前端前先清 3000/3100 残留 node 进程，单实例跑 |
 
 ---
 
