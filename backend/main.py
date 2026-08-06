@@ -553,7 +553,7 @@ def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool
                     # 选项题 → 分步检索 + 场景定向补充前置（死刑复核/正当防卫等核心条防漏）
                     docs = scenario_supplement_docs(text or raw_query) + retrieve_exam(rewritten)
                 else:
-                    docs = retrieve(rewritten, k=6)  # k4→6：给余弦精排更多候选 + 给模型更全上下文
+                    docs = retrieve(rewritten, k=10)  # k6→10：跨法律召回测试显示 k=6 常漏同法目标条文（79%→88%）
                 qa_hit = ks.search_qa(rewritten)  # 保持 raw（决策 4：桥接只归检索层，不进 QA 缓存）
                 # 场景定向补充（仅非选项题，法考题已走 retrieve_exam 逐项检索）
                 if not is_exam:
