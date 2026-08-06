@@ -549,6 +549,49 @@ export default function AdminPage() {
                   </div>
                 </div>
 
+                {/* 受控沉淀待审 */}
+                <div className="glass-card mt-4 rounded-xl px-5 py-4">
+                  <SectionTitle>受控沉淀 · 待审</SectionTitle>
+                  <p className="mt-2 text-sm text-slate">高有据且带引用的问答会自动进入此处，采纳后写入"已确认问答"，今后相似问题可直接复用。</p>
+                  {candidates.filter((c) => c.status === "pending").length === 0 && <p className="mt-3 text-sm text-slate">暂无待审候选。</p>}
+                  <div className="mt-3 space-y-2">
+                    {candidates
+                      .filter((c) => c.status === "pending")
+                      .map((c) => (
+                        <div key={c.id} className="rounded-lg border border-mist bg-parchment px-3 py-3">
+                          <div className="flex items-center gap-2 text-xs text-slate">
+                            <Badge kind="accent">有据分 {c.grounded_score}</Badge>
+                            {c.grounded_score >= 0.89 && <Badge kind="success" dot>自动收录</Badge>}
+                          </div>
+                          <p className="mt-1 text-sm font-medium text-ink">问：{c.question}</p>
+                          <button
+                            type="button"
+                            title={expandedCands.has(c.id) ? "点击收起" : "点击展开查看全文"}
+                            className={`mt-1 w-full cursor-pointer text-left text-sm text-slate transition-colors hover:text-ink ${expandedCands.has(c.id) ? "" : "line-clamp-3"}`}
+                            onClick={() => toggleExpandCand(c.id)}
+                          >
+                            答：{c.answer}
+                          </button>
+                          <button
+                            type="button"
+                            className="mt-1 text-xs text-slate/60 transition-colors hover:text-accent"
+                            onClick={() => toggleExpandCand(c.id)}
+                          >
+                            {expandedCands.has(c.id) ? "收起 ▲" : "展开全文 ▼"}
+                          </button>
+                          <div className="mt-2 flex gap-2">
+                            <button className="btn btn-primary !px-3 !py-1 text-xs" onClick={() => decideCand(c.id, "approved")}>
+                              采纳入库
+                            </button>
+                            <button className="btn btn-secondary !px-3 !py-1 text-xs" onClick={() => decideCand(c.id, "rejected")}>
+                              否决
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+
                 <p className="text-sm text-slate">
                   共 <span className="font-serif font-semibold text-ink">{knowledgeTotal}</span> 条知识片段（含种子条文与上传内容，分页显示）
                 </p>
@@ -635,49 +678,6 @@ export default function AdminPage() {
                       ))}
                     </div>
                   )}
-                </div>
-
-                {/* 受控沉淀待审 */}
-                <div className="glass-card mt-4 rounded-xl px-5 py-4">
-                  <SectionTitle>受控沉淀 · 待审</SectionTitle>
-                  <p className="mt-2 text-sm text-slate">高有据且带引用的问答会自动进入此处，采纳后写入"已确认问答"，今后相似问题可直接复用。</p>
-                  {candidates.filter((c) => c.status === "pending").length === 0 && <p className="mt-3 text-sm text-slate">暂无待审候选。</p>}
-                  <div className="mt-3 space-y-2">
-                    {candidates
-                      .filter((c) => c.status === "pending")
-                      .map((c) => (
-                        <div key={c.id} className="rounded-lg border border-mist bg-parchment px-3 py-3">
-                          <div className="flex items-center gap-2 text-xs text-slate">
-                            <Badge kind="accent">有据分 {c.grounded_score}</Badge>
-                            {c.grounded_score >= 0.89 && <Badge kind="success" dot>自动收录</Badge>}
-                          </div>
-                          <p className="mt-1 text-sm font-medium text-ink">问：{c.question}</p>
-                          <button
-                            type="button"
-                            title={expandedCands.has(c.id) ? "点击收起" : "点击展开查看全文"}
-                            className={`mt-1 w-full cursor-pointer text-left text-sm text-slate transition-colors hover:text-ink ${expandedCands.has(c.id) ? "" : "line-clamp-3"}`}
-                            onClick={() => toggleExpandCand(c.id)}
-                          >
-                            答：{c.answer}
-                          </button>
-                          <button
-                            type="button"
-                            className="mt-1 text-xs text-slate/60 transition-colors hover:text-accent"
-                            onClick={() => toggleExpandCand(c.id)}
-                          >
-                            {expandedCands.has(c.id) ? "收起 ▲" : "展开全文 ▼"}
-                          </button>
-                          <div className="mt-2 flex gap-2">
-                            <button className="btn btn-primary !px-3 !py-1 text-xs" onClick={() => decideCand(c.id, "approved")}>
-                              采纳入库
-                            </button>
-                            <button className="btn btn-secondary !px-3 !py-1 text-xs" onClick={() => decideCand(c.id, "rejected")}>
-                              否决
-                            </button>
-                          </div>
-                        </div>
-                      ))}
-                  </div>
                 </div>
               </div>
             )}
