@@ -79,9 +79,8 @@ export default function LoginPage() {
   // 四角装饰（<860px 隐藏）
   const corners = (
     <>
-      <div className="pointer-events-none absolute left-8 top-8 hidden items-center gap-3 md:flex">
+      <div className="pointer-events-none absolute left-8 top-8 hidden items-center md:flex">
         <Logo />
-        <span className="font-serif text-lg font-semibold tracking-wide text-ink">法智</span>
       </div>
       <p className="pointer-events-none absolute right-8 top-8 hidden font-serif text-xs tracking-[0.3em] text-slate/70 md:block" style={{ writingMode: "vertical-rl" }}>
         法智 · 樱花法典
