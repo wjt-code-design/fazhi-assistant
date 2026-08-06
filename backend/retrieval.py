@@ -698,11 +698,31 @@ def _load_supplements() -> list[dict]:
     return _supplements_cache
 
 
+# 刑法定性题兜底：关键词未命中但明显是罪名定性题 → 补核心罪名条文集。
+# 场景描述词变体太多（挪用/侵吞/拐走/猛刺…），关键词精确子串永远追不完；
+# 兜底保证定性题不因措辞漏召回罪名条文（对抗审计召回测试 2026-08-07）。
+_CRIME_QUALIFY_MARKS = ("构成何罪", "什么罪", "罪责", "是否构成犯罪", "刑事", "刑法", "应如何定性", "如何定性")
+_CORE_CRIME_ARTICLES = [
+    ("刑法", "第二百六十四条"), ("刑法", "第二百七十条"), ("刑法", "第二百六十九条"),
+    ("刑法", "第二百六十三条"), ("刑法", "第二百六十七条"), ("刑法", "第二百六十六条"),
+    ("刑法", "第二百七十四条"), ("刑法", "第二百三十四条"), ("刑法", "第二百三十二条"),
+    ("刑法", "第二百三十八条"), ("刑法", "第二百三十九条"), ("刑法", "第二百九十三条"),
+    ("刑法", "第二百七十一条"), ("刑法", "第二百七十二条"), ("刑法", "第三百八十二条"),
+    ("刑法", "第三百八十四条"), ("刑法", "第三百八十五条"), ("刑法", "第一百三十三条"),
+    ("刑法", "第一百三十三条之一"), ("刑法", "第二十条"),
+]
+
+
+def _is_crime_qualify(text: str) -> bool:
+    return any(m in (text or "") for m in _CRIME_QUALIFY_MARKS)
+
+
 def scenario_supplement_docs(text: str) -> list[Document]:
     """场景定向补充（数据驱动）：命中关键词 → 前置该场景核心条文（防整题检索漏项）。
 
     复用 exact_article_lookup 精确取条（条号直查零嵌入零检索），返回的 Document 由
     调用方前置到检索结果。仅用于非选项题（选项题已走 retrieve_exam 逐项检索）。
+    兜底：关键词全未命中但属罪名定性题 → 补核心罪名条文集（覆盖 20 个常见罪名）。
     """
     t = text or ""
     out: list[Document] = []
@@ -713,6 +733,18 @@ def scenario_supplement_docs(text: str) -> list[Document]:
         for a in spec.get("articles", []):
             try:
                 docs = exact_article_lookup(a.get("source", ""), a.get("article", ""))
+            except Exception:
+                docs = []
+            for d in docs:
+                did = _doc_id(d)
+                if did not in seen:
+                    seen.add(did)
+                    out.append(d)
+    # 兜底：定性问句 + 关键词未命中 → 补核心罪名条文集（防行为词变体漏匹配）
+    if not out and _is_crime_qualify(t):
+        for src, art in _CORE_CRIME_ARTICLES:
+            try:
+                docs = exact_article_lookup(src, art)
             except Exception:
                 docs = []
             for d in docs:
