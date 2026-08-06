@@ -114,6 +114,58 @@
 
 ---
 
+## 四、前端体验整改（2026-08-06）
+
+### 1. 聊天页客户端异常（Application error）
+- **问题**：登录后进聊天页整页报「Application error: a client-side exception」。根因：新增的法条卡 `useLayoutEffect` 被放在 `if (loading || !user) return null;` **之后**——未认证渲染提前 return 不调用该 hook，认证通过后继续渲染才调用 → 违反 Hooks 规则 → React 抛「Rendered more hooks than during the previous render」。
+- **优化**：`useLayoutEffect` 上移到提前 return 之前（与其余 hooks 同层），并加注释警示。
+- **结果**：无头 Edge 注入 token 认证加载 /chat：完整渲染、**客户端异常数 0**（commit 559ff3a）。
+- **判断指标**：认证后 /chat 是否报错；无头 CDP `Runtime.exceptionThrown` 计数。
+
+### 2. 法条标注漏"省略书名号的连续条号"
+- **问题**：「《民法典》第四百九十七条、第五百六十三条」只有第一处标色弹卡——`annotate` 只认完整「《X》第N条」，第二处无前缀不标不弹。
+- **优化**：单正则 alternation 一次从左到右处理，独立「第N条」归入同段最近《X》，`.law-ref` 输出 `data-source`；弹卡读取 `data-source`。
+- **结果**：省略书名号的条号同样标色、hover 弹卡（commit 04f7f24）。
+- **判断指标**：该句式两端都 `.law-ref`、hover 都弹卡。
+
+### 3. PC 语音识别质量差（Web Speech）
+- **问题**：浏览器 Web Speech 转写不准（用户实测不满意）。
+- **优化**：改走后端 Qwen livetranslate 语音模型转写（门禁实测：OpenAI 兼容 `input_audio` + `translation_options` + stream，真实人声逐字转写正确）；新端点 `POST /api/chat/transcribe`（限流 20/min、≤10MB、白名单格式）；前端 PCM→WAV 录音（`recorder.ts`，零增益防回声）；失败/无麦克风回退 Web Speech。
+- **结果**：端到端 curl 200 转写原文一致；401/400 分支正确；门禁脚本 `scripts/smoke_transcribe.py` 可复现通过（commit 04f7f24）。
+- **判断指标**：`smoke_transcribe.py` 任一 wav 变体返回非空文本；端到端转写文本与录音一致。
+
+### 4. 法条悬浮卡闪烁 / 乱飘
+- **问题**：hover 一会儿显示一会儿消失（每次 pointerover 都发请求、移向卡片即关）；`fixed`+视口坐标不随滚动 → 卡片乱飘；窄屏 320px 溢出。
+- **优化**：浮层改 `absolute` 锚定滚动容器（随内容滚动）；hover 150ms 进入延迟 + 300ms 离开宽限（ref 与浮层同组）；`lawCache` 同条文只请求一次 + 请求序号防乱序；下方空间不足自动翻到上方；宽度 `min(20rem, 容器宽)`；玻璃卡质感。
+- **结果**：hover 稳定、滚动跟随、上下自适应（commit 04f7f24）。
+- **判断指标**：hover 150ms 出现且不闪断；滚动时卡片跟随 ref；近底部自动翻上。
+
+### 5. 移动端"全部挤成一团"
+- **问题**：移动端布局崩，全挤一团。
+- **优化**：`h-screen→.app-shell`（100vh/100dvh 兜底 + overflow-x clip）；场景卡 `grid-cols-1 min-[400px]:grid-cols-2`；flex 子项 `min-w-0`；AI 气泡 `overflow-wrap:anywhere`；侧栏 `max-w-[85vw]`；弹层窄屏自适应。
+- **结果**：375px 无横向滚动、无挤压（commit 04f7f24）。
+- **判断指标**：DevTools 375/768/桌面三档无横向滚动条、布局不破。
+
+### 6. 主题不统一 / 颜色分层明显 / 撞色不足
+- **问题**：对话侧栏会话记录还是旧灰白风格；整体颜色分层明显、不够"撞"。
+- **优化**：撞色加深（`--ink #23314f`/`--accent #f2547c`/`--sea #3d9be9`/`--slate #5c7090`）；侧栏会话项 accent 主题化；标注四色（法条/时效/金额/倍数）全走变量；全站玻璃卡（admin 侧栏与面板、LawCard、login/admin 错误框变量化）；消息头像改主题粉。
+- **结果**：全站色板统一、撞色对比增强（commit 04f7f24）。
+- **判断指标**：浏览器视觉验收。
+
+### 7. agent 回答出现 `*` / `-` 符号
+- **问题**：回答含 markdown 列表/强调符号，不美观。
+- **优化**：`OUTPUT_FORMAT_RULE` 禁 `*`/`-`/`#`/反引号等排版符号，改用「一、二、三」「1. 2.」「①」；前端 `stripMarkdown` 对完成态再清一道（行首 `- ` → `· `，移除 `*`，保留 3-5 中缀连字符）。
+- **结果**：双保险，回答不再出现 `*`/`-`（commit 04f7f24）。
+- **判断指标**：随机长回答无行首 `*`/`-` 残留（SSE 完成态一次清理）。
+
+### 8. 无法删除历史对话
+- **问题**：侧栏会话不可删除。
+- **优化**：侧栏项 hover 显示 ✕ → confirm → `convApi.remove`（后端 DELETE 端点已存在）→ 刷新列表；删除当前会话清空消息区。
+- **结果**：删除会话功能落地（commit 04f7f24）。
+- **判断指标**：删除后列表刷新、当前会话清空。
+
+---
+
 ## 附录：判断指标口径（确定性 verifier，零 LLM）
 
 | 指标 | 含义 |
