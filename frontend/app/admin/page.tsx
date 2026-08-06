@@ -199,6 +199,16 @@ export default function AdminPage() {
     setUsers((list) => list.map((x) => (x.id === u.id ? { ...x, is_active: !u.is_active } : x)));
   }
 
+  async function deleteUser(u: UserRow) {
+    if (!window.confirm(`确定删除账号「${u.username}」？将删除其全部对话与记录，不可恢复。`)) return;
+    try {
+      await api.delete(`/api/admin/users/${u.id}`);
+      setUsers((list) => list.filter((x) => x.id !== u.id));
+    } catch (err) {
+      alert(`删除失败：${err instanceof Error ? err.message : err}`);
+    }
+  }
+
   async function deleteKnowledge(id: string) {
     await api.delete(`/api/admin/knowledge/${id}`);
     setKnowledge((list) => list.filter((x) => x.id !== id));
@@ -307,9 +317,9 @@ export default function AdminPage() {
         <div className="fade-in fixed inset-0 z-20 bg-ink/50 backdrop-blur-[2px] md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* 侧导航 */}
+      {/* 侧导航（樱花海主题色玻璃卡） */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-[240px] flex-col border-r border-mist bg-white/40 backdrop-blur-xl shadow-2xl transition-transform duration-300 ease-out md:static md:translate-x-0 md:shadow-none ${
+        className={`sidebar-glow sidebar-glass fixed inset-y-0 left-0 z-30 flex w-[240px] flex-col transition-transform duration-300 ease-out md:relative md:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -462,11 +472,18 @@ export default function AdminPage() {
                           {u.created_at ? new Date(u.created_at).toLocaleString("zh-CN") : "-"}
                         </td>
                         <td>
-                          {u.role !== "admin" && (
-                            <button className="btn btn-danger !px-3 !py-1 text-xs" onClick={() => toggleUser(u)}>
-                              {u.is_active ? "禁用" : "启用"}
-                            </button>
-                          )}
+                          <div className="flex items-center justify-end gap-1.5">
+                            {u.role !== "admin" && (
+                              <button className="btn btn-ghost !px-3 !py-1 text-xs" onClick={() => toggleUser(u)}>
+                                {u.is_active ? "禁用" : "启用"}
+                              </button>
+                            )}
+                            {u.id !== user.id && (
+                              <button className="btn btn-danger !px-3 !py-1 text-xs" onClick={() => deleteUser(u)}>
+                                删除
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}

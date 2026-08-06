@@ -1477,6 +1477,25 @@ def admin_update_user(
     return {"id": user.id, "username": user.username, "is_active": user.is_active}
 
 
+@app.delete("/api/admin/users/{user_id}")
+def admin_delete_user(user_id: int, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    """删除账号（硬删）：级联会话/消息；Feedback/AnalysisRun 无级联需显式清理。
+    防自删（admin 不能删自己）；audit_logs 保留（审计轨迹不删）。"""
+    if user_id == _admin.id:
+        raise HTTPException(status_code=400, detail="不能删除当前登录的管理员账号")
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    # Feedback / AnalysisRun 有 user_id FK 但无级联（orphan 行）→ 显式清理
+    db.query(Feedback).filter(Feedback.user_id == user_id).delete(synchronize_session=False)
+    db.query(AnalysisRun).filter(AnalysisRun.user_id == user_id).delete(synchronize_session=False)
+    username = user.username
+    db.delete(user)  # conversations → messages 级联
+    db.commit()
+    log_audit(_admin.id, "user.delete", target=user_id, detail=username)
+    return {"ok": True, "id": user_id, "username": username}
+
+
 # ==================== 管理员：对话审查 ====================
 @app.get("/api/admin/conversations")
 def admin_conversations(
