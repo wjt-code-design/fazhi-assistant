@@ -6,7 +6,8 @@
 import re
 
 CITATION_RE = re.compile(r"《[^》]+》\s*第[一二三四五六七八九十百零0-9]+条|根据《[^》]+》")
-DEFAULT_GROUNDED_THRESHOLD = 0.6
+# 有据分入门门槛（用户要求 2026-08-07：有据分 <0.7 不收录，不进待审队列）
+DEFAULT_GROUNDED_THRESHOLD = 0.7
 MIN_ANSWER_LEN = 20
 
 
