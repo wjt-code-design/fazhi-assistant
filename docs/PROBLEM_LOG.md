@@ -165,6 +165,41 @@
 - **结果**：删除会话功能落地（commit 04f7f24）。
 - **判断指标**：删除后列表刷新、当前会话清空。
 
+### 9. rerank "耗尽"是假象——端点选错（B0，2026-08-07）
+- **问题**：3 个 rerank 模型配额全记"耗尽"，`rerank_active_model=None`，实际走余弦精排。校准后一用又变 1M。
+- **根因**：`_rerank_docs` 全走 OpenAI 兼容 `/reranks`，但 **DashScope 兼容模式不支持 gte-rerank-v2 / qwen3-vl-rerank**（报 `model_not_supported`）→ 每次调用失败 → `mark_utility_depleted` 记满额。
+- **优化**：端点分流——qwen3-rerank 走兼容 `/reranks`（扁平 body）；gte-rerank-v2 / qwen3-vl-rerank 走原生 `/api/v1/services/rerank/text-rerank/text-rerank`（嵌套 body，httpx 直连——OpenAI client 无法解析原生响应）。校准 gte-rerank-v2/qwen3-vl-rerank 各 1M。
+- **结果**：gte-rerank-v2 真实调用（used 855）；eval_retrieval rerank ON 全面更优（recall@2 1.0 vs 0.929，MRR 0.929 vs 0.899）→ 保留 ON。
+- **判断指标**：rerank used 增长（非耗尽）；`eval_retrieval.py` ON/OFF 对比。
+
+### 10. "未检索到/建议核对"矛盾句根因 = prompt 主动要求（B1）
+- **问题**：前端靠 `stripUnprovidedHint` 事后删"未检索到/建议核对原文"句。
+- **根因**：`SYSTEM_BASE` 第 7 条**主动给模型模板句**"《X法》相关条文未在本次检索中提供，建议核对原文"；后端自注（NOTE_COMPLEX/NOTE_QUOTA/坏引用注）也追加同款句。前端删的是后端自己制造的句子。
+- **优化**：重写第 7 条（删模板句，禁"未检索到/未提供/建议核对"字句）；STUDY/CONTRACT 收紧；自注中性化；新增 `strip_unprovided_notes`（带库证据：库内删句、库外保留诚实说明）。
+- **结果**：普通问答/合同追问无矛盾句；eval_hallucination 引用合法率 1.0（50/50）、0 非法引用。
+- **判断指标**：回答无"建议核对/未在本次检索"；幻觉率 eval。
+
+### 11. 币种 `$` 笔误根因 = 零约束 + 前端猜形状（B2）
+- **问题**：模型把"元"打成 `$`（150-200$3），前端 `fixCurrencyTypos` 只认固定形状。
+- **根因**：`OUTPUT_FORMAT_RULE` 只禁 LaTeX `$`，**从没规定金额写法**。
+- **优化**：prompt 加"金额一律X元、禁 $/¥" + `money_normalize`（范围/后缀/前缀三形态，LaTeX 不误伤）。
+- **结果**：普通问答无 `$` 残留；单测覆盖 8 形态全过。
+- **判断指标**：`money_normalize` 单测；回答无 `$`。
+
+### 12. 合同追问重新输出整份报告 = 上下文没接追问（B5）
+- **问题**：合同续聊时追问，模型重新输出完整评估报告。
+- **根因**：`_contract_messages` 只构造 `[System, Human(证据+"请按模板输出报告")]`——**丢历史 `pre["recent"]` + 丢当前追问 `pre["user_text"]`**，且 `SYSTEM_CONTRACT_REVIEW` 每次强制全报告模板 → 模型看不到追问。
+- **优化**：首轮/追问分流——追问带历史 Q&A + 当前追问，换 `SYSTEM_CONTRACT_FOLLOWUP`（只答追问不重出报告）。
+- **结果**：验收合同首轮+追问 3 轮，追问全部直接作答、不重出报告。
+- **判断指标**：追问回答不含"①【结论】【风险清单】"完整模板。
+
+### 13. venv 依赖被 `pip install mcp` 破坏（B0 副产物）
+- **问题**：装 mcp 后后端启动报 `TypeError: Router.__init__() got an unexpected keyword argument 'on_startup'` + TestClient `TypeError: Client.__init__`。
+- **根因**：mcp 把 starlette 升到 1.4.1（fastapi 0.110 不兼容）、httpx 升到 0.28.1（starlette 0.36 TestClient 不兼容）。
+- **优化**：starlette 锁 0.36.3 + httpx 锁 0.27.2（fastapi 0.110.3 兼容组合）。
+- **结果**：328 passed 全绿。
+- **判断指标**：全量 pytest 无 error。
+
 ---
 
 ## 附录：判断指标口径（确定性 verifier，零 LLM）
