@@ -1,13 +1,12 @@
 "use client";
-import { useEffect, useLayoutEffect, useRef, useState, FormEvent, ClipboardEvent, DragEvent } from "react";
+import { memo, useEffect, useRef, useState, FormEvent, ClipboardEvent, DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { streamChat, convApi, loadMediaSrc, chatFile, ChatMeta, AnalysisStep, feedbackApi, lawApi, LawDetail, LawItem, transcribeApi } from "@/lib/api";
 import { Logo, Spinner } from "@/components/ui";
-import { annotate, stripMarkdown } from "@/lib/annotate";
+import { renderAnswer } from "@/lib/annotate";
 import { startWavRecorder } from "@/lib/recorder";
 import { LawCard } from "@/components/LawCard";
-import { useHoverCapable } from "@/lib/usePointer";
 import { usePointerGlow } from "@/lib/usePointerGlow";
 
 interface Msg {
@@ -57,13 +56,24 @@ const SCENES = [
   { icon: "💰", title: "被拖欠工资", desc: "劳动维权", q: "公司拖欠我三个月工资，该怎么维权？" },
   { icon: "⚖️", title: "离婚财产分割", desc: "婚姻家事", q: "离婚时财产分割有哪些规定？" },
 ];
-// 空状态：每日法条（前端硬编码高频常识，随机一条；点击提问走正常管线）
+// 空状态：每日法条（前端硬编码高频常识，按日期轮换；点击提问走正常管线）
 const DAILY_LAWS = [
   { src: "劳动合同法", art: "第十九条", text: "试用期最长不得超过六个月", q: "劳动合同试用期最长是多久？" },
   { src: "民法典", art: "第五百八十五条", text: "违约金过分高于损失可请求法院调减", q: "违约金太高可以要求降低吗？" },
   { src: "民法典", art: "第一百八十八条", text: "普通诉讼时效为三年", q: "普通诉讼时效是几年？" },
   { src: "劳动法", art: "第四十四条", text: "安排延长工作时间应支付加班费", q: "加班费怎么计算？" },
+  { src: "民法典", art: "第一百四十八条", text: "受欺诈方有权请求撤销违背真实意思的法律行为", q: "被欺诈签订的合同可以撤销吗？" },
+  { src: "民法典", art: "第一千零七十九条", text: "感情确已破裂且调解无效的应准予离婚", q: "什么情况下法院会判决离婚？" },
+  { src: "消费者权益保护法", art: "第二十四条", text: "商品不符合质量要求的消费者可要求退货", q: "网购商品质量不好可以退货吗？" },
+  { src: "刑法", art: "第二十条", text: "正当防卫不负刑事责任", q: "什么是正当防卫？" },
+  { src: "道路交通安全法", art: "第七十六条", text: "交强险限额内先行赔偿交通事故损失", q: "交通事故赔偿顺序是怎样的？" },
+  { src: "民法典", art: "第一千一百六十五条", text: "因过错侵害他人民事权益应承担侵权责任", q: "侵权责任的构成要件是什么？" },
 ];
+function dailyLawIndex() {
+  const d = new Date();
+  const dayKey = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
+  return dayKey % DAILY_LAWS.length;
+}
 // 流式三态：法典速查字符（检索期轮换）
 const CODEX = ["§", "¶", "†", "‡"];
 
@@ -91,6 +101,88 @@ function ChatImage({ dataURL, imgRef, thumbRef }: { dataURL?: string; imgRef?: s
   return <img src={src} alt="附图" className="mt-1 max-h-56 rounded-lg border border-mist object-contain" />;
 }
 
+// ---- 法条内联卡（纯函数，模块级：供 MessageHtml memo 使用，避免组件内重建失效） ----
+function escapeHtmlText(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function buildLawCardHtml(exp: {
+  source: string;
+  article: string;
+  content: string;
+  status?: string;
+  found: boolean;
+}): string {
+  const title = `<p class="law-title font-serif text-sm">《${escapeHtmlText(exp.source)}》${escapeHtmlText(exp.article)}</p>`;
+  if (!exp.found) {
+    // 知识库未收录（如司法解释）：仍弹卡，给出可操作提示
+    return (
+      `<div class="law-glass law-inline-card rounded-xl px-4 py-4">` +
+      title +
+      `<p class="mt-2 text-[0.85rem] leading-relaxed text-slate/85">知识库暂未收录该条文原文。</p>` +
+      `</div>`
+    );
+  }
+  const content = escapeHtmlText(exp.content).replace(/\n/g, "<br/>");
+  const status = exp.status ? `<p class="mt-2 text-xs text-slate">状态：${escapeHtmlText(exp.status)}</p>` : "";
+  return (
+    `<div class="law-glass law-inline-card rounded-xl px-4 py-4">` +
+    title +
+    `<p class="mt-2 whitespace-pre-wrap text-[0.85rem] leading-relaxed text-ink/90 font-normal">${content}</p>` +
+    `${status}</div>`
+  );
+}
+
+/** 在回答 HTML 中定位「对应 data-source + 条号」的法条引用，在其第 occurrence 次出现后追加卡片 */
+function injectLawCardHtml(html: string, exp: {
+  source: string;
+  article: string;
+  content: string;
+  status?: string;
+  found: boolean;
+}, occurrence = 0): string {
+  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const src = esc(exp.source);
+  const art = esc(exp.article.replace(/^第|条$/g, ""));
+  const re = new RegExp(`(<span class="law-ref" data-source="${src}"[^>]*>[^<]*${art}[^<]*<\\/span>)`, "g");
+  const card = buildLawCardHtml(exp);
+  let count = 0;
+  let injected = false;
+  const out = html.replace(re, (full) => {
+    const isTarget = count === occurrence;
+    count++;
+    if (isTarget) {
+      injected = true;
+      return full + card;
+    }
+    return full;
+  });
+  return injected ? out : out + card; // 兜底：计数越界则追加到末尾
+}
+
+interface ExpandedLaw {
+  msgIndex: number;
+  source: string;
+  article: string;
+  content: string;
+  status?: string;
+  found: boolean;
+  occurrence: number;
+}
+
+/** 消息 HTML 渲染（React.memo）：流式时只有 content 变化的最后一条会重排 renderAnswer，
+ * 已完成消息不重复跑语义标注正则（F1 性能优化，2026-08-07）。 */
+const MessageHtml = memo(function MessageHtml({ content, expanded, i }: {
+  content: string;
+  expanded: ExpandedLaw | null;
+  i: number;
+}) {
+  let html = renderAnswer(content);
+  if (expanded && expanded.msgIndex === i) {
+    html = injectLawCardHtml(html, expanded, expanded.occurrence);
+  }
+  return <div className="whitespace-normal" dangerouslySetInnerHTML={{ __html: html }} />;
+});
+
 export default function ChatPage() {
   const router = useRouter();
   const { user, loading, logout } = useAuth();
@@ -116,48 +208,34 @@ export default function ChatPage() {
   const [fbDone, setFbDone] = useState<Record<number, "up" | "down">>({});
   const [quotaWarn, setQuotaWarn] = useState<QuotaWarn | null>(null);
   const [codexIdx, setCodexIdx] = useState(0); // 流式三态：法典速查字符轮换
-  const [dailyLaw] = useState(() => DAILY_LAWS[Math.floor(Math.random() * DAILY_LAWS.length)]); // 每日法条（固定一次）
-  // 法条速查面板 + 法条悬浮卡（P1）
+  const [dailyIdx, setDailyIdx] = useState(dailyLawIndex()); // 每日法条轮播索引
+  useEffect(() => {
+    if (messages.length !== 0) return; // 只在空状态轮播；开始对话后停止，避免全局重渲染导致法条卡抖动
+    const t = setInterval(() => setDailyIdx((i) => (i + 1) % DAILY_LAWS.length), 5000);
+    return () => clearInterval(t);
+  }, [messages.length]);
+  const dailyLaw = DAILY_LAWS[dailyIdx];
+  // 法条速查面板 + 法条内联展开卡（P1）
   const [lawPanel, setLawPanel] = useState(false);
   const [lawQ, setLawQ] = useState("");
   const [lawResults, setLawResults] = useState<LawItem[]>([]);
   const [lawDetail, setLawDetail] = useState<LawDetail | null>(null);
-  const [lawPopup, setLawPopup] = useState<{
-    law: LawDetail;
-    left: number;
-    top: number;
-    width: number;
-    flipped: boolean;
+  // 点击法条 → 卡片在该法条下一行内联展开（再点收起）
+  const [expandedLaw, setExpandedLaw] = useState<{
+    msgIndex: number;
+    source: string;
+    article: string;
+    content: string;
+    status?: string;
+    found: boolean; // 知识库是否收录了原文（未收录也弹卡提示）
+    occurrence: number; // 同「书名+条号」在该消息内第几次出现（0 起），用于卡片精确落到点击的那一条
   } | null>(null);
-  const popupNodeRef = useRef<HTMLDivElement>(null);
-  const popupRefEl = useRef<Element | null>(null); // 当前 hover 的 .law-ref
-  const openTimer = useRef<number | null>(null); // hover 进入延迟
-  const hideTimer = useRef<number | null>(null); // 离开宽限
-  const popupSeq = useRef(0); // 请求序号，防乱序覆盖
-  const hoverCapable = useHoverCapable(); // 桌面纯鼠标 → hover；触屏/Mac 触控板 → click
   usePointerGlow(scrollRef); // 指针光晕（仅 hover:hover）
 
   // 语音（M2）：Qwen livetranslate 后端转写，Web Speech 兜底
   const [transcribing, setTranscribing] = useState(false);
   const wavRecRef = useRef<{ stop: () => Promise<Blob> } | null>(null);
   const voiceTimeoutRef = useRef<number | null>(null);
-
-  // 浮层渲染后量高：下方空间不足则翻到 ref 上方（上下自适应）。
-  // 注意：必须放在上方 `if (loading || !user) return null;` 之前——hook 不能被提前 return 跳过，
-  // 否则认证通过后 hook 数变化，React 抛「Rendered more hooks than during the previous render」。
-  useLayoutEffect(() => {
-    const node = popupNodeRef.current;
-    if (!lawPopup || !node || lawPopup.flipped) return;
-    const c = scrollRef.current;
-    if (!c) return;
-    const h = node.offsetHeight;
-    const spaceBelow = c.clientHeight - lawPopup.top;
-    if (spaceBelow < h + 8 && popupRefEl.current) {
-      const cr = c.getBoundingClientRect();
-      const refTop = popupRefEl.current.getBoundingClientRect().top - cr.top + c.scrollTop;
-      setLawPopup((p) => (p ? { ...p, top: Math.max(8, refTop - h - 8), flipped: true } : p));
-    }
-  }, [lawPopup]);
 
   useEffect(() => {
     if (!loading) {
@@ -187,11 +265,9 @@ export default function ChatPage() {
     return () => clearInterval(t);
   }, [streaming]);
 
-  // 卸载清理：法条卡定时器 + 语音超时
+  // 卸载清理：语音超时
   useEffect(() => {
     return () => {
-      if (openTimer.current) clearTimeout(openTimer.current);
-      if (hideTimer.current) clearTimeout(hideTimer.current);
       if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
     };
   }, []);
@@ -216,7 +292,7 @@ export default function ChatPage() {
     setPendingImage(null);
     setSidebarOpen(false);
     setIsNearBottom(true);
-    clearLawPopup();
+    setExpandedLaw(null);
   }
 
   async function selectConv(item: ConvItem) {
@@ -224,7 +300,7 @@ export default function ChatPage() {
     setConversationId(item.id);
     setPendingImage(null);
     setSidebarOpen(false);
-    clearLawPopup();
+    setExpandedLaw(null);
     try {
       const det = await convApi.detail(item.id);
       setMessages(
@@ -250,7 +326,7 @@ export default function ChatPage() {
         setMessages([]);
         setConversationId(null);
         setActiveId(null);
-        clearLawPopup();
+        setExpandedLaw(null);
       }
       loadHistory();
     } catch {
@@ -484,78 +560,65 @@ export default function ChatPage() {
     doSend(q);
   }
 
-  // 法条悬浮卡：从 .law-ref 的 data-source（书名，含省略书名号的独立条号）+ 文本条号 → 后端查原文。
+  // ---------- 法条卡：点击 → 内联展开（卡片出现在法条下一行，再点收起） ----------
+  // 从 .law-ref 的 data-source（书名，含省略书名号的独立条号）+ 文本条号 → 后端查原文。
   // 带模块级缓存：同条文只发一次请求；失败返回 null（前端降级纯文本）。
   function fetchLawRefCached(el: Element): Promise<LawDetail | null> {
     const src = el.getAttribute("data-source");
-    const m = (el.textContent || "").match(/第\s*([一二三四五六七八九十百千零0-9]+)\s*条/);
+    const m = (el.textContent || "").match(
+      /第\s*([零〇○一二三四五六七八九十百千万0-9０-９]+)\s*条(之[一二三四五六七八九十百千万0-9０-９]+)?/
+    );
     if (!src || !m) return Promise.resolve(null);
-    const key = `${src}\u0000${m[1]}`;
+    const article = `第${m[1]}条${m[2] || ""}`;
+    const key = `${src}\u0000${article}`;
     let p = lawCache.get(key);
     if (!p) {
       // 库内 article 存完整「第X条」中文条号（精确匹配），必须拼回完整形式，否则数字/缺字 404
-      p = lawApi.detail(src, `第${m[1]}条`).catch(() => null);
+      // B3（2026-08-07）：后端 /api/law 已 _normalize_article 归一（〇零/阿拉伯/之条），直接传原文条号
+      p = lawApi.detail(src, article).catch(() => null);
       lawCache.set(key, p);
     }
     return p;
   }
 
-  // ---------- 法条悬浮卡：位置计算 + hover 防抖/宽限（absolute 锚定在滚动容器内，随内容滚动） ----------
-  function placeLawPopup(ref: Element, law: LawDetail) {
-    const c = scrollRef.current;
-    if (!c) return;
-    const cr = c.getBoundingClientRect();
-    const rr = ref.getBoundingClientRect();
-    const pad = 12;
-    const width = Math.min(320, c.clientWidth - pad * 2); // 窄屏自适应
-    const gap = 8;
-    const left = Math.max(pad, Math.min(rr.left - cr.left + c.scrollLeft, c.clientWidth - width - pad));
-    setLawPopup({
-      law,
-      left,
-      top: rr.bottom - cr.top + c.scrollTop + gap, // 默认放 ref 下方
-      width,
-      flipped: false,
-    });
-  }
+  // 法条内联卡纯函数（escapeHtmlText/buildLawCardHtml/injectLawCardHtml）已上移模块级，
+  // 供 MessageHtml memo 使用；removeUnprovidedHint 已删（B1 后端保证库内不产矛盾句）。
 
-  function clearLawPopup() {
-    setLawPopup(null);
-  }
+  async function toggleInlineLaw(ref: Element, msgIndex: number) {
+    // 未收录的条文（如司法解释）也弹卡提示，而不是点了没反应
+    const src = ref.getAttribute("data-source") || "";
+    const m = (ref.textContent || "").match(/第\s*([零〇○一二三四五六七八九十百千万0-9０-９]+)\s*条(之[一二三四五六七八九十百千万0-9０-９]+)?/);
+    const article = m ? `第${m[1]}条${m[2] || ""}` : "";
 
-  function scheduleLawOpen(ref: Element) {
-    if (openTimer.current) clearTimeout(openTimer.current);
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    openTimer.current = window.setTimeout(() => {
-      void openLawPopup(ref);
-    }, 150); // 进入延迟：快速划过不弹
-  }
-
-  async function openLawPopup(ref: Element) {
-    const seq = ++popupSeq.current;
-    const law = await fetchLawRefCached(ref);
-    if (seq !== popupSeq.current || popupRefEl.current !== ref) return; // 已移走 / 有更新目标
-    if (law) placeLawPopup(ref, law);
-    else clearLawPopup();
-  }
-
-  function scheduleLawHide() {
-    if (openTimer.current) clearTimeout(openTimer.current);
-    if (hideTimer.current) clearTimeout(hideTimer.current);
-    hideTimer.current = window.setTimeout(() => {
-      clearLawPopup();
-    }, 300); // 离开宽限：移到浮层上不关闭
-  }
-
-  async function toggleLawPopup(ref: Element) {
-    // 触屏/Mac 触控板：click toggle（同条再点收起）
-    const law = await fetchLawRefCached(ref);
-    if (!law) return;
-    if (lawPopup && lawPopup.law.source === law.source && lawPopup.law.article === law.article) {
-      clearLawPopup();
-    } else {
-      placeLawPopup(ref, law);
+    // 计算被点击法条在「同书名+条号」集合中的序号（文档顺序），
+    // 使卡片精确落到点击的那一条，而非第一条（多次出现时）。
+    let occurrence = 0;
+    const msgEl = ref.closest("[data-msg-index]");
+    if (msgEl) {
+      const refs = msgEl.querySelectorAll(".law-ref");
+      for (const r of Array.from(refs)) {
+        if (r === ref) break;
+        const rSrc = r.getAttribute("data-source") || "";
+        const rm = (r.textContent || "").match(/第\s*([零〇○一二三四五六七八九十百千万0-9０-９]+)\s*条(之[一二三四五六七八九十百千万0-9０-９]+)?/);
+        const rArt = rm ? `第${rm[1]}条${rm[2] || ""}` : "";
+        if (rSrc === src && rArt === article) occurrence++;
+      }
     }
+
+    const law = await fetchLawRefCached(ref);
+    setExpandedLaw((prev) =>
+      prev && prev.msgIndex === msgIndex && prev.source === src && prev.article === article && prev.occurrence === occurrence
+        ? null // 再点同一条 → 收起
+        : {
+            msgIndex,
+            source: src,
+            article,
+            content: law ? law.content : "",
+            status: law?.status,
+            found: !!law,
+            occurrence,
+          }
+    );
   }
 
   async function doLawSearch() {
@@ -603,42 +666,42 @@ export default function ChatPage() {
         <div className="fade-in fixed inset-0 z-20 bg-ink/50 backdrop-blur-[2px] md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
-      {/* 侧栏：历史会话 */}
+      {/* 侧栏：历史会话（樱花海主题色玻璃卡） */}
       <aside
-        className={`sidebar-glow relative fixed inset-y-0 left-0 z-30 flex w-[280px] max-w-[85vw] flex-col bg-ink text-white shadow-2xl transition-transform duration-300 ease-out md:static md:translate-x-0 md:shadow-none ${
+        className={`sidebar-glow sidebar-glass fixed inset-y-0 left-0 z-30 flex w-[280px] max-w-[85vw] flex-col text-ink transition-transform duration-300 ease-out md:relative md:translate-x-0 ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
         <div className="flex items-center justify-between px-3 py-5">
-          <Logo dark size="sm" />
-          <button className="rounded-md p-1 text-white/50 transition-colors hover:bg-white/10 hover:text-white md:hidden" onClick={() => setSidebarOpen(false)} aria-label="关闭菜单">
+          <Logo size="sm" />
+          <button className="rounded-md p-1 text-ink/50 transition-colors hover:bg-accent/10 hover:text-accent md:hidden" onClick={() => setSidebarOpen(false)} aria-label="关闭菜单">
             ✕
           </button>
         </div>
         <div className="px-3">
-          <button onClick={newChat} className="btn btn-ghost-dark w-full">
+          <button onClick={newChat} className="btn btn-primary w-full shadow-md shadow-accent/20">
             <span className="text-base leading-none">＋</span> 新对话
           </button>
         </div>
         <div className="mt-6 flex-1 overflow-y-auto px-3 pb-4">
-          <p className="px-2 pb-2 text-xs tracking-wide text-white/40">历史会话</p>
-          {history.length === 0 && <p className="px-2 text-sm text-white/40">暂无记录</p>}
+          <p className="px-2 pb-2 text-xs tracking-wide text-slate">历史会话</p>
+          {history.length === 0 && <p className="px-2 text-sm text-slate/70">暂无记录</p>}
           {history.map((h) => (
             <div
               key={h.id}
               className={`chat-item group relative ${activeId === h.id ? "active" : ""}`}
               onClick={() => selectConv(h)}
             >
-              <p className="flex items-center gap-1.5 truncate pr-5 text-sm text-white/85">
-                {h.has_image && <span className="text-white/50">🖼</span>}
+              <p className="flex items-center gap-1.5 truncate pr-5 text-sm text-ink/90">
+                {h.has_image && <span className="text-slate">🖼</span>}
                 <span className="truncate">{h.title || h.preview || "新对话"}</span>
               </p>
-              <p className="mt-0.5 truncate text-xs text-white/40">{h.preview}</p>
+              <p className="mt-0.5 truncate text-xs text-slate">{h.preview}</p>
               <button
                 type="button"
                 aria-label={`删除会话 ${h.title || h.preview || "新对话"}`}
                 title="删除会话"
-                className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-xs text-white/40 opacity-0 transition-opacity hover:bg-white/15 hover:text-white group-hover:opacity-100"
+                className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-xs text-slate opacity-100 transition-opacity hover:bg-mist hover:text-ink md:opacity-0 md:group-hover:opacity-100"
                 onClick={(e) => {
                   e.stopPropagation();
                   void deleteConv(h.id);
@@ -649,14 +712,14 @@ export default function ChatPage() {
             </div>
           ))}
         </div>
-        <div className="border-t border-white/10 px-3 py-4">
+        <div className="border-t border-mist px-3 py-4">
           {user.role === "admin" && (
-            <button onClick={() => router.push("/admin")} className="mb-2 w-full text-left text-sm text-accent transition-colors hover:text-white">
+            <button onClick={() => router.push("/admin")} className="mb-2 w-full text-left text-sm text-accent-deep transition-colors hover:text-accent">
               管理后台 →
             </button>
           )}
           <div className="flex items-center justify-between gap-2">
-            <span className="flex min-w-0 items-center gap-2 text-sm text-white/70">
+            <span className="flex min-w-0 items-center gap-2 text-sm text-ink/70">
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/90 text-xs font-semibold text-white">
                 {user.username.slice(0, 1).toUpperCase()}
               </span>
@@ -667,7 +730,7 @@ export default function ChatPage() {
                 logout();
                 router.replace("/login");
               }}
-              className="shrink-0 rounded-md px-2 py-1 text-xs text-white/50 transition-colors hover:bg-white/10 hover:text-white"
+              className="shrink-0 rounded-md px-2 py-1 text-xs text-slate transition-colors hover:bg-mist hover:text-ink"
             >
               退出
             </button>
@@ -676,7 +739,7 @@ export default function ChatPage() {
       </aside>
 
       {/* 主区域 */}
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="relative flex min-w-0 flex-1 flex-col">
         <header className="header-blur sticky top-0 z-10 flex items-center gap-3 border-b border-mist px-5 py-3.5">
           <button className="rounded-md p-1 text-xl leading-none text-ink transition-colors hover:bg-mist md:hidden" onClick={() => setSidebarOpen(true)} aria-label="打开菜单">
             ☰
@@ -712,73 +775,57 @@ export default function ChatPage() {
           }}
           onDrop={onDrop}
           onDragOver={(e) => e.preventDefault()}
-          onPointerOver={(e) => {
-            // 法条悬浮卡：桌面 hover（防抖 + 宽限，ref 与浮层同组不闪烁）
-            if (!hoverCapable) return;
-            if ((e.target as Element).closest("[data-law-popup]")) {
-              if (hideTimer.current) clearTimeout(hideTimer.current);
-              return;
-            }
-            const ref = (e.target as Element).closest(".law-ref");
-            if (!ref) {
-              scheduleLawHide();
-              return;
-            }
-            if (ref !== popupRefEl.current) {
-              popupRefEl.current = ref;
-              scheduleLawOpen(ref);
-            } else if (hideTimer.current) {
-              clearTimeout(hideTimer.current);
-            }
-          }}
-          onPointerLeave={() => {
-            if (hoverCapable) scheduleLawHide();
-          }}
           onClick={(e) => {
-            // 法条卡：触屏/Mac 触控板 click toggle；桌面纯鼠标只走 hover，点击不误关
-            if (hoverCapable) return;
+            // 法条卡：点击 → 在该法条下一行内联展开 / 收起
             const ref = (e.target as Element).closest(".law-ref");
-            if (!ref) {
-              clearLawPopup();
-              return;
-            }
-            void toggleLawPopup(ref);
+            if (!ref) return;
+            const msgEl = ref.closest("[data-msg-index]");
+            if (!msgEl) return; // 不在回答消息内（如每日法条）→ 交给原按钮行为
+            const msgIndex = Number(msgEl.getAttribute("data-msg-index"));
+            e.preventDefault();
+            e.stopPropagation();
+            void toggleInlineLaw(ref, msgIndex);
           }}
         >
           <div className="mx-auto max-w-[44rem]">
             {messages.length === 0 && (
               <div className="fade-in pt-6">
                 {/* 欢迎语 */}
-                <p className="mb-7 text-center font-serif text-xl font-semibold tracking-tight text-ink md:text-[1.4rem]">
+                <p className="mb-6 text-center font-serif text-lg font-semibold tracking-tight text-ink md:mb-7 md:text-[1.4rem]">
                   你好，{user.username}，今天想咨询什么？
                 </p>
-                {/* 场景直达卡 */}
-                <div className="mb-6 grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 md:grid-cols-4">
+                {/* 场景直达卡：移动端 2 列，避免单列堆得太高 */}
+                <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
                   {SCENES.map((s) => (
                     <button
                       key={s.title}
                       type="button"
                       onClick={() => quickSend(s.q)}
-                      className="glass-card group rounded-xl px-4 py-4 text-left transition-transform duration-200 hover:-translate-y-0.5"
+                      className="glass-card group rounded-xl border border-transparent px-3 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 md:px-4 md:py-4"
                     >
-                      <span className="text-xl">{s.icon}</span>
-                      <p className="mt-2 text-sm font-medium text-ink">{s.title}</p>
-                      <p className="mt-0.5 text-xs text-slate">{s.desc}</p>
+                      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-xl transition-colors group-hover:bg-accent/20 md:h-11 md:w-11 md:text-2xl">{s.icon}</span>
+                      <p className="mt-1.5 text-sm font-medium text-ink md:mt-2">{s.title}</p>
+                      <p className="mt-0.5 text-[11px] leading-snug text-slate md:text-xs">{s.desc}</p>
                     </button>
                   ))}
                 </div>
-                {/* 每日法条 */}
-                <div className="glass-card mb-6 rounded-xl px-5 py-4">
-                  <p className="text-xs tracking-wide text-slate">每日法条</p>
-                  <button
+                {/* 每日法条：轮播展示（5 秒切换），标题与内容居中，卡片高度固定 */}
+                <div className="glass-card relative mb-6 overflow-hidden rounded-xl border-l-[3px] border-l-accent px-5 py-4">
+                  <span className="section-mark absolute -right-1 -top-3 text-6xl text-accent opacity-20">§</span>
+                  <p className="text-center text-xs tracking-wide text-accent-deep">每日法条</p>
+                    <button
+                    key={dailyIdx}
                     type="button"
                     onClick={() => quickSend(dailyLaw.q)}
-                    className="mt-1.5 block text-left text-sm leading-relaxed text-ink transition-colors hover:text-accent"
+                    className="fade-in mt-1.5 flex h-[3.5rem] w-full flex-col items-center justify-center overflow-hidden text-center text-sm leading-relaxed text-ink transition-colors hover:text-accent"
                   >
-                    <span className="law-ref" data-source={dailyLaw.src}>
-                      《{dailyLaw.src}》{dailyLaw.art}
-                    </span>{" "}
-                    — {dailyLaw.text}
+                    <span className="line-clamp-2">
+                      <span className="law-ref" data-source={dailyLaw.src}>
+                        《{dailyLaw.src}》{dailyLaw.art}
+                      </span>
+                      <span className="mx-1">—</span>
+                      {dailyLaw.text}
+                    </span>
                   </button>
                 </div>
                 {/* 用法引导 */}
@@ -827,7 +874,7 @@ export default function ChatPage() {
                   </span>
                 </div>
               ) : (
-                <div key={i} className="page-enter mb-6 flex items-start justify-start gap-2.5">
+                <div key={i} data-msg-index={i} className="page-enter mb-6 flex items-start justify-start gap-2.5">
                   <span className="logo-seal mt-0.5 h-8 w-8 shrink-0 text-sm">§</span>
                   <div className="max-w-[85%] md:max-w-[80%]">
                     {m.steps && m.steps.length > 0 && (
@@ -852,16 +899,10 @@ export default function ChatPage() {
                       }`}
                     >
                       {m.content ? (
-                        streaming && i === messages.length - 1 ? (
-                          // 流式期：纯文本（不标注，防半截标签）
-                          <span className="whitespace-pre-wrap">{m.content}</span>
-                        ) : (
-                          // 完成/历史：先清 markdown 残留（禁 * - 字符），再语义标注（法条/时效/金额；引号内不标）
-                          <span
-                            className="whitespace-pre-wrap"
-                            dangerouslySetInnerHTML={{ __html: annotate(stripMarkdown(m.content)) }}
-                          />
-                        )
+                        // 流式期与完成期统一：实时语义标注（法条/时效/金额）+ Markdown 排版
+                        // （标题/表格/列表/加粗）；每帧基于当前累积内容重新生成完整 HTML，
+                        // 无半截标签累积，输出过程即规范格式。
+                        <MessageHtml content={m.content} expanded={expandedLaw} i={i} />
                       ) : streaming && i === messages.length - 1 ? (
                         // 检索期三态：合同模式=分析中（step 胶囊已是进度）；普通问答=法典速查+扫描光
                         m.steps && m.steps.length > 0 ? (
@@ -921,26 +962,28 @@ export default function ChatPage() {
               )
             )}
             <div ref={bottomRef} />
-
-            {/* 法条悬浮卡浮层：absolute 锚定在滚动容器内（随内容滚动，位置上下自适应 + 玻璃卡） */}
-            {lawPopup && (
-              <div
-                ref={popupNodeRef}
-                data-law-popup
-                className="law-popup"
-                style={{ left: lawPopup.left, top: lawPopup.top, width: lawPopup.width }}
-                onPointerEnter={() => {
-                  if (hideTimer.current) clearTimeout(hideTimer.current);
-                }}
-                onPointerLeave={() => {
-                  if (hoverCapable) scheduleLawHide();
-                }}
-              >
-                <LawCard law={lawPopup.law} compact />
-              </div>
-            )}
           </div>
         </div>
+
+        {/* 回到最新消息：向上翻阅历史时出现，一键平滑滚到底部 */}
+        {!isNearBottom && messages.length > 0 && (
+          <button
+            type="button"
+            onClick={() => {
+              const el = scrollRef.current;
+              if (el) el.scrollTo({ top: el.scrollHeight, behavior: "smooth" });
+              setIsNearBottom(true);
+            }}
+            className="absolute bottom-28 right-5 z-20 flex items-center gap-1.5 rounded-full border border-white/70 bg-white/85 px-3.5 py-2 text-xs font-medium text-ink shadow-lg backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white md:right-8"
+            aria-label="回到最新消息"
+          >
+            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <polyline points="19 12 12 19 5 12" />
+            </svg>
+            最新
+          </button>
+        )}
 
         {/* 输入区 */}
         <form onSubmit={send} className="border-t border-white/40 bg-white/45 px-4 py-4 backdrop-blur-md md:px-8 pb-safe">
@@ -963,17 +1006,17 @@ export default function ChatPage() {
                 </button>
               </div>
             )}
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 md:gap-2">
               <input ref={imageInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => e.target.files?.[0] && acceptImageFile(e.target.files[0])} />
               <button
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
                 disabled={streaming}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-mist text-slate transition-colors hover:bg-mist hover:text-ink disabled:opacity-50"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-mist text-slate transition-colors hover:bg-mist hover:text-ink disabled:opacity-50 md:h-10 md:w-10"
                 aria-label="上传图片"
                 title="上传图片（JPEG/PNG，≤5MB）"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="h-[17px] w-[17px] md:h-[18px] md:w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
                   <circle cx="8.5" cy="8.5" r="1.5" />
                   <polyline points="21 15 16 10 5 21" />
@@ -984,11 +1027,11 @@ export default function ChatPage() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={streaming}
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-mist text-slate transition-colors hover:bg-mist hover:text-ink disabled:opacity-50"
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-mist text-slate transition-colors hover:bg-mist hover:text-ink disabled:opacity-50 md:h-10 md:w-10"
                 aria-label="上传文件"
                 title="上传文件（txt/md/pdf/docx，≤10MB）"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="h-[17px] w-[17px] md:h-[18px] md:w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
                   <polyline points="13 2 13 9 20 9" />
                 </svg>
@@ -997,7 +1040,7 @@ export default function ChatPage() {
                 type="button"
                 onClick={toggleVoice}
                 disabled={streaming || transcribing}
-                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 md:h-10 md:w-10 ${
                   listening
                     ? "border-error bg-error/10 text-error"
                     : transcribing
@@ -1012,7 +1055,7 @@ export default function ChatPage() {
                 ) : listening ? (
                   <span className="h-3.5 w-3.5 animate-pulse rounded-full bg-error" />
                 ) : (
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="h-[17px] w-[17px] md:h-[18px] md:w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                     <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
                     <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
                     <line x1="12" y1="19" x2="12" y2="23" />
@@ -1021,7 +1064,7 @@ export default function ChatPage() {
                 )}
               </button>
               <textarea
-                className="input min-w-0 flex-1 !rounded-[6px] !py-2 resize-none max-h-[120px]"
+                className="input min-w-0 flex-1 !rounded-[6px] !py-2 !text-[15px] resize-none max-h-[120px] md:!text-base"
                 rows={2}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -1029,19 +1072,19 @@ export default function ChatPage() {
                   if (e.key === "Enter" && e.ctrlKey) send();  // Enter 换行，Ctrl+Enter 发送
                 }}
                 onPaste={onPaste}
-                placeholder="请输入您的法律问题…（可上传文件/图片审合同，支持语音输入、连续追问）"
+                placeholder="请输入法律问题…"
                 disabled={streaming}
               />
               <button
                 type="submit"
                 disabled={streaming || (!input.trim() && !pendingImage && !fileContent)}
-                className="btn btn-primary h-10 w-10 shrink-0 !rounded-[6px] !p-0"
+                className="btn btn-primary h-9 w-9 shrink-0 !rounded-[6px] !p-0 shadow-md shadow-accent/25 md:h-10 md:w-10"
                 aria-label="发送"
               >
                 {streaming ? (
                   <Spinner />
                 ) : (
-                  <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg className="h-4 w-4 md:h-[17px] md:w-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="7" y1="17" x2="17" y2="7" />
                     <polyline points="7 7 17 7 17 17" />
                   </svg>
