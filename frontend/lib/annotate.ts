@@ -82,7 +82,8 @@ export function annotate(raw: string): string {
         const gap = tmp.slice(lastLawEnd, offset);
         // \s 原含 \n/\r：跨行的独立条号被误归属上一书名，与上方注释（跨句含\n断开）矛盾。
         // 改为仅"非换行空白" [^\S\r\n]——跨换行的独立条号断开归属（对抗审计 2026-08-07）
-        if (/^(?:[、，,、]|[^\S\r\n]|（[^（）]*）|\([^()]*\))*$/.test(gap)) {
+        // 另支持"和/及/与"连接词（"《民法典》第X条和第一千一百六十六条"第二条省略书名）
+        if (/^(?:[、，,、和及与]|[^\S\r\n]|（[^（）]*）|\([^()]*\))*$/.test(gap)) {
           lastLawEnd = offset + full.length;
           return `<span class="law-ref" data-source="${lastBook}">第${standalone}条${szhi || ""}</span>`;
         }
