@@ -13,7 +13,7 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
-from output_normalize import money_normalize, strip_unprovided_notes  # noqa: E402
+from output_normalize import expand_citations, money_normalize, strip_unprovided_notes  # noqa: E402
 import retrieval as R  # noqa: E402
 
 
@@ -36,6 +36,31 @@ def test_money_no_false_positive():
     assert money_normalize("违约金五千元") == "违约金五千元"
     assert money_normalize("150-200元") == "150-200元"
     assert money_normalize("方程 x$\\neq$y") == "方程 x$\\neq$y"  # LaTeX 不误伤
+
+
+# ---------------- expand_citations（省略书名展开） ----------------
+def test_expand_continuation_with_parenthetical():
+    # 用户实测：两条法条间夹括号说明，第二条省略书名
+    src = "法条依据：《民法典》第七百一十五条（承租人经同意转租时）、第七百一十六条（未经同意转租时）。"
+    out = expand_citations(src)
+    assert "《民法典》第七百一十五条" in out
+    assert "《民法典》第七百一十六条" in out
+
+
+def test_expand_simple_continuation():
+    out = expand_citations("《民法典》第四百九十七条、第五百六十三条。")
+    assert "《民法典》第五百六十三条" in out
+
+
+def test_expand_idempotent_and_cross_sentence():
+    src = "《民法典》第一百八十二条。第一百八十三条另有规定。"
+    out = expand_citations(src)
+    assert "第一百八十三条" in out  # 跨句不归上一个书名（。断开）
+
+
+def test_expand_no_book_untouched():
+    out = expand_citations("合同第九条约定争议解决方式。")
+    assert out == "合同第九条约定争议解决方式。"
 
 
 # ---------------- strip_unprovided_notes ----------------

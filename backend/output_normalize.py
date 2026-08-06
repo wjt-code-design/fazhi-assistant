@@ -30,6 +30,41 @@ def money_normalize(text: str) -> str:
     return text
 
 
+# ---- 省略书名的连续条号展开（B3 补充，2026-08-07）----
+# 模型常输出"《民法典》第七百一十五条（...解释...）、第七百一十六条"——第二条省略书名，
+# 前端标注/弹卡需书名。展开为《最近书名》第X条：存储一致、citation_grounding 抽取更准。
+_LAW_LIKE_RE = re.compile(
+    r"(《([^》]{1,24}?)》\s*)?(第[零〇○一二三四五六七八九十百千万0-9０-９]+条(?:之[一二三四五六七八九十百千万0-9０-９]+)?)"
+)
+
+
+def expand_citations(text: str) -> str:
+    """把省略书名的独立「第X条」展开为《最近书名》第X条（同句内最近《X》）。
+
+    按句切分（。！？\n），句内维护最近书名；无书名可归的独立条号原样保留；
+    已有书名的完整引用原样保留（幂等，已展开文本重跑无变化）。
+    """
+    if not text:
+        return text
+    out: list[str] = []
+    for sent in re.split(r"(?<=[。！？!?\n])", text):
+        last = ""
+
+        def _repl(m: "re.Match") -> str:
+            nonlocal last
+            book = m.group(2) or ""
+            art = m.group(3)
+            if book:
+                last = book
+                return f"《{book}》{art}"
+            if last:
+                return f"《{last}》{art}"
+            return art
+
+        out.append(_LAW_LIKE_RE.sub(_repl, sent))
+    return "".join(out)
+
+
 # ---- 矛盾句删除 ----
 # 后端 prompt（SYSTEM_BASE #7）已不再要求模型写"建议核对原文"；此处是变体兜底，
 # 带库证据：库内（漏召回表象）删句，库外（真未收录）保留诚实说明。
