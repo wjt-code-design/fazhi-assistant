@@ -285,6 +285,7 @@ export default function ChatPage() {
   if (loading || !user) return null;
 
   function newChat() {
+    if (streaming) return; // 流式期间禁止切会话，防消息污染/conversationId 错位（对抗审计 2026-08-07）
     setMessages([]);
     setConversationId(null);
     setActiveId(null);
@@ -296,6 +297,7 @@ export default function ChatPage() {
   }
 
   async function selectConv(item: ConvItem) {
+    if (streaming) return; // 流式期间禁止切换会话，防消息污染/conversationId 错位（对抗审计 2026-08-07）
     setActiveId(item.id);
     setConversationId(item.id);
     setPendingImage(null);
@@ -319,6 +321,7 @@ export default function ChatPage() {
 
   // 删除历史对话（M5）：后端 DELETE /api/conversations/{id} 已就绪，前端接线
   async function deleteConv(id: number) {
+    if (streaming) return; // 流式期间禁止删除会话，防消息污染/conversationId 错位（对抗审计 2026-08-07）
     if (!window.confirm("确定删除这个对话吗？删除后不可恢复。")) return;
     try {
       await convApi.remove(id);
@@ -484,55 +487,75 @@ export default function ChatPage() {
     setStreaming(true);
 
     let acc = "";
-    await streamChat(
-      {
-        conversationId,
-        content: contentText,
-        image: image || undefined,
-        truncated,
-      },
-      (chunk) => {
-        acc += chunk;
-        setMessages((m) => {
-          const copy = [...m];
-          copy[copy.length - 1] = { ...copy[copy.length - 1], content: acc };
-          return copy;
-        });
-      },
-      (meta: ChatMeta) => {
-        setMessages((m) => {
-          const copy = [...m];
-          const last = copy[copy.length - 1];
-          if (last && meta.sources?.length) {
-            copy[copy.length - 1] = { ...last, sources: meta.sources };
+    try {
+      await streamChat(
+        {
+          conversationId,
+          content: contentText,
+          image: image || undefined,
+          truncated,
+        },
+        (chunk) => {
+          acc += chunk;
+          setMessages((m) => {
+            const copy = [...m];
+            copy[copy.length - 1] = { ...copy[copy.length - 1], content: acc };
+            return copy;
+          });
+        },
+        (meta: ChatMeta) => {
+          setMessages((m) => {
+            const copy = [...m];
+            const last = copy[copy.length - 1];
+            if (last && meta.sources?.length) {
+              copy[copy.length - 1] = { ...last, sources: meta.sources };
+            }
+            return copy;
+          });
+          if (meta.conversation_id != null) {
+            setConversationId(meta.conversation_id);
+            setActiveId(meta.conversation_id);
           }
-          return copy;
-        });
-        if (meta.conversation_id != null) {
-          setConversationId(meta.conversation_id);
-          setActiveId(meta.conversation_id);
+        },
+        (err) => {
+          setMessages((m) => {
+            const copy = [...m];
+            copy[copy.length - 1] = { ...copy[copy.length - 1], content: `出错了：${err}` };
+            return copy;
+          });
+        },
+        (steps) => {
+          // 合同评估分析进度（SSE step 事件）：更新最后一条 AI 消息的步骤区
+          setMessages((m) => {
+            const copy = [...m];
+            const last = copy[copy.length - 1];
+            if (last && last.role === "assistant") {
+              copy[copy.length - 1] = { ...last, steps };
+            }
+            return copy;
+          });
+        },
+        () => {
+          // 后端重试将零重答：清空已发的半截内容重新累积，防拼接乱码（对抗审计 2026-08-07）
+          acc = "";
+          setMessages((m) => {
+            const copy = [...m];
+            copy[copy.length - 1] = { ...copy[copy.length - 1], content: "" };
+            return copy;
+          });
         }
-      },
-      (err) => {
-        setMessages((m) => {
-          const copy = [...m];
-          copy[copy.length - 1] = { ...copy[copy.length - 1], content: `出错了：${err}` };
-          return copy;
-        });
-      },
-      (steps) => {
-        // 合同评估分析进度（SSE step 事件）：更新最后一条 AI 消息的步骤区
-        setMessages((m) => {
-          const copy = [...m];
-          const last = copy[copy.length - 1];
-          if (last && last.role === "assistant") {
-            copy[copy.length - 1] = { ...last, steps };
-          }
-          return copy;
-        });
-      }
-    );
-    setStreaming(false);
+      );
+    } catch (e) {
+      // 网络错误/流中断会让 streamChat reject——必须恢复 streaming 状态并提示，
+      // 否则 UI 永久卡在"正在生成"（对抗审计 2026-08-07）
+      setMessages((m) => {
+        const copy = [...m];
+        copy[copy.length - 1] = { ...copy[copy.length - 1], content: `出错了：${e instanceof Error ? e.message : String(e)}` };
+        return copy;
+      });
+    } finally {
+      setStreaming(false);
+    }
     loadHistory();
   }
 

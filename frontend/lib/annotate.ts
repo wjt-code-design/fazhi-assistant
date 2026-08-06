@@ -80,7 +80,9 @@ export function annotate(raw: string): string {
       if (standalone && lastBook && lastLawEnd >= 0) {
         // 组4（独立条号）存在：与上一处法条引用之间只允许连续符号/空白/平衡括号 → 归属上一个书名
         const gap = tmp.slice(lastLawEnd, offset);
-        if (/^(?:[、，,、\s]|（[^（）]*）|\([^()]*\))*$/.test(gap)) {
+        // \s 原含 \n/\r：跨行的独立条号被误归属上一书名，与上方注释（跨句含\n断开）矛盾。
+        // 改为仅"非换行空白" [^\S\r\n]——跨换行的独立条号断开归属（对抗审计 2026-08-07）
+        if (/^(?:[、，,、]|[^\S\r\n]|（[^（）]*）|\([^()]*\))*$/.test(gap)) {
           lastLawEnd = offset + full.length;
           return `<span class="law-ref" data-source="${lastBook}">第${standalone}条${szhi || ""}</span>`;
         }

@@ -21,7 +21,9 @@ class Settings(BaseSettings):
     # ---- 鉴权 ----
     jwt_secret: str = ""
     admin_username: str = "admin"
-    admin_password: str = "admin12345"
+    # 已由 seed_admin.py 从 ADMIN_PASSWORD 环境变量读取（此字段为死代码）；留空，
+    # 避免"看似已配置密码"的假象与公知默认口令（对抗审计 2026-08-07）
+    admin_password: str = ""
 
     # ---- 特性开关 ----
     feature_hybrid: bool = True  # 向量+BM25 RRF 混合检索
@@ -62,6 +64,9 @@ class Settings(BaseSettings):
     # ---- 合同 / 文书风险评估（确定性骨架，2026-08-06）----
     feature_multi_analyze: bool = True  # 合同评估开关（一键回滚）
     contract_max_chars: int = 12000  # 合同文本上限（之上截取并在报告注明）
+
+    # ---- 文件上传（chat_file / admin_upload 文本文件）----
+    upload_max_mb: int = 10  # 单个文本/文档上传大小上限
 
     # ---- 图片限制 ----
     image_max_mb: int = 5

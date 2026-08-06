@@ -22,7 +22,7 @@ services:
       - LLM_MODEL=${LLM_MODEL:-qwen3.5-omni-plus-2026-03-15}
       - JWT_SECRET=${JWT_SECRET}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
-      - ADMIN_PASSWORD=${ADMIN_PASSWORD}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?请在根 .env 设置 ADMIN_PASSWORD}
       - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
       # SQLite 落在挂载卷内（避免单文件挂载的目录坑）
       - DATABASE_URL=sqlite:////data/app.db

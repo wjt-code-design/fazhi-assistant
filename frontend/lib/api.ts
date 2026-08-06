@@ -33,6 +33,14 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   }
 
   const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  if (res.status === 401) {
+    // token 过期/失效：清本地凭据并回登录页，避免静默失效（对抗审计 2026-08-07）
+    setToken(null);
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
+    throw new ApiError(401, "登录已过期，请重新登录");
+  }
   if (!res.ok) {
     let detail = `请求失败（HTTP ${res.status}）`;
     try {
@@ -103,7 +111,8 @@ export async function streamChat(
   onChunk: (text: string) => void,
   onMeta: (meta: ChatMeta) => void,
   onError: (msg: string) => void,
-  onSteps?: (steps: AnalysisStep[]) => void
+  onSteps?: (steps: AnalysisStep[]) => void,
+  onRestart?: () => void
 ): Promise<void> {
   const token = getToken();
   const body: Record<string, unknown> = {};
@@ -122,6 +131,15 @@ export async function streamChat(
   });
 
   if (!res.ok || !res.body) {
+    if (res.status === 401) {
+      // token 过期/失效：清凭据并回登录页（对抗审计 2026-08-07）
+      setToken(null);
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        window.location.href = "/login";
+      }
+      onError("登录已过期，请重新登录");
+      return;
+    }
     let detail = `请求失败（HTTP ${res.status}）`;
     try {
       const d = await res.json();
@@ -150,6 +168,7 @@ export async function streamChat(
         if (p.error) onError(p.error);
         else if (typeof p.content === "string") onChunk(p.content);
         else if (p.type === "step" && Array.isArray(p.steps) && onSteps) onSteps(p.steps);
+        else if (p.type === "restart" && onRestart) onRestart();
         if (p.conversation_id !== undefined || p.sources !== undefined) {
           onMeta({ conversation_id: p.conversation_id, sources: p.sources });
         }

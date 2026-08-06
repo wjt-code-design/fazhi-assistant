@@ -170,11 +170,14 @@ def add_text(
     - seed：knowledge_base.build 直写，不走本函数。
     """
     with _WRITE_LOCK:
+        # 先收集旧文档 id，写入成功后再删——避免"先删旧再写"在嵌入/写库失败时
+        # 旧知识已被删且无回滚 → 文档/条文静默丢失（对抗审计 2026-08-07）
+        stale_ids: list = []
         if file_hash_value:
             try:
-                _collection().delete(where={"file_hash": file_hash_value})
+                stale_ids = list(_collection().get(where={"file_hash": file_hash_value})["ids"])
             except Exception:
-                pass
+                stale_ids = []
         if origin == "upload":
             chunks = chunking.split_law_document(content)
             pairs = [
@@ -184,17 +187,23 @@ def add_text(
         else:
             if origin in ("manual", "import") and article:
                 try:
-                    stale = _collection().get(where={"$and": [{"source": source}, {"article": article}]})["ids"]
-                    if stale:
-                        _collection().delete(ids=stale)
+                    stale_ids = list(_collection().get(where={"$and": [{"source": source}, {"article": article}]})["ids"])
                 except Exception:
-                    pass
+                    stale_ids = []
             chunks = chunking.split_article_text(content, article=article)
             pairs = [
                 (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")})
                 for c in chunks
             ]
-        return add_chunks(pairs, source=source, origin=origin, extra_meta=extra_meta, file_hash_value=file_hash_value)
+        n = add_chunks(pairs, source=source, origin=origin, extra_meta=extra_meta, file_hash_value=file_hash_value)
+        # 写入成功后再删旧（add_chunks 已失效检索缓存；同一 RLock 内紧凑执行）。
+        # 失败仅导致新旧短暂共存，下次重传仍会清理——可接受，优于删旧失败丢知识。
+        if n and stale_ids:
+            try:
+                _collection().delete(ids=stale_ids)
+            except Exception:
+                pass
+        return n
 
 
 def delete_doc(doc_id: str):

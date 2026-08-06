@@ -124,6 +124,52 @@ from slowapi.util import get_remote_address
 limiter = Limiter(key_func=get_remote_address)
 
 
+async def _read_capped(file: UploadFile, max_bytes: int, detail: str) -> bytes:
+    """流式读取上传文件，按实际接收字节累计，超限立即 413。
+
+    防无界内存（原 file.read() 在校验前把整个文件物化为 bytes）：Content-Length
+    可被伪造/缺失，必须按真实接收字节计数而非信任请求头。
+    """
+    out = bytearray()
+    while True:
+        chunk = await file.read(256 * 1024)
+        if not chunk:
+            break
+        out += chunk
+        if len(out) > max_bytes:
+            raise HTTPException(status_code=413, detail=detail)
+    return bytes(out)
+
+
+class MaxContentLengthMiddleware:
+    """纯 ASGI 预检：content-length 超过上限直接 413，避免超大请求体进入 spool/内存。
+
+    用类而非 @app.middleware("http")（后者 BaseHTTPMiddleware 会缓冲流式 body，
+    与 RequestIdMiddleware 同款约束）。Content-Length 可伪造，这只是第一层防御，
+    真正的上限由各端点的 _read_capped 按实际字节强制。
+    """
+
+    def __init__(self, app, max_bytes: int):
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        headers = dict(scope.get("headers") or [])
+        cl = headers.get(b"content-length")
+        if cl:
+            try:
+                if int(cl) > self.max_bytes:
+                    resp = JSONResponse(status_code=413, content={"detail": f"请求体过大（>{self.max_bytes // (1024 * 1024)}MB）"})
+                    await resp(scope, receive, send)
+                    return
+            except (ValueError, TypeError):
+                pass
+        await self.app(scope, receive, send)
+
+
 @asynccontextmanager
 async def lifespan(_app):
     setup_logging(settings.log_level)
@@ -158,6 +204,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(RequestIdMiddleware)  # 纯 ASGI，不缓冲流式 body
+# 后注册者在外层：Content-Length 预检最先执行（>12MB 请求体直接 413，防 OOM）
+app.add_middleware(MaxContentLengthMiddleware, max_bytes=12 * 1024 * 1024)
 
 
 # ==================== 健康检查 ====================
@@ -263,12 +311,23 @@ def me(user: User = Depends(get_current_user)):
 
 # ==================== 受鉴权的媒体文件（历史图片回显） ====================
 @app.get("/api/media/{filepath:path}")
-def get_media(filepath: str, _user: User = Depends(get_current_user)):
+def get_media(filepath: str, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     base = os.path.dirname(MEDIA_DIR)
     full = os.path.normpath(os.path.join(base, filepath))
     # 防路径穿越：必须落在 media 目录内
     if full != os.path.normpath(MEDIA_DIR) and not full.startswith(os.path.normpath(MEDIA_DIR) + os.sep):
         raise HTTPException(status_code=400, detail="非法路径")
+    # 归属校验（BOLA/IDOR，对抗审计 2026-08-07）：文件必须属于当前用户的会话消息，
+    # 否则 404（与"文件不存在"同语义，不泄露存在性）。image_ref/thumb_ref 均为相对路径。
+    owned = (
+        db.query(Message)
+        .join(Conversation, Message.conversation_id == Conversation.id)
+        .filter(Conversation.user_id == user.id)
+        .filter((Message.image_ref == filepath) | (Message.thumb_ref == filepath))
+        .first()
+    )
+    if owned is None:
+        raise HTTPException(status_code=404, detail="文件不存在")
     if not os.path.isfile(full):
         raise HTTPException(status_code=404, detail="文件不存在")
     return FileResponse(full)
@@ -333,6 +392,18 @@ def _rewrite_for_retrieval(raw_query: str, recent_ser: list, recent: list, has_o
 
 # 会话级合同状态（code-review #1：续聊短句追问不脱离合同路径；内存集，重启清空）
 _contract_convs: set[int] = set()
+# 已产出完整评估报告的会话（区分"首次真评估"与"续聊追问"；need_clarify 反问不算）
+_contract_reviewed_convs: set[int] = set()
+# 合同模式退出短语：用户明确离开/换话题 → 清会话级合同状态，走普通法律问答（对抗审计 2026-08-07）
+_CONTRACT_EXIT_MARKS = (
+    "退出合同", "不审合同", "不用审了", "不再审合同", "结束合同", "结束评估",
+    "换个话题", "换一个问题", "暂停", "结束",
+)
+
+
+def _is_contract_exit(text: str) -> bool:
+    t = (text or "").strip().lower()
+    return any(m in t for m in _CONTRACT_EXIT_MARKS)
 
 
 def _contract_messages(pre: dict, cd: dict) -> list:
@@ -350,8 +421,10 @@ def _contract_messages(pre: dict, cd: dict) -> list:
         evidence.append(f"[{b['n']}. {b['label']}] 风险标签：{tags}\n{b['text']}\n（相关条文：{arts}）")
     evidence_block = "\n\n".join(evidence)
 
-    answered_before = any(m.get("role") == "assistant" for m in pre.get("recent", []))
-    is_followup = pre.get("conv_id") in _contract_convs and answered_before
+    # 追问判定用「是否已产出过完整报告」，而非「recent 有无 assistant 消息」——
+    # need_clarify 信息确认反问也是 assistant 消息，会把首次真评估误判成追问、
+    # 跳过完整报告模板（对抗审计 2026-08-07）
+    is_followup = pre.get("conv_id") in _contract_reviewed_convs
 
     if is_followup:
         # 追问：带历史（模型可见已答内容）+ 当前追问，只答追问，不重出报告
@@ -410,10 +483,16 @@ def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool
         # 或本会话上轮已进合同模式（续聊短句追问不脱离合同路径，code-review #1）。
         # 2026-08-06 图片识别合同（二期）：去 not image——多模态转写出的合同全文（desc）
         # 触发 is_contract_review 即进合同路径；普通图片描述不触发，走原多模态问答。
+        # 合同模式退出（对抗审计 2026-08-07）：明确表达离开/换话题 → 清会话级合同状态，
+        # 后续问题走普通法律问答，不再被强制路由进合同路径
+        _raw_q = text or raw_query
+        if conv.id in _contract_convs and _is_contract_exit(_raw_q):
+            _contract_convs.discard(conv.id)
+            _contract_reviewed_convs.discard(conv.id)
         contract_mode = (
             settings.feature_multi_analyze
             and intent == "legal_query"
-            and (is_contract_review(text or raw_query) or conv.id in _contract_convs)
+            and (is_contract_review(_raw_q) or conv.id in _contract_convs)
         )
 
         if intent == "study_aid":
@@ -619,6 +698,23 @@ def _post(pre: dict, answer: str, curate: bool = True):
         db.close()
 
 
+def _post_placeholder(pre: dict) -> None:
+    """SSE 失败/空答的补偿：落一条 assistant 占位消息，保持 user/assistant 成对与 message_count 一致。
+
+    _pre 已落库用户消息；若流式生成失败/空答时 _post 从未执行，会留下无答复的用户消息、
+    计数永久错位（对抗审计 2026-08-07）。占位不沉淀、不压缩。
+    """
+    db = SessionLocal()
+    try:
+        db.add(Message(conversation_id=pre["conv_id"], role="assistant", content="服务暂时无响应，请稍后重试。"))
+        conv = db.get(Conversation, pre["conv_id"])
+        conv.message_count = (conv.message_count or 0) + 1
+        conv.last_active_at = datetime.utcnow()
+        db.commit()
+    finally:
+        db.close()
+
+
 def _usage_total(resp) -> int | None:
     """从 langchain 响应读 total_tokens（兼容 usage_metadata / response_metadata）。"""
     if resp is None:
@@ -756,12 +852,30 @@ def _qa_direct_return(pre: dict) -> str | None:
         return None  # 同题干换选项内容 → 直返必错（C4）
     evidence = qa.get("evidence") or ""
     if "|" in evidence:
+        # 种子格式：source|article
         src, art = evidence.split("|", 1)
         try:
             if not exact_article_lookup(src, art):
                 return None  # 证据条文已失效/不在库 → 不直返
         except Exception:
             return None
+    elif evidence.lstrip().startswith("["):
+        # 自动沉淀格式：JSON 数组 [{source, article, ...}]——逐条校验，任一条失效 → 不直返
+        # （原只认 "|" 格式，自动沉淀的 JSON evidence 被静默跳过时效护栏，对抗审计 2026-08-07）
+        try:
+            refs = json.loads(evidence)
+        except Exception:
+            return None
+        for r in refs:
+            src = (r or {}).get("source", "")
+            art = (r or {}).get("article", "")
+            if src and art:
+                try:
+                    if not exact_article_lookup(src, art):
+                        return None
+                except Exception:
+                    return None
+    # feedback:... 等其他 evidence 无条文引用 → 跳过时效校验
     return qa.get("answer") or None
 
 
@@ -825,7 +939,7 @@ async def chat_file(request: Request, file: UploadFile = File(...), user: User =
     """文件→文本（合同评估/普通问答输入，二期）。复用 knowledge_service 解析
     （txt/md/pdf/docx，魔数校验），零 LLM 零 BGE。前端拿文本后走现有 /api/chat 管线。
     """
-    raw = await file.read()
+    raw = await _read_capped(file, settings.upload_max_mb * 1024 * 1024, f"文件过大（>{settings.upload_max_mb}MB）")
     try:
         ext, text = ks.parse_upload_or_raise(file.filename, raw)  # 与 admin_upload 共用（code-review Standards）
     except ValueError as ve:
@@ -860,7 +974,7 @@ async def chat_transcribe(
     """
     if not settings.feature_transcribe:
         raise HTTPException(status_code=501, detail="语音转写未启用（feature_transcribe=False）")
-    raw = await file.read()
+    raw = await _read_capped(file, settings.audio_max_mb * 1024 * 1024, f"音频过大（>{settings.audio_max_mb}MB）")
     fname = file.filename or ""
     ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
     if ext not in AUDIO_EXTS:
@@ -897,7 +1011,7 @@ async def admin_analysis_runs(request: Request, limit: int = 50, admin: User = D
     def _do():
         db = SessionLocal()
         try:
-            rows = db.query(AnalysisRun).order_by(AnalysisRun.created_at.desc()).limit(min(limit, 200)).all()
+            rows = db.query(AnalysisRun).order_by(AnalysisRun.created_at.desc()).limit(max(1, min(limit, 200))).all()
             return [
                 {
                     "id": r.id,
@@ -1133,18 +1247,48 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 ]
                 yield f"data: {json.dumps({'type': 'step', 'steps': _steps}, ensure_ascii=False)}\n\n"
                 chunks = []
+                # 重试队列 + 失败记账（对抗审计 2026-08-07）：合同分支原为固定回退
+                # registry.variant(True) + on_model_failure 空实现 + 零扣减——后备模型从不记账
+                _ccur = {"key": flag_key}
+                _rstart = False  # 重试零重答：清空半截并通知前端（对抗审计 2026-08-07）
+
+                def _cmake_chain(_i, _disabled):
+                    if use_router:
+                        if _i == 0 and _ccur["key"]:
+                            return make_chain(flag_llm)
+                        key, llm, _ = _safe_pick(modality, tier or "flag")
+                        _ccur["key"] = key
+                        return make_chain(llm)
+                    return make_chain(registry.get() if _i == 0 else registry.variant(True))
+
+                def _cfail(_e):
+                    nonlocal _rstart
+                    if use_router and _ccur["key"]:
+                        registry.mark_depleted(_ccur["key"], "model_failure")
+                    _rstart = True
+
                 async for piece in stream_with_retry(
-                    lambda _i, _d: make_chain(flag_llm if _i == 0 else registry.variant(True)),
+                    _cmake_chain,
                     cm,
                     [(False, 0.0), (True, 0.5), (False, 0.5)],
-                    on_model_failure=lambda _e: None,
+                    on_model_failure=_cfail if use_router else None,
                 ):
+                    if _rstart:
+                        _rstart = False
+                        chunks = []
+                        _f0 = None
+                        yield f"data: {json.dumps({'type': 'restart'}, ensure_ascii=False)}\n\n"
                     if _f0 is None:
                         _f0 = time.perf_counter()
                     chunks.append(piece)
                     yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"
                 answer = "".join(chunks)
                 if answer:
+                    _contract_reviewed_convs.add(pre["conv_id"])  # 完整报告已产出：之后续聊才算追问
+                    # 合同分支补配额记账（原零扣减，后备模型用量从不计入）
+                    if use_router and _ccur["key"]:
+                        est = estimate_tokens(answer) + estimate_tokens(pre.get("context", "") + pre.get("user_text", ""))
+                        registry.deduct(_ccur["key"], est * registry.thinking_mult(_ccur["key"]))
                     bad = citation_verify(answer)
                     if cache_key:
                         # 继承回答缓存（code-review #5：重复贴同一合同零重烧）
@@ -1210,6 +1354,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
 
             # 分支2：旗舰 / legacy 流式（空答重试 + 配额耗尽自动换模型 块2.2）
             current = {"key": flag_key}
+            _restart_pending = False  # 重试将零重答：清空已发半截，防拼接（对抗审计 2026-08-07）
 
             def make_chain_fn(_i, disabled):
                 # 首次用已 pick 的模型；重试（空答/配额耗尽 mark_depleted 后）重新 pick →
@@ -1230,8 +1375,10 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             def _on_model_failure(_e):
                 # 任何失败（配额耗尽/模型名错/瞬时错误，真实 API 报错非估算）→ 立即
                 # mark_depleted，下一轮落后备——确保没人盯梢也能自动切换（用户核心要求）
+                nonlocal _restart_pending
                 if use_router and current["key"]:
                     registry.mark_depleted(current["key"], "model_failure")
+                _restart_pending = True  # 下一 config 将从零重答：前端需清空半截
 
             chunks = []
             _f0 = None
@@ -1239,6 +1386,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 make_chain_fn, messages, [(False, 0.0), (True, 0.5), (False, 0.5)],
                 on_model_failure=_on_model_failure,
             ):
+                if _restart_pending:
+                    # 上一个模型失败、即将从零重答：先清空已发半截并通知前端（防拼接乱码）
+                    _restart_pending = False
+                    chunks = []
+                    _f0 = None
+                    yield f"data: {json.dumps({'type': 'restart'}, ensure_ascii=False)}\n\n"
                 if _f0 is None:
                     _f0 = time.perf_counter()  # 真流式：首个 token 时刻（首帧埋点）
                 chunks.append(piece)
@@ -1280,10 +1433,15 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         kind="multi_incomplete",
                         conv_id=pre["conv_id"],
                         user_id=user.id,
-                        detail=(pre.get("user_text") or "")[:200],
+                        detail=f"len={len((pre.get('user_text') or ''))}",
                     )
             if not answer:
                 yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
+                # 空答补偿：用户消息已落库，落一条占位 assistant 消息保持成对（对抗审计 2026-08-07）
+                try:
+                    await run_in_threadpool(_post_placeholder, pre)
+                except Exception as e:
+                    print(f"[chat-placeholder] {e}", flush=True)
             # S3+S6：旗舰流式路径也跑自检 + 写缓存（让缓存/自检对 text 生效，不只轻量分支）。
             # 自检 PASS 才写缓存；FAIL 则旗舰无更强模型可升，追加核对注（S6 兜底扩展到旗舰）。
             verdict_flag = "pass" if answer else "empty"
@@ -1316,15 +1474,18 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield f"data: {json.dumps({'content': NOTE_QUOTA}, ensure_ascii=False)}\n\n"
             # 流式无真实 usage → 按输出 + 主要输入估算扣减（补输入，避免长期低估）。
             # thinking 模型 reasoning_content 不计入估算 → ×thinking_mult 近似（审查 K1）
-            if use_router and flag_key and answer:
+            # failover 后按真正回答的模型扣减（current["key"] 由 make_chain_fn 在重试时
+            # _safe_pick 更新），而非最初 flag_key——否则后备模型用量从不记账、
+            # 看门狗 mark_depleted 的 key 与实际扣减 key 错位（对抗审计 2026-08-07）
+            if use_router and current["key"] and answer:
                 est = estimate_tokens(answer) + estimate_tokens(pre.get("context", "") + pre.get("user_text", ""))
-                registry.deduct(flag_key, est * registry.thinking_mult(flag_key))
+                registry.deduct(current["key"], est * registry.thinking_mult(current["key"]))
             routing_metrics.record(
                 (tier or "flag") if use_router else "legacy", False, verdict_flag, "miss",
                 checked=bool(use_router and answer),
             )
             log_account(
-                model=registry.model_of(flag_key) if use_router else registry.config()["model"],
+                model=(registry.model_of(current["key"]) if use_router and current["key"] else registry.config()["model"]),
                 tier=(tier or "flag") if use_router else "legacy", cache="miss",
                 token_est=estimate_tokens(answer) if answer else 0,
                 first_ms=round((_f0 - t0) * 1000, 1) if _f0 else None,
@@ -1344,10 +1505,20 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
         except LLMBusyError:
             # 并发门控降级：不占日志噪音（每次 surge 都刷不可取），仅下发繁忙提示
             yield f"data: {json.dumps({'error': '服务繁忙，请稍后重试'}, ensure_ascii=False)}\n\n"
+            # 补偿：_post 未执行（try 中途抛错）→ 占位 assistant 消息保持成对（对抗审计 2026-08-07）
+            try:
+                await run_in_threadpool(_post_placeholder, pre)
+            except Exception as e:
+                print(f"[chat-placeholder] {e}", flush=True)
         except Exception as e:
             # 详情只进日志：str(e) 可能含内部 model id / 供应商错误体 / 服务器路径，不得下发普通用户
             print(f"[chat-stream] {type(e).__name__}: {e}", flush=True)
             yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
+            # 补偿：_post 未执行 → 占位 assistant 消息保持成对（对抗审计 2026-08-07）
+            try:
+                await run_in_threadpool(_post_placeholder, pre)
+            except Exception as e:
+                print(f"[chat-placeholder] {e}", flush=True)
 
     return StreamingResponse(stream(), media_type="text/event-stream")
 
@@ -1501,6 +1672,9 @@ def admin_delete_user(user_id: int, db: Session = Depends(get_db), _admin: User 
 def admin_conversations(
     limit: int = 50, offset: int = 0, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
 ):
+    # 分页钳制（对抗审计 2026-08-07）：limit 负数被 SQLite 当作"不限"全表导出，offset 负数触发 500
+    limit = max(1, min(limit, 500))
+    offset = max(0, offset)
     rows = (
         db.query(Conversation, User.username)
         .join(User, Conversation.user_id == User.id)
@@ -1545,7 +1719,7 @@ def admin_delete_knowledge(doc_id: str, _admin: User = Depends(require_admin)):
 @app.post("/api/admin/knowledge/upload")
 @limiter.limit("10/minute")
 async def admin_upload(request: Request, file: UploadFile = File(...), admin: User = Depends(require_admin)):
-    raw = await file.read()
+    raw = await _read_capped(file, settings.upload_max_mb * 1024 * 1024, f"文件过大（>{settings.upload_max_mb}MB）")
     try:
         _ext, text = ks.parse_upload_or_raise(file.filename, raw)  # 与 chat_file 共用（code-review Standards）
     except ValueError as ve:
@@ -1699,7 +1873,13 @@ def admin_audit(limit: int = 100, db: Session = Depends(get_db), _admin: User = 
 
 # ==================== 用户反馈（点赞/踩/纠错） ====================
 @app.post("/api/feedback")
-def post_feedback(body: FeedbackIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@limiter.limit("20/minute")
+def post_feedback(request: Request, body: FeedbackIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    # 归属校验：conversation_id 必须属于当前用户（防伪造他人会话反馈、灌爆待审队列，对抗审计 2026-08-07）
+    if body.conversation_id is not None:
+        conv = db.get(Conversation, body.conversation_id)
+        if conv is None or conv.user_id != user.id:
+            raise HTTPException(status_code=404, detail="会话不存在")
     fb = Feedback(
         user_id=user.id,
         conversation_id=body.conversation_id,
@@ -1713,8 +1893,19 @@ def post_feedback(body: FeedbackIn, user: User = Depends(get_current_user), db: 
     db.refresh(fb)
     # 负反馈或带纠错 → 进受控沉淀待审，供管理员采纳"修正后的答案"（点赞不自动入库，避免污染）
     if body.rating == "down" or (body.correction and body.correction.strip()):
-        propose = (body.correction or "").strip() or body.answer
-        ks.create_candidate(db, body.question, propose, 0.0, f"feedback:{body.rating}")
+        # 去重：同一问题同一来源（feedback:down/up）已有待审候选则不再入队，防刷队列
+        dup = (
+            db.query(QaCandidate)
+            .filter(
+                QaCandidate.question == body.question,
+                QaCandidate.status == "pending",
+                QaCandidate.evidence == f"feedback:{body.rating}",
+            )
+            .first()
+        )
+        if dup is None:
+            propose = (body.correction or "").strip() or body.answer
+            ks.create_candidate(db, body.question, propose, 0.0, f"feedback:{body.rating}")
     return {"id": fb.id}
 
 

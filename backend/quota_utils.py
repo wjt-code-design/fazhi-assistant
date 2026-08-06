@@ -88,12 +88,20 @@ def utility_quota_ok(name: str, hard: float) -> bool:
     return utility_pct_left(name) >= hard
 
 
+# 进程内失败模型记忆：未启用配额监控（total<=0）时 mark_utility_depleted 原为 no-op，
+# 导致每个请求都对坏模型重试一次网络往返（对抗审计 2026-08-07）。重启清空可接受。
+_depleted_mem: set[str] = set()
+
+
 def mark_utility_depleted(name: str) -> None:
     """工具模型（rerank/embedding）真实失败时标记耗尽（块 2.2 扩展到工具模型）：
-    置 used = total - initial（remaining=0）→ 下次轮换自动跳过，不靠估算。"""
+    置 used = total - initial（remaining=0）→ 下次轮换自动跳过，不靠估算。
+    未启用配额监控时也记入内存集合，避免坏模型反复重试。"""
+    if name:
+        _depleted_mem.add(name)
     total = utility_quota_total_for(name)
     if total <= 0:
-        return  # 未启用配额监控：无需标记
+        return  # 未启用配额监控：仅内存记忆，不落库
     used_target = max(0, total - _quota_initial(name))
     quota_store.set_used(name, used_target)
 
@@ -111,9 +119,15 @@ def rerank_active_model() -> str | None:
     if not models:
         return None
     if all(utility_quota_total_for(m) <= 0 for m in models):
-        return models[0]
+        # 纯开关模式（无配额监控）：跳过内存失败模型；全失败 → 回落 cosine 精排
+        for m in models:
+            if m not in _depleted_mem:
+                return m
+        return None
     hard = settings.rerank_hard_threshold
     for m in models:
+        if m in _depleted_mem:
+            continue
         if utility_quota_total_for(m) <= 0:
             continue
         if utility_quota_ok(m, hard):
