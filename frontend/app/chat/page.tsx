@@ -142,6 +142,23 @@ export default function ChatPage() {
   const wavRecRef = useRef<{ stop: () => Promise<Blob> } | null>(null);
   const voiceTimeoutRef = useRef<number | null>(null);
 
+  // 浮层渲染后量高：下方空间不足则翻到 ref 上方（上下自适应）。
+  // 注意：必须放在上方 `if (loading || !user) return null;` 之前——hook 不能被提前 return 跳过，
+  // 否则认证通过后 hook 数变化，React 抛「Rendered more hooks than during the previous render」。
+  useLayoutEffect(() => {
+    const node = popupNodeRef.current;
+    if (!lawPopup || !node || lawPopup.flipped) return;
+    const c = scrollRef.current;
+    if (!c) return;
+    const h = node.offsetHeight;
+    const spaceBelow = c.clientHeight - lawPopup.top;
+    if (spaceBelow < h + 8 && popupRefEl.current) {
+      const cr = c.getBoundingClientRect();
+      const refTop = popupRefEl.current.getBoundingClientRect().top - cr.top + c.scrollTop;
+      setLawPopup((p) => (p ? { ...p, top: Math.max(8, refTop - h - 8), flipped: true } : p));
+    }
+  }, [lawPopup]);
+
   useEffect(() => {
     if (!loading) {
       if (!user) router.replace("/login");
@@ -540,21 +557,6 @@ export default function ChatPage() {
       placeLawPopup(ref, law);
     }
   }
-
-  // 浮层渲染后量高：下方空间不足则翻到 ref 上方（上下自适应）
-  useLayoutEffect(() => {
-    const node = popupNodeRef.current;
-    if (!lawPopup || !node || lawPopup.flipped) return;
-    const c = scrollRef.current;
-    if (!c) return;
-    const h = node.offsetHeight;
-    const spaceBelow = c.clientHeight - lawPopup.top;
-    if (spaceBelow < h + 8 && popupRefEl.current) {
-      const cr = c.getBoundingClientRect();
-      const refTop = popupRefEl.current.getBoundingClientRect().top - cr.top + c.scrollTop;
-      setLawPopup((p) => (p ? { ...p, top: Math.max(8, refTop - h - 8), flipped: true } : p));
-    }
-  }, [lawPopup]);
 
   async function doLawSearch() {
     const q = lawQ.trim();
