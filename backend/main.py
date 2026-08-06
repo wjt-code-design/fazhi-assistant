@@ -28,6 +28,7 @@ import chunking
 import clarify
 import complexity
 import knowledge_service as ks
+import output_normalize
 import quality
 import query_understand
 import quota_store
@@ -69,6 +70,7 @@ from prompts import (
     OUTPUT_FORMAT_RULE,
     SYSTEM_BASE,
     SYSTEM_CHEATING,
+    SYSTEM_CONTRACT_FOLLOWUP,
     SYSTEM_CONTRACT_REVIEW,
     SYSTEM_STUDY,
 )
@@ -76,9 +78,12 @@ from quota_utils import UtilityQuotaExhausted
 from rag_chain import clean_answer, embeddings, format_docs, make_chain, stream_with_retry, vectorstore
 from retrieval import (
     _normalize_article,
+    article_in_kb,
+    citation_grounding,
     citation_verify,
     exact_article_lookup,
     extract_citations,
+    source_in_kb,
     grounded_top_score,
     prewarm,
     retrieve,
@@ -331,17 +336,45 @@ _contract_convs: set[int] = set()
 
 
 def _contract_messages(pre: dict, cd: dict) -> list:
-    """组装合同报告 messages（SYSTEM_CONTRACT_REVIEW + 分条款证据块）。"""
+    """组装合同 messages（首轮 = 完整报告；追问 = 只答追问）。
+
+    B5（2026-08-07）根因修复：之前只构造 [System, Human(证据+请按模板输出报告)]，
+    丢历史 `pre["recent"]` + 丢当前追问 `pre["user_text"]`，且 SYSTEM_CONTRACT_REVIEW
+    每次强制全报告模板 → 追问时模型看不到追问、只会重新输出整份报告。
+    现按「首轮 / 追问」分流：追问带历史 Q&A + 当前追问，换 SYSTEM_CONTRACT_FOLLOWUP。
+    """
     evidence = []
     for b in cd["blocks"]:
         arts = "、".join(b["articles"]) or "（无命中条文，依据为检索结果）"
         tags = "、".join(b["tags"]) or "无"
         evidence.append(f"[{b['n']}. {b['label']}] 风险标签：{tags}\n{b['text']}\n（相关条文：{arts}）")
+    evidence_block = "\n\n".join(evidence)
+
+    answered_before = any(m.get("role") == "assistant" for m in pre.get("recent", []))
+    is_followup = pre.get("conv_id") in _contract_convs and answered_before
+
+    if is_followup:
+        # 追问：带历史（模型可见已答内容）+ 当前追问，只答追问，不重出报告
+        history = []
+        for m in pre["recent"]:
+            content = m.get("content") or ""
+            if m.get("role") == "user":
+                history.append(HumanMessage(content=content))
+            else:
+                history.append(AIMessage(content=content))
+        sys_text = SYSTEM_BASE + SYSTEM_CONTRACT_FOLLOWUP
+        user_content = (
+            f"【合同（分条款）】\n{evidence_block}\n\n"
+            f"用户追问：{pre.get('user_text') or ''}\n\n"
+            "请直接针对上面的追问回答，不要重新输出完整风险评估报告。"
+        )
+        return [SystemMessage(content=sys_text)] + history + [HumanMessage(content=user_content)]
+
+    # 首轮：完整评估报告
     sys_text = SYSTEM_BASE + SYSTEM_CONTRACT_REVIEW
     sys_text += f"\n（本份合同总体风险等级：{cd['level']}——判定依据：{cd['basis']}）"
     if cd.get("truncated"):
         sys_text += "\n（合同过长已截取前段，末尾请列出'未覆盖条款段'清单，建议用户分段审查）"
-    evidence_block = "\n\n".join(evidence)
     user_content = f"【合同（分条款）】\n{evidence_block}\n\n请按模板输出合同风险评估报告。"
     return [SystemMessage(content=sys_text), HumanMessage(content=user_content)]
 
@@ -537,13 +570,27 @@ def _record_analysis(
         db.close()
 
 
+# 三分法接地量化（B3）：in_context / recall_miss / hallucination 累计，进程内。
+# 供验收/复盘读值；后续可接 admin 面板。多 worker 下为分片值（单 worker 部署无此问题）。
+_grounding_stats: dict = {"in_context": 0, "recall_miss": 0, "hallucination": 0}
+
+
 def _post(pre: dict, answer: str, curate: bool = True):
     """流式后的写库 + 受控沉淀 + 压缩（独立会话，线程池内，不阻塞用户该轮）。
 
     curate=False：缓存命中路径——答案当初已沉淀过，跳过避免重复候选。
+
+    B1/B2/B3（2026-08-07）：写库前做生成层输出归一（零 LLM 零 BGE 确定性）——
+    money_normalize 币种 $/¥→元；strip_unprovided_notes 删"未检索到/建议核对"矛盾句
+    （带库证据：库内删、库外保）；legal_query 跑三分法接地量化漏召回/幻觉率。
     """
     db = SessionLocal()
     try:
+        # 生成层输出归一（幂等，缓存命中路径重跑无害）
+        answer = output_normalize.money_normalize(answer)
+        answer = output_normalize.strip_unprovided_notes(answer, source_in_kb)
+        if pre.get("intent") == "legal_query":
+            citation_grounding(answer, pre.get("sources") or [], _grounding_stats)
         db.add(Message(conversation_id=pre["conv_id"], role="assistant", content=answer))
         conv = db.get(Conversation, pre["conv_id"])
         conv.message_count = (conv.message_count or 0) + 1
@@ -599,8 +646,9 @@ def _safe_pick(modality: str, tier: str) -> tuple[str, Any, bool]:
 
 
 # 核对/降级提示（轻量升级失败、旗舰自检失败、配额紧张共用，避免字面量重复）
-NOTE_COMPLEX = "\n\n> 注：该问题较复杂，回答仅供参考，建议核对条文原文。"
-NOTE_QUOTA = "\n\n> 注：模型配额紧张，本回答仅供参考，建议核对条文原文。"
+# B1（2026-08-07）：去掉"建议核对条文原文"——前端曾为清这句写 stripUnprovidedHint，后端不再制造该噪音
+NOTE_COMPLEX = "\n\n> 注：该问题较复杂，本回答仅供参考。"
+NOTE_QUOTA = "\n\n> 注：模型配额紧张，本回答仅供参考。"
 
 # 低置信反问计数（任务2）：conv_id → 已反问（最多一次，防死循环）。进程内状态，
 # 单 worker 下有效（ADR-008 单 worker 约束）；重启清零可接受——反问上限防的是同会话循环。
@@ -871,10 +919,14 @@ async def admin_analysis_runs(request: Request, limit: int = 50, admin: User = D
 @app.get("/api/law")
 @limiter.limit("60/minute")
 async def law_detail(request: Request, source: str, article: str, user: User = Depends(get_current_user)):
-    """法条原文（前端法条悬浮卡 / 速查面板，P1）。复用 exact_article_lookup，未命中 404。"""
+    """法条原文（前端法条悬浮卡 / 速查面板，P1）。复用 exact_article_lookup，未命中 404。
+
+    B3（2026-08-07）：article 先 _normalize_article 归一（〇/零、阿拉伯/中文、之条），
+    前端传原始条号文本即可命中，不再自行拼"第X条"。
+    """
 
     def _do():
-        docs = exact_article_lookup(source, article)
+        docs = exact_article_lookup(source, _normalize_article(article))
         if not docs:
             return None
         d = docs[0]
@@ -1207,7 +1259,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             if answer:
                 bad_cites = citation_verify(answer)
                 if bad_cites:
-                    note = "\n\n> 注：回答中引用的 " + "、".join(bad_cites) + " 未在知识库中检索到，建议核对条文原文。"
+                    # B1：中性措辞，不再"建议核对原文"（该句曾是前端 stripUnprovidedHint 要删的噪音）
+                    note = "\n\n> 注：回答中引用的 " + "、".join(bad_cites) + " 未收录于本知识库。"
                     answer += note
                     yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
                     log_account(

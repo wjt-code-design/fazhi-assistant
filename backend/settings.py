@@ -51,6 +51,8 @@ class Settings(BaseSettings):
     rerank_base_url: str = "https://dashscope.aliyuncs.com/compatible-api/v1"
     rerank_model: str = "qwen3-rerank"  # 兼容：当前模型（body.model 由 _active_rerank_model 定）
     rerank_models: str = "qwen3-rerank,gte-rerank-v2,qwen3-vl-rerank"  # 轮换序列（逗号分隔，顺序即优先级）
+    # gte-rerank-v2 / qwen3-vl-rerank 原生端点（OpenAI 兼容 /reranks 不支持这两个模型，2026-08-07 实测）
+    rerank_native_url: str = "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank"
     rerank_quota_total: int = 0  # 0=不启用配额监控（单模型默认配额）
     rerank_quota_totals: str = ""  # 逗号分隔，与 rerank_models 对齐（每模型配额）；空则各模型用 rerank_quota_total
     rerank_quota_initial: int = 0

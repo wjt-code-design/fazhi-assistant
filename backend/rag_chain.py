@@ -20,6 +20,7 @@ from langchain_core.embeddings import Embeddings
 from langchain_core.output_parsers import StrOutputParser
 from langchain_huggingface import HuggingFaceEmbeddings
 
+import output_normalize  # noqa: E402
 import quota_utils  # noqa: E402
 from llm_guard import llm_guard  # noqa: E402
 from settings import settings  # noqa: E402
@@ -127,6 +128,63 @@ def make_chain(llm):
     return llm | StrOutputParser()
 
 
+class _ThinkStripper:
+    """流式有状态剥 <think>...</think>，跨 piece 半截标签安全（B4，2026-08-07）。
+
+    之前是先流出再 clean_answer 剥——thinking 块会漏进 SSE；改为在 yield 处逐 piece 剥，
+    用尾部 carry 处理 <think>/</think> 被截断在 piece 边界的半截标签。
+    """
+
+    _OPEN = "<think>"
+    _CLOSE = "</think>"
+
+    def __init__(self) -> None:
+        self._in_think = False
+        self._carry = ""
+
+    def feed(self, text: str) -> str:
+        buf = self._carry + text
+        self._carry = ""
+        out: list[str] = []
+        i = 0
+        n = len(buf)
+        while i < n:
+            if self._in_think:
+                j = buf.find(self._CLOSE, i)
+                if j == -1:
+                    tail = buf[i:]
+                    keep = _prefix_suffix_len(self._CLOSE, tail)
+                    if keep:
+                        self._carry = tail[-keep:]
+                    i = n  # think 块未闭合 → 丢弃
+                else:
+                    i = j + len(self._CLOSE)
+                    self._in_think = False
+            else:
+                j = buf.find(self._OPEN, i)
+                if j == -1:
+                    tail = buf[i:]
+                    keep = _prefix_suffix_len(self._OPEN, tail)
+                    emit = len(tail) - keep
+                    out.append(tail[:emit])
+                    if keep:
+                        self._carry = tail[emit:]
+                    i = n
+                else:
+                    out.append(buf[i:j])
+                    self._in_think = True
+                    i = j + len(self._OPEN)
+        return "".join(out)
+
+
+def _prefix_suffix_len(prefix: str, tail: str) -> int:
+    """tail 尾部是 prefix 的前缀的最大长度（半截标签 carry 用）。"""
+    for k in range(min(len(prefix) - 1, len(tail)), 0, -1):
+        if prefix.startswith(tail[-k:]):
+            return k
+    return 0
+
+
 async def stream_with_retry(make_chain_fn, messages, configs, on_model_failure=None):
     """流式生成 + 空答多配置重试（异步生成器，边收边 yield，真流式）。
 
@@ -144,11 +202,17 @@ async def stream_with_retry(make_chain_fn, messages, configs, on_model_failure=N
     LLMBusyError → 调用方降级「服务繁忙」。突增时不会无界并发打向供应商。
     """
     async with llm_guard:
+        stripper = _ThinkStripper()
         for i, (disabled, wait) in enumerate(configs):
             try:
                 chain = make_chain_fn(i, disabled)
                 chunks = []
                 async for piece in chain.astream(messages):
+                    if not piece:
+                        continue
+                    # B4（2026-08-07）：流式剥 <think>（有状态，跨 piece 安全）+ 币种 $/¥→元
+                    # （不再等流完 clean_answer——thinking 块曾漏进 SSE；_post 会再对整答幂等归一）
+                    piece = output_normalize.money_normalize(stripper.feed(piece))
                     if piece:
                         chunks.append(piece)
                         yield piece

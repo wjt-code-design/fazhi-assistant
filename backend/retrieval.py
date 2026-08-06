@@ -7,6 +7,7 @@
 - 配额扣减统一走 quota_utils（不 import llm_registry——其模块级初始化需 LLM key）。
 """
 
+import httpx
 import re
 import threading
 from collections.abc import Callable
@@ -69,6 +70,11 @@ def _rerank_query(query: str, units: list[tuple[str, str]]) -> str:
     return query[:120]
 
 
+# 原生 DashScope rerank 格式模型：OpenAI 兼容 /reranks 端点不支持，须走原生 text-rerank 端点
+# （2026-08-07 实测：兼容端点报 model_not_supported；原生端点 200，返回 output.results）
+_NATIVE_RERANK_MODELS = {"gte-rerank-v2", "qwen3-vl-rerank"}
+
+
 def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
     """云 rerank 重排候选池，返回按分数降序的新排序。耗尽自动换下一个（块 2.2 扩展）。
 
@@ -76,6 +82,8 @@ def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
       真实 API 失败 → mark_utility_depleted 该模型 → 试下一个；全部失败/未启用 → None（降级原序）
     - query 用锚点检索词（阶段4 _rerank_query），省 token
     - rerank 整个候选池（实测 12-17 条），不裁剪——池外碰不到，池内全排最优
+    - 端点分流：qwen3-rerank 走 OpenAI 兼容 /reranks（扁平 body）；gte-rerank-v2 / qwen3-vl-rerank
+      走 DashScope 原生 text-rerank 端点（嵌套 body，兼容端点不支持）
     - 失败/未启用 → None：调用方保持原精排顺序（安全）
     """
     client = _get_rerank_client()
@@ -86,23 +94,42 @@ def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
         if not quota_utils.utility_quota_ok(model, hard):
             continue  # 估算已耗尽（或上轮真实失败已标记）→ 跳过
         try:
-            resp = client.post(
-                "/reranks",
-                body={
-                    "model": model,
-                    "query": query,
-                    "documents": [d.page_content for d in docs],
-                    "top_n": len(docs),
-                },
-                cast_to=dict,
-            )
+            if model in _NATIVE_RERANK_MODELS:
+                # DashScope 原生：嵌套 input/parameters + 原生 text-rerank 端点。
+                # 用 httpx 直连——OpenAI client 无法解析原生响应（ValueError，2026-08-07 实测）。
+                _rr = httpx.post(
+                    settings.rerank_native_url,
+                    json={
+                        "model": model,
+                        "input": {"query": query, "documents": [d.page_content for d in docs]},
+                        "parameters": {"top_n": len(docs), "return_documents": False},
+                    },
+                    headers={"Authorization": f"Bearer {settings.rerank_api_key}"},
+                    timeout=30,
+                )
+                _rr.raise_for_status()
+                resp = _rr.json()
+            else:
+                # OpenAI 兼容：扁平 body + /reranks
+                resp = client.post(
+                    "/reranks",
+                    body={
+                        "model": model,
+                        "query": query,
+                        "documents": [d.page_content for d in docs],
+                        "top_n": len(docs),
+                    },
+                    cast_to=dict,
+                )
             # 配额扣减（ADR-011 阶段E）：rerank 按输入 token 计费（query + documents），
             # 无真实 usage 返回 → quota_utils.estimate_tokens 近似估算；key = 模型名（per-model 轮换）
             quota_utils.deduct_utility(
                 model,
                 quota_utils.estimate_tokens(query) + sum(quota_utils.estimate_tokens(d.page_content) for d in docs),
             )
-            results = (resp or {}).get("results") or []
+            # 响应解析：兼容端点顶层 results；原生端点 output.results
+            resp_dict = resp or {}
+            results = resp_dict.get("results") or (resp_dict.get("output") or {}).get("results") or []
             if not results:
                 return None
             ordered = sorted(results, key=lambda r: r.get("relevance_score", 0.0), reverse=True)
@@ -306,6 +333,40 @@ def citation_verify(answer: str, in_kb=None) -> list[str]:
     """
     in_kb = in_kb or article_in_kb
     return [literal for (name, art, literal) in extract_citations(answer) if not in_kb(name, art)]
+
+
+def citation_grounding(answer, sources, stats, in_kb=None) -> tuple[list, list, list]:
+    """三分法接地校验（2026-08-07 B3）：对答案中的引用分类，量化漏召回率/幻觉率。
+
+    - ① 在上下文：引用 ∈ 本轮检索 sources → 通过
+    - ② 在库未召回：不在 sources 但 article_in_kb 在库 → 漏召回（记 stats，回答不动，
+      零 LLM 零延迟——recall miss 是 top-k 局限，不是编造）
+    - ③ 不在库：真幻觉（记 stats；前端法条卡显示"未收录"，重生成开关默认关）
+
+    sources: 本轮检索 sources 列表（含 source/article 字段）
+    stats: {"in_context": n, "recall_miss": n, "hallucination": n} 累计（就地更新）
+    in_kb: 可注入（测试用），默认 article_in_kb
+    返回 (in_ctx, recall_miss, hallucination) 三元列表（各为归一化 (source, article) key）
+    """
+    in_kb = in_kb or article_in_kb
+    context_keys = {
+        (_source_key(canon_source(str(s.get("source", "")))), _normalize_article(str(s.get("article", ""))))
+        for s in sources
+        if s.get("article")
+    }
+    in_ctx, rm, hal = [], [], []
+    for raw_name, raw_art, _lit in extract_citations(answer):
+        key = (_source_key(canon_source(raw_name)), _normalize_article(raw_art))
+        if key in context_keys:
+            in_ctx.append(key)
+            stats["in_context"] = stats.get("in_context", 0) + 1
+        elif in_kb(raw_name, raw_art):
+            rm.append(key)
+            stats["recall_miss"] = stats.get("recall_miss", 0) + 1
+        else:
+            hal.append(key)
+            stats["hallucination"] = stats.get("hallucination", 0) + 1
+    return in_ctx, rm, hal
 
 
 HYBRID = settings.feature_hybrid
