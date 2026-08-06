@@ -54,5 +54,17 @@
       {"source": "民法典", "article": "第一千一百七十四条"},
       {"source": "民法典", "article": "第一千一百七十五条"}
     ]
+  },
+  {
+    "scenario": "property_crime",
+    "keywords": ["盗窃", "侵占", "转化型抢劫", "抢劫", "抢夺", "入室盗窃"],
+    "articles": [
+      {"source": "刑法", "article": "第二百六十四条"},
+      {"source": "刑法", "article": "第二百七十条"},
+      {"source": "刑法", "article": "第二百六十九条"},
+      {"source": "刑法", "article": "第二百六十三条"},
+      {"source": "刑法", "article": "第二百六十七条"},
+      {"source": "刑法", "article": "第二十三条"}
+    ]
   }
 ]
