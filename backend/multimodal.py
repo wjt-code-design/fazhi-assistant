@@ -103,6 +103,32 @@ def build_vision_content(text: str, data_url: str) -> list:
     return parts
 
 
+AUDIO_PROMPT = (
+    "你是一个中文语音转文字引擎。请把音频中的话完整、准确转写为带标点的中文文本，"
+    "保留数字与专有名词；只输出转写结果，不要任何解释、不要重复问题。"
+)
+
+# livetranslate 语音模型接受的音频格式（2026-08-06 门禁：webm/opus 不收）
+AUDIO_EXTS = ("wav", "mp3", "m4a", "flac", "ogg")
+
+
+def build_audio_content(text: str, b64: str, fmt: str) -> list:
+    """OpenAI 兼容的语音 content 数组。
+
+    data 必须带 `data:;base64,` 空 MIME 前缀（DashScope Qwen 系实测，裸 base64 返回空）。
+    """
+    return [
+        {"type": "input_audio", "input_audio": {"data": f"data:;base64,{b64}", "format": fmt}},
+        {"type": "text", "text": text},
+    ]
+
+
+def transcribe_audio(voice_llm, b64: str, fmt: str) -> str:
+    """语音→文字（M2，Qwen livetranslate）。失败显式 raise（前端据此回退 Web Speech）。"""
+    resp = voice_llm.invoke([HumanMessage(content=build_audio_content(AUDIO_PROMPT, b64, fmt))])
+    return (resp.content or "").strip()
+
+
 def describe_image(vision_llm, data_url: str, user_text: str = "") -> str:
     """视觉模型产描述/要点，作为检索桥接 + 上下文。失败返回空串（降级，不阻断）。
 

@@ -66,6 +66,10 @@ class Settings(BaseSettings):
     image_max_px: int = 6000
     image_min_px: int = 10
 
+    # ---- 语音转写（M2，Qwen livetranslate 语音模型）----
+    audio_max_mb: int = 10  # 上传音频大小上限
+    feature_transcribe: bool = True  # 语音转写开关（False → 端点 501，前端回退 Web Speech）
+
     # ---- 日志 ----
     log_level: str = "INFO"
 

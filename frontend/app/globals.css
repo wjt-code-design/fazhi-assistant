@@ -11,12 +11,12 @@
 
 :root {
   /* ========== 色彩：樱花海（Sakura Sea）——海盐蓝底 × 樱花粉点缀 ========== */
-  --ink: #2a3b5c; /* 深墨蓝 · 文字 / 深色气泡 / 深色侧栏 */
+  --ink: #23314f; /* 深墨蓝 · 文字 / 深色气泡 / 深色侧栏 */
   --ink-2: #35476b; /* 深色面板第二层次 */
   --parchment: #eff6ff; /* 樱海浅底 · 页面底 */
   --paper: #ffffff; /* 卡片底 */
-  --slate: #6b7fa3; /* 冷灰蓝 · 次要文字 */
-  --accent: #f56b8c; /* 樱花粉深 · 单色强调（可读文字 / 细节） */
+  --slate: #5c7090; /* 冷灰蓝 · 次要文字 */
+  --accent: #f2547c; /* 樱花粉深 · 单色强调（可读文字 / 细节） */
   --accent-deep: #e0527a; /* 樱花粉更深（hover / 强调文字） */
   --accent-tint: rgba(245, 107, 140, 0.1);
   --jade: #3fb68b; /* 玉绿 · 成功语义 */
@@ -25,20 +25,30 @@
   --mist-2: #f0f6ff; /* 更浅 · 表格 hover */
   --error: #e06060; /* 错误语义 */
   --error-tint: #fcebeb;
-  --sea: #6bb3f0; /* 海盐蓝 · 法条引用 / 辅助点缀 */
+  --sea: #3d9be9; /* 海盐蓝 · 法条引用 / 辅助点缀 */
+
+  /* 语义标注对比色：蓝=法条权威 / 橙=时限 / 玉绿=金额 / 粉=关键数字 */
+  --law: #2f7bc4;
+  --time: #b9621a;
+  --money: #1f8a63;
+  --num: #f2547c;
 
   /* RGB 三元组（Tailwind 透明度类 bg-x/50 用 rgb(var(--x-rgb) / 0.5)，3.4 不支持变量色直接 /alpha） */
-  --ink-rgb: 42 59 92;
+  --ink-rgb: 35 49 79;
   --ink-2-rgb: 53 71 107;
   --parchment-rgb: 239 246 255;
   --paper-rgb: 255 255 255;
-  --slate-rgb: 107 127 163;
-  --accent-rgb: 245 107 140;
+  --slate-rgb: 92 112 144;
+  --accent-rgb: 242 84 124;
   --accent-deep-rgb: 224 82 122;
   --jade-rgb: 63 182 139;
   --mist-rgb: 217 231 247;
   --error-rgb: 224 96 96;
-  --sea-rgb: 107 179 240;
+  --sea-rgb: 61 155 233;
+  --law-rgb: 47 123 196;
+  --time-rgb: 185 98 26;
+  --money-rgb: 31 138 99;
+  --num-rgb: 242 84 124;
 
   /* 背景渐变：海盐蓝底 */
   --bg-start: #d6ecff;
@@ -233,15 +243,24 @@
   0%   { opacity: 0; filter: blur(12px); transform: scale(0.85); }
   100% { opacity: 1; filter: blur(0); transform: scale(1); }
 }
+/* 法条悬浮浮层弹出 */
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
 
 @layer components {
   /* ===== 玻璃卡片 / 渐变描边（樱花海） ===== */
   .glass-card {
-    background: var(--glass);
+    background: var(--glass-card-bg, var(--glass));
     -webkit-backdrop-filter: blur(12px);
     backdrop-filter: blur(12px);
     border: 1px solid var(--glass-border);
     box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), var(--shadow-xl);
+  }
+  /* 实底玻璃（面板内容更实，适合表格 / 表单类，避免透底影响可读性） */
+  .glass-card-strong {
+    --glass-card-bg: rgba(255, 255, 255, 0.85);
   }
   /* 渐变描边（上亮下暗）——浅色玻璃 UI 的勾边质感 */
   .glow-line {
@@ -280,6 +299,20 @@
   }
   .scale-in {
     animation: scaleIn 0.3s var(--ease-spring) both;
+  }
+  /* 法条悬浮浮层（覆盖在正文之上，小弹出动画） */
+  .law-popup {
+    position: absolute;
+    z-index: 50;
+    pointer-events: auto;
+    animation: popIn 0.15s ease-out;
+  }
+  /* 应用整体外壳：定高 + 双向裁切，避免双层滚动条 */
+  .app-shell {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    overflow-x: clip;
   }
 
   /* ===== 卡片 ===== */
@@ -573,11 +606,11 @@
     transition: background-color 150ms ease, border-color 150ms ease;
   }
   .chat-item:hover {
-    background-color: rgba(255, 255, 255, 0.06);
+    background-color: rgb(var(--accent-rgb) / 0.12);
     border-left-color: rgba(255, 255, 255, 0.25);
   }
   .chat-item.active {
-    background-color: rgba(255, 255, 255, 0.09);
+    background-color: rgb(var(--accent-rgb) / 0.18);
     border-left-color: var(--accent);
   }
 
@@ -749,24 +782,29 @@
 .pb-safe {
   padding-bottom: calc(1rem + env(safe-area-inset-bottom));
 }
-/* 语义标注（色相即语义：蓝=权威 / 橙=时限 / 粉=金额；对比度按 WCAG 修正值） */
+/* 语义标注（色相即语义：蓝=法条权威 / 橙=时限 / 玉绿=金额 / 粉=关键数字；对比度按 WCAG 修正值） */
 .law-ref {
   font-family: var(--font-serif);
-  color: #4a9fdc; /* 海盐蓝加深，小字号 AA */
-  border-bottom: 1px solid #4a9fdc;
+  color: var(--law);
+  border-bottom: 1px solid var(--law);
   cursor: pointer;
+  transition: background-color 150ms ease;
+}
+.law-ref:hover {
+  background: rgb(var(--law-rgb) / 0.1);
 }
 .hl-time {
-  background: rgba(232, 133, 44, 0.1);
-  color: #b96a1f;
+  background: rgb(var(--time-rgb) / 0.1);
+  color: var(--time);
   font-variant-numeric: tabular-nums;
 }
 .hl-num {
-  background: linear-gradient(135deg, #ff8fa9, #f56b8c);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  font-weight: 700;
+  color: var(--num);
+  font-weight: 600;
+}
+.hl-money {
+  color: var(--money);
+  font-weight: 600;
 }
 /* 法典速查字符翻转（检索期） */
 .codex-char {

@@ -309,7 +309,7 @@ export default function AdminPage() {
 
       {/* 侧导航 */}
       <aside
-        className={`fixed inset-y-0 left-0 z-30 flex w-[240px] flex-col border-r border-mist bg-paper shadow-2xl transition-transform duration-300 ease-out md:static md:translate-x-0 md:shadow-none ${
+        className={`fixed inset-y-0 left-0 z-30 flex w-[240px] flex-col border-r border-mist bg-white/40 backdrop-blur-xl shadow-2xl transition-transform duration-300 ease-out md:static md:translate-x-0 md:shadow-none ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
@@ -340,7 +340,7 @@ export default function AdminPage() {
           </button>
           <div className="flex items-center justify-between gap-2">
             <span className="flex min-w-0 items-center gap-2 text-sm text-slate">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-semibold text-white">
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white">
                 {user.username.slice(0, 1).toUpperCase()}
               </span>
               <span className="truncate">{user.username}</span>
@@ -408,7 +408,7 @@ export default function AdminPage() {
                     <div className="stat-label">基于公开法律条文 · 可通过「文件上传」持续扩充</div>
                   </div>
                 </div>
-                <div className="card mt-4 space-y-3 px-5 py-4">
+                <div className="glass-card mt-4 space-y-3 rounded-xl px-5 py-4">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <div className="stat-label">当前模型（仅管理员可见）</div>
@@ -432,7 +432,7 @@ export default function AdminPage() {
 
             {/* ===== 用户管理 ===== */}
             {!loadingData && section === "users" && (
-              <div className="card overflow-x-auto">
+              <div className="glass-card overflow-x-auto rounded-xl">
                 <table className="law-table">
                   <thead>
                     <tr>
@@ -480,7 +480,7 @@ export default function AdminPage() {
             {!loadingData && section === "knowledge" && (
               <div className="space-y-3">
                 {/* 手动添加条文（阶段5：含时效字段） */}
-                <div className="card px-5 py-4">
+                <div className="glass-card rounded-xl px-5 py-4">
                   <SectionTitle>手动添加条文</SectionTitle>
                   <p className="mt-2 text-sm text-slate">逐条录入条文原文与时效信息（YYYY-MM-DD），用于快速补充知识库。</p>
                   <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_160px_1fr_1fr]">
@@ -593,7 +593,7 @@ export default function AdminPage() {
                 )}
 
                 {/* 检索测试 */}
-                <div className="card mt-4 px-5 py-4">
+                <div className="glass-card mt-4 rounded-xl px-5 py-4">
                   <SectionTitle>检索测试</SectionTitle>
                   <p className="mt-2 text-sm text-slate">输入一个问题，查看当前知识库会命中哪些片段及相关度（验证上传/种子是否生效）。</p>
                   <div className="mt-3 flex gap-2">
@@ -627,7 +627,7 @@ export default function AdminPage() {
                 </div>
 
                 {/* 受控沉淀待审 */}
-                <div className="card mt-4 px-5 py-4">
+                <div className="glass-card mt-4 rounded-xl px-5 py-4">
                   <SectionTitle>受控沉淀 · 待审</SectionTitle>
                   <p className="mt-2 text-sm text-slate">高有据且带引用的问答会自动进入此处，采纳后写入"已确认问答"，今后相似问题可直接复用。</p>
                   {candidates.filter((c) => c.status === "pending").length === 0 && <p className="mt-3 text-sm text-slate">暂无待审候选。</p>}
@@ -695,8 +695,8 @@ export default function AdminPage() {
                   <p
                     className={`scale-in mt-4 flex items-start gap-2 rounded-lg border px-4 py-3 text-sm ${
                       uploadMsg.ok
-                        ? "border-[#b7e2cd] bg-[#e8f6ee] text-jade"
-                        : "border-[#f3c8c8] bg-[#fdecec] text-error"
+                        ? "border-jade/40 bg-[var(--jade-tint)] text-jade"
+                        : "border-error/40 bg-[var(--error-tint)] text-error"
                     }`}
                   >
                     <svg className="mt-0.5 shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -707,7 +707,7 @@ export default function AdminPage() {
                 )}
 
                 {/* 切分预览（阶段6）：结构化切分不写库，核对条号边界 */}
-                <div className="card mt-4 px-5 py-4">
+                <div className="glass-card mt-4 rounded-xl px-5 py-4">
                   <SectionTitle>切分预览</SectionTitle>
                   <p className="mt-2 text-sm text-slate">
                     粘贴文档正文，预览结构化切分结果（按「第X条」边界、章节前缀、目录页跳过）。确认无误再上传正式入库。
@@ -750,7 +750,7 @@ export default function AdminPage() {
 
             {/* ===== 对话审查 ===== */}
             {!loadingData && section === "conversations" && (
-              <div className="card overflow-x-auto">
+              <div className="glass-card overflow-x-auto rounded-xl">
                 <table className="law-table">
                   <thead>
                     <tr>
@@ -779,7 +779,7 @@ export default function AdminPage() {
 
             {/* ===== 操作日志 ===== */}
             {!loadingData && section === "audit" && (
-              <div className="card overflow-x-auto">
+              <div className="glass-card overflow-x-auto rounded-xl">
                 <table className="law-table">
                   <thead>
                     <tr>
@@ -818,7 +818,7 @@ export default function AdminPage() {
                   <div className="stat-card"><div className="stat-value">{(llmStatus.metrics.upgrade_rate * 100).toFixed(1)}%</div><div className="stat-label">轻量升级率</div></div>
                   <div className="stat-card"><div className="stat-value text-jade">{(llmStatus.metrics.self_check_pass_rate * 100).toFixed(1)}%</div><div className="stat-label">自检通过率</div></div>
                 </div>
-                <div className="card mt-4 px-5 py-4">
+                <div className="glass-card mt-4 rounded-xl px-5 py-4">
                   <div className="stat-label">路由分布（light / flag / cache / legacy）</div>
                   <div className="mt-1 font-mono text-sm text-ink">
                     {llmStatus.metrics.tier_mix.light} / {llmStatus.metrics.tier_mix.flag} / {llmStatus.metrics.tier_mix.cache} / {llmStatus.metrics.tier_mix.legacy}
@@ -826,7 +826,7 @@ export default function AdminPage() {
                   <p className="mt-2 text-xs text-slate">指标为本次运行累计，重启清零；跨重启审计请查后端 legal.chat 日志。</p>
                 </div>
 
-                <div className="card mt-4 px-5 py-4">
+                <div className="glass-card mt-4 rounded-xl px-5 py-4">
                   <div className="stat-label">自动切换（无需人工盯梢）</div>
                   <p className="mt-1 text-sm text-slate">
                     任一模型配额耗尽时，系统捕获真实 API 错误 → 立即标记该模型耗尽 → 沿

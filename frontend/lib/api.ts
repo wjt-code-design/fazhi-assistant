@@ -170,6 +170,15 @@ export const convApi = {
   remove: (id: number) => api.delete<any>(`/api/conversations/${id}`),
 };
 
+// ==================== 语音转写（WAV，来自 lib/recorder.ts） ====================
+export const transcribeApi = {
+  post: (blob: Blob, filename = "audio.wav") => {
+    const fd = new FormData();
+    fd.append("file", blob, filename);
+    return api.upload<{ text: string }>("/api/chat/transcribe", fd);
+  },
+};
+
 // ==================== 管理员扩展 ====================
 export const adminApi = {
   stats: () => api.get<any>("/api/admin/stats"),

@@ -150,7 +150,7 @@ export default function LoginPage() {
               </div>
             )}
             {error && (
-              <p className="scale-in mb-4 flex items-center gap-2 rounded-lg border border-[#f3c8c8] bg-[#fdecec] px-3.5 py-2.5 text-sm text-error">
+              <p className="scale-in mb-4 flex items-center gap-2 rounded-lg border border-error/40 bg-[var(--error-tint)] px-3.5 py-2.5 text-sm text-error">
                 <svg className="shrink-0" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" /></svg>
                 {error}
               </p>

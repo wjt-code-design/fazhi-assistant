@@ -1,10 +1,11 @@
 "use client";
-import { useEffect, useRef, useState, FormEvent, ClipboardEvent, DragEvent } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, FormEvent, ClipboardEvent, DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { streamChat, convApi, loadMediaSrc, chatFile, ChatMeta, AnalysisStep, feedbackApi, lawApi, LawDetail, LawItem } from "@/lib/api";
+import { streamChat, convApi, loadMediaSrc, chatFile, ChatMeta, AnalysisStep, feedbackApi, lawApi, LawDetail, LawItem, transcribeApi } from "@/lib/api";
 import { Logo, Spinner } from "@/components/ui";
-import { annotate } from "@/lib/annotate";
+import { annotate, stripMarkdown } from "@/lib/annotate";
+import { startWavRecorder } from "@/lib/recorder";
 import { LawCard } from "@/components/LawCard";
 import { useHoverCapable } from "@/lib/usePointer";
 import { usePointerGlow } from "@/lib/usePointerGlow";
@@ -66,6 +67,9 @@ const DAILY_LAWS = [
 // 流式三态：法典速查字符（检索期轮换）
 const CODEX = ["§", "¶", "†", "‡"];
 
+// 法条卡缓存：同「书名+条号」只请求一次后端（防 hover 重复请求 / 乱序覆盖）
+const lawCache = new Map<string, Promise<LawDetail | null>>();
+
 function ChatImage({ dataURL, imgRef, thumbRef }: { dataURL?: string; imgRef?: string; thumbRef?: string }) {
   const [src, setSrc] = useState<string | undefined>(dataURL);
   useEffect(() => {
@@ -118,9 +122,25 @@ export default function ChatPage() {
   const [lawQ, setLawQ] = useState("");
   const [lawResults, setLawResults] = useState<LawItem[]>([]);
   const [lawDetail, setLawDetail] = useState<LawDetail | null>(null);
-  const [lawPopup, setLawPopup] = useState<{ law: LawDetail; x: number; y: number } | null>(null);
+  const [lawPopup, setLawPopup] = useState<{
+    law: LawDetail;
+    left: number;
+    top: number;
+    width: number;
+    flipped: boolean;
+  } | null>(null);
+  const popupNodeRef = useRef<HTMLDivElement>(null);
+  const popupRefEl = useRef<Element | null>(null); // 当前 hover 的 .law-ref
+  const openTimer = useRef<number | null>(null); // hover 进入延迟
+  const hideTimer = useRef<number | null>(null); // 离开宽限
+  const popupSeq = useRef(0); // 请求序号，防乱序覆盖
   const hoverCapable = useHoverCapable(); // 桌面纯鼠标 → hover；触屏/Mac 触控板 → click
   usePointerGlow(scrollRef); // 指针光晕（仅 hover:hover）
+
+  // 语音（M2）：Qwen livetranslate 后端转写，Web Speech 兜底
+  const [transcribing, setTranscribing] = useState(false);
+  const wavRecRef = useRef<{ stop: () => Promise<Blob> } | null>(null);
+  const voiceTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!loading) {
@@ -150,6 +170,15 @@ export default function ChatPage() {
     return () => clearInterval(t);
   }, [streaming]);
 
+  // 卸载清理：法条卡定时器 + 语音超时
+  useEffect(() => {
+    return () => {
+      if (openTimer.current) clearTimeout(openTimer.current);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
+    };
+  }, []);
+
   // 自动滚动到底部：只在用户贴近底部时跟随（不打断向上阅读）；
   // 流式输出期间用即时滚动（避免 smooth 平滑动画"追着文字跑"的卡顿）
   useEffect(() => {
@@ -170,6 +199,7 @@ export default function ChatPage() {
     setPendingImage(null);
     setSidebarOpen(false);
     setIsNearBottom(true);
+    clearLawPopup();
   }
 
   async function selectConv(item: ConvItem) {
@@ -177,6 +207,7 @@ export default function ChatPage() {
     setConversationId(item.id);
     setPendingImage(null);
     setSidebarOpen(false);
+    clearLawPopup();
     try {
       const det = await convApi.detail(item.id);
       setMessages(
@@ -190,6 +221,23 @@ export default function ChatPage() {
       setIsNearBottom(true);
     } catch {
       setMessages([]);
+    }
+  }
+
+  // 删除历史对话（M5）：后端 DELETE /api/conversations/{id} 已就绪，前端接线
+  async function deleteConv(id: number) {
+    if (!window.confirm("确定删除这个对话吗？删除后不可恢复。")) return;
+    try {
+      await convApi.remove(id);
+      if (activeId === id) {
+        setMessages([]);
+        setConversationId(null);
+        setActiveId(null);
+        clearLawPopup();
+      }
+      loadHistory();
+    } catch {
+      alert("删除失败，请重试");
     }
   }
 
@@ -227,9 +275,57 @@ export default function ChatPage() {
     }
   }
 
-  function toggleVoice() {
-    // 语音转文字（二期）：浏览器 Web Speech API，zh-CN 连续识别，实时填入输入框。
-    // 零后端零依赖；Chrome/Edge 支持，Safari/Firefox 不支持时禁用提示。
+  async function toggleVoice() {
+    // 语音转文字（M2）：优先后端 Qwen livetranslate 语音模型转写（麦克风录音→WAV→上传，
+    // 识别质量优于浏览器 Web Speech）；失败/无麦克风权限 → 回退浏览器 Web Speech。
+    if (listening) {
+      const w = wavRecRef.current;
+      wavRecRef.current = null;
+      if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
+      setListening(false);
+      if (w) {
+        const blob = await w.stop();
+        void transcribeAndFill(blob);
+      }
+      return;
+    }
+    if (window.AudioContext) {
+      try {
+        // getUserMedia 缺失会在此抛错，被 catch 兜底回退 Web Speech
+        wavRecRef.current = await startWavRecorder();
+        // 60s 自动停止并转写
+        voiceTimeoutRef.current = window.setTimeout(() => {
+          const w = wavRecRef.current;
+          if (w) {
+            wavRecRef.current = null;
+            setListening(false);
+            void w.stop().then(transcribeAndFill).catch(() => {});
+          }
+        }, 60000);
+        setListening(true);
+        return;
+      } catch {
+        // 麦克风权限拒绝等 → 回退 Web Speech
+      }
+    }
+    legacyWebSpeech();
+  }
+
+  async function transcribeAndFill(blob: Blob) {
+    setTranscribing(true);
+    try {
+      const r = await transcribeApi.post(blob);
+      setInput((prev) => (prev ? prev + r.text : r.text));
+    } catch (err) {
+      alert(`语音转写失败（${err instanceof Error ? err.message : err}），已回退浏览器识别`);
+      legacyWebSpeech();
+    } finally {
+      setTranscribing(false);
+    }
+  }
+
+  function legacyWebSpeech() {
+    // 兜底：浏览器 Web Speech API（zh-CN 连续识别）
     const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
       alert("当前浏览器不支持语音输入，请用 Chrome 或 Edge");
@@ -371,17 +467,94 @@ export default function ChatPage() {
     doSend(q);
   }
 
-  // 法条悬浮卡：解析 .law-ref 文本 → 后端查原文（未命中/失败返回 null，前端降级纯文本）
-  async function fetchLawRef(el: Element): Promise<LawDetail | null> {
-    const m = (el.textContent || "").match(/《([^》]+)》第\s*([一二三四五六七八九十百千零0-9]+)\s*条/);
-    if (!m) return null;
-    try {
+  // 法条悬浮卡：从 .law-ref 的 data-source（书名，含省略书名号的独立条号）+ 文本条号 → 后端查原文。
+  // 带模块级缓存：同条文只发一次请求；失败返回 null（前端降级纯文本）。
+  function fetchLawRefCached(el: Element): Promise<LawDetail | null> {
+    const src = el.getAttribute("data-source");
+    const m = (el.textContent || "").match(/第\s*([一二三四五六七八九十百千零0-9]+)\s*条/);
+    if (!src || !m) return Promise.resolve(null);
+    const key = `${src}\u0000${m[1]}`;
+    let p = lawCache.get(key);
+    if (!p) {
       // 库内 article 存完整「第X条」中文条号（精确匹配），必须拼回完整形式，否则数字/缺字 404
-      return await lawApi.detail(m[1], `第${m[2]}条`);
-    } catch {
-      return null;
+      p = lawApi.detail(src, `第${m[1]}条`).catch(() => null);
+      lawCache.set(key, p);
+    }
+    return p;
+  }
+
+  // ---------- 法条悬浮卡：位置计算 + hover 防抖/宽限（absolute 锚定在滚动容器内，随内容滚动） ----------
+  function placeLawPopup(ref: Element, law: LawDetail) {
+    const c = scrollRef.current;
+    if (!c) return;
+    const cr = c.getBoundingClientRect();
+    const rr = ref.getBoundingClientRect();
+    const pad = 12;
+    const width = Math.min(320, c.clientWidth - pad * 2); // 窄屏自适应
+    const gap = 8;
+    const left = Math.max(pad, Math.min(rr.left - cr.left + c.scrollLeft, c.clientWidth - width - pad));
+    setLawPopup({
+      law,
+      left,
+      top: rr.bottom - cr.top + c.scrollTop + gap, // 默认放 ref 下方
+      width,
+      flipped: false,
+    });
+  }
+
+  function clearLawPopup() {
+    setLawPopup(null);
+  }
+
+  function scheduleLawOpen(ref: Element) {
+    if (openTimer.current) clearTimeout(openTimer.current);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    openTimer.current = window.setTimeout(() => {
+      void openLawPopup(ref);
+    }, 150); // 进入延迟：快速划过不弹
+  }
+
+  async function openLawPopup(ref: Element) {
+    const seq = ++popupSeq.current;
+    const law = await fetchLawRefCached(ref);
+    if (seq !== popupSeq.current || popupRefEl.current !== ref) return; // 已移走 / 有更新目标
+    if (law) placeLawPopup(ref, law);
+    else clearLawPopup();
+  }
+
+  function scheduleLawHide() {
+    if (openTimer.current) clearTimeout(openTimer.current);
+    if (hideTimer.current) clearTimeout(hideTimer.current);
+    hideTimer.current = window.setTimeout(() => {
+      clearLawPopup();
+    }, 300); // 离开宽限：移到浮层上不关闭
+  }
+
+  async function toggleLawPopup(ref: Element) {
+    // 触屏/Mac 触控板：click toggle（同条再点收起）
+    const law = await fetchLawRefCached(ref);
+    if (!law) return;
+    if (lawPopup && lawPopup.law.source === law.source && lawPopup.law.article === law.article) {
+      clearLawPopup();
+    } else {
+      placeLawPopup(ref, law);
     }
   }
+
+  // 浮层渲染后量高：下方空间不足则翻到 ref 上方（上下自适应）
+  useLayoutEffect(() => {
+    const node = popupNodeRef.current;
+    if (!lawPopup || !node || lawPopup.flipped) return;
+    const c = scrollRef.current;
+    if (!c) return;
+    const h = node.offsetHeight;
+    const spaceBelow = c.clientHeight - lawPopup.top;
+    if (spaceBelow < h + 8 && popupRefEl.current) {
+      const cr = c.getBoundingClientRect();
+      const refTop = popupRefEl.current.getBoundingClientRect().top - cr.top + c.scrollTop;
+      setLawPopup((p) => (p ? { ...p, top: Math.max(8, refTop - h - 8), flipped: true } : p));
+    }
+  }, [lawPopup]);
 
   async function doLawSearch() {
     const q = lawQ.trim();
@@ -423,24 +596,24 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="flex h-screen overflow-hidden">
+    <div className="app-shell flex overflow-hidden">
       {sidebarOpen && (
         <div className="fade-in fixed inset-0 z-20 bg-ink/50 backdrop-blur-[2px] md:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* 侧栏：历史会话 */}
       <aside
-        className={`sidebar-glow relative fixed inset-y-0 left-0 z-30 flex w-[280px] flex-col bg-ink text-white shadow-2xl transition-transform duration-300 ease-out md:static md:translate-x-0 md:shadow-none ${
+        className={`sidebar-glow relative fixed inset-y-0 left-0 z-30 flex w-[280px] max-w-[85vw] flex-col bg-ink text-white shadow-2xl transition-transform duration-300 ease-out md:static md:translate-x-0 md:shadow-none ${
           sidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
       >
-        <div className="flex items-center justify-between px-5 py-5">
+        <div className="flex items-center justify-between px-3 py-5">
           <Logo dark size="sm" />
           <button className="rounded-md p-1 text-white/50 transition-colors hover:bg-white/10 hover:text-white md:hidden" onClick={() => setSidebarOpen(false)} aria-label="关闭菜单">
             ✕
           </button>
         </div>
-        <div className="px-4">
+        <div className="px-3">
           <button onClick={newChat} className="btn btn-ghost-dark w-full">
             <span className="text-base leading-none">＋</span> 新对话
           </button>
@@ -449,16 +622,32 @@ export default function ChatPage() {
           <p className="px-2 pb-2 text-xs tracking-wide text-white/40">历史会话</p>
           {history.length === 0 && <p className="px-2 text-sm text-white/40">暂无记录</p>}
           {history.map((h) => (
-            <div key={h.id} className={`chat-item ${activeId === h.id ? "active" : ""}`} onClick={() => selectConv(h)}>
-              <p className="flex items-center gap-1.5 truncate text-sm text-white/85">
+            <div
+              key={h.id}
+              className={`chat-item group relative ${activeId === h.id ? "active" : ""}`}
+              onClick={() => selectConv(h)}
+            >
+              <p className="flex items-center gap-1.5 truncate pr-5 text-sm text-white/85">
                 {h.has_image && <span className="text-white/50">🖼</span>}
-                {h.title || h.preview || "新对话"}
+                <span className="truncate">{h.title || h.preview || "新对话"}</span>
               </p>
               <p className="mt-0.5 truncate text-xs text-white/40">{h.preview}</p>
+              <button
+                type="button"
+                aria-label={`删除会话 ${h.title || h.preview || "新对话"}`}
+                title="删除会话"
+                className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-xs text-white/40 opacity-0 transition-opacity hover:bg-white/15 hover:text-white group-hover:opacity-100"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  void deleteConv(h.id);
+                }}
+              >
+                ✕
+              </button>
             </div>
           ))}
         </div>
-        <div className="border-t border-white/10 px-5 py-4">
+        <div className="border-t border-white/10 px-3 py-4">
           {user.role === "admin" && (
             <button onClick={() => router.push("/admin")} className="mb-2 w-full text-left text-sm text-accent transition-colors hover:text-white">
               管理后台 →
@@ -521,37 +710,37 @@ export default function ChatPage() {
           }}
           onDrop={onDrop}
           onDragOver={(e) => e.preventDefault()}
-          onPointerOver={async (e) => {
-            // 法条悬浮卡：桌面 hover 显示浮层
+          onPointerOver={(e) => {
+            // 法条悬浮卡：桌面 hover（防抖 + 宽限，ref 与浮层同组不闪烁）
             if (!hoverCapable) return;
-            const ref = (e.target as Element).closest(".law-ref");
-            if (!ref) {
-              setLawPopup(null);
+            if ((e.target as Element).closest("[data-law-popup]")) {
+              if (hideTimer.current) clearTimeout(hideTimer.current);
               return;
             }
-            const law = await fetchLawRef(ref);
-            if (law) {
-              const r = ref.getBoundingClientRect();
-              setLawPopup({ law, x: r.left, y: r.bottom + 8 });
+            const ref = (e.target as Element).closest(".law-ref");
+            if (!ref) {
+              scheduleLawHide();
+              return;
+            }
+            if (ref !== popupRefEl.current) {
+              popupRefEl.current = ref;
+              scheduleLawOpen(ref);
+            } else if (hideTimer.current) {
+              clearTimeout(hideTimer.current);
             }
           }}
           onPointerLeave={() => {
-            if (hoverCapable) setLawPopup(null);
+            if (hoverCapable) scheduleLawHide();
           }}
-          onClick={async (e) => {
-            // 法条卡：触屏/Mac 触控板 click toggle（同条再点收起）
+          onClick={(e) => {
+            // 法条卡：触屏/Mac 触控板 click toggle；桌面纯鼠标只走 hover，点击不误关
+            if (hoverCapable) return;
             const ref = (e.target as Element).closest(".law-ref");
             if (!ref) {
-              setLawPopup(null);
+              clearLawPopup();
               return;
             }
-            const law = await fetchLawRef(ref);
-            if (law) {
-              const r = ref.getBoundingClientRect();
-              setLawPopup((p) =>
-                p && p.law.source === law.source && p.law.article === law.article ? null : { law, x: r.left, y: r.bottom + 8 }
-              );
-            }
+            void toggleLawPopup(ref);
           }}
         >
           <div className="mx-auto max-w-[44rem]">
@@ -562,7 +751,7 @@ export default function ChatPage() {
                   你好，{user.username}，今天想咨询什么？
                 </p>
                 {/* 场景直达卡 */}
-                <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+                <div className="mb-6 grid grid-cols-1 gap-3 min-[400px]:grid-cols-2 md:grid-cols-4">
                   {SCENES.map((s) => (
                     <button
                       key={s.title}
@@ -584,7 +773,7 @@ export default function ChatPage() {
                     onClick={() => quickSend(dailyLaw.q)}
                     className="mt-1.5 block text-left text-sm leading-relaxed text-ink transition-colors hover:text-accent"
                   >
-                    <span className="law-ref">
+                    <span className="law-ref" data-source={dailyLaw.src}>
                       《{dailyLaw.src}》{dailyLaw.art}
                     </span>{" "}
                     — {dailyLaw.text}
@@ -627,11 +816,11 @@ export default function ChatPage() {
             {messages.map((m, i) =>
               m.role === "user" ? (
                 <div key={i} className="page-enter mb-6 flex items-end justify-end gap-2.5">
-                  <div className="bubble-user max-w-[85%] px-4 py-3 text-[0.9375rem] leading-[1.7] md:max-w-[70%]">
+                  <div className="bubble-user max-w-[85%] px-4 py-3 text-sm leading-[1.7] md:max-w-[70%]">
                     {m.content && m.content !== "[图片]" && <span className="whitespace-pre-wrap">{m.content}</span>}
                     <ChatImage dataURL={m.imageDataURL} imgRef={m.imgRef} thumbRef={m.thumbRef} />
                   </div>
-                  <span className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-ink text-xs font-semibold text-white shadow-sm">
+                  <span className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white shadow-sm">
                     {user.username.slice(0, 1).toUpperCase()}
                   </span>
                 </div>
@@ -654,7 +843,7 @@ export default function ChatPage() {
                       </div>
                     )}
                     <div
-                      className={`bubble-ai whitespace-pre-wrap px-5 py-4 text-[0.9375rem] leading-[1.75] text-ink ${
+                      className={`bubble-ai whitespace-pre-wrap px-5 py-4 text-sm leading-[1.75] text-ink [overflow-wrap:anywhere] ${
                         streaming && i === messages.length - 1 && m.content ? "streaming-cursor" : ""
                       } ${streaming && i === messages.length - 1 && m.content ? "streaming-aura" : ""} ${
                         streaming && i === messages.length - 1 && !m.content ? "overflow-hidden" : ""
@@ -665,8 +854,11 @@ export default function ChatPage() {
                           // 流式期：纯文本（不标注，防半截标签）
                           <span className="whitespace-pre-wrap">{m.content}</span>
                         ) : (
-                          // 完成/历史：语义标注（法条/时效/金额；引号内不标）
-                          <span className="whitespace-pre-wrap" dangerouslySetInnerHTML={{ __html: annotate(m.content) }} />
+                          // 完成/历史：先清 markdown 残留（禁 * - 字符），再语义标注（法条/时效/金额；引号内不标）
+                          <span
+                            className="whitespace-pre-wrap"
+                            dangerouslySetInnerHTML={{ __html: annotate(stripMarkdown(m.content)) }}
+                          />
                         )
                       ) : streaming && i === messages.length - 1 ? (
                         // 检索期三态：合同模式=分析中（step 胶囊已是进度）；普通问答=法典速查+扫描光
@@ -727,6 +919,24 @@ export default function ChatPage() {
               )
             )}
             <div ref={bottomRef} />
+
+            {/* 法条悬浮卡浮层：absolute 锚定在滚动容器内（随内容滚动，位置上下自适应 + 玻璃卡） */}
+            {lawPopup && (
+              <div
+                ref={popupNodeRef}
+                data-law-popup
+                className="law-popup"
+                style={{ left: lawPopup.left, top: lawPopup.top, width: lawPopup.width }}
+                onPointerEnter={() => {
+                  if (hideTimer.current) clearTimeout(hideTimer.current);
+                }}
+                onPointerLeave={() => {
+                  if (hoverCapable) scheduleLawHide();
+                }}
+              >
+                <LawCard law={lawPopup.law} compact />
+              </div>
+            )}
           </div>
         </div>
 
@@ -757,7 +967,7 @@ export default function ChatPage() {
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
                 disabled={streaming}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-mist text-slate transition-colors hover:bg-mist hover:text-ink disabled:opacity-50"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-mist text-slate transition-colors hover:bg-mist hover:text-ink disabled:opacity-50"
                 aria-label="上传图片"
                 title="上传图片（JPEG/PNG，≤5MB）"
               >
@@ -772,7 +982,7 @@ export default function ChatPage() {
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
                 disabled={streaming}
-                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-mist text-slate transition-colors hover:bg-mist hover:text-ink disabled:opacity-50"
+                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-mist text-slate transition-colors hover:bg-mist hover:text-ink disabled:opacity-50"
                 aria-label="上传文件"
                 title="上传文件（txt/md/pdf/docx，≤10MB）"
               >
@@ -784,16 +994,20 @@ export default function ChatPage() {
               <button
                 type="button"
                 onClick={toggleVoice}
-                disabled={streaming}
-                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
+                disabled={streaming || transcribing}
+                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 ${
                   listening
                     ? "border-error bg-error/10 text-error"
-                    : "border-mist text-slate hover:bg-mist hover:text-ink"
+                    : transcribing
+                      ? "border-accent bg-accent/10 text-accent"
+                      : "border-mist text-slate hover:bg-mist hover:text-ink"
                 }`}
-                aria-label={listening ? "停止录音" : "语音输入"}
-                title={listening ? "停止录音" : "语音输入（Chrome/Edge，说中文）"}
+                aria-label={listening ? "停止录音" : transcribing ? "语音转写中" : "语音输入"}
+                title={listening ? "停止录音" : transcribing ? "正在转写…" : "语音输入（按住说话，松手转写）"}
               >
-                {listening ? (
+                {transcribing ? (
+                  <Spinner />
+                ) : listening ? (
                   <span className="h-3.5 w-3.5 animate-pulse rounded-full bg-error" />
                 ) : (
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -805,7 +1019,7 @@ export default function ChatPage() {
                 )}
               </button>
               <textarea
-                className="input flex-1 !rounded-[6px] !py-3 resize-none max-h-[160px]"
+                className="input min-w-0 flex-1 !rounded-[6px] !py-2 resize-none max-h-[120px]"
                 rows={2}
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -819,7 +1033,7 @@ export default function ChatPage() {
               <button
                 type="submit"
                 disabled={streaming || (!input.trim() && !pendingImage && !fileContent)}
-                className="btn btn-primary h-11 w-11 shrink-0 !rounded-[6px] !p-0"
+                className="btn btn-primary h-10 w-10 shrink-0 !rounded-[6px] !p-0"
                 aria-label="发送"
               >
                 {streaming ? (
@@ -837,19 +1051,6 @@ export default function ChatPage() {
             </p>
           </div>
         </form>
-
-        {/* 法条悬浮卡浮层（hover 桌面 / click 触屏+Mac 触控板） */}
-        {lawPopup && (
-          <div
-            className="fixed z-50 w-80"
-            style={{
-              left: Math.max(8, Math.min(lawPopup.x, window.innerWidth - 328)),
-              top: Math.min(lawPopup.y, window.innerHeight - 160),
-            }}
-          >
-            <LawCard law={lawPopup.law} compact />
-          </div>
-        )}
 
         {/* 法条速查面板（P1） */}
         {lawPanel && (

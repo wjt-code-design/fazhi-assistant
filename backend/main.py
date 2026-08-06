@@ -1,3 +1,4 @@
+import base64
 import json
 import logging
 import os
@@ -50,7 +51,15 @@ from llm_guard import LLMBusyError, llm_guard
 from llm_registry import QuotaExhausted, estimate_tokens, registry
 from memory import compress, load_context, needs_compress, recent_messages, rewrite_query
 from models import AnalysisRun, AuditLog, Conversation, Feedback, Message, QaCandidate, User
-from multimodal import MEDIA_DIR, build_vision_content, describe_image, persist_image, validate_image
+from multimodal import (
+    AUDIO_EXTS,
+    MEDIA_DIR,
+    build_vision_content,
+    describe_image,
+    persist_image,
+    transcribe_audio,
+    validate_image,
+)
 from observability import RequestIdMiddleware, log_account, setup_logging
 from prompts import (
     _EXAM_TYPE_SUFFIX,
@@ -785,6 +794,48 @@ async def chat_file(request: Request, file: UploadFile = File(...), user: User =
         }
 
     return await run_in_threadpool(_do)
+
+
+@app.post("/api/chat/transcribe")
+@limiter.limit("20/minute")
+async def chat_transcribe(
+    request: Request, file: UploadFile = File(...), user: User = Depends(get_current_user)
+):
+    """语音→文字（M2，Qwen livetranslate 语音模型转写，前端 PC 语音输入）。
+
+    前端 MediaRecorder→PCM→WAV（webm/opus 不被语音模型接受，见 scripts/smoke_transcribe.py）。
+    门禁实测：OpenAI 兼容 /chat/completions + input_audio(data:;base64, 前缀 + wav) + stream +
+    translation_options(source/target 均 zh)。失败显式 502，让前端回退浏览器 Web Speech。
+    """
+    if not settings.feature_transcribe:
+        raise HTTPException(status_code=501, detail="语音转写未启用（feature_transcribe=False）")
+    raw = await file.read()
+    fname = file.filename or ""
+    ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
+    if ext not in AUDIO_EXTS:
+        raise HTTPException(status_code=400, detail=f"仅支持 {'/'.join(sorted(AUDIO_EXTS))} 音频")
+    if len(raw) < 1024:
+        raise HTTPException(status_code=400, detail="音频内容为空")
+    if len(raw) > settings.audio_max_mb * 1024 * 1024:
+        raise HTTPException(status_code=400, detail=f"音频过大（>{settings.audio_max_mb}MB）")
+    b64 = base64.b64encode(raw).decode()
+
+    def _do() -> dict:
+        with llm_guard:  # LLM 调用，占并发位（与图片描述同级）
+            key, llm = registry.pick("voice", "flag")
+            text = transcribe_audio(llm, b64, ext)
+            registry.deduct(key, estimate_tokens(text))
+            return {"text": text}
+
+    try:
+        return await run_in_threadpool(_do)
+    except QuotaExhausted as qe:
+        raise HTTPException(status_code=503, detail="语音模型配额不足，请稍后重试") from qe
+    except HTTPException:
+        raise
+    except Exception as e:
+        logging.getLogger(__name__).warning("transcribe failed: %s", e)
+        raise HTTPException(status_code=502, detail="语音识别服务暂时不可用，请稍后重试") from e
 
 
 @app.get("/api/admin/analysis-runs")

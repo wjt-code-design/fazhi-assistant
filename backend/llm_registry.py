@@ -56,12 +56,22 @@ DEFAULT_ROLES: list[dict[str, Any]] = [
     {"key": "vision_flag", "model": "qwen3.5-omni-plus-2026-03-15", "modality": "vision", "tier": "flag", "priority": 0, "capabilities": ["text", "vision"], "disable_thinking": True, "initial_used": 140644},  # 关深度思考，图片回答同样提速
     {"key": "vision_rt", "model": "qwen3.5-omni-plus-realtime", "modality": "vision", "tier": "flag", "priority": 1, "capabilities": ["text", "vision"], "disable_thinking": True},
     {"key": "vision_glm41v", "model": "glm-4.1v-thinking-flashx", "provider": "zhipu", "modality": "vision", "tier": "flag", "priority": 2, "capabilities": ["text", "vision"], "disable_thinking": False},  # 智谱多模态思考版，视觉最后兜底
+    # voice 语音档（M2，2026-08-06 门禁实测）：livetranslate 做语音→文字（ASR），qwen-tts 是文本→语音（备用）。
+    # 转写调用链：OpenAI 兼容 /chat/completions + input_audio（data:;base64, 前缀 + wav/mp3/m4a/flac/ogg）
+    # + stream=true + top-level translation_options（source/target 均 zh=转写）。disable_thinking 留 False：
+    # 语音模型不吃 thinking 参数（门禁 ChatOpenAI 未带 extra_body 才成功）。
+    {"key": "voice_lt", "model": "qwen3-livetranslate-flash-2025-12-01", "modality": "voice", "tier": "flag", "priority": 0, "capabilities": ["speech", "asr"], "translation_options": {"source_lang": "zh", "target_lang": "zh"}},  # 现役转写
+    {"key": "voice_lt_rt", "model": "qwen3-livetranslate-flash-realtime-2025-09-22", "modality": "voice", "tier": "flag", "priority": 1, "capabilities": ["speech", "asr"]},  # realtime（websocket，备用）
+    {"key": "voice_tts", "model": "qwen-tts-2025-05-22", "modality": "voice", "tier": "flag", "priority": 2, "capabilities": ["speech", "tts"]},  # TTS 备用（朗读回答未来用）
+    {"key": "voice_tts_rt_latest", "model": "qwen-tts-realtime-latest", "modality": "voice", "tier": "flag", "priority": 3, "capabilities": ["speech", "tts"]},
+    {"key": "voice_tts_rt", "model": "qwen-tts-realtime-2025-07-15", "modality": "voice", "tier": "flag", "priority": 4, "capabilities": ["speech", "tts"]},
 ]
 
 # 各模态的 tier 回退链（请求某 tier 时，从该 tier 起沿链向上找未耗尽的）
 TIER_CHAIN: dict[str, list[str]] = {
     "text": ["light", "flag"],
     "vision": ["flag"],  # 视觉单旗舰（可控）；图片描述也走默认全模态模型
+    "voice": ["flag"],  # 语音转写（livetranslate 优先，tts 为输出侧不参与转写）
 }
 
 # 旧单模型兼容：get() 指向的 key（全模态旗舰 omni-plus，等价旧行为）
@@ -108,11 +118,16 @@ class ModelEntry:
 def _build(cfg: dict[str, Any]) -> ChatOpenAI:
     if not cfg.get("api_key") or not cfg.get("base_url"):
         raise RuntimeError("缺少 LLM_API_KEY / LLM_BASE_URL，请在 backend/.env 配置")
-    model_kwargs: dict[str, Any] = {}
+    extra_body: dict[str, Any] = {}
     # thinking:disabled 是 DashScope qwen 专属参数；deepseek/glm/kimi 经兼容端点
     # 可能 400（审查 I6）——只对 qwen 系发，第三方模型默认无思考不改行为
     if cfg.get("disable_thinking") and str(cfg.get("model", "")).startswith("qwen"):
-        model_kwargs["extra_body"] = {"thinking": {"type": "disabled"}}
+        extra_body["thinking"] = {"type": "disabled"}
+    # 语音转写（M2）：livetranslate 必需 top-level translation_options（source/target 均 zh=转写），
+    # 缺了直接 InvalidParameter（2026-08-06 门禁实测）；经 model_kwargs.extra_body 合并进请求体。
+    if cfg.get("translation_options"):
+        extra_body["translation_options"] = cfg["translation_options"]
+    model_kwargs: dict[str, Any] = {"extra_body": extra_body} if extra_body else {}
     return ChatOpenAI(
         model=cfg["model"],
         api_key=cfg["api_key"],
@@ -165,6 +180,7 @@ class LLMRegistry:
                     "capabilities": list(r.get("capabilities", ["text"])),
                     "disable_thinking": bool(r.get("disable_thinking", False)),
                     "timeout": int(r.get("timeout", 120)),
+                    "translation_options": r.get("translation_options"),
                 }
                 e = ModelEntry(
                     key=key,
