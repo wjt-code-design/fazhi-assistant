@@ -655,7 +655,7 @@ export default function AdminPage() {
                           <button
                             type="button"
                             title={expandedCands.has(c.id) ? "点击收起" : "点击展开查看全文"}
-                            className={`mt-1 block w-full cursor-pointer text-left text-sm text-slate transition-colors hover:text-ink ${expandedCands.has(c.id) ? "" : "line-clamp-3"}`}
+                            className={`mt-1 w-full cursor-pointer text-left text-sm text-slate transition-colors hover:text-ink ${expandedCands.has(c.id) ? "" : "line-clamp-3"}`}
                             onClick={() => toggleExpandCand(c.id)}
                           >
                             答：{c.answer}
