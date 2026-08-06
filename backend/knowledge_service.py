@@ -275,7 +275,27 @@ def search_qa(query: str, threshold: float = 0.7):
 
 
 # ==================== 受控沉淀 CRUD ====================
+# 有据分 ≥ 此值自动收录（直接写 qa_pairs，跳过人工待审）——用户要求（2026-08-07）
+AUTO_CURATE_THRESHOLD = 0.89
+
+
 def create_candidate(db: Session, question: str, answer: str, grounded_score: float, evidence: str):
+    """入候选。有据分 ≥ 0.89 自动收录（写 qa_pairs + 清缓存 + 标记 approved，不留待审）；
+    否则进待审队列（status=pending，人工采纳）。反馈纠错（grounded=0）不受影响仍待审。"""
+    if grounded_score >= AUTO_CURATE_THRESHOLD:
+        add_qa_pair(question, answer, evidence or "")
+        # 收录 = 知识变更：清回答缓存，否则旧答案在 TTL 内继续命中、新 QA 静默失效
+        import retrieval
+
+        retrieval.invalidate()
+        c = QaCandidate(
+            question=question, answer=answer, grounded_score=grounded_score,
+            evidence=evidence, status="approved",
+        )
+        db.add(c)
+        db.commit()
+        db.refresh(c)
+        return c
     c = QaCandidate(
         question=question, answer=answer, grounded_score=grounded_score, evidence=evidence, status="pending"
     )

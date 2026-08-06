@@ -5,7 +5,7 @@ import { useAuth } from "@/lib/auth";
 import { api, adminApi } from "@/lib/api";
 import { Logo, Spinner, StatCard, Badge, SectionTitle, EmptyState, Skeleton } from "@/components/ui";
 
-type Section = "stats" | "users" | "knowledge" | "upload" | "conversations" | "audit" | "models";
+type Section = "stats" | "users" | "knowledge" | "upload" | "conversations" | "audit";
 interface Stats {
   user_count: number;
   conversation_count: number;
@@ -65,17 +65,6 @@ interface AuditRow {
   detail: string;
   created_at?: string;
 }
-interface LlmStatus {
-  metrics: {
-    total: number;
-    tier_mix: { light: number; flag: number; cache: number; legacy: number };
-    upgrade_count: number;
-    upgrade_rate: number;
-    self_check_pass_rate: number;
-    cache_hit_rate: number;
-  };
-}
-
 const ICONS: Record<Section, ReactNode> = {
   stats: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -95,9 +84,6 @@ const ICONS: Record<Section, ReactNode> = {
   audit: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>
   ),
-  models: (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg>
-  ),
 };
 
 /** 条文时效状态徽章（阶段5） */
@@ -114,7 +100,6 @@ const NAV: { key: Section; label: string }[] = [
   { key: "upload", label: "文件上传" },
   { key: "conversations", label: "对话审查" },
   { key: "audit", label: "操作日志" },
-  { key: "models", label: "模型配额" },
 ];
 
 export default function AdminPage() {
@@ -133,13 +118,13 @@ export default function AdminPage() {
   const [uploading, setUploading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   const [candidates, setCandidates] = useState<QaCandidate[]>([]);
+  const [expandedCands, setExpandedCands] = useState<Set<number>>(new Set()); // 受控沉淀待审展开的候选 id
   const [testQuery, setTestQuery] = useState("");
   const [testResults, setTestResults] = useState<KnowledgeHit[] | null>(null);
   const [testing, setTesting] = useState(false);
   const [switching, setSwitching] = useState(false);
   const [textModel, setTextModel] = useState("");
   const [audit, setAudit] = useState<AuditRow[]>([]);
-  const [llmStatus, setLlmStatus] = useState<LlmStatus | null>(null);
   const [addForm, setAddForm] = useState({
     title: "",
     article: "",
@@ -179,12 +164,12 @@ export default function AdminPage() {
         );
         setKnowledge(k.items);
         setKnowledgeTotal(k.total);
-        const c = await adminApi.qaCandidates().catch(() => [] as QaCandidate[]);
+        // 待审列表显式取 pending——无 status 时按 created_at 倒序限 200，已决项会淹没待审项
+        const c = await adminApi.qaCandidates("pending").catch(() => [] as QaCandidate[]);
         setCandidates(c);
       },
       conversations: () => api.get<ConvRow[]>("/api/admin/conversations").then(setConvs),
       audit: () => adminApi.audit().then(setAudit),
-      models: () => adminApi.llmStatus().then(setLlmStatus),
       upload: () => Promise.resolve(),
     };
     loaders[section]()
@@ -197,6 +182,15 @@ export default function AdminPage() {
   async function toggleUser(u: UserRow) {
     await api.patch(`/api/admin/users/${u.id}`, { is_active: !u.is_active });
     setUsers((list) => list.map((x) => (x.id === u.id ? { ...x, is_active: !u.is_active } : x)));
+  }
+
+  function toggleExpandCand(id: number) {
+    setExpandedCands((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
   }
 
   async function deleteUser(u: UserRow) {
@@ -655,9 +649,24 @@ export default function AdminPage() {
                         <div key={c.id} className="rounded-lg border border-mist bg-parchment px-3 py-3">
                           <div className="flex items-center gap-2 text-xs text-slate">
                             <Badge kind="accent">有据分 {c.grounded_score}</Badge>
+                            {c.grounded_score >= 0.89 && <Badge kind="success" dot>自动收录</Badge>}
                           </div>
                           <p className="mt-1 text-sm font-medium text-ink">问：{c.question}</p>
-                          <p className="mt-1 line-clamp-3 text-sm text-slate">答：{c.answer}</p>
+                          <button
+                            type="button"
+                            title={expandedCands.has(c.id) ? "点击收起" : "点击展开查看全文"}
+                            className={`mt-1 block w-full cursor-pointer text-left text-sm text-slate transition-colors hover:text-ink ${expandedCands.has(c.id) ? "" : "line-clamp-3"}`}
+                            onClick={() => toggleExpandCand(c.id)}
+                          >
+                            答：{c.answer}
+                          </button>
+                          <button
+                            type="button"
+                            className="mt-1 text-xs text-slate/60 transition-colors hover:text-accent"
+                            onClick={() => toggleExpandCand(c.id)}
+                          >
+                            {expandedCands.has(c.id) ? "收起 ▲" : "展开全文 ▼"}
+                          </button>
                           <div className="mt-2 flex gap-2">
                             <button className="btn btn-primary !px-3 !py-1 text-xs" onClick={() => decideCand(c.id, "approved")}>
                               采纳入库
@@ -822,35 +831,6 @@ export default function AdminPage() {
                   </tbody>
                 </table>
                 {audit.length === 0 && <EmptyState title="暂无操作记录" />}
-              </div>
-            )}
-
-            {/* ===== 模型配额与路由（仅管理员可见） ===== */}
-            {!loadingData && section === "models" && llmStatus && (
-              <div>
-                <SectionTitle>模型路由</SectionTitle>
-                <div className="mt-4 grid grid-cols-2 gap-4 md:grid-cols-4">
-                  <div className="stat-card"><div className="stat-value">{llmStatus.metrics.total}</div><div className="stat-label">本轮累计回答</div></div>
-                  <div className="stat-card"><div className="stat-value text-accent">{(llmStatus.metrics.cache_hit_rate * 100).toFixed(1)}%</div><div className="stat-label">缓存命中率（零 token）</div></div>
-                  <div className="stat-card"><div className="stat-value">{(llmStatus.metrics.upgrade_rate * 100).toFixed(1)}%</div><div className="stat-label">轻量升级率</div></div>
-                  <div className="stat-card"><div className="stat-value text-jade">{(llmStatus.metrics.self_check_pass_rate * 100).toFixed(1)}%</div><div className="stat-label">自检通过率</div></div>
-                </div>
-                <div className="glass-card mt-4 rounded-xl px-5 py-4">
-                  <div className="stat-label">路由分布（light / flag / cache / legacy）</div>
-                  <div className="mt-1 font-mono text-sm text-ink">
-                    {llmStatus.metrics.tier_mix.light} / {llmStatus.metrics.tier_mix.flag} / {llmStatus.metrics.tier_mix.cache} / {llmStatus.metrics.tier_mix.legacy}
-                  </div>
-                  <p className="mt-2 text-xs text-slate">指标为本次运行累计，重启清零；跨重启审计请查后端 legal.chat 日志。</p>
-                </div>
-
-                <div className="glass-card mt-4 rounded-xl px-5 py-4">
-                  <div className="stat-label">自动切换（无需人工盯梢）</div>
-                  <p className="mt-1 text-sm text-slate">
-                    任一模型配额耗尽时，系统捕获真实 API 错误 → 立即标记该模型耗尽 → 沿
-                    队列（20 模型）自动切换到下一个可用模型，当前请求与后续请求均自动落后备，
-                    不中断服务。token 剩余量请直接在阿里云控制台查看，本后台不再展示。
-                  </p>
-                </div>
               </div>
             )}
           </div>

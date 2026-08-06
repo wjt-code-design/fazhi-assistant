@@ -66,3 +66,27 @@ def test_concurrent_add_text_idempotent():
         assert len(versions) <= 1, f"并发写混版：{versions}"
     finally:
         _cleanup()
+
+
+# ---------------- 受控沉淀自动收录（2026-08-07） ----------------
+def test_create_candidate_auto_approve(monkeypatch):
+    """有据分 >= 0.89 自动收录（写 qa_pairs + status=approved）；< 0.89 进待审。"""
+    import retrieval
+    from database import SessionLocal
+    from models import QaCandidate
+
+    added = []
+    monkeypatch.setattr(ks, "add_qa_pair", lambda q, a, e="", fp="": added.append(q))
+    monkeypatch.setattr(retrieval, "invalidate", lambda: None)
+
+    db = SessionLocal()
+    q1, q2 = f"_auto_{id(object())}", f"_pend_{id(object())}"
+    try:
+        c1 = ks.create_candidate(db, q1, "答案", 0.95, "证据")
+        assert c1.status == "approved" and added == [q1]
+        c2 = ks.create_candidate(db, q2, "答案", 0.70, "证据")
+        assert c2.status == "pending" and len(added) == 1
+    finally:
+        db.query(QaCandidate).filter(QaCandidate.question.in_([q1, q2])).delete(synchronize_session=False)
+        db.commit()
+        db.close()
