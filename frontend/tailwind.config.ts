@@ -1,24 +1,30 @@
 import type { Config } from "tailwindcss";
 
+// colors 全部映射到 CSS 变量（globals.css :root）——换主题只改变量表，全页面联动。
+// 透明度类（bg-ink/50 等）：Tailwind 3.4 不支持"变量色直接 /alpha"（静默丢弃），
+// 用函数形式 `rgb(var(--x-rgb) / <alpha-value>)`（:root 有对应 RGB 三元组）。
+// Tailwind 3.4 Config 类型未收录函数色（只收 string/嵌套对象），运行时支持——加 any 断言。
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const varColor = (hex: string, rgb: string): any => ({ opacityValue }: { opacityValue?: string }) =>
+  opacityValue === undefined ? `var(${hex})` : `rgb(var(${rgb}) / ${opacityValue})`;
+
 const config: Config = {
   content: ["./app/**/*.{js,ts,jsx,tsx}", "./components/**/*.{js,ts,jsx,tsx}"],
   theme: {
     extend: {
-      // colors 全部映射到 CSS 变量（globals.css :root）——换主题只改变量表，全页面联动。
-      // 透明度类（bg-ink/50 等）走 Tailwind 3.4 color-mix(in oklab, var(--x), transparent)。
       colors: {
-        ink: "var(--ink)", // 深墨蓝 · 主文字 / 深色气泡 / 深色侧栏
-        "ink-2": "var(--ink-2)", // 深色面板第二层次
-        parchment: "var(--parchment)", // 樱海浅底 · 页面底
-        paper: "var(--paper)", // 卡片底
-        slate: "var(--slate)", // 冷灰蓝 · 次要文字
-        accent: "var(--accent)", // 樱花粉 · 单色强调（细节 / 可读文字）
-        "accent-deep": "var(--accent-deep)", // 樱花粉深（hover / 强调文字）
-        jade: "var(--jade)", // 玉绿 · 成功 / 正向
-        mist: "var(--mist)", // 淡蓝灰 · 分割线 / 浅灰底
-        error: "var(--error)", // 错误语义
-        cool: "var(--sea)", // 海盐蓝 · 极细点缀 / 法条引用
-        sea: "var(--sea)", // 海盐蓝 · 辅助
+        ink: varColor("--ink", "--ink-rgb"), // 深墨蓝 · 主文字 / 深色气泡 / 深色侧栏
+        "ink-2": varColor("--ink-2", "--ink-2-rgb"), // 深色面板第二层次
+        parchment: varColor("--parchment", "--parchment-rgb"), // 樱海浅底 · 页面底
+        paper: varColor("--paper", "--paper-rgb"), // 卡片底
+        slate: varColor("--slate", "--slate-rgb"), // 冷灰蓝 · 次要文字
+        accent: varColor("--accent", "--accent-rgb"), // 樱花粉 · 单色强调（细节 / 可读文字）
+        "accent-deep": varColor("--accent-deep", "--accent-deep-rgb"), // 樱花粉深（hover / 强调文字）
+        jade: varColor("--jade", "--jade-rgb"), // 玉绿 · 成功 / 正向
+        mist: varColor("--mist", "--mist-rgb"), // 淡蓝灰 · 分割线 / 浅灰底
+        error: varColor("--error", "--error-rgb"), // 错误语义
+        cool: varColor("--sea", "--sea-rgb"), // 海盐蓝 · 极细点缀 / 法条引用
+        sea: varColor("--sea", "--sea-rgb"), // 海盐蓝 · 辅助
       },
       fontFamily: {
         serif: ['"Songti SC"', '"STSong"', '"SimSun"', '"Noto Serif CJK SC"', "serif"],

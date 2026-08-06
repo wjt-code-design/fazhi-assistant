@@ -27,6 +27,19 @@
   --error-tint: #fcebeb;
   --sea: #6bb3f0; /* 海盐蓝 · 法条引用 / 辅助点缀 */
 
+  /* RGB 三元组（Tailwind 透明度类 bg-x/50 用 rgb(var(--x-rgb) / 0.5)，3.4 不支持变量色直接 /alpha） */
+  --ink-rgb: 42 59 92;
+  --ink-2-rgb: 53 71 107;
+  --parchment-rgb: 239 246 255;
+  --paper-rgb: 255 255 255;
+  --slate-rgb: 107 127 163;
+  --accent-rgb: 245 107 140;
+  --accent-deep-rgb: 224 82 122;
+  --jade-rgb: 63 182 139;
+  --mist-rgb: 217 231 247;
+  --error-rgb: 224 96 96;
+  --sea-rgb: 107 179 240;
+
   /* 背景渐变：海盐蓝底 */
   --bg-start: #d6ecff;
   --bg-mid: #c3dbff;

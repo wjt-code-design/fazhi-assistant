@@ -376,7 +376,8 @@ export default function ChatPage() {
     const m = (el.textContent || "").match(/《([^》]+)》第\s*([一二三四五六七八九十百千零0-9]+)\s*条/);
     if (!m) return null;
     try {
-      return await lawApi.detail(m[1], m[2]);
+      // 库内 article 存完整「第X条」中文条号（精确匹配），必须拼回完整形式，否则数字/缺字 404
+      return await lawApi.detail(m[1], `第${m[2]}条`);
     } catch {
       return null;
     }
