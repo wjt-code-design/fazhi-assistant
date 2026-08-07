@@ -720,7 +720,7 @@ def _is_crime_qualify(text: str) -> bool:
 # 补充规模控制（对抗审计 trade-off 收尾，2026-08-07）：多组关键词命中时补充会膨胀
 # （个别题 30-52 条文），稀释模型上下文。按命中关键词数只取最相关前 _SUPP_MAX_GROUPS 组，
 # 总条文数限 _SUPP_MAX_ARTICLES（兜底核心罪名集 20 条可完整容纳）。
-_SUPP_MAX_GROUPS = 2
+_SUPP_MAX_GROUPS = 3
 _SUPP_MAX_ARTICLES = 24
 
 

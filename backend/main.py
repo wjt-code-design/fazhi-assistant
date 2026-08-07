@@ -475,6 +475,11 @@ def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool
         raw_query = " ".join(p for p in [text or "", desc] if p).strip()
         if not raw_query:
             raw_query = "请描述并分析图片中的法律相关内容"
+        # 多轮补充辅助：追问短，靠最近用户消息的关键词触发场景补充（对抗审计 2026-08-07）
+        _supp_extra = " ".join(
+            (m.get("content") or "") for m in recent_ser if m["role"] == "user" and m.get("content")
+        )
+        _supp_text = (text or raw_query) + (" " + _supp_extra[-400:] if _supp_extra else "")
         # 意图先判（raw，不改写）：非检索分支（chitchat/cheating/元问题）完全不碰改写（决策 2）
         intent = classify_intent(text or raw_query)
         is_exam = query_understand._is_exam_question(text or raw_query)
@@ -498,7 +503,7 @@ def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool
         if intent == "study_aid":
             if settings.feature_study_retrieval and not query_understand.is_meta_study(text or raw_query):
                 rewritten = _rewrite_for_retrieval(raw_query, recent_ser, recent, has_options)  # 具体题：惰性改写
-                docs = scenario_supplement_docs(text or raw_query) + retrieve_exam(rewritten)  # 具体题：场景补充 + 分步检索
+                docs = scenario_supplement_docs(_supp_text) + retrieve_exam(rewritten)  # 具体题：场景补充 + 分步检索
             else:
                 rewritten = raw_query  # 元问题/回滚：不检索不改写
                 docs = []  # 元问题/回滚：不检索，邀请发题
@@ -551,13 +556,13 @@ def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool
                 rewritten = _rewrite_for_retrieval(raw_query, recent_ser, recent, has_options)
                 if is_exam:
                     # 选项题 → 分步检索 + 场景定向补充前置（死刑复核/正当防卫等核心条防漏）
-                    docs = scenario_supplement_docs(text or raw_query) + retrieve_exam(rewritten)
+                    docs = scenario_supplement_docs(_supp_text) + retrieve_exam(rewritten)
                 else:
                     docs = retrieve(rewritten, k=10)  # k6→10：跨法律召回测试显示 k=6 常漏同法目标条文（79%→88%）
                 qa_hit = ks.search_qa(rewritten)  # 保持 raw（决策 4：桥接只归检索层，不进 QA 缓存）
                 # 场景定向补充（仅非选项题，法考题已走 retrieve_exam 逐项检索）
                 if not is_exam:
-                    docs = scenario_supplement_docs(text or raw_query) + docs
+                    docs = scenario_supplement_docs(_supp_text) + docs
                     if is_consumer_clause_scenario(text or raw_query):
                         docs = consumer_clause_docs() + docs
                     if is_consumer_fraud_scenario(text or raw_query):
