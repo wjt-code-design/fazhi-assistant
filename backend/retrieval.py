@@ -91,6 +91,8 @@ def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
         return None
     hard = settings.rerank_hard_threshold
     for model in quota_utils.rerank_model_list():
+        if model in quota_utils._depleted_mem:
+            continue  # 已失败记忆（对抗审计 v2 #17）：配额未监控时坏模型不再每请求重试
         if not quota_utils.utility_quota_ok(model, hard):
             continue  # 估算已耗尽（或上轮真实失败已标记）→ 跳过
         try:
@@ -152,34 +154,52 @@ _ART_NO_BRACKET_RE = re.compile(
 _PREFIX_CN = "中华人民共和国"
 
 _CN_DIGITS = "零一二三四五六七八九"  # 下标即数字值（d=1 → 一）
+_CN_UNITS = ("", "万", "亿", "万亿")
+
+
+def _num_to_cn_section(sec: int) -> str:
+    """1-9999 节内转中文（100→一百, 110→一百一十, 101→一百零一, 10→十, 19→十九）。"""
+    if sec == 0:
+        return "零"
+    digits = [int(c) for c in str(sec)]
+    length = len(digits)
+    units = ("", "十", "百", "千")
+    out: list[str] = []
+    for i, d in enumerate(digits):
+        pos = length - i - 1
+        if d == 0:
+            if out and out[-1] != "零" and any(int(c) != 0 for c in digits[i + 1 :]):
+                out.append("零")
+            continue
+        if not (d == 1 and pos == 1 and i == 0):  # 十位为 1 且为首位：不写前导「一」（13=十三）
+            out.append(_CN_DIGITS[d])
+        out.append(units[pos])
+    return "".join(out)
 
 
 def _num_to_cn(n: int) -> str:
-    """阿拉伯数字条号 → 中文条号（1→一, 10→十, 19→十九, 108→一百零八, 1260→一千二百六十）。"""
+    """阿拉伯数字条号 → 中文条号（1→一, 19→十九, 108→一百零八, 100000→十万, 110000→十一万）。
+
+    按 4 位一节分段，节间补零（对抗审计 v2 #18：旧实现 pos==4 只加一次"万"，
+    100000 输出成"一十"、1000000 成"一百"，万位以上全错）。
+    """
     if n == 0:
         return "零"
-    s = str(n)
-    length = len(s)
+    sections: list[int] = []  # 低到高，每 4 位一节
+    while n > 0:
+        sections.append(n % 10000)
+        n //= 10000
     out: list[str] = []
-    for i, ch in enumerate(s):
-        d = int(ch)
-        pos = length - i - 1
-        if d == 0:
-            if out and out[-1] != "零" and any(int(c) != 0 for c in s[i + 1 :]):
+    for idx in range(len(sections) - 1, -1, -1):
+        sec = sections[idx]
+        if sec == 0:
+            # 节间零：非最高节且其下仍有非零节 → 补一个"零"
+            if out and any(sections[j] != 0 for j in range(idx)):
                 out.append("零")
             continue
-        if pos == 1 and d == 1 and i == 0 and length > 1:
-            pass  # 十位为 1 且为首位：不写前导「一」（13=十三，不是一十三）
-        else:
-            out.append(_CN_DIGITS[d])
-        if pos % 4 == 1:
-            out.append("十")
-        elif pos % 4 == 2:
-            out.append("百")
-        elif pos % 4 == 3:
-            out.append("千")
-        elif pos == 4:
-            out.append("万")
+        out.append(_num_to_cn_section(sec))
+        if idx > 0:
+            out.append(_CN_UNITS[idx])
     return "".join(out)
 
 
@@ -599,6 +619,18 @@ def hybrid_retrieve(
             ranked = _cosine_rank(query, cand_docs)
             docs = [pool[did] for did in anchor_guaranteed] + [d for d in ranked if _doc_id(d) not in ag_seen]
         docs = docs[:k]
+        # 锚点保底不被 k 截断（对抗审计 v2 #19）：多锚点查询时后段锚点核心条文可能被 [:k] 挤掉，
+        # 截断后把被挤出的锚点保底条文补回（优先于尾部精排项），每个锚点前 1 条必现。
+        kept_ids = {_doc_id(d) for d in docs}
+        dropped_anchors = [did for did in anchor_guaranteed if did not in kept_ids]
+        if dropped_anchors:
+            anchor_head: list[str] = []
+            seen: set[str] = set()
+            for did in dropped_anchors:
+                if did not in seen:
+                    seen.add(did)
+                    anchor_head.append(did)
+            docs = (docs + [pool[did] for did in anchor_head])[:k]
     except quota_utils.UtilityQuotaExhausted:
         raise  # B3：embedding 配额耗尽必须上达 409，不能被 RRF 兜底吞掉
     except Exception:
