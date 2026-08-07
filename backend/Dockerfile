@@ -6,8 +6,9 @@ FROM python:3.11-slim AS base
 WORKDIR /app
 
 # 国内构建加速（也可由构建机自身 pip/hf 配置替代）
+# 2026-08-08：tuna 镜像同步故障（fastapi 全系不可用），换阿里云源（已验证 0.110.3 可用）
 ENV HF_ENDPOINT=https://hf-mirror.com
-ENV PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
+ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
 
 # 先装 CPU 版 torch（避免 PyPI 默认拉取数 GB CUDA 包）
 COPY requirements.txt .

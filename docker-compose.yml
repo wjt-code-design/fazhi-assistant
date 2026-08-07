@@ -57,9 +57,10 @@ services:
     image: caddy:2-alpine
     container_name: fazhi-caddy
     restart: unless-stopped
+    # 2026-08-08：宿主 80/443 被 Dify 的 nginx 占用，法智 Caddy 改用独立端口 8088。
+    # 局域网自测 http://<电脑IP>:8088；cloudflared tunnel --url http://host.docker.internal:8088
     ports:
-      - "80:80"
-      - "443:443"
+      - "8088:80"
     environment:
       # 空=HTTP 监听 :80（Cloudflare Tunnel 穿透场景）；设域名=fazhi.example.com → 自动 HTTPS
       DOMAIN: ${DOMAIN:-}
