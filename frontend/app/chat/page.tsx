@@ -220,7 +220,10 @@ interface ExpandedLaw {
 }
 
 /** 消息 HTML 渲染（React.memo）：流式时只有 content 变化的最后一条会重排 renderAnswer，
- * 已完成消息不重复跑语义标注正则（F1 性能优化，2026-08-07）。 */
+ * 已完成消息不重复跑语义标注正则（F1 性能优化，2026-08-07）。
+ * 自定义比较（对抗审计 v2 #10）：expanded 是对象，浅比较会被引用击穿（点法条卡→全量重标注）。
+ * 改为按内容字段比较：仅当 content 变、或卡片注入状态变、或卡片内容字段（source/article/occurrence）
+ * 变时才重渲染；点任意法条卡不再触发全部历史消息重跑 renderAnswer。 */
 const MessageHtml = memo(function MessageHtml({ content, expanded, i }: {
   content: string;
   expanded: ExpandedLaw | null;
@@ -231,6 +234,22 @@ const MessageHtml = memo(function MessageHtml({ content, expanded, i }: {
     html = injectLawCardHtml(html, expanded, expanded.occurrence);
   }
   return <div className="whitespace-normal" dangerouslySetInnerHTML={{ __html: html }} />;
+}, (prev, next) => {
+  const prevHit = prev.expanded?.msgIndex === prev.i;
+  const nextHit = next.expanded?.msgIndex === next.i;
+  if (prevHit !== nextHit) return false; // 卡片注入状态变化（注入/收起）→ 重渲染
+  if (prevHit && nextHit) {
+    const pe = prev.expanded!, ne = next.expanded!;
+    return (
+      prev.content === next.content &&
+      prev.i === next.i &&
+      pe.source === ne.source &&
+      pe.article === ne.article &&
+      pe.occurrence === ne.occurrence &&
+      pe.found === ne.found
+    );
+  }
+  return prev.content === next.content && prev.i === next.i;
 });
 
 export default function ChatPage() {
@@ -324,10 +343,16 @@ export default function ChatPage() {
     return () => clearInterval(t);
   }, [streaming]);
 
-  // 卸载清理：语音超时
+  // 卸载清理：语音超时 + 停止正在录音的麦克风（对抗审计 v2 #11：离开页面不 stop，
+  // 麦克风权限/轨道持续占用；静默丢弃录音，只释放轨道）
   useEffect(() => {
     return () => {
       if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
+      if (wavRecRef.current) {
+        const w = wavRecRef.current;
+        wavRecRef.current = null;
+        void w.stop().catch(() => {});
+      }
     };
   }, []);
 

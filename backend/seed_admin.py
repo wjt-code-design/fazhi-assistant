@@ -20,8 +20,13 @@ def seed():
             raise SystemExit(1)
         existing = db.query(User).filter(User.username == username).first()
         if existing:
-            print(f"管理员 {username} 已存在，跳过创建")
-            return
+            if existing.role == "admin":
+                print(f"管理员 {username} 已存在，跳过创建")
+                return
+            # 同名普通用户被抢占（对抗审计 v2 #4）：seed 不再静默跳过，否则管理接口永远 403
+            print(f"错误：用户名 {username} 已被普通用户占用（role={existing.role}），无法创建管理员。")
+            print("请修改 .env 的 ADMIN_USERNAME 改用其他名称，或先清理该占位用户后再运行 seed_admin.py。")
+            raise SystemExit(1)
         admin = User(
             username=username,
             password_hash=hash_password(password),

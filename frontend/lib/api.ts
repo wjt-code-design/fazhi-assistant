@@ -121,16 +121,38 @@ export async function streamChat(
   if (payload.image) body.image = payload.image;
   if (payload.truncated) body.truncated = payload.truncated;
 
-  const res = await fetch(`${API_URL}/api/chat`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
-    body: JSON.stringify(body),
-  });
+  // 无数据看门狗（对抗审计 v2 #2）：SSE 挂起（pending reader.read / fetch）时 UI 永久卡死。
+  // 60s 无任何数据帧 → abort，走提前退出路径，让调用方 finally 必然执行、UI 恢复。
+  const controller = new AbortController();
+  const IDLE_TIMEOUT = 60_000;
+  let idle: ReturnType<typeof setTimeout> | null = null;
+  const kick = () => {
+    if (idle) clearTimeout(idle);
+    idle = setTimeout(() => {
+      controller.abort();
+      onError("连接超时，已中断");
+    }, IDLE_TIMEOUT);
+  };
+  kick();
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/api/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (controller.signal.aborted) return; // 看门狗已 abort 并回调 onError
+    throw err;
+  }
 
   if (!res.ok || !res.body) {
+    if (idle) clearTimeout(idle);
     if (res.status === 401) {
       // token 过期/失效：清凭据并回登录页（对抗审计 2026-08-07）
       setToken(null);
@@ -155,9 +177,16 @@ export async function streamChat(
   const decoder = new TextDecoder();
   let buffer = "";
   while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
+    let r: ReadableStreamReadResult<Uint8Array>;
+    try {
+      r = await reader.read();
+    } catch (err) {
+      if (controller.signal.aborted) break; // 看门狗已 abort 并回调 onError，正常退出
+      throw err;
+    }
+    if (r.done) break;
+    kick(); // 收到数据帧，重置无数据看门狗
+    buffer += decoder.decode(r.value, { stream: true });
     const parts = buffer.split("\n\n");
     buffer = parts.pop() ?? "";
     for (const part of parts) {
@@ -177,6 +206,7 @@ export async function streamChat(
       }
     }
   }
+  if (idle) clearTimeout(idle);
 }
 
 // ==================== 会话 ====================
@@ -255,7 +285,9 @@ export const lawApi = {
 };
 
 // ==================== 受鉴权媒体（历史图片，Blob 缓存） ====================
+// 上限 + 超限 revoke 最旧（对抗审计 v2 #9）：blob URL 不 revoke 会占内存，会话内图片多时无界增长
 const mediaCache = new Map<string, string>();
+const MEDIA_CACHE_MAX = 40;
 export async function loadMediaSrc(ref: string): Promise<string | null> {
   if (!ref) return null;
   const hit = mediaCache.get(ref);
@@ -267,6 +299,14 @@ export async function loadMediaSrc(ref: string): Promise<string | null> {
   if (!res.ok) return null;
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);
+  if (mediaCache.size >= MEDIA_CACHE_MAX) {
+    const oldestRef = mediaCache.keys().next().value; // Map 保持插入序，首个为最旧
+    if (oldestRef) {
+      const oldUrl = mediaCache.get(oldestRef)!;
+      URL.revokeObjectURL(oldUrl);
+      mediaCache.delete(oldestRef);
+    }
+  }
   mediaCache.set(ref, url);
   return url;
 }

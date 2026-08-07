@@ -19,6 +19,10 @@ RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTr
 
 COPY . .
 
+# 防呆（对抗审计 v2 #3）：若 .dockerignore 失效导致 backend/.env 被 COPY 进镜像，构建必须失败——
+# 镜像层含真实 LLM_API_KEY/JWT_SECRET 属机密泄漏，宁可构建红也不带病上线
+RUN test ! -f /app/.env || (echo "ERROR: backend/.env 被复制进镜像，密钥泄漏风险；请检查 backend/.dockerignore" && exit 1)
+
 # 健康检查：/healthz（DB + 向量库就绪即 200；不发起真实 LLM 调用）
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=5).close()"

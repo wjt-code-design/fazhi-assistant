@@ -273,6 +273,9 @@ async def register(request: Request, body: RegisterIn):
     def _do():
         db = SessionLocal()
         try:
+            # admin 用户名保留（对抗审计 v2 #4）：普通用户不得抢占，否则 seed 前被注册同名会锁死管理接口
+            if body.username == settings.admin_username:
+                raise HTTPException(status_code=400, detail="该用户名不可注册")
             if db.query(User).filter(User.username == body.username).first():
                 raise HTTPException(status_code=400, detail="用户名已存在")
             user = User(username=body.username, password_hash=hash_password(body.password), role="user")

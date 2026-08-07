@@ -77,8 +77,17 @@ def validate_upload(filename: str, raw: bytes) -> str:
         try:
             import zipfile
 
-            if "word/document.xml" not in zipfile.ZipFile(io.BytesIO(raw)).namelist():
+            zf = zipfile.ZipFile(io.BytesIO(raw))
+            if "word/document.xml" not in zf.namelist():
                 raise ValueError("不是有效的 docx（缺少 word/document.xml）")
+            # 解压炸弹防护（对抗审计 v2 #1）：raw 10MB 上限只限压缩体积，DEFLATE 重复 XML 可
+            # 100:1 解压到 GB 级，_read_capped 拦不住 → 用中央目录的未压缩大小（不解压）直接拒超限条目
+            _MAX_DECOMPRESSED = 30 * 1024 * 1024  # 单条目未压缩上限 30MB
+            for info in zf.infolist():
+                if info.file_size > _MAX_DECOMPRESSED:
+                    raise ValueError(
+                        f"docx 内条目解压过大（{info.filename} 未压缩 {info.file_size} 字节），拒绝解析"
+                    )
         except zipfile.BadZipFile:
             raise ValueError("docx 容器损坏，无法解析") from None
     else:

@@ -1,0 +1,17 @@
+# 密钥与本地状态绝不进镜像（对抗审计 v2 #3：backend/.env 曾被子网 COPY . . 烘焙进镜像层）
+# 注意：Docker 只读构建上下文根目录的排除文件——backend/.env 只在 backend/.dockerignore 生效，
+# 项目根 .dockerignore 不覆盖子目录构建上下文。
+.env
+.env.*
+*.db
+*.sqlite*
+chroma_db/
+media/
+backups/
+*.log
+venv/
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.git/
