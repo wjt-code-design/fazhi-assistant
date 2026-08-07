@@ -119,9 +119,33 @@ init_db()
 
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
 
-limiter = Limiter(key_func=get_remote_address)
+
+def _rate_key(request) -> str:
+    """限流按真实客户端 IP（2026-08-08 公网反代穿透，手机端上线）。
+
+    走 Cloudflare Tunnel 后默认取 request.client.host 会全部聚合成代理 IP，限流失效。
+    优先级：CF-Connecting-IP（cloudflared 注入的真实 IP，不可伪造）→ X-Forwarded-For
+    最右段（Caddy 追加的真实客户端 IP；攻击者伪造的中间段被忽略）→ client.host。
+    """
+    cf = request.headers.get("CF-Connecting-IP")
+    if cf and cf.strip():
+        return cf.strip()
+    xff = request.headers.get("X-Forwarded-For")
+    if xff:
+        parts = [p.strip() for p in xff.split(",") if p.strip()]
+        if parts:
+            return parts[-1]
+    return request.client.host or "unknown"
+
+
+limiter = Limiter(key_func=_rate_key)
+
+# 登录失败锁定（2026-08-08 公网安全）：内存级，单 worker 可靠；重启清零（2 人场景可接受）。
+# username -> [失败次数, 最近失败时间戳]
+_LOGIN_FAILURES: dict[str, list] = {}
+_LOGIN_MAX_ATTEMPTS = 5
+_LOGIN_LOCK_SECONDS = 300
 
 
 async def _read_capped(file: UploadFile, max_bytes: int, detail: str) -> bytes:
@@ -299,11 +323,19 @@ async def login(request: Request, body: LoginIn):
     def _do():
         db = SessionLocal()
         try:
+            now = time.time()
+            fail = _LOGIN_FAILURES.get(body.username)
+            if fail and fail[0] >= _LOGIN_MAX_ATTEMPTS and now < fail[1] + _LOGIN_LOCK_SECONDS:
+                raise HTTPException(status_code=429, detail="登录失败次数过多，账号已锁定，请稍后再试")
             user = db.query(User).filter(User.username == body.username).first()
             if not user or not verify_password(body.password, user.password_hash):
+                # 失败累计（2026-08-08 公网安全：爆破防护；内存级，重启清零，2 人场景可接受）
+                cnt, ts = _LOGIN_FAILURES.get(body.username, (0, now))
+                _LOGIN_FAILURES[body.username] = (cnt + 1, ts if cnt > 0 else now)
                 raise HTTPException(status_code=401, detail="用户名或密码错误")
             if not user.is_active:
                 raise HTTPException(status_code=403, detail="账号已被禁用")
+            _LOGIN_FAILURES.pop(body.username, None)  # 成功清除失败记录
             return {"token": create_token(user), "role": user.role, "username": user.username}
         finally:
             db.close()

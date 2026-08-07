@@ -1,4 +1,8 @@
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+// 同源部署（2026-08-08，手机端上线）：生产走相对路径 /api/*，由 Caddy 反代到 backend:8000
+// （免跨域、免 CORS、免注入 NEXT_PUBLIC_API_URL）；开发（next dev）仍直连 localhost:8000。
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
 
 const TOKEN_KEY = "alh_token";
 

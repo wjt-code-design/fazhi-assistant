@@ -1,20 +1,22 @@
-# 一键部署（本地 / Docker Desktop on Windows）。
+# 一键部署（本地 / Docker Desktop on Windows / Cloudflare Tunnel 公网）
 # 用法：
 #   1. cp backend/.env.example .env && 填好 LLM_API_KEY / JWT_SECRET / ADMIN_PASSWORD 等
 #   2. docker compose up -d --build
-# 访问：http://localhost:3000（前端） / http://localhost:8000/healthz（后端健康检查）
+# 访问：http://localhost（Caddy 统一入口 → 前端 3000 / 后端 8000）
+# 公网手机端（2 人场景，推荐，2026-08-08）：
+#   3. cloudflared tunnel --url http://localhost:80   免服务器免备案，自动 HTTPS，手机可访问
+#   或 DOMAIN=fazhi.你的域名.com docker compose up -d --build（云服务器场景，Caddy 自动证书）
 #
 # 诚实标注：
 #   - 后端镜像约 1.5GB（BGE 模型烘焙），首次构建需数分钟（下载 CPU torch + 模型）。
-#   - mem_limit 仅限制容器内内存；Windows 宿主页面文件仍由本机决定（WSL2 见 backend/docs/OPS.md）。
 #   - 并发模型：单 worker（uvicorn 默认 1 进程）——多 worker 会撞本地 Chroma/SQLite 锁。
+#   - 端口收紧（2026-08-08）：backend/frontend 不再对宿主机暴露，仅 compose 内网互通；
+#     公网只暴露 80/443（Caddy），防绕过反代直打后端。
 
 services:
   backend:
     build: ./backend
     container_name: fazhi-backend
-    ports:
-      - "8000:8000"
     environment:
       # 从宿主 .env 读取（compose 自动加载根目录 .env）
       - LLM_API_KEY=${LLM_API_KEY}
@@ -44,11 +46,27 @@ services:
   frontend:
     build: ./frontend
     container_name: fazhi-frontend
-    ports:
-      - "3000:3000"
     restart: unless-stopped
     mem_limit: 512m
     # 前端等后端健康后才起（避免启动时依赖后端不可达）
     depends_on:
       backend:
         condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: fazhi-caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      # 空=HTTP 监听 :80（Cloudflare Tunnel 穿透场景）；设域名=fazhi.example.com → 自动 HTTPS
+      DOMAIN: ${DOMAIN:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy_data:/data
+      - ./caddy_config:/config
+    depends_on:
+      - backend
+      - frontend

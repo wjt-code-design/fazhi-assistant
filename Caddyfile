@@ -1,0 +1,30 @@
+# 法智同源反代（2026-08-08，手机端上线）：/api/* → backend:8000，其余 → frontend:3000
+#
+# 两种用法（通过 DOMAIN 环境变量切换）：
+#   1. Cloudflare Tunnel / 内网穿透（推荐，2 人场景，免服务器免备案）：
+#      不设 DOMAIN → Caddy 监听 :80（HTTP），由 cloudflared 对外提供 HTTPS。
+#      docker compose 默认即此模式。cloudflared tunnel --url http://localhost:80
+#   2. 云服务器 + 自有域名（正式上线）：
+#      DOMAIN=fazhi.你的域名.com → Caddy 监听 443 自动 Let's Encrypt 证书（需服务器公网 80/443）。
+#
+{$DOMAIN::80} {
+	encode gzip
+
+	# 安全响应头（公网暴露防护，2026-08-08）
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	# API/SSE/媒体 → 后端
+	handle /api/* {
+		reverse_proxy backend:8000
+	}
+
+	# 其余（页面/静态资源）→ 前端
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

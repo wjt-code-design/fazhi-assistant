@@ -1100,7 +1100,7 @@ export default function ChatPage() {
               </div>
             )}
             <div className="flex items-center gap-1.5 md:gap-2">
-              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png" className="hidden" onChange={(e) => e.target.files?.[0] && acceptImageFile(e.target.files[0])} />
+              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png" capture="environment" className="hidden" onChange={(e) => e.target.files?.[0] && acceptImageFile(e.target.files[0])} />
               <button
                 type="button"
                 onClick={() => imageInputRef.current?.click()}
