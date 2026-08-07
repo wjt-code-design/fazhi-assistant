@@ -104,7 +104,8 @@ const RAW_DAILY_LAWS = [
   { src: "刑法", art: "第二十四条", text: "在犯罪过程中自动放弃犯罪或自动有效防止结果发生的，是犯罪中止", q: "什么是犯罪中止？" },
 ];
 type DailyLaw = { src: string; art: string; text: string; q: string };
-// 每日法条随机轮播：以当天日期为种子确定性洗牌（每天顺序不同、当天内稳定，5 秒循环）
+// 每日法条随机轮播：以当天日期为种子确定性洗牌（每天牌面不同），
+// 初始索引与每次 5 秒切换均为真随机，避免同一天内固定递增循环的规律感
 function _dailySeed() {
   const d = new Date();
   return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
@@ -121,9 +122,7 @@ function _shuffleBySeed(arr: DailyLaw[], seed: number): DailyLaw[] {
 }
 const DAILY_LAWS = _shuffleBySeed(RAW_DAILY_LAWS, _dailySeed());
 function dailyLawIndex() {
-  const d = new Date();
-  const dayKey = d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-  return dayKey % DAILY_LAWS.length;
+  return Math.floor(Math.random() * DAILY_LAWS.length);
 }
 // 流式三态：法典速查字符（检索期轮换）
 const CODEX = ["§", "¶", "†", "‡"];
@@ -262,7 +261,16 @@ export default function ChatPage() {
   const [dailyIdx, setDailyIdx] = useState(dailyLawIndex()); // 每日法条轮播索引
   useEffect(() => {
     if (messages.length !== 0) return; // 只在空状态轮播；开始对话后停止，避免全局重渲染导致法条卡抖动
-    const t = setInterval(() => setDailyIdx((i) => (i + 1) % DAILY_LAWS.length), 5000);
+    // 真随机切换：从 [0, len-1] 中抽一条，且避开当前索引（n>=i 时 +1），避免连续重复
+    const t = setInterval(
+      () =>
+        setDailyIdx((i) => {
+          let n = Math.floor(Math.random() * (DAILY_LAWS.length - 1));
+          if (n >= i) n++;
+          return n;
+        }),
+      5000
+    );
     return () => clearInterval(t);
   }, [messages.length]);
   const dailyLaw = DAILY_LAWS[dailyIdx];
@@ -999,20 +1007,6 @@ export default function ChatPage() {
                         ""
                       )}
                     </div>
-                    {!streaming && m.sources && m.sources.length > 0 && (
-                      <details className="mt-1.5 text-xs">
-                        <summary className="cursor-pointer select-none text-slate transition-colors hover:text-ink">
-                          参考条文（{m.sources.length}）
-                        </summary>
-                        <div className="mt-1.5 space-y-1">
-                          {m.sources.map((s, si) => (
-                            <div key={si} className="rounded bg-mist px-2.5 py-1.5 font-mono text-[0.78rem] text-ink/80">
-                              {s.source} {s.article}
-                            </div>
-                          ))}
-                        </div>
-                      </details>
-                    )}
                     {!streaming && m.content && (
                       <div className="mt-2">
                         <div className="flex items-center gap-2 text-slate">
