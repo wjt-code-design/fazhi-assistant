@@ -1,12 +1,7 @@
 # 法智同源反代（2026-08-08，手机端上线）：/api/* → backend:8000，其余 → frontend:3000
-#
-# 用法（通过 DOMAIN 环境变量切换）：
-#   默认（不设 DOMAIN）：Caddy 监听 :80（HTTP），供内网/穿透层转发。
-#   云服务器 + 自有域名：DOMAIN=fazhi.你的域名.com → Caddy 监听 443 自动 Let's Encrypt 证书。
-#
-{$DOMAIN::80} {
-	encode gzip
-
+# 修复（2026-08-08 服务器部署）：{$DOMAIN::80} 环境变量语法 Caddy 解析失败，改固定 :80
+#（容器内监听 80，由 docker-compose 映射宿主端口）；云服务器 + 域名场景在此行改域名。
+:80 {
 	# 安全响应头（公网暴露防护，2026-08-08）
 	header {
 		-Server

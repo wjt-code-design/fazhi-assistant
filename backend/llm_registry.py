@@ -199,7 +199,13 @@ class LLMRegistry:
                 ov = quota_store.initial_override(key)
                 if ov is not None:
                     e.initial_used = ov
-                e.llm = _build(cfg)
+                try:
+                    e.llm = _build(cfg)
+                except RuntimeError:
+                    # 缺 key/base_url 的 provider 跳过（2026-08-08 服务器部署修复）：用户只配了
+                    # 部分模型 key（如阿里云 qwen），智谱等其他 provider 没配会抛 RuntimeError，
+                    # 原先整个后端启动失败。跳过该 entry，不影响其他已配置模型。
+                    continue
                 self._entries[key] = e
 
     # ---------- 兼容接口（旧调用点不改） ----------
