@@ -17,10 +17,11 @@ from retrieval import retrieve, scenario_supplement_docs  # noqa: E402
 
 LAWS = ["著作权法", "商标法", "专利法", "消费者权益保护法", "合伙企业法"]
 
-PROMPT = """你是法考出题专家。请为《{law}》生成 10 道法考高频重难点单选题（必须是具体情景应用题，不能是法条背诵/概念题），覆盖该法最常考的 10 个重难点考点，每题考点不能重复。
-每道题包含：① 题干（含具体人物与情景，80-150 字）；② 四个选项 A/B/C/D；③ 正确答案；④ 法条依据（格式："{law} 第X条"，必须是该情景的裁判依据核心条文）。
-只输出一个 JSON 对象（除 JSON 外不要输出任何其他内容、不要 markdown 代码块）：
-{{"law":"{law}","questions":[{{"scenario":"...","options":{{"A":"...","B":"...","C":"...","D":"..."}},"answer":"B","basis":"{law} 第五十七条"}}]}}"""
+PROMPT = """你是法考出题专家。为《{law}》生成 10 道法考高频重难点单选题（必须是具体情景应用题，不能是法条背诵/概念题），覆盖该法最常考的 10 个不同重难点考点，每题考点不能重复。
+每道题输出一行，格式固定，用英文分号 ; 分隔 7 个字段，不要输出序号、不要空行、不要任何解释：
+情景题干;选项A;选项B;选项C;选项D;正确答案字母(A-D);法条依据
+法条依据格式必须为：{law} 第X条。例：{law} 第五十七条
+现在开始，严格只输出 10 行："""
 
 
 def gen(law, client):
@@ -29,12 +30,22 @@ def gen(law, client):
         model="qwen3.5-flash-2026-02-23",
         messages=[{"role": "user", "content": PROMPT.format(law=law)}],
         temperature=0.7,
-        max_tokens=3000,
+        max_tokens=3500,
     )
     text = resp.choices[0].message.content.strip()
-    # 剥 markdown 代码块
-    text = re.sub(r"^```(?:json)?\s*|\s*```$", "", text)
-    return json.loads(text)
+    qs = []
+    for line in text.splitlines():
+        parts = line.split(";")
+        if len(parts) < 7:
+            continue
+        scenario, oa, ob, oc, od, ans, basis = parts[:7]
+        qs.append({
+            "scenario": scenario.strip(),
+            "options": {"A": oa.strip(), "B": ob.strip(), "C": oc.strip(), "D": od.strip()},
+            "answer": ans.strip(),
+            "basis": basis.strip(),
+        })
+    return qs
 
 
 def parse_basis(basis):
@@ -48,17 +59,33 @@ def parse_basis(basis):
     return src, art
 
 
+CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qwen_cases_cache.json")
+
+
 def main():
     import openai
     base = settings.llm_base_url or settings.zhipu_base_url
     key = settings.llm_api_key or settings.zhipuai_api_key
     client = openai.OpenAI(base_url=base, api_key=key)
 
+    if os.path.exists(CACHE):
+        all_qs = json.load(open(CACHE, encoding="utf-8"))
+        print("使用缓存题目（跳过 qwen 生成）")
+    else:
+        all_qs = {}
+        json.dump(all_qs, open(CACHE, "w", encoding="utf-8"), ensure_ascii=False)
+        print("初始化缓存")
+    # 缓存缺失/为空的法律 → 重新生成该法
+    for law in LAWS:
+        if not all_qs.get(law):
+            print(f"重新生成 {law}（缓存缺失）")
+            all_qs[law] = gen(law, client)
+            json.dump(all_qs, open(CACHE, "w", encoding="utf-8"), ensure_ascii=False)
+
     total_hit = total_miss = total_unknown = 0
     for law in LAWS:
-        data = gen(law, client)
-        qs = data.get("questions", [])
-        print(f"=== {law}: 生成 {len(qs)} 题 ===")
+        qs = all_qs.get(law, [])
+        print(f"=== {law}: {len(qs)} 题 ===")
         for q in qs:
             basis = q.get("basis", "")
             src, art = parse_basis(basis)
