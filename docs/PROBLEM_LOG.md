@@ -287,3 +287,11 @@
 - **结果**：程序化题 82%→**100%**（50/50）；qwen 真实题 90%→**100%**（50/50）；test_scenario_supplement.py 5/5 通过。
 - **判断指标**：程序化 50/50、qwen 交叉验证 50/50、pytest 5/5。
 - **附**：gen_qwen_cases.py 支持题目缓存复用（同批题重验不重复生成）。
+
+### 25. 对抗审计 v2：27 findings 23 确认全修复（2026-08-07）
+- **问题**：workflow 深度对抗检查整个项目，6 维度 find + 逐 finding 对抗验证 → 27 findings，确认 23（high 3 / medium 13 / low 7），拒绝 4（已被缓解或证据不足）。
+- **high**：DOCX 解压炸弹（30MB 限制，绕过 raw 10MB 上限可 OOM 打崩服务）；SSE 流式无超时（pending 挂起 UI 永久卡死）；backend/.env 被 COPY 烘进 Docker 镜像层（真实 key 泄漏）。
+- **medium**：admin 抢占锁死管理接口、SSE 断开孤立消息（GeneratorExit）、expand_citations 错补合同条款、保险词子串命中社保、压缩 LLM 无并发位、blob URL 泄漏、memo 引用击穿、录音不停止、llm_model 死配置、5 法名缺标注、跨组词重复、数据测试 CI 零防护。
+- **修复**：批1+2（a652661，high3+前端4）→ 批3（e6faa4d，检索/归一7）→ 批4（91268cc，SSE/并发4）→ 批5（fcfb285，文档/测试/配置4）。
+- **结果**：全部修复；回归通过——程序化 5 法 50/50、qwen 缓存批次 50/50、test_scenario_data 3/3、test_scenario_supplement 6/6（含"所有条文在库"）、前端 tsc 0 error、main.py py_compile OK。
+- **判断指标**：详见 docs/audit_report_20260807_v2.md。
