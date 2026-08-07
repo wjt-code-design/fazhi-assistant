@@ -3,9 +3,7 @@
 #   1. cp backend/.env.example .env && 填好 LLM_API_KEY / JWT_SECRET / ADMIN_PASSWORD 等
 #   2. docker compose up -d --build
 # 访问：http://localhost（Caddy 统一入口 → 前端 3000 / 后端 8000）
-# 公网手机端（2 人场景，推荐，2026-08-08）：
-#   3. cloudflared tunnel --url http://localhost:80   免服务器免备案，自动 HTTPS，手机可访问
-#   或 DOMAIN=fazhi.你的域名.com docker compose up -d --build（云服务器场景，Caddy 自动证书）
+# 公网手机端（可选）：配 DOMAIN=fazhi.你的域名.com + 反代/穿透层，或云服务器场景 Caddy 自动证书
 #
 # 诚实标注：
 #   - 后端镜像约 1.5GB（BGE 模型烘焙），首次构建需数分钟（下载 CPU torch + 模型）。
