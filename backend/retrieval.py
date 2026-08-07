@@ -717,20 +717,36 @@ def _is_crime_qualify(text: str) -> bool:
     return any(m in (text or "") for m in _CRIME_QUALIFY_MARKS)
 
 
+# 补充规模控制（对抗审计 trade-off 收尾，2026-08-07）：多组关键词命中时补充会膨胀
+# （个别题 30-52 条文），稀释模型上下文。按命中关键词数只取最相关前 _SUPP_MAX_GROUPS 组，
+# 总条文数限 _SUPP_MAX_ARTICLES（兜底核心罪名集 20 条可完整容纳）。
+_SUPP_MAX_GROUPS = 2
+_SUPP_MAX_ARTICLES = 24
+
+
 def scenario_supplement_docs(text: str) -> list[Document]:
     """场景定向补充（数据驱动）：命中关键词 → 前置该场景核心条文（防整题检索漏项）。
 
     复用 exact_article_lookup 精确取条（条号直查零嵌入零检索），返回的 Document 由
     调用方前置到检索结果。仅用于非选项题（选项题已走 retrieve_exam 逐项检索）。
     兜底：关键词全未命中但属罪名定性题 → 补核心罪名条文集（覆盖 20 个常见罪名）。
+    规模控制：多组命中时按关键词命中数取前 _SUPP_MAX_GROUPS 组，总条数限 _SUPP_MAX_ARTICLES。
     """
     t = text or ""
+    # 命中组按关键词命中数降序（最相关的组优先；防通用组抢位导致补充膨胀）
+    hits = []
+    for spec in _load_supplements():
+        n = sum(1 for k in spec.get("keywords", []) if k in t)
+        if n:
+            hits.append((n, spec))
+    hits.sort(key=lambda x: -x[0])
+
     out: list[Document] = []
     seen: set[str] = set()
-    for spec in _load_supplements():
-        if not any(k in t for k in spec.get("keywords", [])):
-            continue
+    for _n, spec in hits[:_SUPP_MAX_GROUPS]:
         for a in spec.get("articles", []):
+            if len(out) >= _SUPP_MAX_ARTICLES:
+                break
             try:
                 docs = exact_article_lookup(a.get("source", ""), a.get("article", ""))
             except Exception:
@@ -743,6 +759,8 @@ def scenario_supplement_docs(text: str) -> list[Document]:
     # 兜底：定性问句 + 关键词未命中 → 补核心罪名条文集（防行为词变体漏匹配）
     if not out and _is_crime_qualify(t):
         for src, art in _CORE_CRIME_ARTICLES:
+            if len(out) >= _SUPP_MAX_ARTICLES:
+                break
             try:
                 docs = exact_article_lookup(src, art)
             except Exception:
