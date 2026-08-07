@@ -116,7 +116,15 @@ export function annotate(raw: string): string {
 
   // 3) 对引号外部分标注：期限时效（含范围 + 中文数字）→ 金额（含范围 + 中文数字）→ 倍数/百分比
   //    月份（个月）只高亮数字、单位不加填充色；年/日整体高亮。
-  const marked = lawMarked
+  // 3.5) 保护法条 span：先占位，避免时间/金额高亮嵌套进法条内（如《宪法（1982年）》书名的
+  //      "1982年"被 hl-time 嵌套，会破坏 law-ref 的 data-source 与点击、HTML 错乱）
+  const lawSpans: string[] = [];
+  const protectedLaw = lawMarked.replace(/<span class="law-ref"[^>]*>[\s\S]*?<\/span>/g, (m) => {
+    lawSpans.push(m);
+    return `${PH}L${lawSpans.length - 1}${PH}`;
+  });
+
+  const marked = protectedLaw
     .replace(
       /(\d+(?:\.\d+)?)\s*[-~～至到]\s*(\d+(?:\.\d+)?)\s*(年|日)/g,
       '<span class="hl-time">$1</span>-<span class="hl-time">$2</span>$3'
@@ -135,8 +143,11 @@ export function annotate(raw: string): string {
     .replace(/([二三四五六七八九]|\d+(?:\.\d+)?)\s*倍/g, '<span class="hl-num">$1倍</span>')
     .replace(/\d+(?:\.\d+)?\s*%/g, '<span class="hl-num">$&</span>');
 
+  // 3.6) 还原法条 span（占位符不受时间/金额正则干扰：数字后无单位/上下文）
+  const lawRestored = marked.replace(new RegExp(`${PH}L(\\d+)${PH}`, "g"), (_, i) => lawSpans[Number(i)]);
+
   // 4) 引号内容还原，并对引号内原文摘录做同样的语义高亮，保证格式统一
-  return marked.replace(new RegExp(`${PH}(\\d+)${PH}`, "g"), (_, i) => highlightInsideQuote(quotes[Number(i)]));
+  return lawRestored.replace(new RegExp(`${PH}(\\d+)${PH}`, "g"), (_, i) => highlightInsideQuote(quotes[Number(i)]));
 }
 
 // ==================== 回答排版器 ====================
