@@ -128,10 +128,13 @@ export default function LoginPage() {
             <button type="button" className={`tab flex-1 ${mode === "login" ? "active" : ""}`} onClick={() => { setMode("login"); setError(""); }}>
               登录
             </button>
-            <button type="button" className={`tab flex-1 ${mode === "register" ? "active" : ""}`} onClick={() => { setMode("register"); setError(""); }}>
-              注册
-            </button>
+            <div className="tab flex-1 cursor-not-allowed text-slate/50" title="注册已关闭">
+              注册（管理员创建）
+            </div>
           </div>
+          <p className="page-enter mt-3 text-center text-xs text-slate/70">
+            本系统账号由管理员创建，如需开通请联系管理员
+          </p>
 
           <form onSubmit={onSubmit} className="mt-6">
             <div className="mb-5">

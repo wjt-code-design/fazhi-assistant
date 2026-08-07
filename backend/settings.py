@@ -28,6 +28,7 @@ class Settings(BaseSettings):
 
     # ---- 特性开关 ----
     feature_hybrid: bool = True  # 向量+BM25 RRF 混合检索
+    feature_self_register: bool = False  # 方案C（2026-08-08）：默认关闭公开注册，仅管理员开户；.env SELF_REGISTER=true 重开
     feature_router: bool = True  # 多模型分级路由总开关；False 时主回答退化为旧单模型（get()）
     feature_study_retrieval: bool = True  # ADR-012：study_aid 具体题分步检索（False 一键回滚"不检索"）
     feature_study_cache: bool = True  # 法考题(study_aid)进回答缓存白名单（False 回滚=仅 legal_query 可缓存）

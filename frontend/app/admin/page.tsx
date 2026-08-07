@@ -135,6 +135,10 @@ export default function AdminPage() {
   });
   const [addMsg, setAddMsg] = useState<{ ok: boolean; text: string } | null>(null);
   const [adding, setAdding] = useState(false);
+  // 创建账号（方案C 2026-08-08：公开注册关闭，管理员开户）
+  const [newUser, setNewUser] = useState({ username: "", password: "" });
+  const [userMsg, setUserMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const [creating, setCreating] = useState(false);
   const [previewText, setPreviewText] = useState("");
   const [preview, setPreview] = useState<{
     mode: string;
@@ -200,6 +204,32 @@ export default function AdminPage() {
       setUsers((list) => list.filter((x) => x.id !== u.id));
     } catch (err) {
       alert(`删除失败：${err instanceof Error ? err.message : err}`);
+    }
+  }
+
+  async function createUser() {
+    if (newUser.username.trim().length < 3) {
+      setUserMsg({ ok: false, text: "用户名至少 3 个字符" });
+      return;
+    }
+    if (newUser.password.length < 8) {
+      setUserMsg({ ok: false, text: "密码至少 8 位" });
+      return;
+    }
+    setCreating(true);
+    setUserMsg(null);
+    try {
+      await api.post("/api/admin/users", {
+        username: newUser.username.trim(),
+        password: newUser.password,
+      });
+      setUserMsg({ ok: true, text: "账号已创建，可登录使用" });
+      setNewUser({ username: "", password: "" });
+      api.get<UserRow[]>("/api/admin/users").then(setUsers).catch(() => {});
+    } catch (err) {
+      setUserMsg({ ok: false, text: err instanceof Error ? err.message : "创建失败" });
+    } finally {
+      setCreating(false);
     }
   }
 
@@ -437,6 +467,28 @@ export default function AdminPage() {
             {/* ===== 用户管理 ===== */}
             {!loadingData && section === "users" && (
               <div className="glass-card overflow-x-auto rounded-xl">
+                <div className="flex flex-wrap items-center gap-2 border-b border-mist p-4">
+                  <h3 className="mr-1 text-sm font-semibold text-ink">创建账号（替代公开注册）</h3>
+                  <input
+                    className="input w-36"
+                    value={newUser.username}
+                    onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+                    placeholder="用户名"
+                  />
+                  <input
+                    className="input w-44"
+                    type="password"
+                    value={newUser.password}
+                    onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+                    placeholder="密码（≥8 位）"
+                  />
+                  <button type="button" className="btn btn-primary" onClick={createUser} disabled={creating}>
+                    {creating ? "创建中…" : "创建账号"}
+                  </button>
+                  {userMsg && (
+                    <span className={userMsg.ok ? "text-xs text-jade" : "text-xs text-error"}>{userMsg.text}</span>
+                  )}
+                </div>
                 <table className="law-table">
                   <thead>
                     <tr>

@@ -270,6 +270,10 @@ def healthz():
 @app.post("/api/auth/register")
 @limiter.limit("10/minute")
 async def register(request: Request, body: RegisterIn):
+    # 方案C（2026-08-08，用户要求"一个用户只能注册一个账号"）：默认关闭公开注册，仅管理员开户。
+    # 前端不再引导注册，绕过前端直调本接口也 403；.env SELF_REGISTER=true 可重开（小团队自管）。
+    if not settings.feature_self_register:
+        raise HTTPException(status_code=403, detail="注册已关闭，请联系管理员创建账号")
     def _do():
         db = SessionLocal()
         try:
@@ -1685,6 +1689,25 @@ def admin_users(db: Session = Depends(get_db), _admin: User = Depends(require_ad
         }
         for u in users
     ]
+
+
+@app.post("/api/admin/users")
+def admin_create_user(body: RegisterIn, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    """管理员开户（方案C 2026-08-08）：创建普通用户账号，替代公开注册。
+
+    一人一账号由管理员发放账号天然保证（每个真实用户由 admin 创建一个账号）。
+    用户名不可占用 admin 保留名（与 register 同款防抢占）。
+    """
+    if body.username == settings.admin_username:
+        raise HTTPException(status_code=400, detail="该用户名不可创建（管理员保留名）")
+    if db.query(User).filter(User.username == body.username).first():
+        raise HTTPException(status_code=400, detail="用户名已存在")
+    user = User(username=body.username, password_hash=hash_password(body.password), role="user")
+    db.add(user)
+    db.commit()
+    db.refresh(user)
+    log_audit(_admin.id, "user.create", target=user.id, detail=body.username)
+    return {"id": user.id, "username": user.username, "role": user.role}
 
 
 @app.patch("/api/admin/users/{user_id}")
