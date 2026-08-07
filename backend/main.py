@@ -136,7 +136,8 @@ def _rate_key(request) -> str:
         parts = [p.strip() for p in xff.split(",") if p.strip()]
         if parts:
             return parts[-1]
-    return request.client.host or "unknown"
+    client = getattr(request, "client", None)
+    return (client.host if client else None) or "unknown"
 
 
 limiter = Limiter(key_func=_rate_key)
@@ -632,9 +633,10 @@ def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool
         )
         # 对抗审计 v2 #21：message_count 读-改-写原子化——同会话并发请求时两次 +1 只生效一次的
         # 竞态改为 DB 侧原子自增（本地 +1 仅保持 conv 对象一致，不参与实际计数）
-        db.execute(
-            text("UPDATE conversations SET message_count = COALESCE(message_count, 0) + 1 WHERE id = :id"),
-            {"id": conv.id},
+        # 注意（2026-08-08 修复）：_pre 参数名 text 覆盖了 SQLAlchemy 的 text()，曾致
+        # TypeError 'str' not callable（问答 500）——改用 ORM func.coalesce 原子自增。
+        db.query(Conversation).filter(Conversation.id == conv.id).update(
+            {"message_count": func.coalesce(Conversation.message_count, 0) + 1}
         )
         conv.message_count = (conv.message_count or 0) + 1
         conv.last_active_at = datetime.utcnow()
