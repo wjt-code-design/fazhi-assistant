@@ -26,6 +26,7 @@ services:
       - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
       # SQLite 落在挂载卷内（避免单文件挂载的目录坑）
       - DATABASE_URL=sqlite:////data/app.db
+      - QUOTA_DB=/data/quota_used.sqlite
     volumes:
       # 持久化用户数据（绝不进镜像）
       - ./backend/chroma_db:/app/chroma_db

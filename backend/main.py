@@ -594,6 +594,12 @@ def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool
                 image_desc=desc or None,
             )
         )
+        # 对抗审计 v2 #21：message_count 读-改-写原子化——同会话并发请求时两次 +1 只生效一次的
+        # 竞态改为 DB 侧原子自增（本地 +1 仅保持 conv 对象一致，不参与实际计数）
+        db.execute(
+            text("UPDATE conversations SET message_count = COALESCE(message_count, 0) + 1 WHERE id = :id"),
+            {"id": conv.id},
+        )
         conv.message_count = (conv.message_count or 0) + 1
         conv.last_active_at = datetime.utcnow()
         if not conv.title:
@@ -685,6 +691,11 @@ def _post(pre: dict, answer: str, curate: bool = True):
             citation_grounding(answer, pre.get("sources") or [], _grounding_stats)
         db.add(Message(conversation_id=pre["conv_id"], role="assistant", content=answer))
         conv = db.get(Conversation, pre["conv_id"])
+        # 对抗审计 v2 #21：原子自增（与 _pre 同款防读-改-写竞态）
+        db.execute(
+            text("UPDATE conversations SET message_count = COALESCE(message_count, 0) + 1 WHERE id = :id"),
+            {"id": pre["conv_id"]},
+        )
         conv.message_count = (conv.message_count or 0) + 1
         conv.last_active_at = datetime.utcnow()
         if not conv.answer:
@@ -700,10 +711,12 @@ def _post(pre: dict, answer: str, curate: bool = True):
             if q and should_curate(grounded, answer):
                 ks.create_candidate(db, q, answer, grounded, json.dumps(pre["sources"], ensure_ascii=False))
 
-        # 增量压缩
+        # 增量压缩（对抗审计 v2 #9：LLM 调用纳入 llm_guard 并发位——突发长答复时不再无界并发，
+        # 且不再独占共享线程池/悬挂 SSE 连接最长 120s）
         recent = recent_messages(db, conv.id)
         if needs_compress(conv, recent):
-            compress(db, conv, registry.get())
+            with llm_guard:
+                compress(db, conv, registry.get())
     finally:
         db.close()
 
@@ -718,6 +731,11 @@ def _post_placeholder(pre: dict) -> None:
     try:
         db.add(Message(conversation_id=pre["conv_id"], role="assistant", content="服务暂时无响应，请稍后重试。"))
         conv = db.get(Conversation, pre["conv_id"])
+        # 对抗审计 v2 #21：原子自增（与 _pre/_post 同款防竞态）
+        db.execute(
+            text("UPDATE conversations SET message_count = COALESCE(message_count, 0) + 1 WHERE id = :id"),
+            {"id": pre["conv_id"]},
+        )
         conv.message_count = (conv.message_count or 0) + 1
         conv.last_active_at = datetime.utcnow()
         db.commit()
@@ -1156,6 +1174,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
         flag_key, flag_llm, flag_degraded = _safe_pick(modality, tier or "flag")
 
     async def stream():
+        _posted = False  # 本轮 assistant 消息是否已落库（对抗审计 v2 #5/#8：客户端断开时 finally 兜底占位）
         try:
             # 分支0：缓存命中（精确 key 优先，近重复兜底 feature_similar_cache）→ 零 token 直返
             hit = cache_hit
@@ -1176,6 +1195,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield "data: [DONE]\n\n"
                 try:
                     await run_in_threadpool(_post, pre, ca, False)
+                    _posted = True
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
                 return
@@ -1197,6 +1217,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield "data: [DONE]\n\n"
                 try:
                     await run_in_threadpool(_post, pre, qa_ans, False)
+                    _posted = True
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
                 return
@@ -1219,6 +1240,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield "data: [DONE]\n\n"
                 try:
                     await run_in_threadpool(_post, pre, msg)
+                    _posted = True
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
                 return
@@ -1241,6 +1263,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     yield "data: [DONE]\n\n"
                     try:
                         await run_in_threadpool(_post, pre, CONTRACT_CLARIFY_PROMPT, False)
+                        _posted = True
                     except Exception as e:
                         print(f"[chat-post] {e}", flush=True)
                     return
@@ -1327,6 +1350,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     print(f"[analysis-run] {e}", flush=True)
                 try:
                     await run_in_threadpool(_post, pre, answer, False)
+                    _posted = True
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
                 return
@@ -1358,6 +1382,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 if answer:
                     try:
                         await run_in_threadpool(_post, pre, answer)
+                        _posted = True
                     except Exception as e:
                         print(f"[chat-post] {e}", flush=True)
                 return
@@ -1450,6 +1475,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 # 空答补偿：用户消息已落库，落一条占位 assistant 消息保持成对（对抗审计 2026-08-07）
                 try:
                     await run_in_threadpool(_post_placeholder, pre)
+                    _posted = True
                 except Exception as e:
                     print(f"[chat-placeholder] {e}", flush=True)
             # S3+S6：旗舰流式路径也跑自检 + 写缓存（让缓存/自检对 text 生效，不只轻量分支）。
@@ -1510,6 +1536,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             if answer:
                 try:
                     await run_in_threadpool(_post, pre, answer)
+                    _posted = True
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
         except LLMBusyError:
@@ -1518,6 +1545,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 补偿：_post 未执行（try 中途抛错）→ 占位 assistant 消息保持成对（对抗审计 2026-08-07）
             try:
                 await run_in_threadpool(_post_placeholder, pre)
+                _posted = True
             except Exception as e:
                 print(f"[chat-placeholder] {e}", flush=True)
         except Exception as e:
@@ -1527,8 +1555,19 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 补偿：_post 未执行 → 占位 assistant 消息保持成对（对抗审计 2026-08-07）
             try:
                 await run_in_threadpool(_post_placeholder, pre)
+                _posted = True
             except Exception as e:
                 print(f"[chat-placeholder] {e}", flush=True)
+        finally:
+            # 对抗审计 v2 #5/#8：客户端断开（GeneratorExit 不属 Exception）或未走任何落库分支时，
+            # 生成器在此被 close → 独立后台任务派占位 assistant，保持 user/assistant 成对与计数平衡。
+            # 不 await/yield（GeneratorExit 下不可再产出数据帧）；失败静默，下次会话自然成对。
+            if not _posted:
+                try:
+                    import asyncio
+                    asyncio.get_running_loop().run_in_executor(None, _post_placeholder, pre)
+                except Exception:
+                    pass
 
     return StreamingResponse(stream(), media_type="text/event-stream")
 

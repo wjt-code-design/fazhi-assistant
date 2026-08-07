@@ -27,7 +27,7 @@ BACKEND = os.path.dirname(HERE)
 sys.path.insert(0, BACKEND)
 os.chdir(BACKEND)
 
-DEFAULT_BACKUP_ROOT = os.path.join(BACKEND, "..", "backups")
+DEFAULT_BACKUP_ROOT = os.path.join(BACKEND, "backups")  # 对抗审计 v2 #22：与 compose 卷 ./backend/backups:/app/backups 一致
 CHROMA_DIR = os.path.join(BACKEND, "chroma_db")
 # database.py 支持 DATABASE_URL；这里解析出 sqlite 文件路径，默认 backend/app.db
 DB_URL = os.getenv("DATABASE_URL", "")
