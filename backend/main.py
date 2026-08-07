@@ -1202,7 +1202,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
 
             # 分支0.2：QA 持久语义缓存直返（8-23 智谱免费 token 预生成语料，零 LLM）
             # 高阈值 + 选项指纹 + evidence 时效三护栏；仅命中才直返，否则回落 LLM
-            qa_ans = None if body.no_cache else _qa_direct_return(pre)
+            # 对抗审计 v2 #20：_qa_direct_return 内 Chroma .get() 同步阻塞事件循环 → 线程池
+            qa_ans = None if body.no_cache else await run_in_threadpool(_qa_direct_return, pre)
             if qa_ans:
                 _f0 = time.perf_counter()
                 yield f"data: {json.dumps({'content': qa_ans}, ensure_ascii=False)}\n\n"
@@ -1321,7 +1322,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     # 合同分支补配额记账（原零扣减，后备模型用量从不计入）
                     if use_router and _ccur["key"]:
                         est = estimate_tokens(answer) + estimate_tokens(pre.get("context", "") + pre.get("user_text", ""))
-                        registry.deduct(_ccur["key"], est * registry.thinking_mult(_ccur["key"]))
+                        # 对抗审计 v2 #20：SQLite 扣减同步阻塞事件循环 → 线程池
+                        await run_in_threadpool(registry.deduct, _ccur["key"], est * registry.thinking_mult(_ccur["key"]))
                     bad = citation_verify(answer)
                     if cache_key:
                         # 继承回答缓存（code-review #5：重复贴同一合同零重烧）
@@ -1367,7 +1369,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 if cache_key and res.verdict == "pass":
                     answer_cache.put(cache_key, answer, pre["sources"])
                 if res.key:
-                    registry.deduct(res.key, res.usage)
+                    # 对抗审计 v2 #20：SQLite 扣减同步阻塞事件循环 → 线程池
+                    await run_in_threadpool(registry.deduct, res.key, res.usage)
                 routing_metrics.record(res.tier, res.escalated, res.verdict, "miss", checked=True)
                 log_account(
                     model=registry.model_of(res.key), tier=res.tier,
@@ -1515,7 +1518,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 看门狗 mark_depleted 的 key 与实际扣减 key 错位（对抗审计 2026-08-07）
             if use_router and current["key"] and answer:
                 est = estimate_tokens(answer) + estimate_tokens(pre.get("context", "") + pre.get("user_text", ""))
-                registry.deduct(current["key"], est * registry.thinking_mult(current["key"]))
+                # 对抗审计 v2 #20：SQLite 扣减同步阻塞事件循环 → 线程池
+                await run_in_threadpool(registry.deduct, current["key"], est * registry.thinking_mult(current["key"]))
             routing_metrics.record(
                 (tier or "flag") if use_router else "legacy", False, verdict_flag, "miss",
                 checked=bool(use_router and answer),

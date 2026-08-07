@@ -19,7 +19,6 @@ services:
       # 从宿主 .env 读取（compose 自动加载根目录 .env）
       - LLM_API_KEY=${LLM_API_KEY}
       - LLM_BASE_URL=${LLM_BASE_URL}
-      - LLM_MODEL=${LLM_MODEL:-qwen3.5-omni-plus-2026-03-15}
       - JWT_SECRET=${JWT_SECRET}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?请在根 .env 设置 ADMIN_PASSWORD}

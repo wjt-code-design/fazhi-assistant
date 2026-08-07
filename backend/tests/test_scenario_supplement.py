@@ -66,3 +66,22 @@ def test_company_law_49_no_old_breach_clause():
     doc = exact_article_lookup("公司法", "第四十九条")
     assert doc, "公司法第49条应存在于知识库"
     assert "违约责任" not in doc[0].page_content
+
+
+def test_all_supplement_articles_exist():
+    """补充组每条 (source, article) 必须在知识库（对抗审计 v2 #16：数据文件在库一致性）。
+
+    纯数据校验（JSON 结构/关键词/跨组重复）在非 slow 的 test_scenario_data.py；
+    本用例需拉 BGE（exact_article_lookup），保持 slow，CI 由 -m 'not slow' 之外的覆盖层补齐。
+    """
+    import json
+    import os
+
+    data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scenario_supplements.json")
+    data = json.load(open(data_path, encoding="utf-8"))
+    missing = []
+    for g in data:
+        for a in g["articles"]:
+            if not exact_article_lookup(a["source"], a["article"]):
+                missing.append((g["scenario"], a["source"], a["article"]))
+    assert not missing, f"补充组条文不在知识库: {missing}"

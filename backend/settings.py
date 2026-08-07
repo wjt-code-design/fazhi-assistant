@@ -14,7 +14,8 @@ class Settings(BaseSettings):
     # ---- LLM ----
     llm_api_key: str = ""
     llm_base_url: str = ""
-    llm_model: str = "qwen3.5-omni-plus-2026-03-15"
+    # 对抗审计 v2 #12：删除死配置 llm_model（无任何代码读取，真正入口是 llm_registry 的
+    # DEFAULT_ROLES / LLM_MODELS_JSON）。移除字段避免 .env/docker-compose 误以为 LLM_MODEL 生效。
     zhipuai_api_key: str = ""  # 旧名兼容（智谱平台 key，8-23 到期免费 token）
     zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4"  # 智谱 OpenAI 兼容端点
 

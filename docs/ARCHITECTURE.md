@@ -14,7 +14,7 @@
 └─────────────┘   SSE 流式回答    │  ├─ 意图分流（classify_intent）                │
                                  │  ├─ 检索编排（retrieval）                     │
                                  │  ├─ 引用校验（citation_verify）               │
-                                 │  └─ LLM 网关（llm_registry → 单一 omni 模型）  │
+                                 │  └─ LLM 网关（llm_registry → 多模型配额路由）  │
                                  └───────────────┬──────────────────────────────┘
                                                  │
                       ┌──────────────────────────┼──────────────────────────┐
@@ -114,7 +114,9 @@
 
 - **并发**：本地单 worker 是唯一安全配置。`--workers>1` 会撞 Chroma/SQLite 写锁。
   扩并发 = 换托管向量库（Qdrant/PGVector）+ 托管 PostgreSQL，再上多 worker/水平扩容。
-- **LLM**：单一 omni 模型（当前阿里云 qwen3.5-omni）。多模型路由在 `llm_registry` 有接口位。
+- **LLM**：多模型配额路由已启用（`llm_registry.DEFAULT_ROLES` 27 条目：qwen3.5-omni-plus 旗舰 /
+  qwen3.5-flash、deepseek-v4-flash 轻量；按 priority/failover 降级、thinking 开关、配额轮换与耗尽
+  自动回落、轻量 tier 门禁）。总开关 `feature_router`，整体覆盖入口 `LLM_MODELS_JSON`（对抗审计 v2 #23 修正旧"单一模型"描述）。
 - **部署**：Docker 单机已就绪；k8s/serverless 需先解决持久化与并发。
 - **前端**：当前 SSR + 轻量 PWA 能力；复杂 SW/原生 App 未做。
 
