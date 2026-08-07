@@ -47,8 +47,18 @@ def test_id16_labor_dispute_prepends_47_and_53():
 
 
 def test_unrelated_scenario_no_trigger():
-    q = "关于保证担保，下列说法正确的是？A.当事人约定保证人与债务人对债务承担连带责任的，为连带责任保证"
+    # 负例样本更新（2026-08-07）：原"保证担保"样本现命中新增 guarantee_contract 组（保证题该触发），
+    # 换为真不触发补充组的法律题（普通诉讼时效靠向量检索，无专门补充组）
+    q = "民法典规定普通诉讼时效是几年？"
     assert scenario_supplement_docs(q) == []
+
+
+def test_guarantee_contract_triggers_692_693():
+    """保证期间题（连带责任保证）→ 命中 guarantee_contract 组核心条文（2026-08-07 召回缺口修复）。"""
+    q = "连带责任保证未约定保证期间，保证期间怎么算？"
+    arts = _ids(scenario_supplement_docs(q))
+    assert "第六百九十二条" in arts  # 保证期间
+    assert "第六百九十三条" in arts  # 保证责任消灭
 
 
 def test_company_law_49_no_old_breach_clause():
