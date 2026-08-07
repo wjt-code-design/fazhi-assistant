@@ -179,15 +179,19 @@ _MIN_CONTRACT_LEN = 80  # 触发下限（短合同 ~100 字含 2+ 合同名词�
 
 
 def is_contract_review(text: str) -> bool:
-    """触发判定：显式审查请求 + 合同名词，或长文本（≥150 字）+ ≥2 合同名词/含当事人词。
+    """触发判定：显式审查请求 + 合同名词，或长文本 + 合同当事人/条款结构。
 
     防误报：裸"审查"（审查起诉阶段）需配合同名词；"违约金怎么算"等短句无审查动词不触发。
+    2026-08-07 收紧长文本自动触发：原"≥2 合同名词"太宽，法律情景题（含"买卖/借款"
+    等词）被误判进合同评估、物权/刑法条文不进上下文。现需"甲方/乙方"字样或
+    "第X条结构 + ≥3 合同名词"——即文本真像合同而非案情叙述。
     """
     t = text or ""
     if any(v in t for v in _REVIEW_VERBS) and any(n in t for n in _CONTRACT_NOUNS):
         return True
     if len(t) >= _MIN_CONTRACT_LEN and (
-        sum(1 for n in _CONTRACT_NOUNS if n in t) >= 2 or "甲方" in t or "乙方" in t
+        "甲方" in t or "乙方" in t
+        or ("条" in t and sum(1 for n in _CONTRACT_NOUNS if n in t) >= 3)
     ):
         return True
     return False
