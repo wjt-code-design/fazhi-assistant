@@ -671,8 +671,10 @@ def _post(pre: dict, answer: str, curate: bool = True):
     db = SessionLocal()
     try:
         # 生成层输出归一（幂等，缓存命中路径重跑无害）
-        # 先展开省略书名的连续条号（"《民法典》第715条（...）、第716条"→补书名），
-        # 再币种归一、矛盾句删除——展开让 citation_grounding 抽到完整《X》第N条。
+        # 先补"法律名+第X条"书名号（"刑法第23条"→《刑法》第23条），再展开省略书名的
+        # 连续条号（"《民法典》第715条（...）、第716条"→补书名），再币种归一、矛盾句删除
+        # ——让前端标色/citation_grounding 抽到完整《X》第N条。
+        answer = output_normalize.expand_law_names(answer)
         answer = output_normalize.expand_citations(answer)
         answer = output_normalize.money_normalize(answer)
         answer = output_normalize.strip_unprovided_notes(answer, source_in_kb)

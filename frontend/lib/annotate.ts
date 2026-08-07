@@ -64,18 +64,37 @@ export function annotate(raw: string): string {
   //    - 跨句（。！？\n）/ 跨表格单元的独立「第X条」（如合同条款「第九条 争议解决」）一律
   //      不标注，并断开书名延续，避免误亮成法条。
   // 字符集对齐后端 _ART_FULL_RE（retrieval.py）：补 万/〇/○/全角０-９；支持"之条"（第X条之三）。
-  const LAW =
-    /《([^》]+)》\s*第\s*([零〇○一二三四五六七八九十百千万0-9０-９]+)\s*条(之[一二三四五六七八九十百千万0-9０-９]+)?|第\s*([零〇○一二三四五六七八九十百千万0-9０-９]+)\s*条(之[一二三四五六七八九十百千万0-9０-９]+)?/g;
+  // 常见法律名：标注"法律名+第X条"（无书名号，如"刑法第23条"）——模型常省略《》，
+  // 不补书名号则前端不标色、法条卡点不出（长名在前，防子串误配）
+  const LAW_NAMES = [
+    "刑事诉讼法", "民事诉讼法", "行政处罚法", "行政复议法", "行政诉讼法",
+    "劳动合同法", "治安管理处罚法", "消费者权益保护法", "道路交通安全法",
+    "企业破产法", "社会保险法", "税收征收管理法", "反家庭暴力法",
+    "民法典", "刑法", "劳动法", "保险法", "公司法", "证券法", "票据法",
+    "宪法", "食品安全法", "产品质量法",
+  ];
+  const LAW = new RegExp(
+    "《([^》]+)》\\s*第\\s*([零〇○一二三四五六七八九十百千万0-9０-９]+)\\s*条(之[一二三四五六七八九十百千万0-9０-９]+)?" +
+      "|(" + LAW_NAMES.join("|") + ")(第\\s*[零〇○一二三四五六七八九十百千万0-9０-９]+\\s*条(之[一二三四五六七八九十百千万0-9０-９]+)?)" +
+      "|第\\s*([零〇○一二三四五六七八九十百千万0-9０-９]+)\\s*条(之[一二三四五六七八九十百千万0-9０-９]+)?",
+    "g"
+  );
   let lastBook = "";
   let lastLawEnd = -1; // 上一处法条引用在原文中的结束偏移
   const lawMarked = tmp.replace(
     LAW,
-    (full, book, clause, zhi, standalone, szhi, offset) => {
+    (full, book, clause, zhi, lawname, lawClause, lawZhi, standalone, szhi, offset) => {
       if (book) {
         // 组1（书名）存在 → 完整匹配，记录书名与结束位置；之条拼回
         lastBook = book;
         lastLawEnd = offset + full.length;
         return `<span class="law-ref" data-source="${book}">《${book}》第${clause}条${zhi || ""}</span>`;
+      }
+      if (lawname) {
+        // 法律名+第X条（无书名号，如"刑法第23条"）：补《》标色，可点击弹卡；记录书名延续
+        lastBook = lawname;
+        lastLawEnd = offset + full.length;
+        return `<span class="law-ref" data-source="${lawname}">《${lawname}》${lawClause}${lawZhi || ""}</span>`;
       }
       if (standalone && lastBook && lastLawEnd >= 0) {
         // 组4（独立条号）存在：与上一处法条引用之间只允许连续符号/空白/平衡括号 → 归属上一个书名
