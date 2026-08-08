@@ -1,6 +1,6 @@
 # 法智 · AI 法律咨询助手
 
-基于 RAG 的本地部署法律咨询助手：法律条文知识库（99 部法律 · 10266 分片）+ 混合检索 + 引用校验 + 单一 omni 模型。
+基于 RAG 的本地部署法律咨询助手：法律条文知识库（99 部法律 · 10266 分片）+ 混合检索 + 引用校验 + 多模型配额路由。
 
 核心能力：**引用真实性校验**（回答中的条文逐条核对知识库、杜绝编造）、**意图分流**（法考答题引导 / 作弊拒答 / 正常咨询）、**混合检索**（条号直查 + 向量 + BM25 融合）、**多模型配额路由**、**三级质量门禁**（fast / CI / full），支持 Docker 一键部署与增量导入管线（docx→清洗→切分→嵌入）。
 
@@ -59,7 +59,7 @@ docker compose up -d --build
 │  ├─ scripts/               # 导入管线（convert/clean/import）+ 回归门禁 + backup
 │  ├─ manage.py              # 运维：start/stop/status/test
 │  ├─ docs/                  # OPS.md 运维手册
-│  └─ tests/                 # pytest 114 个
+│  └─ tests/                 # pytest 325 个
 ├─ frontend/                 # Next.js 14（standalone 输出，Docker ~200MB）
 ├─ data/                     # 法律条文导入产物（laws_raw / laws_clean）
 ├─ docs/                     # ARCHITECTURE.md / ADR.md
@@ -90,7 +90,7 @@ docker compose up -d --build
 
 ```bash
 cd backend
-venv\Scripts\python -m pytest -q           # 114 tests
+venv\Scripts\python -m pytest -q           # 325 tests
 venv\Scripts\python scripts/smoke_citation_fast.py
 venv\Scripts\python scripts/smoke_citation_full.py    # 需后端运行 + LLM key
 ```
