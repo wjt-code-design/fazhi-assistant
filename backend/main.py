@@ -218,14 +218,16 @@ async def _utility_quota_exhausted_handler(request: Request, exc: Exception) -> 
 
 
 app.add_exception_handler(UtilityQuotaExhausted, _utility_quota_exhausted_handler)
-# CORS 源可配置（CORS_ORIGINS 逗号分隔）；另用正则放行任意 localhost 开发端口
-# （Next dev 端口被占用时会自动 +1，硬编码单端口会导致 "Failed to fetch"）。
-_CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
+# CORS 源可配置（CORS_ORIGINS 逗号分隔）；默认同时放行：本机 localhost、局域网（192.168.1.55:3000）、
+# 腾讯云公网（162.14.81.34:6000，frp 隧道）——本地局域网 + 腾讯云公网双兼容，部署到其他服务器时用 CORS_ORIGINS 覆盖。
+# 另用正则放行任意 localhost 开发端口（Next dev 端口被占用时会自动 +1，硬编码单端口会导致 "Failed to fetch"）。
+_CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://192.168.1.55:3000,http://47.242.203.215:3000,http://162.14.81.34:6000,http://162.14.81.34").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
     allow_origin_regex=r"https?://localhost:\d+",
     allow_methods=["*"],
+    allow_credentials=True,
     allow_headers=["*"],
 )
 app.add_middleware(RequestIdMiddleware)  # 纯 ASGI，不缓冲流式 body
@@ -540,6 +542,12 @@ def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool
             and (is_contract_review(_raw_q) or conv.id in _contract_convs)
         )
 
+        # ── 五路意图分流总表（intent 由 classify_intent 判定）────────────────────
+        #   study_aid        → 学习引导：具体题分步检索；元问题/回滚不检索，邀请发题
+        #   cheating_request → 作弊索取：定向检索作弊条文用于拒答
+        #   chitchat         → 闲聊：不检索（零上下文纯聊天），不参与 RAG 质检
+        #   legal_query(默认)→ 法律咨询：改写 + 检索（合同子分支走确定性骨架短路）
+        #   meta(元问题)      → 不检索、不改写（仅 study_aid 下可判定）
         if intent == "study_aid":
             if settings.feature_study_retrieval and not query_understand.is_meta_study(text or raw_query):
                 rewritten = _rewrite_for_retrieval(raw_query, recent_ser, recent, has_options)  # 具体题：惰性改写
@@ -1214,6 +1222,14 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
     async def stream():
         _posted = False  # 本轮 assistant 消息是否已落库（对抗审计 v2 #5/#8：客户端断开时 finally 兜底占位）
         try:
+            # ── 分支决策总览图（零 token 优先，LLM 兜底）─────────────────────────
+            #   0   → 精确/近重复缓存命中          → 零 token 直返
+            #   0.2 → QA 持久语义缓存命中           → 零 token 直返
+            #   0.5 → 低置信反问 / 拒答             → 确定性模板（零 LLM）
+            #   0.3 → 合同骨架（分条款风险评估）     → 一次 LLM
+            #   1   → 非检索分支（闲聊/作弊/元问题）→ 零检索
+            #   2   → LLM 生成（轻量自检 → 升级重试 → 流式剥 think）
+            # ─────────────────────────────────────────────────────────────────
             # 分支0：缓存命中（精确 key 优先，近重复兜底 feature_similar_cache）→ 零 token 直返
             hit = cache_hit
             if not hit and cache_key and settings.feature_similar_cache:

@@ -20,6 +20,7 @@ _inited = False
 
 
 def _connect() -> sqlite3.Connection:
+    """打开配额库连接（短连接 + WAL 并发安全）；目录不存在则自动创建。"""
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     con = sqlite3.connect(DB_PATH, timeout=10)
     con.execute("PRAGMA journal_mode=WAL")
@@ -27,6 +28,7 @@ def _connect() -> sqlite3.Connection:
 
 
 def _ensure() -> None:
+    """惰性建表（双检锁，线程安全只建一次）；每次读写配额前调用。"""
     global _inited
     if _inited:
         return

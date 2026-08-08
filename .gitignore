@@ -54,3 +54,6 @@ quota_used.sqlite
 
 # frontend-design skill 的设计参考图（非项目产物，不提交）
 frontend/design/
+
+# 部署交接说明（含 frp token 等凭据，绝不提交）
+FRP部署交接说明.md

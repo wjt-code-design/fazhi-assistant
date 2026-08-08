@@ -492,6 +492,7 @@ def bm25_top(
     category: str | None = None,
     valid: Callable | None = None,
 ) -> list[tuple[Document, float]]:
+    """BM25 召回 Top-n（可带分类过滤与有效性回调）；本地索引未构建时返回空列表。"""
     _ensure_bm25()
     if _bm25 is None:
         return []

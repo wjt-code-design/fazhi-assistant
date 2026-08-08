@@ -2,7 +2,7 @@
 
 基于 RAG 的本地部署法律咨询助手：法律条文知识库（99 部法律 · 10266 分片）+ 混合检索 + 引用校验 + 单一 omni 模型。
 
-核心能力：**引用真实性校验**（防模型编造条文）、**意图分流**（作弊/学习/咨询）、**三档回归门禁**（fast/CI/full）、Docker 一键部署、增量导入管线（docx→清洗→切分→嵌入）。
+核心能力：**引用真实性校验**（回答中的条文逐条核对知识库、杜绝编造）、**意图分流**（法考答题引导 / 作弊拒答 / 正常咨询）、**混合检索**（条号直查 + 向量 + BM25 融合）、**多模型配额路由**、**三级质量门禁**（fast / CI / full），支持 Docker 一键部署与增量导入管线（docx→清洗→切分→嵌入）。
 
 ---
 
@@ -78,14 +78,14 @@ docker compose up -d --build
 | `POST /api/feedback` | 回答反馈 / 纠错 |
 | `GET /api/health` / `/healthz` | 存活 / 深度就绪（DB+向量库） |
 
-## 测试与门禁
+## 质量保障与回归门禁
 
-三档回归门禁（`docs/ARCHITECTURE.md` 有完整说明）：
+三级质量门禁（`docs/ARCHITECTURE.md` 有完整说明）：
 
-| 档位 | 触发 | 内容 | 成本 |
+| 级别 | 触发 | 内容 | 成本 |
 |------|------|------|------|
-| 快 | pre-commit / CI | `smoke_citation_fast.py`（17 项：意图+检索+引用校验） | 零 token |
-| 慢 | CI | pytest（跳 slow）+ ruff/mypy + cov≥70 + 前端 build | 零 token |
+| 快速 | pre-commit / CI | `smoke_citation_fast.py`（17 项：意图+检索+引用校验） | 零 token |
+| 标准 | CI | pytest（跳 slow）+ ruff/mypy + cov≥70 + 前端 build | 零 token |
 | 全量 | release 前 | `smoke_citation_full.py`（10 场景含 LLM） | 有 token |
 
 ```bash
@@ -95,18 +95,9 @@ venv\Scripts\python scripts/smoke_citation_fast.py
 venv\Scripts\python scripts/smoke_citation_full.py    # 需后端运行 + LLM key
 ```
 
-## 移动端验证
+## 兼容性说明
 
-Lighthouse 移动端（登录页，2026-08-02，Edge 驱动）：
-
-| 指标 | 分数 |
-|------|------|
-| Performance | 100 |
-| Accessibility | 95 |
-| Best Practices | 96 |
-| SEO | 100 |
-
-> chat/admin 已内建响应式（侧栏折叠 / 无横向溢出 / input ≥16px 防 iOS 放大）。
+前端已适配移动端：聊天与后台页面内建响应式（侧栏折叠 / 无横向溢出 / 输入框 ≥16px 防 iOS 缩放）；登录页 Lighthouse 移动端均分 ≥95（Performance 100 / Accessibility 95 / Best Practices 96 / SEO 100，详见 `docs/BENCHMARK.md`）。
 
 ## 已知限制（诚实标注）
 
@@ -132,6 +123,7 @@ cd frontend && npm install && npm run dev
 
 ## 文档
 
+- [`DEPLOYMENT.md`](DEPLOYMENT.md) — 部署指南（本地启动 / 阿里云 ECS / 环境变量 / 端口放行）
 - [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) — 系统架构 + citation 数据流
 - [`docs/ADR.md`](docs/ADR.md) — 架构决策记录（含并发模型）
 - [`backend/docs/OPS.md`](backend/docs/OPS.md) — 运维手册（启停/备份/排查/WSL2）

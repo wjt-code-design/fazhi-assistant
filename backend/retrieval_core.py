@@ -105,6 +105,7 @@ def rrf(rankings: list[list[str]], k: int = RRF_K) -> dict[str, float]:
 
 
 def build_bm25(docs: list[Document]) -> BM25Okapi | None:
+    """由分片构建 jieba 分词 BM25 索引（混合检索的一路召回源）；空库返回 None。"""
     if not docs:
         return None
     return BM25Okapi([tokenize(d.page_content) for d in docs])

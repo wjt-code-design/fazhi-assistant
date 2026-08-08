@@ -31,7 +31,7 @@ DEFAULT_ROLES: list[dict[str, Any]] = [
     # priority：同 (modality, tier) 内能力优先级，小=优先；配额只判可用与否，不参与排序。
     # 2026-08-05 因配额耗尽重引 thinking 兜底（ADR-010 反向决策）：受缓存写闸（引用⊆检索）
     # / citation_verify / self_check / refuse 四防线约束，仅作最后兜底；切换后须跑 eval_exam 验证。
-    # 文本队列按**质量序**（用户确认，质量优先）：强模型优先，弱模型兜底。
+    # 文本队列按**质量序**（强模型优先，弱模型兜底；配额耗尽或质量不达标时自动切换）。
     # priority 强弱依据用户给出的从弱到强排名反转而来；改 priority 一行即可换序。
     # quota_total 默认 100 万，initial_used 待管理员用 /api/admin/llm-quota 校准真实值。
     {"key": "text_flag", "model": "qwen3.7-plus", "modality": "text", "tier": "flag", "priority": 0, "capabilities": ["text"], "disable_thinking": True, "initial_used": 28580},  # 现役旗舰；关深度思考：法律引用无需长思考
