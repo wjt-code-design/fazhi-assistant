@@ -57,3 +57,12 @@ frontend/design/
 
 # 部署交接说明（含 frp token 等凭据，绝不提交）
 FRP部署交接说明.md
+
+# 运行态日志 / 缓存 / 评测中间产物（可再生成，不提交）
+frontend/devlog.txt
+backend/scripts/qwen_cases_cache.json
+docs/benchmark_results/_*.txt
+docs/benchmark_results/*2026*.json
+
+# 本地验收脚本（硬编码本机浏览器路径，不适用他人环境）
+frontend/scripts/accept_admin.mjs

@@ -218,10 +218,10 @@ async def _utility_quota_exhausted_handler(request: Request, exc: Exception) -> 
 
 
 app.add_exception_handler(UtilityQuotaExhausted, _utility_quota_exhausted_handler)
-# CORS 源可配置（CORS_ORIGINS 逗号分隔）；默认同时放行：本机 localhost、局域网（192.168.1.55:3000）、
-# 腾讯云公网（162.14.81.34:6000，frp 隧道）——本地局域网 + 腾讯云公网双兼容，部署到其他服务器时用 CORS_ORIGINS 覆盖。
+# CORS 源可配置（CORS_ORIGINS 逗号分隔，backend/.env 中设置）；默认仅放行本机开发端口。
+# 局域网/公网/内网穿透等部署场景的源在 .env 里追加（.env 不入库，避免部署细节进仓库）。
 # 另用正则放行任意 localhost 开发端口（Next dev 端口被占用时会自动 +1，硬编码单端口会导致 "Failed to fetch"）。
-_CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://192.168.1.55:3000,http://47.242.203.215:3000,http://162.14.81.34:6000,http://162.14.81.34").split(",") if o.strip()]
+_CORS_ORIGINS = [o.strip() for o in os.getenv("CORS_ORIGINS", "http://localhost:3000").split(",") if o.strip()]
 app.add_middleware(
     CORSMiddleware,
     allow_origins=_CORS_ORIGINS,
