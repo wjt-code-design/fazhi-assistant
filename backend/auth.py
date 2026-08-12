@@ -1,5 +1,7 @@
 import os
-from datetime import UTC, datetime, timedelta
+from datetime import timezone, datetime, timedelta
+
+UTC = timezone.utc  # Python 3.10 兼容：datetime.UTC 需 3.11+，服务器为 3.10
 
 import bcrypt
 import jwt
