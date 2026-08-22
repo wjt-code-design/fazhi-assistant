@@ -1167,6 +1167,18 @@ async def law_search(request: Request, q: str, user: User = Depends(get_current_
 
 @app.post("/api/chat")
 @limiter.limit("60/minute")
+async def _stream_with_status_preframe(gen):
+    """P0 即时首帧：先发一个占位状态帧，再委托原 stream() 生成器。
+
+    浏览器首字符从"模型 prefill + RAG 检索"的秒级等待，降到 <50ms（助手气泡+提示瞬出）；
+    原 stream() 内的 _pre / RAG / 模型调用逻辑零改动，错误语义不变。前端对未知 type 帧自动忽略。
+    注：本帧只改善"首个可见字符"的体感延迟；真实首内容 token 延迟（日志 first_ms）由后续 P1/P2 优化。
+    """
+    yield f"data: {json.dumps({'type': 'status', 'msg': '正在思考…'}, ensure_ascii=False)}\n\n"
+    async for frame in gen:
+        yield frame
+
+
 async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
     text = (body.content if body.content is not None else body.question) or ""
     text = text.strip()
@@ -1627,7 +1639,19 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 except Exception:
                     pass
 
-    return StreamingResponse(stream(), media_type="text/event-stream")
+    # 反缓冲响应头：SSE 经 Cloudflare Tunnel / Nginx 等代理中转时，若上游未显式声明，
+    # 代理会攒批到连接关闭才一次性下发（手机端表现为“一次性输出”）。以下头禁用代理缓冲、
+    # 禁止 CDN 改写，确保逐帧流式。
+    return StreamingResponse(
+        _stream_with_status_preframe(stream()),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Content-Type": "text/event-stream; charset=utf-8",
+        },
+    )
 
 
 # ==================== 会话 CRUD ====================
