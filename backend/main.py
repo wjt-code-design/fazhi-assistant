@@ -1165,8 +1165,6 @@ async def law_search(request: Request, q: str, user: User = Depends(get_current_
     return await run_in_threadpool(_do)
 
 
-@app.post("/api/chat")
-@limiter.limit("60/minute")
 async def _stream_with_status_preframe(gen):
     """P0 即时首帧：先发一个占位状态帧，再委托原 stream() 生成器。
 
@@ -1179,6 +1177,8 @@ async def _stream_with_status_preframe(gen):
         yield frame
 
 
+@app.post("/api/chat")
+@limiter.limit("60/minute")
 async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
     text = (body.content if body.content is not None else body.question) or ""
     text = text.strip()
