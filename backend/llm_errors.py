@@ -10,6 +10,9 @@
   原实现只判 `isinstance(exc, httpx.TransportError)` → 包装异常被判"永久" → failover 把
   **全部模型 mark_depleted** → 一次网络抖动触发连锁 `QuotaExhausted`（实证：6 模型全标死，
   后续案例集体 PLANNER_PARSE_ERROR）。修复=**类名 + 异常链上溯**双重判定（不 import openai）。
+  **留痕**：证据 `dispatch-output/r1ob-online-20260917/serve.log`（permanent×6 连锁）+
+  `planner-parse-error-diagnosis.md`（根因报告）+ `r1ob-prodform-20260917/watch-it-fail-llmerr.txt`
+  （回滚→2 红→恢复 41 绿）。
 
 设计约束：本模块**必须零重依赖**，尤其**不得 import `llm_registry`**
 —— `retrieval.py` 头部明确"不 import llm_registry（其模块级初始化需 LLM key）"。
@@ -26,10 +29,13 @@ TRANSIENT_STATUS = frozenset({408, 429, 500, 502, 503, 504})
 # 传输/网络类异常**类名**（跨 SDK 通用，不 import 各 SDK）：
 # - openai 系（含兼容端点）：APIConnectionError / APITimeoutError；
 # - httpx 系：ConnectError / TimeoutException / ReadTimeout / RemoteProtocolError 等；
-# - 通用网络栈（requests/urllib3 形态如出现）：NetworkError / ConnectTimeout / PoolTimeout。
-# ⚠️ 只列"网络与超时"——**不含** APIStatusError 等状态类（状态走 status_of 判定），
-#   也不含 ValueError 等本地异常（保持"保守判永久"的既有口径）。
-_TRANSIENT_EXC_NAMES = frozenset(
+# - 通用网络栈（requests/urllib3 形态——本仓当前未引入，**前瞻预留**；如出现同名非网络异常
+#   存在误判风险，属保守方向可接受）。
+# ⚠️ 只列"网络与超时"——**不含** APIStatusError 等状态类（状态走 status_of 判定）；
+#   判定顺序说明（code-review 2026-09-17 澄清）：`_is_transport_like` 先于 `status_of`——
+#   若某 SDK 把带 5xx 的错误包装成传输类异常，将按"传输类"判瞬时（failover 换模型不标记），
+#   这是**有意的保守方向**：连接层抖动优先于状态语义处理，最坏多试一次下一模型（不放大伤害）。
+_TRANSPORT_EXC_NAMES = frozenset(
     {
         "APIConnectionError",
         "APITimeoutError",
@@ -73,7 +79,7 @@ def _is_transport_like(exc: BaseException) -> bool:
             return False
         if isinstance(current, httpx.TransportError):
             return True
-        if type(current).__name__ in _TRANSIENT_EXC_NAMES:
+        if type(current).__name__ in _TRANSPORT_EXC_NAMES:
             return True
         current = current.__cause__ or current.__context__
     return False

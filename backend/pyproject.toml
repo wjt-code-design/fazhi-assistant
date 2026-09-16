@@ -47,7 +47,8 @@ no_implicit_optional = false
 #      `capture_protocol`（顶层）与 `scripts.capture_protocol`（命名空间包）⇒ 冲突。
 # 处置：explicit_package_bases + mypy_path 解决同名模块双重映射冲突；exclude 写成能匹配整条路径的形式。
 # ⚠️ 精确说明（2026-09-17 注释勘误）：**scripts/ 在 exclude 内、不参与类型检查**——其内部既有
-# 错误不会暴露（已知 scripts/gate2_runner.py 有 4 个既有错误，见 docs/work-progress-20260916-session3.md）；
+# 错误不会暴露（截至 2026-09-16 采集，已知 scripts/gate2_runner.py 有 4 个既有错误，见
+# docs/work-progress-20260916-session3.md；该计数随时间可能变化，以实际采集为准）；
 # 若要纳入检查需先清零这些错误（另开票据），不在本配置改动。原注释"scripts/ 视为命名空间包"
 # 与本 exclude 事实混谈，已改正。
 mypy_path = "."
