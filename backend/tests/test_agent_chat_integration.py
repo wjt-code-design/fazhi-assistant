@@ -915,6 +915,10 @@ class _SerialWriterTransport:
         if self.mode == "empty_claims_first_issue_then_ok" and writer_index == 0:
             # T3 反例注入：首次生成零 claim（writer ISSUE_CLAIMS_MISSING 抖动），之后恢复正常
             return SimpleNamespace(content=json.dumps({"claims": [], "missing_information": []}, ensure_ascii=False))
+        if self.mode == "empty_claims_always":
+            # T3 补测（code-review 2026-09-17）：持续零 claim——重试一次后仍空 → 落 uncovered；
+            # 全部争点如此 → 整轮失败（无内容可交付，不得伪造部分交付）。
+            return SimpleNamespace(content=json.dumps({"claims": [], "missing_information": []}, ensure_ascii=False))
         claims = [
             {
                 "local_id": f"claim-{issue['issue_id']}",
@@ -1095,6 +1099,37 @@ def test_writer_flaky_zero_claims_retried_once_when_partial_on(db):
     # 终稿含两个争点各自的结论（不静默降级）
     answer = result.answer or ""
     assert "未能覆盖的争点" not in answer
+
+
+def test_writer_persistent_zero_claims_fails_whole_run(db):
+    """T3 补测（code-review 2026-09-17）：重试后**仍**零 claim ⇒ 该争点落 uncovered；
+    全部争点如此 ⇒ 整轮失败（无内容可交付，不得伪造部分交付）。
+
+    锁定重试路径的第二出口：writer 恰 4 次调用（2 争点 × (首试+重试)），
+    outcome=failed、reason_code=ISSUE_CLAIMS_MISSING（与 all-failed 口径一致）。
+    """
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    transport = _SerialWriterTransport(_two_issue_payload(), mode="empty_claims_always")
+    settings_stub = _settings()
+    settings_stub.agent_partial_delivery_enabled = True
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=settings_stub,
+        bootstrap=_two_issue_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+
+    assert result.outcome == "failed"
+    assert result.reason_code == "ISSUE_CLAIMS_MISSING"
+    # 重试发生在每个争点上：2 争点 × (首试 + 重试) = 4 次 writer 调用
+    assert [k for k, _ in transport.calls if k == "writer"] == ["writer", "writer", "writer", "writer"]
+    # 不得生成 completed assistant 消息（无内容可交付）
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
 
 
 def test_partial_delivery_off_keeps_fail_fast(db):

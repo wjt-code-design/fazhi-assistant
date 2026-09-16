@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     agent_dept_filter: bool = False
     # R1b：终稿引用清单程序法串台校验（防生成期注入；检测到即记红线，不阻断 agent_completed）。
     agent_proc_misroute_check: bool = False
+    # R1-OB（2026-09-16 预注册 docs/preregistration-dept-guard-r1-optionB-20260916.md）：
+    # 判域**输入**扩展——关（默认）= 两处判域点退回 issue 问句（R1/R1b 现状，行为逐字不变）；
+    # 开 = 三级构造（tier-1 案例域码 > tier-2 用户原始问题+issue 问句拼接 > None）。
+    # 独立开关、独立可回滚；dept_guard 指示词表与过滤规则零改动。
+    agent_dept_filter_r1ob: bool = False
 
     # ---- writer 未决事实脱敏（2026-09-15，代码审查 B）----
     # 动机：同协议 12 次采样里 numeric 失败的**唯一形态**是 `from_unknown_facts`

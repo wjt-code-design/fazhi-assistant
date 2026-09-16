@@ -530,7 +530,24 @@ def execute_agent_request(
     # 检测不到 → 正常持久化；检测到 → 仍持久化（不阻断 agent_completed），仅记红线供评测/日志判定。
     from agent.dept_guard import check_proc_misroute, domain_of_text
 
-    _domain = domain_of_text(" ".join(i.question for i in state.issues if getattr(i, "question", None)))
+    if getattr(settings, "agent_dept_filter_r1ob", False):
+        # R1-OB（2026-09-16 预注册）：R1b 判域输入三级扩展——
+        # tier-1 state.case_domain > tier-2 state.user_question+争点拼接 > None。
+        # 开关关 = R1b 现状路径（行为逐字不变）。
+        # 注（code-review 2026-09-17）：
+        # ① 与检索侧（legal_retrieval 按单 issue query 判域）**输入不对称**是既有语义：
+        #    R1b 判定对象是整篇终稿 → 聚合全部争点问句合理；R1 判定单次检索 → 单 issue 合理。
+        # ② 已知边界（预注册 §4 风险4）：域码不可得且文本 mixed 时 R1b 仍不判（保守跳过），
+        #    该边界不假装解决。
+        from agent.r1ob import resolve_domain
+
+        _domain = resolve_domain(
+            state.case_domain,
+            state.user_question,
+            " ".join(i.question for i in state.issues if getattr(i, "question", None)),
+        )
+    else:
+        _domain = domain_of_text(" ".join(i.question for i in state.issues if getattr(i, "question", None)))
     if check_proc_misroute(final_answer, _domain):
         logging.getLogger("legal.agent").warning(
             "proc_misroute_flag",

@@ -634,7 +634,14 @@ def _run_agent_gate_shadow(bootstrap) -> None:
     )
 
 
-def _bootstrap_only(user_id: int, conversation_id, text: str, image, client_truncated: bool = False):
+def _bootstrap_only(
+    user_id: int,
+    conversation_id,
+    text: str,
+    image,
+    client_truncated: bool = False,
+    case_domain: str | None = None,
+):
     """Persist one accepted user request without starting either answer path."""
     return bootstrap_request(
         user_id,
@@ -642,6 +649,7 @@ def _bootstrap_only(user_id: int, conversation_id, text: str, image, client_trun
         text,
         image,
         client_truncated,
+        case_domain=case_domain,
         _deps=BootstrapDependencies(
             session_factory=SessionLocal,
             load_context=load_context,
@@ -746,6 +754,8 @@ def _resume_bootstrap(*, conversation_id: int, answer: str, state: LegalAgentSta
         contract_mode=False,
         contract_text=None,
         client_truncated=False,
+        # R1-OB：resume 场景判域元信息沿用 state（首次请求时已持久化），保证多轮一致。
+        case_domain=state.case_domain,
     )
 
 
@@ -1440,6 +1450,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     text,
                     image,
                     body.truncated,
+                    body.case_domain,
                 )
                 correlation_id = make_agent_correlation_id(conversation_id=bootstrap.conv_id)
                 try:

@@ -59,6 +59,19 @@ class ChatIn(BaseModel):
     )
     agent_run_id: UUID | None = None
     agent_state_version: NonNegativeInt | None = None
+    # R1-OB（2026-09-16 预注册 docs/preregistration-dept-guard-r1-optionB-20260916.md）：
+    # 评测/灰度通道案例域码（tier-1 判域直判源）。生产客户端不传 → None（恒不触发）。
+    # 非法值拒绝（422 契约）；合法值 = agent/r1ob.VALID_CASE_DOMAINS。
+    case_domain: str | None = Field(default=None, max_length=32)
+
+    @model_validator(mode="after")
+    def validate_case_domain(self) -> "ChatIn":
+        if self.case_domain is not None:
+            from agent.r1ob import VALID_CASE_DOMAINS
+
+            if self.case_domain not in VALID_CASE_DOMAINS:
+                raise ValueError(f"case_domain must be one of {sorted(VALID_CASE_DOMAINS)}, got {self.case_domain!r}")
+        return self
 
     @model_validator(mode="after")
     def validate_agent_resume_identity(self) -> "ChatIn":

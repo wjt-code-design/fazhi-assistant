@@ -38,10 +38,16 @@ CASES = {
 BASELINE = json.loads((REPO / "evals" / "filter-simulation-r1.json").read_text(encoding="utf-8"))
 CE = json.loads((OUT / "counterexamples.json").read_text(encoding="utf-8"))
 
-DOMAIN_CODES = {"civil", "criminal", "administrative", "special-maritime"}
+# 生产实现单一真源（2026-09-16 实现后改：不再局部复刻判域输入构造；域码集合同源消重）
+from agent.r1ob import VALID_CASE_DOMAINS  # noqa: E402
+from agent.r1ob import resolve_domain as ob_domain  # noqa: E402
+
+DOMAIN_CODES = VALID_CASE_DOMAINS
 # 反例真实域（勘误后口径，来源 frozen-cases-v2.json forbidden/required 构成）
 GROUND_TRUTH = {"E01": "civil", "E04": "civil"}
-# D2 模拟：评测 harness 为案例提供的域码字段（现状数据无此字段，验证按设计假设置值）
+# D2 域码值：模拟「harness 已按案例域码透传 tier-1」（真实通道已实现于
+# backend/scripts/gate2_runner._CASE_DOMAIN_MAP + ChatIn.case_domain + bootstrap 透传；
+# 本离线脚本不经过 HTTP，直接以该值调生产 resolve_domain，等效验证）。
 D2_SIMULATED_CODE = GROUND_TRUTH
 
 # ---- simulate_filter_r1.py 的指示词表与 kill 表（P0 复现专用，逐字拷贝防漂移） ----
@@ -74,18 +80,6 @@ def sim_domain_of(text: str) -> str:
 def split_ref(ref: str) -> tuple[str, str]:
     m = ref.split("#", 1)
     return (m[0], m[1]) if len(m) == 2 else (ref, "")
-
-
-def ob_tier1(meta_code: str | None) -> str | None:
-    return meta_code if meta_code in DOMAIN_CODES else None
-
-
-def ob_tier2(user_q: str, issue_q: str) -> str | None:
-    return domain_of_text(f"{user_q or ''} {issue_q or ''}")
-
-
-def ob_domain(meta_code: str | None, user_q: str, issue_q: str) -> str | None:
-    return ob_tier1(meta_code) or ob_tier2(user_q, issue_q)
 
 
 def dept_guard_removals(refs: list[str], domain: str | None) -> list[str]:
@@ -149,8 +143,8 @@ for case in ("E01", "E04"):
     user_q = CE[case]["user_question"]
     issues = CE[case]["issues"]
     old = [domain_of_text(i["question"]) for i in issues]
-    t2 = [ob_tier2(user_q, i["question"]) for i in issues]
-    t1 = ob_tier1(D2_SIMULATED_CODE[case])
+    t2 = [ob_domain(None, user_q, i["question"]) for i in issues]  # 生产实现：tier-2（无域码）
+    t1 = ob_domain(D2_SIMULATED_CODE[case], user_q, issues[1]["question"])  # 生产实现：tier-1 直判
     forb = CASES[case]["forbidden_articles"]
     forb_refs = [f"{law}#{art}" for law, art in forb]
     # forbidden 全部为「他域专属程序法 or 实体法」分类（相对真实域）

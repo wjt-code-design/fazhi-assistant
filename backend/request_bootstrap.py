@@ -39,6 +39,9 @@ class RequestBootstrap:
     contract_mode: bool
     contract_text: str | None
     client_truncated: bool
+    # R1-OB（2026-09-16 预注册）：评测/灰度通道案例域码（tier-1 判域直判源）。
+    # 生产链路缺省 None（代码路径存在但恒不触发）；合法值见 agent/r1ob.VALID_CASE_DOMAINS。
+    case_domain: str | None = None
 
 
 @dataclass(frozen=True)
@@ -257,6 +260,7 @@ def bootstrap_request(
     image,
     client_truncated: bool,
     *,
+    case_domain: str | None = None,
     _deps: BootstrapDependencies | None = None,
 ) -> RequestBootstrap:
     """Validate and persist an accepted request without invoking retrieval or routing."""
@@ -382,6 +386,7 @@ def bootstrap_request(
             contract_mode=contract_mode,
             contract_text=contract_text,
             client_truncated=client_truncated,
+            case_domain=case_domain,
         )
     except Exception:
         try:

@@ -245,6 +245,12 @@ class LegalAgentState(BaseModel):
     conflicts: list[EvidenceConflict] = Field(default_factory=list)
     claim_checks: list[ClaimCheck] = Field(default_factory=list)
     terminal_decision: StopDecision | None = None
+    # R1-OB（2026-09-16 预注册 docs/preregistration-dept-guard-r1-optionB-20260916.md）：
+    # 判域输入扩展的随 run 元信息——case_domain=评测/灰度通道域码（tier-1，生产恒 None）；
+    # user_question=本轮用户原始消息（tier-2 拼接源）。旧 state_json 无此键 → 默认 None，
+    # 向后兼容（判域退回纯 issue 问句路径，行为与 R1 现状一致）。
+    case_domain: str | None = None
+    user_question: str | None = None
 
     @model_validator(mode="after")
     def validate_pending_scope_issue_ids(self) -> LegalAgentState:

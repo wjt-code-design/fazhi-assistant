@@ -746,6 +746,9 @@ class AgentController:
             conversation_id=run.conversation_id,
             run_id=run.run_id,
             law_as_of=run.law_as_of,
+            # R1-OB（2026-09-16）：判域输入扩展元信息随 state 传递（缺省 None = 历史行为）。
+            case_domain=run.state.case_domain,
+            user_question=run.state.user_question,
         )
         try:
             observation = self._gateway.execute(context, decision)
@@ -956,6 +959,9 @@ class AgentController:
             conversation_id=run.conversation_id,
             run_id=run.run_id,
             law_as_of=run.law_as_of,
+            # R1-OB（2026-09-16）：判域输入扩展元信息随 state 传递（缺省 None = 历史行为）。
+            case_domain=run.state.case_domain,
+            user_question=run.state.user_question,
         )
         current = run.state  # 批内线程化状态：携带已注册指纹与已物化证据（去重依据）
         new_evidence_by_issue: dict[str, list[Evidence]] = {}

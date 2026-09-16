@@ -46,6 +46,30 @@ FACT_IDS = json.loads((EVID / "frozen-fact-ids-v1.json").read_text(encoding="utf
 
 STOPWORDS = frozenset("我 的 了 吗 在 有 与 和 公司 用户 信息 是 不 也 曾 后 前 上 下 里 中".split())
 
+# R1-OB（2026-09-16 预注册 docs/preregistration-dept-guard-r1-optionB-20260916.md）：
+# 案例 `domain`（中文案由标签）→ 判域域表键（tier-1 域码，随请求 body case_domain 透传）。
+# 未列出的标签（多争点综合 / scope 边界 / 条件化 / 库外）→ None：tier-1 跳过，
+# 判域退回 tier-2 文本拼接（保守，且有 E01/E04 勘误核对背书：两案例域为 civil）。
+# 注：本批次的 v2/留出案例域全部为民事类 → **当前映射仅 civil 生效**；
+# criminal / administrative / special-maritime 留作扩展（新增标签时按案例定义核对后追加）。
+_CASE_DOMAIN_MAP = {
+    "劳动争议": "civil",
+    "合同履行与解除": "civil",
+    "诉讼时效与保证期间": "civil",
+    "消费者交易": "civil",
+    "跨部门法-民事起诉条件": "civil",
+    "跨部门法-纯民事借贷": "civil",
+    "跨部门法-装修停工": "civil",
+    "跨部门法-轻微交通事故": "civil",
+    "跨部门法-消费欺诈三倍赔偿": "civil",
+}
+
+
+def _case_domain_of(case: dict) -> str | None:
+    """案例域码（tier-1）；未映射标签 → None（不猜测）。"""
+    return _CASE_DOMAIN_MAP.get((case.get("domain") or "").strip())
+
+
 # 事实单元同义问法关键词表（执行配置；跨轮匹配，稳定 fact_id；对应 §6.1 同义等价判定）
 # 键：<CASE>-r<轮>-f<序号> （与 frozen-fact-ids-v1.json 对齐）
 KEYWORDS: dict[str, list[str]] = {
@@ -409,6 +433,10 @@ def run(argv: list[str] | None = None) -> int:
         conv_id = None
         t0 = time.time()
         payload = {"content": c["initial_question"], "no_cache": True, "force_agent": True}
+        _cd = _case_domain_of(c)
+        if _cd is not None:
+            # R1-OB：tier-1 域码随请求透传（未映射案例不带该键 = 生产语义）
+            payload["case_domain"] = _cd
         status, raw = post("/api/chat", payload, token)
         events = _events(raw)
         err_codes = _error_codes(events)

@@ -42,6 +42,11 @@ class ToolContext(BaseModel):
     # 提交前注入；包装器必须在**启动新的远程调用之前**用它检查剩余时间，避免外层已放弃
     # 等待后内层还在开新请求。None = 无预算约束（历史调用方与测试替身行为完全不变）。
     tool_deadline_monotonic: float | None = None
+    # R1-OB（2026-09-16 预注册）：判域输入扩展元信息（随 run.state 注入）。
+    # case_domain=评测/灰度通道域码（tier-1）；user_question=本轮用户原始消息（tier-2 拼接源）。
+    # 默认 None = 历史行为（判域退回纯 issue query 路径）。
+    case_domain: str | None = None
+    user_question: str | None = None
 
 
 class EvidenceMetadata(BaseModel):

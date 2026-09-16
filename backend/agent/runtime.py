@@ -745,6 +745,10 @@ def _assemble_initial_state(
     return LegalAgentState(
         budgets=(budgets or AgentBudgets()).model_copy(deep=True),
         issues=issues,
+        # R1-OB（2026-09-16）：判域输入扩展元信息随 state 持久化（resume 可见）。
+        # 生产链路 case_domain 缺省 None（代码路径存在但恒不触发）。
+        case_domain=getattr(bootstrap, "case_domain", None),
+        user_question=bootstrap.raw_query or None,
     )
 
 

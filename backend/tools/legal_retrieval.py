@@ -31,7 +31,15 @@ def retrieve_laws(context: ToolContext, tool_input: RetrieveLawsInput) -> Retrie
     from settings import settings as _settings
 
     if _settings.agent_dept_filter:
-        domain = domain_of_text(tool_input.query)
+        if _settings.agent_dept_filter_r1ob:
+            # R1-OB（2026-09-16 预注册）：判域输入三级扩展——
+            # tier-1 案例域码（context.case_domain）> tier-2 用户原始问题+issue 问句（resolve_domain）
+            # > None（不过滤）。开关关 = 下方 R1 现状路径（行为逐字不变）。
+            from agent.r1ob import resolve_domain
+
+            domain = resolve_domain(context.case_domain, context.user_question, tool_input.query)
+        else:
+            domain = domain_of_text(tool_input.query)
         if domain is not None:
             before = len(docs)
             docs = filter_docs_by_domain(docs, domain)
