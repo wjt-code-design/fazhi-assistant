@@ -182,6 +182,56 @@ def test_unknown_local_exception_is_not_transient():
     assert llm_errors.is_transient_error(ValueError("local bug")) is False
 
 
+def test_sdk_wrapped_connection_errors_are_transient():
+    """2026-09-17 修复（online 批次实证）：openai 系 SDK 的**包装形态**必须判瞬时——
+    APIConnectionError/APITimeoutError（其 __cause__ 才是 httpx.TransportError）。
+    修复前被判"永久" → failover 把全部模型 mark_depleted → 一次网络抖动触发连锁
+    QuotaExhausted（实证：6 模型全标死、后续案例集体失败）。
+    不 import openai：以同名假类 + 异常链两种形态覆盖。"""
+
+    class APIConnectionError(Exception):
+        pass
+
+    class APITimeoutError(Exception):
+        pass
+
+    assert llm_errors.is_transient_error(APIConnectionError("conn boom")) is True
+    assert llm_errors.is_transient_error(APITimeoutError("slow")) is True
+
+    # 异常链上溯兜底：类名不在表内，__cause__ 链命中 httpx.TransportError 亦判瞬时
+    req = httpx.Request("POST", "https://example.invalid/")
+    wrapped = RuntimeError("wrapped by unknown sdk")
+    wrapped.__cause__ = httpx.ConnectError("boom", request=req)
+    assert llm_errors.is_transient_error(wrapped) is True
+
+    # 反向守卫：链上溯不得把本地 bug 误判为瞬时（保守口径保持）
+    local = RuntimeError("local")
+    local.__cause__ = ValueError("bug")
+    assert llm_errors.is_transient_error(local) is False
+
+    # 环状链终止性（构造上必然终止，不挂死）
+    a = RuntimeError("a")
+    b = RuntimeError("b")
+    a.__cause__ = b
+    b.__cause__ = a
+    assert llm_errors.is_transient_error(a) is False
+
+
+def test_failover_connection_error_switches_without_marking(install_registry):
+    """端到端锁定（与 online 缺陷路径相反）：APIConnectionError → 换下一个模型且**不**标记。"""
+
+    class APIConnectionError(Exception):
+        pass
+
+    t1 = _RaisingTransport(APIConnectionError("conn boom"))
+    t2 = _OkTransport("k2-ok")
+    reg = install_registry([("k1", t1), ("k2", t2)])
+
+    assert _invoke() == "k2-ok"
+    assert reg.marked == []  # 瞬时故障不 mark_depleted（修复前此处会标死、后续连锁 QuotaExhausted）
+    assert (t1.calls, t2.calls) == (1, 1)
+
+
 def test_status_of_handles_both_shapes_and_missing():
     assert llm_errors.status_of(_http_status(429)) == 429
     assert llm_errors.status_of(_PlatformStatusError(500, "x")) == 500
