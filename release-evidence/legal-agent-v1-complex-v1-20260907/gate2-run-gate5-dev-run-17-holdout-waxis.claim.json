@@ -1,0 +1,13 @@
+{
+ "run": "gate5-dev-run-17-holdout-waxis",
+ "targets": [
+  "H01",
+  "H02",
+  "H03",
+  "H04",
+  "H05"
+ ],
+ "started_at": "2026-09-10T15:55:53.771272+00:00",
+ "pid": 20972,
+ "protocol_version": "v1"
+}

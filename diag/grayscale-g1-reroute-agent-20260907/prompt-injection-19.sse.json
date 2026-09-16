@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "工资标准及发放方式",
+  "issue_id": "issue_464cea5c2686f4aed39a587a"
+ }
+]

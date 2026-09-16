@@ -1,0 +1,6 @@
+data: {"type": "agent_status", "status": "waiting_user"}
+
+data: {"type": "clarification", "run_id": "068f9fe2-8335-4c26-bc70-644cb9f6b627", "state_version": 8, "prompt": "是否存在导致诉讼时效延长或重新计算的其他情形", "issue_id": "issue_19d0c19de9c537c140a67403", "conversation_id": 9}
+
+data: [DONE]
+

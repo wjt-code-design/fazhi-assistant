@@ -1,0 +1,687 @@
+{
+ "run": "qwen36-batch2",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "0e6b37f0-7528-4294-91b3-9a7db2a271c8",
+      "state_version": 4,
+      "conv_id": 2232
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "工会是否通知不清楚"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "0e6b37f0-7528-4294-91b3-9a7db2a271c8",
+      "state_version": 8,
+      "conv_id": 2232
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "公司是否提前三十日书面通知或支付代通知金"
+    },
+    {
+     "round": 2,
+     "prompt": "解除前是否通知工会"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r2-f2"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "公司是否提前三十日书面通知或支付代通知金"
+    }
+   ],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2232,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 24.1
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "工资结构和调休日期不完整"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "932a16ed-6f86-4fae-9b00-811367928cfc",
+      "state_version": 4,
+      "conv_id": 2233
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "932a16ed-6f86-4fae-9b00-811367928cfc",
+      "state_version": 8,
+      "conv_id": 2233
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动合同约定的工资标准及工资结构"
+    },
+    {
+     "round": 2,
+     "prompt": "用人单位与劳动者是否约定加班费计算基数"
+    }
+   ],
+   "answered_fact_ids": [
+    "C02-r2-f2",
+    "C02-r1-f2"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2233,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 49.0
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "296712bc-7b01-40ff-a4cd-2748791f1169",
+      "state_version": 4,
+      "conv_id": 2234
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "双方签订的二手房买卖合同合法有效"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "双方签订的二手房买卖合同合法有效"
+    }
+   ],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2234,
+   "final_chars": 1421,
+   "final_text": "基于您提供的信息，由于缺乏书面合同、转账备注或聊天记录等关键证据，以下分析将依据《民法典》相关规定，对三种可能的法律情形进行推演。\n\n**① 案情与争议焦点**\n本案核心在于认定“十万元”款项的法律性质（定金还是预付款/购房款），以及卖家“涨价不卖”行为的违约定性。关键在于举证责任分配：主张为定金的一方需证明双方有明确的“定金合意”。\n\n**② 法律依据**\n*   **关于定金性质**：根据《民法典》第五百八十六条，“当事人可以约定一方向对方给付定金作为债权的担保……定金的数额由当事人约定；但是，不得超过主合同标的额的百分之二十”。同时规定“定金合同自实际交付定金时成立”。\n*   **关于违约责任**：根据《民法典》第五百七十七条，“当事人一方不履行合同义务或者履行合同义务不符合约定的，应当承担继续履行、采取补救措施或者赔偿损失等违约责任”。\n*   **关于违约金与定金的选择**：根据《民法典》第五百八十八条，“当事人既约定违约金，又约定定金的，一方违约时，对方可以选择适用违约金或者定金条款”。\n\n**③ 逐项论证**\n1.  **十万元的性质认定（定金 vs 购房款）**\n    *   **若认定为定金**：需证明双方明确约定该款项具有担保性质。根据《民法典》第五百八十七条，若卖家违约导致合同目的不能实现，您可要求双倍返还定金（即20万元）。但需注意，定金总额不得超过主合同标的额的20%，超过部分无效。\n    *   **若认定为普通购房款（预付款）**：在无明确“定金”字样或口头约定无法证实的情况下，司法实践倾向于认定为预付款。此时卖家违约，您仅能要求退还10万元本金，并依据《民法典》第五百八十四条请求赔偿实际损失（如房屋差价损失），而非直接适用双倍返还。\n    *   **风险点**：因您未保留证据，若无法证明“定金合意”，法院极可能将其认定为预付款，从而不支持双倍返还请求。\n\n2.  **卖家涨价不卖是否构成违约**\n    *   **构成根本违约**。只要买卖合同依法成立并生效（根据《民法典》第五百零二条），卖家以涨价为由拒绝履行，属于“明确表示不履行主要债务”（《民法典》第五百六十三条第二项）。无论款项性质如何，卖家均构成违约，需承担违约责任。\n\n3.  **合同中是否约定了具体的违约责任或定金罚则**\n    *   因您未保留合同文本，此事实处于**不确定状态**。\n    *   **若合同约定了定金罚则**：按约定执行（受20%上限限制）。\n    *   **若未约定或约定不明**：根据《民法典》第五百八十五条，可主张违约金；若无违约金约定，则依据实际损失索赔。\n\n**④ 结论与建议**\n1.  **卖家构成违约**：无论款项性质如何，卖家拒绝交房已构成违约，您有权解除合同并要求赔偿。\n2.  **十万元性质存在不确定性**：在缺乏证据证明其为“定金”的情况下，直接主张双倍返还（20万）存在败诉风险，更可能被认定为退还本金10万+赔偿损失。\n3.  **行动建议**：鉴于关键证据缺失，建议您立即通过微信、短信或录音等方式，尝试引导卖家承认该款项为“定金”或其违约事实，以补强证据链。最终诉求应结合房屋当前市场价值与原价的差额，综合计算“退还本金”与“赔偿差价损失”的总和，通常这比单纯追求定金罚则更具实操性。\n\n*(注：本答复仅供参考，不构成正式法律意见。)*",
+   "final_excerpt": "基于您提供的信息，由于缺乏书面合同、转账备注或聊天记录等关键证据，以下分析将依据《民法典》相关规定，对三种可能的法律情形进行推演。\n\n**① 案情与争议焦点**\n本案核心在于认定“十万元”款项的法律性质（定金还是预付款/购房款），以及卖家“",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 55.9
+  },
+  "C05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "7日换锁"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "4cdbbbb1-6218-4fc0-bf58-0bb126a22849",
+      "state_version": 4,
+      "conv_id": 2235
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "房东没催告",
+      "7日换锁"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "4cdbbbb1-6218-4fc0-bf58-0bb126a22849",
+      "state_version": 8,
+      "conv_id": 2235
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "当地法律是否允许房东以换锁方式实现租金债权"
+    },
+    {
+     "round": 2,
+     "prompt": "房东在换锁前是否履行了催告义务"
+    }
+   ],
+   "answered_fact_ids": [
+    "C05-r1-f3",
+    "C05-r1-f2",
+    "C05-r1-f3"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2235,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 63.7
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "ca0d02c5-6d65-42fb-b5b6-9fe61fb3edec",
+      "state_version": 4,
+      "conv_id": 2236
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "ca0d02c5-6d65-42fb-b5b6-9fe61fb3edec",
+      "state_version": 8,
+      "conv_id": 2236
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "业主是否存在未按约付款等违约行为"
+    },
+    {
+     "round": 2,
+     "prompt": "合同是否约定业主未付加价款时施工方可停工"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "业主是否存在未按约付款等违约行为"
+    },
+    {
+     "round": 2,
+     "prompt": "合同是否约定业主未付加价款时施工方可停工"
+    }
+   ],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2236,
+   "final_chars": 485,
+   "final_text": "1. 装修公司延期两个月完工构成违约。根据《民法典》第五百七十七条，当事人一方不履行合同义务或者履行合同义务不符合约定的，应当承担继续履行、采取补救措施或者赔偿损失等违约责任。\n2. 材料涨价不构成加价的正当理由。根据《民法典》第五百零九条，当事人应当按照约定全面履行自己的义务。除非合同另有约定或存在不可抗力，否则价格波动风险由承包商承担。\n3. 以停工威胁加价不合法。根据《民法典》第五百六十三条，只有在法定情形（如不可抗力、对方明确表示不履行主要债务等）下才享有法定解除权。单方停工属于违约行为，若造成损失，业主可依据《民法典》第八百零四条要求赔偿停工、窝工等损失。\n4. 业主救济措施：首先，依据《民法典》第五百八十二条，可以合理选择请求对方承担修理、重作、更换、退货、减少价款或者报酬等违约责任；其次，若因装修公司的过错导致工程质量问题，依据《民法典》第八百零一条，有权请求施工人在合理期限内无偿修理或者返工、改建，逾期交付的，施工人应承担违约责任；最后，针对延期和违法停工造成的损失，业主有权依据《民法典》第五百七十七条及第八百零三条、第八百零四条主张赔偿。",
+   "final_excerpt": "1. 装修公司延期两个月完工构成违约。根据《民法典》第五百七十七条，当事人一方不履行合同义务或者履行合同义务不符合约定的，应当承担继续履行、采取补救措施或者赔偿损失等违约责任。\n2. 材料涨价不构成加价的正当理由。根据《民法典》第五百零九条",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 156.2
+  }
+ }
+}

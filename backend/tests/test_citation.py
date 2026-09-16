@@ -98,6 +98,130 @@ def test_verify_against_real_kb():
     assert R.citation_verify("《宪法》第二条规定国家性质。") == []  # 宪法括注边界 → 在库不报
 
 
+# ---------------- classify_citation（三态分级，2026-09-07 法条引用精度修复） ----------------
+def test_classify_ok_numeric_variant():
+    # ASCII 记法变体（第801条）与中文（第八百零一条）同属在库 → 判 ok（误报消除）
+    kb_arts = {"第八百零一条", "第八百零三条"}
+
+    def article_ok(name, art):
+        return R._normalize_article(art) in kb_arts
+
+    def source_ok(name):
+        return True
+
+    assert R.classify_citation("民法典", "第801条", article_ok=article_ok, source_ok=source_ok) == R.REF_OK
+    assert R.classify_citation("民法典", "第八百零三条", article_ok=article_ok, source_ok=source_ok) == R.REF_OK
+
+
+def test_classify_article_missing():
+    # 法名在库但条号不在库 → 真条号错误（第一百零十三条 不存在）
+    def article_ok(name, art):
+        return False
+
+    def source_ok(name):
+        return True
+
+    assert R.classify_citation("民事诉讼法", "第一百零十三条", article_ok=article_ok, source_ok=source_ok) == (
+        R.REF_ARTICLE_MISSING
+    )
+
+
+def test_classify_source_missing():
+    # 法名本身不在库（已废止）→ 库外/已废止引用
+    def article_ok(name, art):
+        return False
+
+    def source_ok(name):
+        return False
+
+    assert (
+        R.classify_citation("合同法", "第一百零七条", article_ok=article_ok, source_ok=source_ok)
+        == R.REF_SOURCE_MISSING
+    )
+
+
+def test_classify_answer_citations_mixed():
+    def article_ok(name, art):
+        return R._normalize_article(art) == "第八百零一条"
+
+    def source_ok(name):
+        return name == "民法典"
+
+    answer = "《民法典》第801条有效，《税务法》第九条、《民法典》第十二条无效。"
+    statuses = {
+        item["literal"]: item["status"]
+        for item in R.classify_answer_citations(answer, article_ok=article_ok, source_ok=source_ok)
+    }
+    assert statuses["《民法典》第801条"] == R.REF_OK
+    assert statuses["《民法典》第十二条"] == R.REF_ARTICLE_MISSING  # 在库法、条号不在
+    assert statuses["《税务法》第九条"] == R.REF_SOURCE_MISSING  # 库外法
+
+
+def test_classify_answer_defaults_real_kb():
+    # 默认判据=真实知识库：801 记法变体不误报；虚构条号/库外法报对应状态
+    statuses = {
+        item["literal"]: item["status"]
+        for item in R.classify_answer_citations("《民法典》第801条有效，《刑法》第九百九十九条无效。")
+    }
+    assert statuses["《民法典》第801条"] == R.REF_OK  # 真实在库 → 格式变体不误报
+    assert statuses["《刑法》第九百九十九条"] == R.REF_ARTICLE_MISSING  # 法在库、条号虚构
+
+
+# ---------------- _cn_article_to_num（中文条号→数字，capture_eval 同口径） ----------------
+def test_cn_article_to_num():
+    cases = {
+        "第十条": "10",
+        "第十九条": "19",
+        "第一百零三条": "103",
+        "第一百零十三条": "113",  # 字面解释（错位写法也照字面转数字）
+        "第一百八十八条": "188",
+        "第五百七十七条": "577",
+        "第八百零一条": "801",
+        "第一千二百六十条": "1260",
+    }
+    for art, exp in cases.items():
+        assert R._cn_article_to_num(art) == exp, f"{art} → {R._cn_article_to_num(art)} != {exp}"
+
+
+# ---------------- expected_laws 前置（题集预期法条加权，2026-09-07） ----------------
+def test_expected_law_keys():
+    keys = R._expected_law_keys(["民法典:577", "民法典:1260", "坏条目"])
+    assert ("民法典", "577") in keys
+    assert ("民法典", "1260") in keys
+    assert len(keys) == 2  # 非法条目静默跳过
+
+
+def test_frontload_expected_keeps_match_front():
+    from langchain_core.documents import Document
+
+    docs = [
+        Document(page_content="噪声一", metadata={"source": "民法典", "article": "第五十七条"}),
+        Document(page_content="精确577", metadata={"source": "民法典", "article": "第五百七十七条"}),
+        Document(page_content="噪声二", metadata={"source": "民法典", "article": "第五十八条"}),
+    ]
+    keys = R._expected_law_keys(["民法典:577"])
+    out = R._frontload_expected(docs, keys)
+    assert out[0].page_content == "精确577"
+    assert [d.page_content for d in out[1:]] == ["噪声一", "噪声二"]  # 其余相对顺序不変
+
+
+def test_frontload_expected_no_match_unchanged():
+    from langchain_core.documents import Document
+
+    docs = [
+        Document(page_content="a", metadata={"source": "民法典", "article": "第五十七条"}),
+        Document(page_content="b", metadata={"source": "民法典", "article": "第五十八条"}),
+    ]
+    assert R._frontload_expected(docs, frozenset()) == docs  # 空期望 → 原样
+
+
+def test_hybrid_retrieve_expected_laws_weights_topk():
+    # 真实 KB 集成：无期望 → 577 是否在 top-k 看语义；给期望 577 → 必须前置出现
+    with_expected = R.hybrid_retrieve("合同违约后继续履行的法律后果", k=4, expected_laws=["民法典:577"])
+    arts = [d.metadata.get("article", "") for d in with_expected]
+    assert "第五百七十七条" in arts  # 期望条文被强制前置进 top-4
+
+
 # ---------------- _num_to_cn ----------------
 def test_num_to_cn():
     cases = {

@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "债权人在保证期间内是否已提起诉讼、仲裁或要求保证人承担责任",
+  "issue_id": "issue_8f179c583741230489bda0ca"
+ }
+]

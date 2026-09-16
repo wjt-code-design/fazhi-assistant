@@ -1,0 +1,10 @@
+{
+ "schema_version": "phase7-s5-reeval/v1",
+ "candidate": "legal-agent-v1-grayscale-20260907 (final freeze 0e94ffe)",
+ "index_basis": "当前磁盘 chroma（corpus logical d76220e7…，10545 记录；index 物理 f48285e8…）",
+ "cases_total": 30,
+ "claims_total": 517,
+ "issue_count": 0,
+ "issues": [],
+ "verdict": "PASS"
+}

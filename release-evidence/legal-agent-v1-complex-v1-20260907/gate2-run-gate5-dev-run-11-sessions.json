@@ -1,0 +1,762 @@
+{
+ "run": "gate5-dev-run-11",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "8d2023d8-e5f8-4361-a2d6-74ab6f9e4d6c",
+      "state_version": 4,
+      "conv_id": 2307
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "解除通知写“不胜任工作”"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "GENERATOR_FAILURE"
+     ],
+     "clar_meta": {
+      "run_id": "8d2023d8-e5f8-4361-a2d6-74ab6f9e4d6c",
+      "state_version": 8,
+      "conv_id": 2307
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "公司是否事先通知工会或职工代表"
+    },
+    {
+     "round": 2,
+     "prompt": "解除通知是否采用书面形式"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r1-f2"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "公司是否事先通知工会或职工代表",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "GENERATOR_FAILURE"
+   ],
+   "conv_id": 2307,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 1149.1
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "259c38d5-7f6c-4b83-9c70-19333d363e9e",
+      "state_version": 4,
+      "conv_id": 2308
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "259c38d5-7f6c-4b83-9c70-19333d363e9e",
+      "state_version": 8,
+      "conv_id": 2308
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动合同约定的工资标准或实际工资构成"
+    },
+    {
+     "round": 2,
+     "prompt": "加班是否由用人单位安排或同意"
+    }
+   ],
+   "answered_fact_ids": [
+    "C02-r1-f2"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "劳动合同约定的工资标准或实际工资构成",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2308,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 78.2
+  },
+  "C03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "公司一直拖延（未签合同）",
+      "我昨天提交了离职通知"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "c221b9f7-46b5-4b4d-b539-86f3519bfa71",
+      "state_version": 4,
+      "conv_id": 2309
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "c221b9f7-46b5-4b4d-b539-86f3519bfa71",
+      "state_version": 8,
+      "conv_id": 2309
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "离职原因是否与未签劳动合同有关"
+    },
+    {
+     "round": 2,
+     "prompt": "离职时是否就双倍工资进行过协商或达成和解"
+    }
+   ],
+   "answered_fact_ids": [
+    "C03-r1-f1",
+    "C03-r1-f3"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "离职时是否就双倍工资进行过协商或达成和解",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2309,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 81.7
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "钱已转账"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "a9dc1594-aa4c-49c2-b913-56dd59b4e43b",
+      "state_version": 4,
+      "conv_id": 2310
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "a9dc1594-aa4c-49c2-b913-56dd59b4e43b",
+      "state_version": 8,
+      "conv_id": 2310
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "买方是否实际支付了其他费用"
+    },
+    {
+     "round": 2,
+     "prompt": "房屋现价值与合同价格的差额"
+    }
+   ],
+   "answered_fact_ids": [
+    "C04-r1-f2"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "房屋现价值与合同价格的差额",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2310,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 168.0
+  },
+  "C05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "29b09f87-a0b5-411b-88ac-8358a06914ac",
+      "state_version": 4,
+      "conv_id": 2311
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "押金两个月"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "29b09f87-a0b5-411b-88ac-8358a06914ac",
+      "state_version": 8,
+      "conv_id": 2311
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "房东是否提供了扣押金的具体依据和凭证"
+    },
+    {
+     "round": 2,
+     "prompt": "扣押金金额是否与实际损失相当"
+    }
+   ],
+   "answered_fact_ids": [
+    "C05-r2-f3"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "房东是否提供了扣押金的具体依据和凭证",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2311,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 79.8
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "固定总价"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "0b18af4e-235a-4712-a8f9-b10be8850e4f",
+      "state_version": 4,
+      "conv_id": 2312
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "合同没写材料涨价调整"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "0b18af4e-235a-4712-a8f9-b10be8850e4f",
+      "state_version": 8,
+      "conv_id": 2312
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "合同约定的价格条款是否为固定总价"
+    },
+    {
+     "round": 2,
+     "prompt": "材料涨价是否超出正常市场波动范围"
+    }
+   ],
+   "answered_fact_ids": [
+    "C06-r1-f1",
+    "C06-r1-f2"
+   ],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2312,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 1127.1
+  },
+  "C07": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "ISSUE_DECOMPOSITION_INVALID"
+     ]
+    }
+   ],
+   "asked": [],
+   "answered_fact_ids": [],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "ISSUE_DECOMPOSITION_INVALID"
+   ],
+   "conv_id": null,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 1081.3
+  },
+  "C08": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "主债务2023年8月到期",
+      "担保条款只写“承担保证责任”",
+      "债权人2024年1月微信找过我"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "72858a7e-b184-4d1f-9f50-feefdc35bcdc",
+      "state_version": 4,
+      "conv_id": 2314
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "72858a7e-b184-4d1f-9f50-feefdc35bcdc",
+      "state_version": 8,
+      "conv_id": 2314
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "债权人首次要求保证人承担保证责任的时间点，以及该时间点是否在主债务履行期限届满之日起六个月内。"
+    },
+    {
+     "round": 2,
+     "prompt": "合同中是否明确约定保证方式为一般保证或连带责任保证，或者是否约定不明。"
+    }
+   ],
+   "answered_fact_ids": [
+    "C08-r1-f1",
+    "C08-r1-f2",
+    "C08-r1-f3"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "合同中是否明确约定保证方式为一般保证或连带责任保证，或者是否约定不明。",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2314,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 60.5
+  },
+  "C09": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "门店已关"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "f3dd506d-c2a0-4991-beb0-c335fe1a7094",
+      "state_version": 4,
+      "conv_id": 2315
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "签约时没人特别说明概不退款"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "f3dd506d-c2a0-4991-beb0-c335fe1a7094",
+      "state_version": 8,
+      "conv_id": 2315
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "健身房关门的原因及是否存在经营不善或欺诈情形"
+    },
+    {
+     "round": 2,
+     "prompt": "合同中'概不退款'条款的具体表述及是否属于格式条款"
+    }
+   ],
+   "answered_fact_ids": [
+    "C09-r1-f1",
+    "C09-r2-f1"
+   ],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2315,
+   "final_chars": 501,
+   "final_text": "已确认事实：\n- 健身房突然关门\n- 合同写概不退款\n- 门店已关\n- 签约时没人特别说明概不退款\n\n尚不确定的事实：\n- 消费者剩余未消费的具体金额\n\n核心法律争点：\n- 健身房突然关门且合同约定概不退款，消费者能否要回剩余费用？\n\n法律依据：\n- 《消费者权益保护法》第四十三条\n- 《民法典》第七百一十一条\n- 《民法典》第七百五十二条\n- 《消费者权益保护法》第五十条\n- 《消费者权益保护法》第二十六条\n- 《消费者权益保护法》第五十三条\n- 《民法典》第四百九十七条\n- 《消费者权益保护法》第二十五条\n- 《消费者权益保护法》第五十八条\n- 《保险法》第十九条\n\n分情形分析：\n健身房门店已关,属于未按照约定提供商品或者服务。经营者以格式条款作出排除或者限制消费者权利、减轻或者免除经营者责任的规定,且签约时未对与消费者有重大利害关系的内容予以说明,该格式条款无效。\n\n可执行建议与风险提示：\n健身房突然关门且未按照约定提供服务的,消费者有权要求退回预付款。合同中的“概不退款”条款属于经营者以格式条款不合理地免除自身责任、排除消费者主要权利的情形,且签约时未提请消费者注意,该条款无效。",
+   "final_excerpt": "已确认事实：\n- 健身房突然关门\n- 合同写概不退款\n- 门店已关\n- 签约时没人特别说明概不退款\n\n尚不确定的事实：\n- 消费者剩余未消费的具体金额\n\n核心法律争点：\n- 健身房突然关门且合同约定概不退款，消费者能否要回剩余费用？\n\n法律",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 120.8
+  },
+  "C10": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "a1d7de23-d13c-4646-bf64-0260410923aa",
+      "state_version": 4,
+      "conv_id": 2316
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "不知道住址"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "GENERATOR_FAILURE"
+     ],
+     "clar_meta": {
+      "run_id": "a1d7de23-d13c-4646-bf64-0260410923aa",
+      "state_version": 8,
+      "conv_id": 2316
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "聊天记录是否完整保存且未经篡改"
+    },
+    {
+     "round": 2,
+     "prompt": "是否能够提供卖家准确的送达地址"
+    }
+   ],
+   "answered_fact_ids": [
+    "C10-r2-f4"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "聊天记录是否完整保存且未经篡改",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "GENERATOR_FAILURE"
+   ],
+   "conv_id": 2316,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 2087.4
+  }
+ }
+}

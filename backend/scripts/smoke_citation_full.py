@@ -116,8 +116,12 @@ def main():
     for label, q in NEGATIVE:
         c = chat(token, q)
         ok_honest = (
-            ("未覆盖" in c) or ("无法完整回答" in c) or ("未收录" in c)
-            or ("未涵盖" in c) or ("仅能依据" in c) or ("未包含" in c)  # S9 改进后的诚实措辞
+            ("未覆盖" in c)
+            or ("无法完整回答" in c)
+            or ("未收录" in c)
+            or ("未涵盖" in c)
+            or ("仅能依据" in c)
+            or ("未包含" in c)  # S9 改进后的诚实措辞
             or ("司法解释" in c and "当前库" in c)
         )
         check(ok_honest, f"{label}: 诚实拒答={ok_honest} | 前80字: {c[:80].replace(chr(10), ' ')}")

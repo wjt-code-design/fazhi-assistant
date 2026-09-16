@@ -1,0 +1,1272 @@
+{
+ "run": "baseline-2",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "clar_meta": {
+      "run_id": "f68dc780-1fab-471b-a81d-2ee884cbf2e3",
+      "state_version": 4,
+      "conv_id": 2098
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "月平均工资 12,000 元"
+     ],
+     "event_types": [],
+     "clar_meta": {
+      "run_id": "f68dc780-1fab-471b-a81d-2ee884cbf2e3",
+      "state_version": 8,
+      "conv_id": 2098
+     },
+     "raw_tail": "{\"detail\":\"Agent 任务已变化，无法恢复\"}"
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "员工在公司工作的年限"
+    },
+    {
+     "round": 2,
+     "prompt": "员工解除前十二个月的平均工资"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r2-f3"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "员工在公司工作的年限"
+    }
+   ],
+   "conv_id": 2098,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 36.4
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "clar_meta": {
+      "run_id": "b5b067c5-b490-4bb1-9ddc-c5b42a73811b",
+      "state_version": 4,
+      "conv_id": 2099
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [],
+     "clar_meta": {
+      "run_id": "b5b067c5-b490-4bb1-9ddc-c5b42a73811b",
+      "state_version": 8,
+      "conv_id": 2099
+     },
+     "raw_tail": "{\"detail\":\"Agent 任务已变化，无法恢复\"}"
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "加班发生的时间及员工知道或应当知道权利被侵害的时间"
+    },
+    {
+     "round": 2,
+     "prompt": "该加班是公司安排还是员工自愿"
+    }
+   ],
+   "answered_fact_ids": [
+    "C02-r1-f2",
+    "C02-r1-f2"
+   ],
+   "unknown_fact_ids": [],
+   "conv_id": 2099,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 58.5
+  },
+  "C03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "公司一直拖延（未签合同）",
+      "我昨天提交了离职通知"
+     ],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "clar_meta": {
+      "run_id": "040d1f8e-8f2c-4517-99f6-61b36de79abf",
+      "state_version": 4,
+      "conv_id": 2100
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "离职原因是否与未签合同有关"
+    }
+   ],
+   "answered_fact_ids": [
+    "C03-r1-f1",
+    "C03-r1-f3"
+   ],
+   "unknown_fact_ids": [],
+   "conv_id": 2100,
+   "final_chars": 2065,
+   "final_excerpt": "根据您提供的案情，即公司一直拖延未签订书面劳动合同，您于昨日提交离职通知，现对您提出的四个法律争点逐一分析如下：\n\n**一、 未签订书面劳动合同的双倍工资差额是否仍可主张？**\n\n可以主张，但需注意仲裁时效问题。\n\n根据《劳动合同法》第十条",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 67.3
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ]
+    }
+   ],
+   "asked": [],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [],
+   "conv_id": null,
+   "final_chars": 627,
+   "final_excerpt": "存在法律不确定性\n\n①案情与争议焦点\n买方支付十万元购买二手房，卖方因房价上涨拒绝继续出售房屋。争议焦点在于：买方能否拿回二十万元，即卖方是否需承担双倍返还已付款项的责任。\n\n②法律依据\n《民法典》第五百九十七条：因出卖人未取得处分权致使标",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 118.4
+  },
+  "C05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "合同写每月5日前付款，没有写晚两天就解除",
+      "押金两个月"
+     ],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "clar_meta": {
+      "run_id": "399a3586-9bb1-4fa6-a6d5-6acd839d2a3f",
+      "state_version": 4,
+      "conv_id": 2102
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "租赁合同中关于押金扣除条件的具体约定"
+    }
+   ],
+   "answered_fact_ids": [
+    "C05-r1-f1",
+    "C05-r2-f3"
+   ],
+   "unknown_fact_ids": [],
+   "conv_id": 2102,
+   "final_chars": 1256,
+   "final_excerpt": "## 案情与争议焦点\n\n本案涉及租赁合同履行中的三个核心争议：\n1. 承租人晚交两天房租是否构成根本违约，使房东享有法定解除权；\n2. 房东未经催告程序直接换锁是否侵犯承租人合法占有使用权；\n3. 房东扣除两个月押金的行为是否具有法律或合同",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 98.9
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "固定总价"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "clar_meta": {
+      "run_id": "0d7209e5-f205-40e9-8f82-aae84256019a",
+      "state_version": 4,
+      "conv_id": 2103
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "约定三个月完工",
+      "现在已超过新工期五十天"
+     ],
+     "event_types": [],
+     "clar_meta": {
+      "run_id": "0d7209e5-f205-40e9-8f82-aae84256019a",
+      "state_version": 8,
+      "conv_id": 2103
+     },
+     "raw_tail": "{\"detail\":\"Agent 任务已变化，无法恢复\"}"
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "合同是否约定了固定总价或材料价格调整机制"
+    },
+    {
+     "round": 2,
+     "prompt": "合同中是否约定了工期及延期违约责任"
+    }
+   ],
+   "answered_fact_ids": [
+    "C06-r1-f1",
+    "C06-r1-f3",
+    "C06-r2-f2"
+   ],
+   "unknown_fact_ids": [],
+   "conv_id": 2103,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 51.1
+  },
+  "C07": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "2021年6月30日到期"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "clar_meta": {
+      "run_id": "ea647104-cc68-4e9e-a053-6cced48d2e59",
+      "state_version": 4,
+      "conv_id": 2104
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "我2023年5月微信催过",
+      "他回复年底还"
+     ],
+     "event_types": [],
+     "clar_meta": {
+      "run_id": "ea647104-cc68-4e9e-a053-6cced48d2e59",
+      "state_version": 8,
+      "conv_id": 2104
+     },
+     "raw_tail": "{\"detail\":\"Agent 任务已变化，无法恢复\"}"
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "借款到期的具体日期"
+    },
+    {
+     "round": 2,
+     "prompt": "是否存在诉讼时效中断或中止的情形（如催收、对方承诺还款等）"
+    }
+   ],
+   "answered_fact_ids": [
+    "C07-r1-f1",
+    "C07-r1-f2",
+    "C07-r1-f3"
+   ],
+   "unknown_fact_ids": [],
+   "conv_id": 2104,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 51.2
+  },
+  "C08": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "主债务2023年8月到期"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "clar_meta": {
+      "run_id": "3a2090ae-4f96-4c18-ab7d-18076fd8d73e",
+      "state_version": 4,
+      "conv_id": 2105
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "债权人2024年1月微信找过我"
+     ],
+     "event_types": [],
+     "clar_meta": {
+      "run_id": "3a2090ae-4f96-4c18-ab7d-18076fd8d73e",
+      "state_version": 8,
+      "conv_id": 2105
+     },
+     "raw_tail": "{\"detail\":\"Agent 任务已变化，无法恢复\"}"
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "主债务履行期限是否明确约定"
+    },
+    {
+     "round": 2,
+     "prompt": "债权人是否在保证期间内向保证人主张权利"
+    }
+   ],
+   "answered_fact_ids": [
+    "C08-r1-f1",
+    "C08-r1-f3"
+   ],
+   "unknown_fact_ids": [],
+   "conv_id": 2105,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 46.6
+  },
+  "C09": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "门店已关"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "clar_meta": {
+      "run_id": "e4326b9b-8c43-4930-8c81-94caed1808dc",
+      "state_version": 4,
+      "conv_id": 2106
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "签约时没人特别说明概不退款"
+     ],
+     "event_types": [],
+     "clar_meta": {
+      "run_id": "e4326b9b-8c43-4930-8c81-94caed1808dc",
+      "state_version": 8,
+      "conv_id": 2106
+     },
+     "raw_tail": "{\"detail\":\"Agent 任务已变化，无法恢复\"}"
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "健身房关门的具体原因（如经营不善、跑路或不可抗力）"
+    },
+    {
+     "round": 2,
+     "prompt": "该概不退款条款是否属于经营者单方提供的格式条款且不合理地免除其责任、加重消费者责任"
+    }
+   ],
+   "answered_fact_ids": [
+    "C09-r1-f1",
+    "C09-r2-f1"
+   ],
+   "unknown_fact_ids": [],
+   "conv_id": 2106,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 75.0
+  },
+  "C10": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "clar_meta": {
+      "run_id": "ee0f6cc7-4ee5-4eb9-b1d4-abf4ef30b201",
+      "state_version": 4,
+      "conv_id": 2107
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [],
+     "event_types": [],
+     "clar_meta": {
+      "run_id": "ee0f6cc7-4ee5-4eb9-b1d4-abf4ef30b201",
+      "state_version": 8,
+      "conv_id": 2107
+     },
+     "raw_tail": "{\"detail\":\"Agent 任务已变化，无法恢复\"}"
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "卖家在收款时是否具有非法占有目的"
+    },
+    {
+     "round": 2,
+     "prompt": "卖家是否实施了虚构事实或隐瞒真相的行为"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "卖家在收款时是否具有非法占有目的"
+    },
+    {
+     "round": 2,
+     "prompt": "卖家是否实施了虚构事实或隐瞒真相的行为"
+    }
+   ],
+   "conv_id": 2107,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 33.7
+  }
+ }
+}

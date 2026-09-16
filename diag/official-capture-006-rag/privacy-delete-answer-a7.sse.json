@@ -1,0 +1,525 @@
+[
+ {
+  "type": "status",
+  "msg": "正在思考…"
+ },
+ {
+  "content": "① 案情与"
+ },
+ {
+  "content": "争议焦点\n用户"
+ },
+ {
+  "content": "在某App注销账号"
+ },
+ {
+  "content": "后，平台仍"
+ },
+ {
+  "content": "保留其手机号"
+ },
+ {
+  "content": "及消费记录用于"
+ },
+ {
+  "content": "营销推送。本案"
+ },
+ {
+  "content": "争议焦点在于："
+ },
+ {
+  "content": "用户注销账号后"
+ },
+ {
+  "content": "，平台是否负有"
+ },
+ {
+  "content": "删除个人信息的法定"
+ },
+ {
+  "content": "义务，以及平台"
+ },
+ {
+  "content": "未经同意"
+ },
+ {
+  "content": "发送商业性营销"
+ },
+ {
+  "content": "信息是否违法。"
+ },
+ {
+  "content": "\n\n② 法律"
+ },
+ {
+  "content": "依据\n《电子商务"
+ },
+ {
+  "content": "法》第二十四条："
+ },
+ {
+  "content": "用户注销的，"
+ },
+ {
+  "content": "电子商务经营者应当立即"
+ },
+ {
+  "content": "删除该用户的信息"
+ },
+ {
+  "content": "；依照法律、"
+ },
+ {
+  "content": "行政法规的规定或者双方"
+ },
+ {
+  "content": "约定保存的，"
+ },
+ {
+  "content": "依照其规定。"
+ },
+ {
+  "content": "\n《消费者权益保护法"
+ },
+ {
+  "content": "》第二十九条：经营者"
+ },
+ {
+  "content": "未经消费者同意或者"
+ },
+ {
+  "content": "请求，或者消费者"
+ },
+ {
+  "content": "明确表示拒绝的"
+ },
+ {
+  "content": "，不得向其发送"
+ },
+ {
+  "content": "商业性信息。"
+ },
+ {
+  "content": "经营者收集、使用"
+ },
+ {
+  "content": "消费者个人信息，应当"
+ },
+ {
+  "content": "遵循合法、正当"
+ },
+ {
+  "content": "、必要的原则，"
+ },
+ {
+  "content": "明示收集、"
+ },
+ {
+  "content": "使用信息的目的、"
+ },
+ {
+  "content": "方式和范围，并经"
+ },
+ {
+  "content": "消费者同意。\n"
+ },
+ {
+  "content": "《网络安全法》"
+ },
+ {
+  "content": "第四十五条：个人"
+ },
+ {
+  "content": "发现网络运营者"
+ },
+ {
+  "content": "违反法律、行政法规"
+ },
+ {
+  "content": "的规定或者双方的约定"
+ },
+ {
+  "content": "收集、使用其"
+ },
+ {
+  "content": "个人信息的，有权"
+ },
+ {
+  "content": "要求网络运营者"
+ },
+ {
+  "content": "删除其个人信息。"
+ },
+ {
+  "content": "\n\n③ 逐"
+ },
+ {
+  "content": "项论证\n第一"
+ },
+ {
+  "content": "，平台违反注销"
+ },
+ {
+  "content": "后的信息删除义务"
+ },
+ {
+  "content": "。根据《电子商务"
+ },
+ {
+  "content": "法》第二十四条，"
+ },
+ {
+  "content": "用户在App"
+ },
+ {
+  "content": "注销账号后，"
+ },
+ {
+  "content": "平台作为电子商务"
+ },
+ {
+  "content": "经营者应当立即删除"
+ },
+ {
+  "content": "该用户的信息，"
+ },
+ {
+  "content": "除非法律、行政法规"
+ },
+ {
+  "content": "另有规定或双方"
+ },
+ {
+  "content": "另有约定。平台"
+ },
+ {
+  "content": "继续保留手机号"
+ },
+ {
+  "content": "与消费记录用于"
+ },
+ {
+  "content": "营销，显然不属于"
+ },
+ {
+  "content": "法定或约定的保存"
+ },
+ {
+  "content": "情形，违反了立即"
+ },
+ {
+  "content": "删除义务。\n"
+ },
+ {
+  "content": "第二，平台违反"
+ },
+ {
+  "content": "商业信息推送的"
+ },
+ {
+  "content": "禁止性规定。"
+ },
+ {
+  "content": "根据《消费者权益保护法"
+ },
+ {
+  "content": "》第二十九条，经营者"
+ },
+ {
+  "content": "未经消费者同意或"
+ },
+ {
+  "content": "请求，或者消费者"
+ },
+ {
+  "content": "明确表示拒绝的"
+ },
+ {
+  "content": "，不得向其发送"
+ },
+ {
+  "content": "商业性信息。"
+ },
+ {
+  "content": "用户注销账号意味着"
+ },
+ {
+  "content": "终止服务关系，"
+ },
+ {
+  "content": "平台继续推送营销"
+ },
+ {
+  "content": "信息属于未经同意"
+ },
+ {
+  "content": "发送商业性信息"
+ },
+ {
+  "content": "，侵犯了消费者的"
+ },
+ {
+  "content": "安宁权与"
+ },
+ {
+  "content": "个人信息权益。\n"
+ },
+ {
+  "content": "第三，平台侵犯"
+ },
+ {
+  "content": "用户的个人信息删除权"
+ },
+ {
+  "content": "。根据《网络安全"
+ },
+ {
+  "content": "法》第四十五条"
+ },
+ {
+  "content": "，用户发现"
+ },
+ {
+  "content": "平台违反双方约定"
+ },
+ {
+  "content": "（注销即终止"
+ },
+ {
+  "content": "使用）收集"
+ },
+ {
+  "content": "、使用其个人"
+ },
+ {
+  "content": "信息的，有权要求"
+ },
+ {
+  "content": "平台删除。平台"
+ },
+ {
+  "content": "拒绝删除"
+ },
+ {
+  "content": "并用于营销，"
+ },
+ {
+  "content": "侵犯了用户的法定删除权。\n\n"
+ },
+ {
+  "content": "④ 结论与"
+ },
+ {
+  "content": "风险\n平台的行为"
+ },
+ {
+  "content": "违反了《电子商务法》第二十四条、《消费者权益"
+ },
+ {
+  "content": "保护法》第二十九条及"
+ },
+ {
+  "content": "《网络安全法》"
+ },
+ {
+  "content": "第四十五条。用户"
+ },
+ {
+  "content": "有权要求平台立即"
+ },
+ {
+  "content": "删除其手机号及"
+ },
+ {
+  "content": "消费记录，并"
+ },
+ {
+  "content": "停止营销推送。"
+ },
+ {
+  "content": "若平台拒不"
+ },
+ {
+  "content": "删除或继续骚扰"
+ },
+ {
+  "content": "，用户可以向市场监督管理"
+ },
+ {
+  "content": "部门或网信部门"
+ },
+ {
+  "content": "投诉举报，也可以"
+ },
+ {
+  "content": "依法提起"
+ },
+ {
+  "content": "民事诉讼，主张"
+ },
+ {
+  "content": "平台停止侵害、"
+ },
+ {
+  "content": "赔偿损失。需要注意的是"
+ },
+ {
+  "content": "，用户需"
+ },
+ {
+  "content": "保留注销账号及"
+ },
+ {
+  "content": "收到营销推送的相关"
+ },
+ {
+  "content": "证据，以便顺利"
+ },
+ {
+  "content": "维权。"
+ },
+ {
+  "sources": [
+   {
+    "source": "著作权法",
+    "article": "第十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "著作权法",
+    "article": "第二十四条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "著作权法",
+    "article": "第三十二条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "著作权法",
+    "article": "第十八条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "著作权法",
+    "article": "第十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "著作权法",
+    "article": "第二十三条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "著作权法",
+    "article": "第三十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "著作权法",
+    "article": "第五十二条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "著作权法",
+    "article": "第五十四条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "著作权法",
+    "article": "第四十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "电子商务法",
+    "article": "第二十四条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "广告法",
+    "article": "第六十二条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "广告法",
+    "article": "第四十四条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "电子商务法",
+    "article": "第八十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "消费者权益保护法",
+    "article": "第五十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "个人信息保护法",
+    "article": "第七十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "反垄断法",
+    "article": "第六十四条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "广告法",
+    "article": "第四十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "消费者权益保护法",
+    "article": "第二十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "网络安全法",
+    "article": "第四十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   }
+  ]
+ }
+]

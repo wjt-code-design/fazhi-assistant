@@ -1,0 +1,23 @@
+{
+ "agent_smoke": {
+  "http": 200,
+  "types": [
+   "agent_status",
+   "clarification"
+  ],
+  "error_codes": [],
+  "clarification": true,
+  "final": false,
+  "content_chars": 0,
+  "pass": [
+   {
+    "type": "clarification",
+    "run_id": "8e740ae3-7ab1-44f3-a3e2-1680250f9e5e",
+    "state_version": 4,
+    "prompt": "借款合同或借据是否真实有效",
+    "issue_id": "issue_306dbcfa5c242b425d199b21",
+    "conversation_id": 7
+   }
+  ]
+ }
+}

@@ -1,0 +1,38 @@
+[WATCH-IT-FAIL OK] 预算闸门: 预算不足时不应产生任何远程 rerank 调用
+assert ['m1'] == []
+  
+  Left contains one more item: 'm1'
+  Use -v to get more diff
+.[WATCH-IT-FAIL OK] 超时分类: 超时后不得再换下一个模型继续烧预算
+assert ['m1', 'm2'] == ['m1']
+  
+  Left contains one more item: 'm2'
+  Use -v to get more diff
+.
+============================== warnings summary ===============================
+tests\test_retrieval_rerank.py:319
+  C:\Users\33393\Desktop\ai-legal-helper\backend\tests\test_retrieval_rerank.py:319: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests\test_retrieval_rerank.py:325
+  C:\Users\33393\Desktop\ai-legal-helper\backend\tests\test_retrieval_rerank.py:325: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests\test_retrieval_rerank.py:331
+  C:\Users\33393\Desktop\ai-legal-helper\backend\tests\test_retrieval_rerank.py:331: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests\test_retrieval_rerank.py:338
+  C:\Users\33393\Desktop\ai-legal-helper\backend\tests\test_retrieval_rerank.py:338: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests\test_retrieval_rerank.py:344
+  C:\Users\33393\Desktop\ai-legal-helper\backend\tests\test_retrieval_rerank.py:344: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests\test_retrieval_rerank.py:351
+  C:\Users\33393\Desktop\ai-legal-helper\backend\tests\test_retrieval_rerank.py:351: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 6 warnings in 13.69s

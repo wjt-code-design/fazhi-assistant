@@ -1,0 +1,32 @@
+{
+ "run": "fix-evidence-check",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "ISSUE_DECOMPOSITION_INVALID"
+     ]
+    }
+   ],
+   "asked": [],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "ISSUE_DECOMPOSITION_INVALID"
+   ],
+   "conv_id": null,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 16.1
+  }
+ }
+}

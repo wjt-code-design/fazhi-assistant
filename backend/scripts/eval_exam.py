@@ -133,16 +133,22 @@ def main() -> int:
             sums["multi_n"] += 1
             sums["multi"] += 1 if multi_ok_result else 0
         row = {
-            "id": c["id"], "intent": it, "decide": st,
-            "recall@6": round(rec, 2), "cite_ok": bool(cc),
-            "golden_hit": bool(golden), "refuse_ok": bool(refuse_ok),
+            "id": c["id"],
+            "intent": it,
+            "decide": st,
+            "recall@6": round(rec, 2),
+            "cite_ok": bool(cc),
+            "golden_hit": bool(golden),
+            "refuse_ok": bool(refuse_ok),
             "multi_ok": multi_ok_result,
         }
         sums["recall"] += rec
         sums["cite"] += 1 if cc else 0
         sums["golden"] += 1 if golden else 0
         sums["refuse_ok"] += 1 if refuse_ok else 0
-        line = f"[{c['id']}] {it}/{st} recall@6={rec:.2f} cite={int(cc)} golden={int(golden)} refuse_ok={int(refuse_ok)}"
+        line = (
+            f"[{c['id']}] {it}/{st} recall@6={rec:.2f} cite={int(cc)} golden={int(golden)} refuse_ok={int(refuse_ok)}"
+        )
         if is_multi:
             line += f" multi={int(bool(multi_ok_result))}"
         if do_judge:
@@ -180,7 +186,9 @@ def main() -> int:
                 "pipeline": "真实 chat API（_client.chat）+ 确定性指标（recall/cite/golden/refuse_ok）",
                 "rows": rows,
             },
-            f, ensure_ascii=False, indent=1,
+            f,
+            ensure_ascii=False,
+            indent=1,
         )
         f.write("\n")
     print(f"落盘：{out}")

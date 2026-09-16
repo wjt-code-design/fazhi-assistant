@@ -1,0 +1,9 @@
+{
+ "run": "probe-c01-verify2-20260910",
+ "targets": [
+  "C01"
+ ],
+ "started_at": "2026-09-10T07:10:46.435990+00:00",
+ "pid": 2296,
+ "protocol_version": "v1"
+}

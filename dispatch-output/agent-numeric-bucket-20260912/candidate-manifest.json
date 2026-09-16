@@ -1,0 +1,27 @@
+{
+  "round": "agent-numeric-bucket-20260912",
+  "purpose": "bucket the UNSUPPORTED_NUMERIC_TOKEN violation to attribute root cause (mispin/other-issue/fabricated), counts only",
+  "changed_files": [
+    {
+      "path": "backend/agent/writer.py",
+      "before_lines": 729,
+      "after_lines": 786,
+      "before_sha256": "ad354123ec25d5c2bb5568bc9a05f1cdfa2a5ce7a142c0324f68b2a5d572e985",
+      "after_sha256": "150439e6f5840c736418de798030b4cedd3241be989b6e5d77fc923e0290210d"
+    },
+    {
+      "path": "backend/tests/test_agent_writer.py",
+      "before_lines": 537,
+      "after_lines": 600,
+      "before_sha256": "de5a89db859e885f5927784cf69accf67ab8fed14718cc43c8642fba084b2f3c",
+      "after_sha256": "e5c11c6a375a5fab913dcfacd381ea73ece5f7259ead63ca9ce52adbb6265849"
+    },
+    {
+      "path": "backend/observability.py",
+      "before_lines": 183,
+      "after_lines": 183,
+      "before_sha256": "a43c85c68c906bdf8bd5098bd3352f6ec4821867ed6d3558554a92c04252cadb",
+      "after_sha256": "a43c85c68c906bdf8bd5098bd3352f6ec4821867ed6d3558554a92c04252cadb"
+    }
+  ]
+}

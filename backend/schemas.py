@@ -1,7 +1,17 @@
 import re
 from datetime import datetime
+from typing import Literal
+from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    NonNegativeInt,
+    StrictBool,
+    field_validator,
+    model_validator,
+)
 
 
 # ===== 认证 =====
@@ -44,9 +54,32 @@ class ChatIn(BaseModel):
     image: str | None = Field(default=None, description="data URL 或 http URL；base64 不写库")
     no_cache: bool = False  # 绕过 QA/答案缓存直返（评测脚本用，测真实 LLM）
     truncated: bool = False  # 客户端已截断（文件上传超长）：穿透给合同评估/analysis_runs（截到恰 12000 时服务端判不出）
+    force_agent: bool = (
+        False  # 手动深入分析显式入口（任务书 §3.6/Gate 6）：用户显式触发进 Agent，不豁免 policy refuse；非自动静默切换
+    )
+    agent_run_id: UUID | None = None
+    agent_state_version: NonNegativeInt | None = None
+
+    @model_validator(mode="after")
+    def validate_agent_resume_identity(self) -> "ChatIn":
+        resume_fields = (
+            self.agent_run_id is not None,
+            self.agent_state_version is not None,
+            self.conversation_id is not None,
+        )
+        if any(resume_fields[:2]) and not all(resume_fields):
+            raise ValueError("agent_run_id, agent_state_version and conversation_id are required together")
+        return self
 
 
 # ===== 会话 / 消息 =====
+class UncoveredIssueOut(BaseModel):
+    """T1（2026-09-16）：未覆盖争点的公开投影（仅标识与原因码，无内部文本）。"""
+
+    issue_id: str
+    reason_code: str
+
+
 class MessageOut(BaseModel):
     id: int
     role: str
@@ -54,6 +87,11 @@ class MessageOut(BaseModel):
     image_ref: str | None = None
     thumb_ref: str | None = None
     created_at: datetime
+    # T1（2026-09-16）覆盖投影：full/partial（Agent 消息且 run 有结构化覆盖）、
+    # unknown（旧 assistant 消息或 run 缺结构化信息——不得推断 full）、
+    # None（用户消息，覆盖不适用）。
+    coverage_status: Literal["full", "partial", "unknown"] | None = None
+    uncovered_issues: list[UncoveredIssueOut] = Field(default_factory=list)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -102,13 +140,34 @@ class KnowledgeAddIn(BaseModel):
     effective_from: str | None = None
     effective_to: str | None = None
     status: str | None = None
+    version_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+    promulgated_at: str | None = None
+    source_url: str | None = Field(default=None, pattern=r"^https://[^\s]+$")
+    source_document_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    supersedes_version_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9][A-Za-z0-9._-]{0,99}$")
+    reviewed_at: str | None = None
 
-    @field_validator("effective_from", "effective_to")
+    @field_validator("promulgated_at", "effective_from", "effective_to", "reviewed_at")
     @classmethod
     def _date_or_empty(cls, v: str | None) -> str | None:
         if v and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
             raise ValueError("日期格式必须为 YYYY-MM-DD")
         return v
+
+    @field_validator("status")
+    @classmethod
+    def _known_status(cls, v: str | None) -> str | None:
+        if v and v not in {"现行", "已修改", "已废止", "即将施行", "未生效"}:
+            raise ValueError("status 必须为现行/已修改/已废止/即将施行/未生效")
+        return v
+
+    @model_validator(mode="after")
+    def _valid_version_period(self):
+        if self.effective_from and self.effective_to and self.effective_to < self.effective_from:
+            raise ValueError("effective_to 不能早于 effective_from")
+        if self.version_id and self.supersedes_version_id == self.version_id:
+            raise ValueError("supersedes_version_id 不能等于 version_id")
+        return self
 
 
 class KnowledgeTestIn(BaseModel):
@@ -142,6 +201,30 @@ class LlmSwitchIn(BaseModel):
 class LlmQuotaIn(BaseModel):
     key: str = Field(min_length=1, max_length=64)
     remaining: int = Field(ge=0)  # 控制台真实剩余 token（管理员读数校准）
+
+
+class LlmPromoteIn(BaseModel):
+    """把某模型提为链首（`POST /api/admin/llm-promote`）。
+
+    2026-09-15 代码审查（S2）：原端点用裸 `body: dict` 绕过校验，与同文件
+    `LlmSwitchIn`/`LlmQuotaIn` 的 Pydantic 惯例相悖 → 改为显式 schema（key 长度上限 64）。
+    """
+
+    key: str = Field(min_length=1, max_length=64)
+
+
+class LlmDisableIn(BaseModel):
+    """禁用/启用某模型参与自动路由（`POST /api/admin/llm-disable`）。
+
+    2026-09-15 代码审查（S1/S2）两处修正：
+    - `disabled` 用 **StrictBool**：原实现 `bool(body.get("disabled", True))` 会把字符串
+      `"false"`/`"0"` 判为 True（Python `bool("false") is True`）→ **误禁用**；StrictBool
+      只接受真正的布尔值，字符串会被 422 拒绝。
+    - `disabled` **必填**（无默认）：原实现默认 True，只传 `{"key": ...}` 就会静默禁用。
+    """
+
+    key: str = Field(min_length=1, max_length=64)
+    disabled: StrictBool
 
 
 class FeedbackIn(BaseModel):

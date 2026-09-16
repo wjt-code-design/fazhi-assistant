@@ -1,0 +1,20 @@
+{
+  "schema_version": "legal-agent-capture-protocol/v1",
+  "protocol_id": "legal-agent-v1-20260905-002",
+  "case_set_sha256": "f8ca2f2e71250f18a3741132d1024e3865eb21c1fb997a4d4d26c12391f1588d",
+  "modes": [
+    "existing_rag",
+    "agent"
+  ],
+  "controls": {
+    "timeout_seconds": 90,
+    "total_timeout_seconds": 3600,
+    "max_retries": 1,
+    "concurrency": 1,
+    "cache_policy": "disabled",
+    "network_policy": "frozen-knowledge-only",
+    "max_output_tokens": 4096,
+    "max_tool_calls": 8,
+    "retain_failure_rows": true
+  }
+}

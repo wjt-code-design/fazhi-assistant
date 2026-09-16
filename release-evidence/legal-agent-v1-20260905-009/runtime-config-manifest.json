@@ -1,0 +1,14 @@
+{
+ "schema_version": "legal-agent-file-boundary/v1",
+ "candidate_git_revision": "30a865f76b371e25b4fe90e82fdbd8b373a77b45",
+ "boundary": "non-secret-runtime-config",
+ "selection": "tracked runtime defaults and container configuration; .env files are excluded",
+ "canonicalization": "sort unique POSIX-relative paths; concatenate path + NUL + decimal byte size + NUL + lowercase file SHA-256 + LF; hash UTF-8 bytes with SHA-256",
+ "aggregate_sha256": "215b2058e636f385bea7e569bf15cf6b23b2dc601694cf01200cb3564e646c14",
+ "files": [
+  "backend/Dockerfile",
+  "backend/llm_registry.py",
+  "backend/settings.py",
+  "docker-compose.yml"
+ ]
+}

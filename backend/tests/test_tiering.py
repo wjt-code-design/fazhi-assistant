@@ -1,4 +1,5 @@
 """多模型路由编排测试：_light_buffered 升级状态机 + 缓存判定（mock，不联网）。"""
+
 import os
 import sys
 from types import SimpleNamespace
@@ -38,7 +39,9 @@ def _pre(sources=True):
 
 
 def _patch_pick(monkeypatch, light, flag, flag_raises=False):
-    def fake_pick(modality, tier):
+    def fake_pick(modality, tier, *, exclude=None):
+        # exclude：F7（2026-09-14）起 `_safe_pick` 恒透传该关键字参数（瞬时故障不再标记耗尽时，
+        # 靠它推进到下一个模型）。本测试不涉及换模型，接受并忽略。
         if tier == "light":
             return ("L", light)
         if flag_raises:

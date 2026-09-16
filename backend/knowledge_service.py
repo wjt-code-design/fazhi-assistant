@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 import chunking
 import retrieval
 import retrieval_core as rc
+from law_versions import replaceable_version_ids, version_metadata
 from models import QaCandidate
 from rag_chain import BASE_DIR, QA_COLLECTION_NAME, embeddings, vectorstore
 
@@ -27,7 +28,7 @@ _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 
 # 知识写串行锁：add_text 的 delete-then-add 与 delete_doc 非原子（Chroma 无事务），
 # FastAPI 线程池下并发管理操作可能交错（互删/重复）。RLock 串行化写路径
-#（可重入：add_text 内嵌套 add_chunks 也覆盖）。单 worker 约束下的务实方案——
+# （可重入：add_text 内嵌套 add_chunks 也覆盖）。单 worker 约束下的务实方案——
 # 真正的原子替换需 Chroma 事务或多进程协调，超出当前架构（见 ADR-008）。
 _WRITE_LOCK = threading.RLock()
 
@@ -85,9 +86,7 @@ def validate_upload(filename: str, raw: bytes) -> str:
             _MAX_DECOMPRESSED = 30 * 1024 * 1024  # 单条目未压缩上限 30MB
             for info in zf.infolist():
                 if info.file_size > _MAX_DECOMPRESSED:
-                    raise ValueError(
-                        f"docx 内条目解压过大（{info.filename} 未压缩 {info.file_size} 字节），拒绝解析"
-                    )
+                    raise ValueError(f"docx 内条目解压过大（{info.filename} 未压缩 {info.file_size} 字节），拒绝解析")
         except zipfile.BadZipFile:
             raise ValueError("docx 容器损坏，无法解析") from None
     else:
@@ -175,9 +174,13 @@ def add_text(
 
     - upload：走结构化切分（条号边界/章节前缀/目录跳过，见 chunking.split_law_document）；
       同 file_hash 重传先替换旧切片。
-    - manual/import：单条条文切分；按 (source, article) 幂等——重复添加=更新而非堆积。
+    - manual/import：单条条文切分；同一法名、条号、生效日视为同一版本，修订版并存。
     - seed：knowledge_base.build 直写，不走本函数。
     """
+    if origin in ("manual", "import") and article:
+        supplied = extra_meta or {}
+        extra_meta = {**supplied, **version_metadata(supplied, title=source, article=article, content=content)}
+
     with _WRITE_LOCK:
         # 先收集旧文档 id，写入成功后再删——避免"先删旧再写"在嵌入/写库失败时
         # 旧知识已被删且无回滚 → 文档/条文静默丢失（对抗审计 2026-08-07）
@@ -196,7 +199,18 @@ def add_text(
         else:
             if origin in ("manual", "import") and article:
                 try:
-                    stale_ids = list(_collection().get(where={"$and": [{"source": source}, {"article": article}]})["ids"])
+                    version_id = str((extra_meta or {}).get("version_id") or "").strip()
+                    effective_from = str((extra_meta or {}).get("effective_from") or "").strip()
+                    existing = _collection().get(
+                        where={"$and": [{"source": source}, {"article": article}]},
+                        include=["metadatas"],
+                    )
+                    stale_ids = replaceable_version_ids(
+                        existing["ids"],
+                        existing.get("metadatas") or [],
+                        version_id=version_id,
+                        effective_from=effective_from,
+                    )
                 except Exception:
                     stale_ids = []
             chunks = chunking.split_article_text(content, article=article)
@@ -257,10 +271,12 @@ def add_qa_pair(question: str, answer: str, evidence: str = "", fingerprint: str
     fingerprint（选项内容指纹，审查 C4 护栏）：直返前校验同题干换选项内容必须 miss。
     """
     _qa_store.add_documents(
-        [Document(
-            page_content=question,
-            metadata={"answer": answer, "evidence": evidence, "origin": "qa", "options_fingerprint": fingerprint},
-        )]
+        [
+            Document(
+                page_content=question,
+                metadata={"answer": answer, "evidence": evidence, "origin": "qa", "options_fingerprint": fingerprint},
+            )
+        ]
     )
 
 
@@ -307,8 +323,11 @@ def create_candidate(db: Session, question: str, answer: str, grounded_score: fl
 
         retrieval.invalidate()
         c = QaCandidate(
-            question=question, answer=answer, grounded_score=grounded_score,
-            evidence=evidence, status="approved",
+            question=question,
+            answer=answer,
+            grounded_score=grounded_score,
+            evidence=evidence,
+            status="approved",
         )
         db.add(c)
         db.commit()

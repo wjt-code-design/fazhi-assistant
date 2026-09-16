@@ -7,6 +7,7 @@ os.environ.setdefault("HF_ENDPOINT", "https://hf-mirror.com")
 
 from langchain_core.documents import Document
 
+from law_versions import version_metadata
 from rag_chain import vectorstore
 
 # 数据路径锚定到项目根目录，避免依赖启动目录
@@ -34,10 +35,12 @@ def build(json_path: str = DATA_PATH):
                 "article": law["article_number"],
                 "category": law.get("category", ""),
                 "origin": "seed",
-                # 时效种子（阶段1占位，阶段5治理；None/缺失 coerce 成空串，Chroma 不接受 None）
-                "effective_from": law.get("effective_from") or "",
-                "effective_to": law.get("effective_to") or "",
-                "status": law.get("status") or "现行",
+                **version_metadata(
+                    law,
+                    title=law["title"],
+                    article=law["article_number"],
+                    content=law["content"],
+                ),
             },
         )
         for law in laws

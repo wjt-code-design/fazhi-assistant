@@ -3,6 +3,7 @@
 - 合同首轮 → 追问×2：追问只答追问，不重出完整评估报告
 用法：python scripts/smoke_b1b5.py（需后端在 8000 运行）
 """
+
 import json
 import sys
 
@@ -15,8 +16,12 @@ def chat(tok, content, conv_id=None, timeout=180):
     body = {"content": content, "no_cache": True}
     if conv_id:
         body["conversation_id"] = conv_id
-    r = httpx.post(BASE + "/api/chat", headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"},
-                   json=body, timeout=timeout)
+    r = httpx.post(
+        BASE + "/api/chat",
+        headers={"Authorization": f"Bearer {tok}", "Content-Type": "application/json"},
+        json=body,
+        timeout=timeout,
+    )
     if r.status_code != 200:
         return "", None, f"HTTP {r.status_code}: {r.text[:200]}"
     text, cid = [], None
@@ -44,7 +49,8 @@ def main() -> int:
     print("=== 1. 普通问答 ===")
     a, _, err = chat(tok, "公司拖欠我三个月工资，怎么维权？依据什么法律")
     if err:
-        print("FAIL:", err); return 1
+        print("FAIL:", err)
+        return 1
     checks = {
         "长度>200": len(a) > 200,
         "无'建议核对'": "建议核对" not in a and "未在本次检索" not in a,
@@ -64,7 +70,8 @@ def main() -> int:
     )
     c1, cid, err = chat(tok, "请审查这份合同的风险点：\n" + contract)
     if err:
-        print("FAIL:", err); return 1
+        print("FAIL:", err)
+        return 1
     print(f"首轮 长度 {len(c1)} | 含'①【结论']: {'①【结论' in c1} | conv_id={cid}")
     ok = ok and cid is not None and "①【结论" in c1
 
@@ -72,7 +79,8 @@ def main() -> int:
     for i, q in enumerate(followups, 1):
         a2, _, err = chat(tok, q, conv_id=cid)
         if err:
-            print(f"FAIL 追问{i}:", err); return 1
+            print(f"FAIL 追问{i}:", err)
+            return 1
         reprints = "①【结论" in a2 and "风险清单" in a2
         print(f"追问{i} '{q[:12]}…' 长度 {len(a2)} | 重出完整报告: {reprints}")
         print(f"  首80: {a2[:80]}")

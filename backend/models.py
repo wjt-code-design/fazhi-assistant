@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from database import Base
@@ -56,6 +56,9 @@ class Message(Base):
     image_ref = Column(String(500), nullable=True)  # 存盘相对路径（相对 backend/）
     thumb_ref = Column(String(500), nullable=True)
     image_desc = Column(Text, nullable=True)  # 图片视觉描述，供后续轮次作为多模态上下文
+    # T1（2026-09-16）：Agent 终稿消息关联的 run——历史会话经此读取结构化覆盖信息
+    # （full/partial）。旧消息与普通 RAG 消息为 NULL → 投影为 unknown，不推断 full。
+    agent_run_id = Column(String(36), ForeignKey("agent_runs.id"), nullable=True, index=True)
     token_est = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -124,3 +127,89 @@ class AnalysisRun(Base):
     truncated = Column(Boolean, default=False)
     duration_ms = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AgentRun(Base):
+    """Recoverable, user-scoped execution state for the legal research agent."""
+
+    __tablename__ = "agent_runs"
+
+    id = Column(String(36), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False, index=True)
+    goal = Column(Text, default="")
+    task_type = Column(String(64), default="legal_research")
+    status = Column(String(32), nullable=False, index=True)
+    state_version = Column(Integer, nullable=False, default=0)
+    law_as_of = Column(Date, nullable=False, default=date.today)
+    pending_question = Column(Text, nullable=True)
+    state_json = Column(Text, nullable=False)
+    degraded_reason = Column(Text, nullable=True)
+    last_error_code = Column(String(128), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    steps = relationship("AgentStep", back_populates="run", cascade="all, delete-orphan")
+    evidence = relationship("AgentEvidence", back_populates="run", cascade="all, delete-orphan")
+    claim_checks = relationship("AgentClaimCheck", back_populates="run", cascade="all, delete-orphan")
+
+
+class AgentStep(Base):
+    """Compact state-transition audit row; raw prompts and tool output are excluded."""
+
+    __tablename__ = "agent_steps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    agent_run_id = Column(String(36), ForeignKey("agent_runs.id"), nullable=False, index=True)
+    state_version = Column(Integer, nullable=False)
+    issue_id = Column(String(128), nullable=True, index=True)
+    decision = Column(String(64), default="state_transition")
+    reason_code = Column(String(128), nullable=True)
+    tool_name = Column(String(128), nullable=True)
+    normalized_input = Column(Text, nullable=True)
+    result_summary = Column(Text, nullable=True)
+    status = Column(String(32), nullable=False, index=True)
+    duration_ms = Column(Integer, nullable=True)
+    budget_snapshot = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    run = relationship("AgentRun", back_populates="steps")
+
+
+class AgentEvidence(Base):
+    """Provenance-focused evidence snapshot, without raw tool prompts."""
+
+    __tablename__ = "agent_evidence"
+
+    id = Column(Integer, primary_key=True, index=True)
+    agent_run_id = Column(String(36), ForeignKey("agent_runs.id"), nullable=False, index=True)
+    issue_id = Column(String(128), nullable=True, index=True)
+    source_type = Column(String(32), nullable=False)
+    source_identifier = Column(String(255), nullable=False)
+    provenance = Column(Text, nullable=False)
+    snippet = Column(Text, nullable=True)
+    legal_validity = Column(String(32), nullable=True)
+    law_as_of = Column(Date, nullable=True)
+    acquired_at = Column(DateTime, nullable=True)
+    confidence = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    run = relationship("AgentRun", back_populates="evidence")
+
+
+class AgentClaimCheck(Base):
+    """Claim-to-evidence verification record for later auditing and evaluation."""
+
+    __tablename__ = "agent_claim_checks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    agent_run_id = Column(String(36), ForeignKey("agent_runs.id"), nullable=False, index=True)
+    issue_id = Column(String(128), nullable=True, index=True)
+    claim = Column(Text, nullable=False)
+    evidence_ids = Column(Text, default="")
+    supported = Column(Boolean, nullable=False)
+    verifier_verdict = Column(String(32), nullable=True)
+    rationale = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    run = relationship("AgentRun", back_populates="claim_checks")

@@ -1,0 +1,6 @@
+data: {"type": "agent_status", "status": "waiting_user"}
+
+data: {"type": "clarification", "run_id": "de0124f4-ca60-4c2e-ad9c-db2e1cc456ca", "state_version": 4, "prompt": "债权人是否在借款到期后向债务人主张过权利", "issue_id": "issue_cd96e518b68df9ad1a102581", "conversation_id": 10}
+
+data: [DONE]
+

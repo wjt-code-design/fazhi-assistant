@@ -1,0 +1,14 @@
+{"time": 1789196634.128943, "event": "reserved", "call": 1, "model": "qwen3.8-flash", "reserve_cny": "2", "accounted_upper_cny": "2"}
+{"time": 1789196652.238298, "event": "finished", "call": 1, "status": 200, "usage": {"completion_tokens": 706, "prompt_tokens": 792, "prompt_tokens_details": {"cached_tokens": 0, "text_tokens": 792}, "total_tokens": 1498}, "accounted_cny": "0.0025398", "accounted_upper_cny": "0.0025398", "halt": false}
+{"time": 1789196653.0328543, "event": "reserved", "call": 2, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0025398"}
+{"time": 1789196653.8543715, "event": "finished", "call": 2, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0025398", "halt": false}
+{"time": 1789196654.4706786, "event": "reserved", "call": 3, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0025398"}
+{"time": 1789196655.0330875, "event": "finished", "call": 3, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0025398", "halt": false}
+{"time": 1789196655.6347888, "event": "reserved", "call": 4, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0025398"}
+{"time": 1789196656.3133256, "event": "finished", "call": 4, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0025398", "halt": false}
+{"time": 1789196656.8601801, "event": "reserved", "call": 5, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0025398"}
+{"time": 1789196657.1795774, "event": "finished", "call": 5, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0025398", "halt": false}
+{"time": 1789196657.4224033, "event": "reserved", "call": 6, "model": "qwen3.8-flash", "reserve_cny": "2", "accounted_upper_cny": "2.0025398"}
+{"time": 1789196672.3257508, "event": "finished", "call": 6, "status": 200, "usage": {"completion_tokens": 1147, "prompt_tokens": 3930, "prompt_tokens_details": {"cached_tokens": 0, "text_tokens": 3930}, "total_tokens": 5077}, "accounted_cny": "0.0062409", "accounted_upper_cny": "0.0087807", "halt": false}
+{"time": 1789196672.3666785, "event": "reserved", "call": 7, "model": "qwen3.8-flash", "reserve_cny": "2", "accounted_upper_cny": "2.0087807"}
+{"time": 1789196697.8353462, "event": "finished", "call": 7, "status": 200, "usage": {"completion_tokens": 1756, "prompt_tokens": 3984, "prompt_tokens_details": {"cached_tokens": 3072, "text_tokens": 3984}, "total_tokens": 5740}, "accounted_cny": "0.0079284", "accounted_upper_cny": "0.0167091", "halt": false}

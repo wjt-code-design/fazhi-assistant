@@ -1,0 +1,18 @@
+{
+ "schema_version": "gate1-freeze/v1",
+ "status": "FROZEN",
+ "law_as_of": "2026-08-01",
+ "collections": [
+  "legal_provisions_cos",
+  "qa_pairs"
+ ],
+ "corpus_logical_sha256": "d76220e7460789382d5bf40ce45a559b1cf017b2b43842d6056a0117d42e9474",
+ "file_sha256": {
+  "frozen-cases-v1.json": "be281ab275024b2c6199c5c218b42dd77650fd36bbcda51226076c00ff82a4e5",
+  "frozen-round-protocol-v1.json": "89d8d9167262ae8389f1c4ae0e7d93f76e845aa528587e08ea5fde32e5e1961a",
+  "rubric-v1.json": "790fa4070775ebe5ef28119c28fe655644e2c5bf40ce9d1da6b499c6c4d0d2ac",
+  "gate1-lawcheck": "a45ed0e09ce308eefda2f50adf36b9fedf5e168d3974598dcf690f79b031e0ec",
+  "frozen-fact-ids-v1.json": "262456b6fd06d2fbe9670570be7eaedeb0bf7a7473db06dc3e2294df66146a73"
+ },
+ "note": "金标独立于当前实现与模型输出（转录自任务书 §7，未反向修改）；开发集冻结后只能新增版本，不得原地改题"
+}

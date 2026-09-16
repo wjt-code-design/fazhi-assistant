@@ -1,0 +1,1557 @@
+{
+ "dependencies": [
+  {
+   "name": "fastapi",
+   "version": "0.110.3",
+   "vulns": []
+  },
+  {
+   "name": "uvicorn",
+   "version": "0.27.1",
+   "vulns": []
+  },
+  {
+   "name": "langchain",
+   "version": "0.1.20",
+   "vulns": [
+    {
+     "id": "PYSEC-2024-118",
+     "fix_versions": [
+      "0.2.5"
+     ],
+     "aliases": [
+      "CVE-2024-2965",
+      "GHSA-3hjh-jh2h-vrg6"
+     ],
+     "description": "A Denial-of-Service (DoS) vulnerability exists in the `SitemapLoader` class of the `langchain-ai/langchain` repository, affecting all versions. The `parse_sitemap` method, responsible for parsing sitemaps and extracting URLs, lacks a mechanism to prevent infinite recursion when a sitemap URL refers to the current sitemap itself. This oversight allows for the possibility of an infinite loop, leading to a crash by exceeding the maximum recursion depth in Python. This vulnerability can be exploited to occupy server socket/port resources and crash the Python process, impacting the availability of services relying on this functionality."
+    },
+    {
+     "id": "PYSEC-2026-1507",
+     "fix_versions": [
+      "0.2.0"
+     ],
+     "aliases": [
+      "GHSA-45pg-36p6-83v9",
+      "CVE-2024-8309"
+     ],
+     "description": "A vulnerability in the GraphCypherQAChain class of langchain-ai/langchain version 0.2.5 allows for SQL injection through prompt injection. This vulnerability can lead to unauthorized data manipulation, data exfiltration, denial of service (DoS) by deleting all data, breaches in multi-tenant security environments, and data integrity issues. Attackers can create, update, or delete nodes and relationships without proper authorization, extract sensitive data, disrupt services, access data across different tenants, and compromise the integrity of the database."
+    },
+    {
+     "id": "PYSEC-2024-323",
+     "fix_versions": [
+      "0.2.9"
+     ],
+     "aliases": [
+      "CVE-2024-5998"
+     ],
+     "description": "A vulnerability in the FAISS.deserialize_from_bytes function of langchain-ai/langchain allows for pickle deserialization of untrusted data. This can lead to the execution of arbitrary commands via the os.system function. The issue affects the latest version of the product."
+    },
+    {
+     "id": "PYSEC-2026-2192",
+     "fix_versions": [
+      "1.3.9"
+     ],
+     "aliases": [
+      "GHSA-gr75-jv2w-4656",
+      "CVE-2026-55443"
+     ],
+     "description": "LangChain is a framework for building agents and LLM-powered applications. Prior to 1.3.9, several LangChain components that resolve filesystem paths or expand search patterns do not consistently confine the resolved path to the intended root directory. Affected behaviors include: a file-search agent middleware that validates a starting directory but not the search pattern or the resolved target of matched files, so glob patterns and symlinks can reach files outside the configured root; prompt- and chain/agent-configuration loaders that accept path fields and resolve them without confining the result to a trusted base or rejecting symlink targets; and path-prefix authorization checks that compare by string prefix without a path-segment boundary, so a sibling path sharing the prefix is accepted. When these components receive path values, search patterns, or workspace contents influenced by an untrusted source — including an LLM acting on untrusted input — the result can be disclosure of files outside the intended boundary. This vulnerability is fixed in 1.3.9."
+    },
+    {
+     "id": "PYSEC-2026-2555",
+     "fix_versions": [
+      "0.3.30"
+     ],
+     "aliases": [
+      "GHSA-3644-q5cj-c5c7",
+      "CVE-2026-45134"
+     ],
+     "description": "## Description  The LangSmith SDK's prompt pull methods (`pull_prompt` / `pull_prompt_commit` in Python, `pullPrompt` / `pullPromptCommit` in JS/TS) fetch and deserialize prompt manifests from the LangSmith Hub. These manifests may contain serialized LangChain objects and model configuration that affect runtime behavior. When pulling a public prompt by `owner/name` identifier, the manifest content is controlled by an external party, but prior versions of the SDK did not distinguish this from pulling a prompt within the caller's own organization.  Prompt manifests can intentionally configure a model with a custom base URL, default headers, model name, or other constructor arguments. These are supported features, but they also mean the prompt contents should be treated as executable configuration rather than plain text. A prompt can also include serialized LangChain `Runnable` or `PromptTemplate` objects with attacker-controlled constructor kwargs, or secret references that, if `secrets_from_env` is enabled, read environment variables at deserialization time. Applications are exposed when all of the following are true:  - The application calls `pull_prompt` or `pull_prompt_commit` (Python) or `pullPrompt` or `pullPromptCommit` (JS/TS) with a public `owner/name` prompt identifier. - The prompt was published or modified by an untrusted or compromised account. - The application uses the pulled prompt without independently validating its contents.  Applications that only pull prompts from their own organization (referenced by name only, without an `owner/` prefix) are not affected by the public prompt trust boundary issue described above. However, same-organization prompts carry their own risk. If an attacker gains write access to the organization (for example, through a leaked `LANGSMITH_API_KEY` or a compromised team member account), they can push a malicious prompt that is pulled and deserialized without any additional warning.  ## Impact  An attacker who publishes a malicious prompt to LangSmith Hub may be able to affect applications that pull that prompt by `owner/name`. If the prompt manifest reaches the SDK's deserialization path, the SDK will instantiate the referenced LangChain objects with the attacker-supplied constructor arguments rather than treating the manifest as inert data.  Realistic impacts include:  - Server-side request forgery (SSRF), outbound request redirection, and interception of LLM traffic if a prompt manifest configures an LLM client with an attacker-controlled `base_url`, proxy, or equivalent endpoint-setting parameter. In typical deployments, redirected requests may include prompt contents, system prompts, retrieved context, model parameters, provider credentials, or other secrets and may disclose them to the attacker-controlled endpoint. - Prompt injection or behavior manipulation if a manifest embeds attacker-controlled system messages, prompt templates, or model parameters that alter the application's behavior. - Additional deserialization risk when `include_model=True` is passed, because this expands the allowlist to partner integration classes. This is not the default, but it materially increases risk when pulling prompts from outside the caller's organization.  ## Remediation  The LangSmith SDK now blocks pulling public prompts by `owner/name` by default. Callers must explicitly opt in by passing `dangerously_pull_public_prompt=True` (Python) or `dangerouslyPullPublicPrompt: true` (JS/TS) to acknowledge the trust boundary. This flag should only be set after reviewing and trusting the prompt contents, not merely the publishing account.  Upgrade to LangSmith SDK **Python >= 0.8.0** or **JS/TS >= 0.6.0**.  ### Guidance for prompt pull methods  The prompt pull methods (`pull_prompt` / `pull_prompt_commit` in Python, `pullPrompt` / `pullPromptCommit` in JS/TS) should be used only with trusted prompts. Do not pull public prompts by `owner/name` from untrusted or unreviewed sources without understanding that the manifest contents will be deserialized and may affect runtime behavior.  When pulling prompts that include model configuration (`include_model=True` in Python, `includeModel: true` in JS/TS), the deserialization allowlist expands to include partner integration classes. Because this mode is not the default and is often unnecessary for third-party prompts, prefer the default (`false`) when pulling prompts from sources outside your organization.  Avoid passing `secrets_from_env=True` (Python) when pulling untrusted prompts. This parameter allows prompt manifests to read environment variables during deserialization. Only use it with trusted prompts from your own organization.  ### Same-organization prompts  Prompts pulled from the caller's own organization (referenced by name only, without an `owner/` prefix) are not gated by the new `dangerously_pull_public_prompt` flag, but they are not inherently safe. If an attacker gains write access to the organization (for example, through a leaked `LANGSMITH_API_KEY` or a compromised team member account), they can push a malicious prompt that redirects LLM traffic to attacker-controlled infrastructure and may disclose any credentials attached to those requests.  The security of same-organization prompts follows a shared responsibility model. The LangSmith SDK enforces trust boundaries for public prompts pulled from external accounts, but it cannot protect against compromised credentials or accounts within the caller's own organization. Securing API keys, managing team member access, and reviewing prompt contents before production deployment are the responsibility of the organization. Organizations should treat prompts as executable configuration and apply the same review and audit practices they would apply to application code.  ## Credits  First reported by @Moaaz-0x."
+    },
+    {
+     "id": "CVE-2024-7774",
+     "fix_versions": [],
+     "aliases": [
+      "GHSA-hc5w-c9f8-9cc4"
+     ],
+     "description": "A path traversal vulnerability exists in the `getFullPath` method of langchain-ai/langchainjs version 0.2.5. This vulnerability allows attackers to save files anywhere in the filesystem, overwrite existing text files, read `.txt` files, and delete files. The vulnerability is exploited through the `setFileContent`, `getParsedFile`, and `mdelete` methods, which do not properly sanitize user input."
+    }
+   ]
+  },
+  {
+   "name": "langchain-core",
+   "version": "0.1.53",
+   "vulns": [
+    {
+     "id": "PYSEC-2026-1518",
+     "fix_versions": [
+      "0.3.80",
+      "1.0.7"
+     ],
+     "aliases": [
+      "GHSA-6qv9-48xg-fc7f",
+      "CVE-2025-65106"
+     ],
+     "description": "## Context  A template injection vulnerability exists in LangChain's prompt template system that allows attackers to access Python object internals through template syntax. This vulnerability affects applications that accept **untrusted template strings** (not just template variables) in `ChatPromptTemplate` and related prompt template classes.  Templates allow attribute access (`.`) and indexing (`[]`) but not method invocation (`()`).  The combination of attribute access and indexing may enable exploitation depending on which objects are passed to templates. When template variables are simple strings (the common case), the impact is limited. However, when using `MessagesPlaceholder` with chat message objects, attackers can traverse through object attributes and dictionary lookups (e.g., `__globals__`) to reach sensitive data such as environment variables.  The vulnerability specifically requires that applications accept **template strings** (the structure) from untrusted sources, not just **template variables** (the data). Most applications either do not use templates or else use hardcoded templates and are not vulnerable.  ## Affected Components  - `langchain-core` package - Template formats:   - F-string templates (`template_format=\"f-string\"`) - **Vulnerability fixed**   - Mustache templates (`template_format=\"mustache\"`) - **Defensive hardening**   - Jinja2 templates (`template_format=\"jinja2\"`) - **Defensive hardening**  ### Impact Attackers who can control template strings (not just template variables) can: - Access Python object attributes and internal properties via attribute traversal - Extract sensitive information from object internals (e.g., `__class__`, `__globals__`) - Potentially escalate to more severe attacks depending on the objects passed to templates  ### Attack Vectors  #### 1. F-string Template Injection **Before Fix:** ```python from langchain_core.prompts import ChatPromptTemplate  malicious_template = ChatPromptTemplate.from_messages(     [(\"human\", \"{msg.__class__.__name__}\")],     template_format=\"f-string\" )  # Note that this requires passing a placeholder variable for \"msg.__class__.__name__\". result = malicious_template.invoke({\"msg\": \"foo\", \"msg.__class__.__name__\": \"safe_placeholder\"}) # Previously returned # >>> result.messages[0].content # >>> 'str' ```  #### 2. Mustache Template Injection **Before Fix:** ```python from langchain_core.prompts import ChatPromptTemplate from langchain_core.messages import HumanMessage  msg = HumanMessage(\"Hello\")  # Attacker controls the template string malicious_template = ChatPromptTemplate.from_messages(     [(\"human\", \"{{question.__class__.__name__}}\")],     template_format=\"mustache\" )  result = malicious_template.invoke({\"question\": msg}) # Previously returned: \"HumanMessage\" (getattr() exposed internals) ```  #### 3. Jinja2 Template Injection **Before Fix:** ```python from langchain_core.prompts import ChatPromptTemplate from langchain_core.messages import HumanMessage  msg = HumanMessage(\"Hello\")  # Attacker controls the template string malicious_template = ChatPromptTemplate.from_messages(     [(\"human\", \"{{question.parse_raw}}\")],     template_format=\"jinja2\" )  result = malicious_template.invoke({\"question\": msg}) # Could access non-dunder attributes/methods on objects ```  ### Root Cause  1. **F-string templates**: The implementation used Python's `string.Formatter().parse()` to extract variable names from template strings. This method returns the complete field expression, including attribute access syntax:      ```python      from string import Formatter       template = \"{msg.__class__} and {x}\"      print([var_name for (_, var_name, _, _) in Formatter().parse(template)])      # Returns: ['msg.__class__', 'x']     ```      The extracted names were not validated to ensure they were simple identifiers. As a result, template strings containing attribute traversal and indexing expressions (e.g., `{obj.__class__.__name__}` or `{obj.method.__globals__[os]}`) were accepted and subsequently evaluated during formatting. While f-string templates do not support method calls with `()`, they do support `[]` indexing, which could allow traversal through dictionaries like `__globals__` to reach sensitive objects. 2. **Mustache templates**: By design, used `getattr()` as a fallback to support accessing attributes on objects (e.g., `{{user.name}}` on a User object). However, we decided to restrict this to simpler primitives that subclass dict, list, and tuple types as defensive hardening, since untrusted templates could exploit attribute access to reach internal properties like class on arbitrary objects 3. **Jinja2 templates**: Jinja2's default `SandboxedEnvironment` blocks dunder attributes (e.g., `__class__`) but permits access to other attributes and methods on objects. While Jinja2 templates in LangChain are typically used with trusted template strings, as a defense-in-depth measure, we've restricted the environment to block all attribute and method access on objects    passed to templates.   ## Who Is Affected?  ### High Risk Scenarios You are affected if your application: - Accepts template strings from untrusted sources (user input, external APIs, databases) - Dynamically constructs prompt templates based on user-provided patterns - Allows users to customize or create prompt templates  **Example vulnerable code:** ```python # User controls the template string itself user_template_string = request.json.get(\"template\")  # DANGEROUS  prompt = ChatPromptTemplate.from_messages(     [(\"human\", user_template_string)],     template_format=\"mustache\" )  result = prompt.invoke({\"data\": sensitive_object}) ```  ### Low/No Risk Scenarios You are **NOT** affected if: - Template strings are hardcoded in your application code - Template strings come only from trusted, controlled sources - Users can only provide **values** for template variables, not the template structure itself  **Example safe code:** ```python # Template is hardcoded - users only control variables prompt = ChatPromptTemplate.from_messages(     [(\"human\", \"User question: {question}\")],  # SAFE     template_format=\"f-string\" )  # User input only fills the 'question' variable result = prompt.invoke({\"question\": user_input}) ```  ## The Fix  ### F-string Templates F-string templates had a clear vulnerability where attribute access syntax was exploitable. We've added strict validation to prevent this:  - Added validation to enforce that variable names must be valid Python identifiers - Rejects syntax like `{obj.attr}`, `{obj[0]}`, or `{obj.__class__}` - Only allows simple variable names: `{variable_name}`  ```python # After fix - these are rejected at template creation time ChatPromptTemplate.from_messages(     [(\"human\", \"{msg.__class__}\")],  # ValueError: Invalid variable name     template_format=\"f-string\" ) ```  ### Mustache Templates (Defensive Hardening) As defensive hardening, we've restricted what Mustache templates support to reduce the attack surface:  - Replaced `getattr()` fallback with strict type checking - Only allows traversal into `dict`, `list`, and `tuple` types - Blocks attribute access on arbitrary Python objects  ```python # After hardening - attribute access returns empty string prompt = ChatPromptTemplate.from_messages(     [(\"human\", \"{{msg.__class__}}\")],     template_format=\"mustache\" ) result = prompt.invoke({\"msg\": HumanMessage(\"test\")}) # Returns: \"\" (access blocked) ```  ### Jinja2 Templates (Defensive Hardening) As defensive hardening, we've significantly restricted Jinja2 template capabilities:  - Introduced `_RestrictedSandboxedEnvironment` that blocks **ALL** attribute/method access - Only allows simple variable lookups from the context dictionary - Raises `SecurityError` on any attribute access attempt  ```python # After hardening - all attribute access is blocked prompt = ChatPromptTemplate.from_messages(     [(\"human\", \"{{msg.content}}\")],     template_format=\"jinja2\" ) # Raises SecurityError: Access to attributes is not allowed ```  **Important Recommendation**: Due to the expressiveness of Jinja2 and the difficulty of fully sandboxing it, **we recommend reserving Jinja2 templates for trusted sources only**. If you need to accept template strings from untrusted users, use f-string or mustache templates with the new restrictions instead.  While we've hardened the Jinja2 implementation, the nature of templating engines makes comprehensive sandboxing challenging. The safest approach is to only use Jinja2 templates when you control the template source.  **Important Reminder**: Many applications do not need prompt templates. Templates are useful for variable substitution and dynamic logic (if statements, loops, conditionals). However, if you're building a chatbot or conversational application, you can often work directly with message objects (e.g., `HumanMessage`, `AIMessage`, `ToolMessage`) without templates. Direct message construction avoids template-related security concerns entirely.  ## Remediation  ### Immediate Actions  1. **Audit your code** for any locations where template strings come from untrusted sources 2. **Update to the patched version** of `langchain-core` 3. **Review template usage** to ensure separation between template structure and user data  ### Best Practices  - **Consider if you need templates at all** - Many applications can work directly with message objects (`HumanMessage`, `AIMessage`, etc.) without templates## Context  A template injection vulnerability exists in LangChain's prompt template system that allows attackers to access Python object internals through template syntax. This vulnerability affects applications that accept **untrusted template strings** (not just template variables) in `ChatPromptTemplate` and related prompt template classes.  Templates allow attribute access (`.`) and indexing (`[]`) but not method invocation (`()`).  The combination of attribute access and indexing may enable exploitation depending on which objects are passed to templates. When template variables are simple strings (the common case), the impact is limited. However, when using `MessagesPlaceholder` with chat message objects, attackers can traverse through object attributes and dictionary lookups (e.g., `__globals__`) to reach sensitive data such as environment variables.  The vulnerability specifically requires that applications accept **template strings** (the structure) from untrusted sources, not just **template variables** (the data). Most applications either do not use templates or else use hardcoded templates and are not vulnerable.  ## Affected Components  - `langchain-core` package - Template formats:   - F-string templates (`template_format=\"f-string\"`) - **Vulnerability fixed**   - Mustache templates (`template_format=\"mustache\"`) - **Defensive hardening**   - Jinja2 templates (`template_format=\"jinja2\"`) - **Defensive hardening**  ### Impact Attackers who can control template strings (not just template variables) can: - Access Python object attributes and internal properties via attribute traversal - Extract sensitive information from object internals (e.g., `__class__`, `__globals__`) - Potentially escalate to more severe attacks depending on the objects passed to templates  ### Attack Vectors  #### 1. F-string Template Injection **Before Fix:** ```python from langchain_core.prompts import ChatPromptTemplate  malicious_template = ChatPromptTemplate.from_messages(     [(\"human\", \"{msg.__class__.__name__}\")],     template_format=\"f-string\" )  # Note that this requires passing a placeholder variable for \"msg.__class__.__name__\". result = malicious_template.invoke({\"msg\": \"foo\", \"msg.__class__.__name__\": \"safe_placeholder\"}) # Previously returned # >>> result.messages[0].content # >>> 'str' ```  #### 2. Mustache Template Injection **Before Fix:** ```python from langchain_core.prompts import ChatPromptTemplate from langchain_core.messages import HumanMessage  msg = HumanMessage(\"Hello\")  # Attacker controls the template string malicious_template = ChatPromptTemplate.from_messages(     [(\"human\", \"{{question.__class__.__name__}}\")],     template_format=\"mustache\" )  result = malicious_template.invoke({\"question\": msg}) # Previously returned: \"HumanMessage\" (getattr() exposed internals) ```  #### 3. Jinja2 Template Injection **Before Fix:** ```python from langchain_core.prompts import ChatPromptTemplate from langchain_core.messages import HumanMessage  msg = HumanMessage(\"Hello\")  # Attacker controls the template string malicious_template = ChatPromptTemplate.from_messages(     [(\"human\", \"{{question.parse_raw}}\")],     template_format=\"jinja2\" )  result = malicious_template.invoke({\"question\": msg}) # Could access non-dunder attributes/methods on objects ```  ### Root Cause  1. **F-string templates**: The implementation used Python's `string.Formatter().parse()` to extract variable names from template strings. This method returns the complete field expression, including attribute access syntax:      ```python      from string import Formatter       template = \"{msg.__class__} and {x}\"      print([var_name for (_, var_name, _, _) in Formatter().parse(template)])      # Returns: ['msg.__class__', 'x']     ```      The extracted names were not validated to ensure they were simple identifiers. As a result, template strings containing attribute traversal and indexing expressions (e.g., `{obj.__class__.__name__}` or `{obj.method.__globals__[os]}`) were accepted and subsequently evaluated during formatting. While f-string templates do not support method calls with `()`, they do support `[]` indexing, which could allow traversal through dictionaries like `__globals__` to reach sensitive objects. 2. **Mustache templates**: By design, used `getattr()` as a fallback to support accessing attributes on objects (e.g., `{{user.name}}` on a User object). However, we decided to restrict this to simpler primitives that subclass dict, list, and tuple types as defensive hardening, since untrusted templates could exploit attribute access to reach internal properties like class on arbitrary objects 3. **Jinja2 templates**: Jinja2's default `SandboxedEnvironment` blocks dunder attributes (e.g., `__class__`) but permits access to other attributes and methods on objects. While Jinja2 templates in LangChain are typically used with trusted template strings, as a defense-in-depth measure, we've restricted the environment to block all attribute and method access on objects    passed to templates.   ## Who Is Affected?  ### High Risk Scenarios You are affected if your application: - Accepts template strings from untrusted sources (user input, external APIs, databases) - Dynamically constructs prompt templates based on user-provided patterns - Allows users to customize or create prompt templates  **Example vulnerable code:** ```python # User controls the template string itself user_template_string = request.json.get(\"template\")  # DANGEROUS  prompt = ChatPromptTemplate.from_messages(     [(\"human\", user_template_string)],     template_format=\"mustache\" )  result = prompt.invoke({\"data\": sensitive_object}) ```  ### Low/No Risk Scenarios You are **NOT** affected if: - Template strings are hardcoded in your application code - Template strings come only from trusted, controlled sources - Users can only provide **values** for template variables, not the template structure itself  **Example safe code:** ```python # Template is hardcoded - users only control variables prompt = ChatPromptTemplate.from_messages(     [(\"human\", \"User question: {question}\")],  # SAFE     template_format=\"f-string\" )  # User input only fills the 'question' variable result = prompt.invoke({\"question\": user_input}) ```  ## The Fix  ### F-string Templates F-string templates had a clear vulnerability where attribute access syntax was exploitable. We've added strict validation to prevent this:  - Added validation to enforce that variable names must be valid Python identifiers - Rejects syntax like `{obj.attr}`, `{obj[0]}`, or `{obj.__class__}` - Only allows simple variable names: `{variable_name}`  ```python # After fix - these are rejected at template creation time ChatPromptTemplate.from_messages(     [(\"human\", \"{msg.__class__}\")],  # ValueError: Invalid variable name     template_format=\"f-string\" ) ```  ### Mustache Templates (Defensive Hardening) As defensive hardening, we've restricted what Mustache templates support to reduce the attack surface:  - Replaced `getattr()` fallback with strict type checking - Only allows traversal into `dict`, `list`, and `tuple` types - Blocks attribute access on arbitrary Python objects  ```python # After hardening - attribute access returns empty string prompt = ChatPromptTemplate.from_messages(     [(\"human\", \"{{msg.__class__}}\")],     template_format=\"mustache\" ) result = prompt.invoke({\"msg\": HumanMessage(\"test\")}) # Returns: \"\" (access blocked) ```  ### Jinja2 Templates (Defensive Hardening) As defensive hardening, we've significantly restricted Jinja2 template capabilities:  - Introduced `_RestrictedSandboxedEnvironment` that blocks **ALL** attribute/method access - Only allows simple variable lookups from the context dictionary - Raises `SecurityError` on any attribute access attempt  ```python # After hardening - all attribute access is blocked prompt = ChatPromptTemplate.from_messages(     [(\"human\", \"{{msg.content}}\")],     template_format=\"jinja2\" ) # Raises SecurityError: Access to attributes is not allowed ```  **Important Recommendation**: Due to the expressiveness of Jinja2 and the difficulty of fully sandboxing it, **we recommend reserving Jinja2 templates for trusted sources only**. If you need to accept template strings from untrusted users, use f-string or mustache templates with the new restrictions instead.  While we've hardened the Jinja2 implementation, the nature of templating engines makes comprehensive sandboxing challenging. The safest approach is to only use Jinja2 templates when you control the template source.  **Important Reminder**: Many applications do not need prompt templates. Templates are useful for variable substitution and dynamic logic (if statements, loops, conditionals). However, if you're building a chatbot or conversational application, you can often work directly with message objects (e.g., `HumanMessage`, `AIMessage`, `ToolMessage`) without templates. Direct message construction avoids template-related security concerns entirely.  ## Remediation  ### Immediate Actions  1. **Audit your code** for any locations where template strings come from untrusted sources 2. **Update to the patched version** of `langchain-core` 3. **Review template usage** to ensure separation between template structure and user data  ### Best Practices  - **Consider if you need templates at all** - Many applications can work directly with message objects (`HumanMessage`, `AIMessage`, etc.) without templates - **Reserve Jinja2 for trusted sources** - Only use Jinja2 templates when you fully control the template content  ## Update: Jinja2 Restrictions Reverted  The Jinja2 hardening introduced in the initial patch has been **reverted as of `langchain-core` 1.1.3**. The restriction was not addressing a direct vulnerability but was part of broader defensive hardening. In practice, it significantly limited legitimate Jinja2 usage and broke existing templates. Since Jinja2 is intended to be used only with **trusted template sources**, the original behavior has been restored. Users should continue to avoid accepting untrusted template strings when using Jinja2, but no security issue exists with trusted templates."
+    },
+    {
+     "id": "PYSEC-2026-373",
+     "fix_versions": [
+      "0.3.81",
+      "1.2.5"
+     ],
+     "aliases": [
+      "GHSA-c67j-w6g6-q2cm",
+      "CVE-2025-68664"
+     ],
+     "description": "## Summary  A serialization injection vulnerability exists in LangChain's `dumps()` and `dumpd()` functions. The functions do not escape dictionaries with `'lc'` keys when serializing free-form dictionaries. The `'lc'` key is used internally by LangChain to mark serialized objects. When user-controlled data contains this key structure, it is treated as a legitimate LangChain object during deserialization rather than plain user data.  ### Attack surface  The core vulnerability was in `dumps()` and `dumpd()`: these functions failed to escape user-controlled dictionaries containing `'lc'` keys. When this unescaped data was later deserialized via `load()` or `loads()`, the injected structures were treated as legitimate LangChain objects rather than plain user data.  This escaping bug enabled several attack vectors:   1. **Injection via user data**: Malicious LangChain object structures could be injected through user-controlled fields like `metadata`, `additional_kwargs`, or `response_metadata` 2. **Class instantiation within trusted namespaces**: Injected manifests could instantiate any `Serializable` subclass, but only within the pre-approved trusted namespaces (`langchain_core`, `langchain`, `langchain_community`). This includes classes with side effects in `__init__` (network calls, file operations, etc.). Note that namespace validation was already enforced before this patch, so arbitrary classes outside these trusted namespaces could not be instantiated.   ### Security hardening  This patch fixes the escaping bug in `dumps()` and `dumpd()` and introduces new restrictive defaults in `load()` and `loads()`: allowlist enforcement via `allowed_objects=\"core\"` (restricted to [serialization mappings](https://github.com/langchain-ai/langchain/blob/master/libs/core/langchain_core/load/mapping.py)), `secrets_from_env` changed from `True` to `False`, and default Jinja2 template blocking via `init_validator`. These are breaking changes for some use cases.  ## Who is affected?  Applications are vulnerable if they:  1. **Use `astream_events(version=\"v1\")`** — The v1 implementation internally uses vulnerable serialization. Note: `astream_events(version=\"v2\")` is not vulnerable. 2. **Use `Runnable.astream_log()`** — This method internally uses vulnerable serialization for streaming outputs.  3. **Call `dumps()` or `dumpd()` on untrusted data, then deserialize with `load()` or `loads()`** — Trusting your own serialization output makes you vulnerable if user-controlled data (e.g., from LLM responses, metadata fields, or user inputs) contains `'lc'` key structures. 4. **Deserialize untrusted data with `load()` or `loads()`** — Directly deserializing untrusted data that may contain injected `'lc'` structures. 5. **Use `RunnableWithMessageHistory`** — Internal serialization in message history handling. 6. **Use `InMemoryVectorStore.load()`** to deserialize untrusted documents. 7. Load untrusted generations from cache using **`langchain-community` caches**. 8. Load untrusted manifests from the LangChain Hub via **`hub.pull`**.  9. Use **`StringRunEvaluatorChain`** on untrusted runs. 10. Use **`create_lc_store`** or **`create_kv_docstore`** with untrusted documents. 11. Use **`MultiVectorRetriever`** with byte stores containing untrusted documents. 12. Use **`LangSmithRunChatLoader`** with runs containing untrusted messages.  The most common attack vector is through **LLM response fields** like `additional_kwargs` or `response_metadata`, which can be controlled via prompt injection and then serialized/deserialized in streaming operations.  ## Impact  Attackers who control serialized data can extract environment variable secrets by injecting `{\"lc\": 1, \"type\": \"secret\", \"id\": [\"ENV_VAR\"]}` to load environment variables during deserialization (when `secrets_from_env=True`, which was the old default). They can also instantiate classes with controlled parameters by injecting constructor structures to instantiate any class within trusted namespaces with attacker-controlled parameters, potentially triggering side effects such as network calls or file operations.  Key severity factors:  - Affects the serialization path - applications trusting their own serialization output are vulnerable - Enables secret extraction when combined with `secrets_from_env=True` (the old default)  - LLM responses in `additional_kwargs` can be controlled via prompt injection   ## Exploit example  ```python from langchain_core.load import dumps, load import os  # Attacker injects secret structure into user-controlled data attacker_dict = {     \"user_data\": {         \"lc\": 1,         \"type\": \"secret\",         \"id\": [\"OPENAI_API_KEY\"]     } }  serialized = dumps(attacker_dict)  # Bug: does NOT escape the 'lc' key  os.environ[\"OPENAI_API_KEY\"] = \"sk-secret-key-12345\" deserialized = load(serialized, secrets_from_env=True)  print(deserialized[\"user_data\"])  # \"sk-secret-key-12345\" - SECRET LEAKED!  ```  ## Security hardening changes (breaking changes)  This patch introduces three breaking changes to `load()` and `loads()`:  1. **New `allowed_objects` parameter** (defaults to `'core'`): Enforces allowlist of classes that can be deserialized. The `'all'` option corresponds to the list of objects [specified in `mappings.py`](https://github.com/langchain-ai/langchain/blob/master/libs/core/langchain_core/load/mapping.py) while the `'core'` option limits to objects within `langchain_core`. We recommend that users explicitly specify which objects they want to allow for serialization/deserialization.  2. **`secrets_from_env` default changed from `True` to `False`**: Disables automatic secret loading from environment 3. **New `init_validator` parameter** (defaults to `default_init_validator`): Blocks Jinja2 templates by default  ## Migration guide  ### No changes needed for most users  If you're deserializing standard LangChain types (messages, documents, prompts, trusted partner integrations like `ChatOpenAI`, `ChatAnthropic`, etc.), your code will work without changes:  ```python  from langchain_core.load import load  # Uses default allowlist from serialization mappings obj = load(serialized_data)  ```  ### For custom classes  If you're deserializing custom classes not in the serialization mappings, add them to the allowlist:  ```python from langchain_core.load import load from my_package import MyCustomClass  # Specify the classes you need obj = load(serialized_data, allowed_objects=[MyCustomClass])  ```  ### For Jinja2 templates  Jinja2 templates are now blocked by default because they can execute arbitrary code. If you need Jinja2 templates, pass `init_validator=None`:   ```python from langchain_core.load import load from langchain_core.prompts import PromptTemplate  obj = load(     serialized_data,     allowed_objects=[PromptTemplate],     init_validator=None )  ```  > [!WARNING] > Only disable `init_validator` if you trust the serialized data. Jinja2 templates can execute arbitrary Python code.  ### For secrets from environment  `secrets_from_env` now defaults to `False`. If you need to load secrets from environment variables:  ```python  from langchain_core.load import load  obj = load(serialized_data, secrets_from_env=True)  ```   ## Credits  * Dumps bug was reported by @yardenporat * Changes for security hardening due to findings from @0xn3va and @VladimirEliTokarev"
+    },
+    {
+     "id": "PYSEC-2026-2193",
+     "fix_versions": [
+      "1.2.22"
+     ],
+     "aliases": [
+      "GHSA-qh6h-p6c9-ff54",
+      "CVE-2026-34070"
+     ],
+     "description": "LangChain is a framework for building agents and LLM-powered applications. Prior to version 1.2.22, multiple functions in langchain_core.prompts.loading read files from paths embedded in deserialized config dicts without validating against directory traversal or absolute path injection. When an application passes user-influenced prompt configurations to load_prompt() or load_prompt_from_config(), an attacker can read arbitrary files on the host filesystem, constrained only by file-extension checks (.txt for templates, .json/.yaml for examples). This issue has been patched in version 1.2.22."
+    },
+    {
+     "id": "PYSEC-2026-2564",
+     "fix_versions": [
+      "0.3.85",
+      "1.3.3"
+     ],
+     "aliases": [
+      "CVE-2026-44843",
+      "GHSA-pjwx-r37v-7724"
+     ],
+     "description": "LangChain contains older runtime code paths that deserialize run inputs, run outputs, or other application-controlled payloads using overly broad object allowlists. These paths may call `load()` with `allowed_objects=\"all\"`. This does not enable arbitrary Python object deserialization, but it does allow any trusted LangChain-serializable object to be revived, which is broader than these runtime paths require. As a result, attacker-supplied LangChain serialized constructor dictionaries may cause trusted runtime paths to instantiate classes with untrusted constructor arguments.  Applications are exposed only when all of the following are true:  1. The application accepts untrusted structured input, such as JSON, from a user or network request. 2. The application does not validate or canonicalize that input into an inert schema before invoking LangChain. 3. Attacker-controlled nested dictionaries or lists are preserved in LangChain run inputs or outputs. 4. The application uses an affected API path that later deserializes that run data.  Known affected runtime surfaces include:  - `RunnableWithMessageHistory` - `astream_log()` - `astream_events(version=\"v1\")`  Related unsafe deserialization patterns may also affect applications that explicitly load serialized LangChain prompt or runnable objects from untrusted sources, including shared prompt stores, Hub artifacts with model configuration, or other application-controlled serialization stores.  Applications that validate incoming requests against a fixed schema, such as coercing user input to a plain string or message-content field before invoking LangChain, are unlikely to expose this deserialization primitive.  This release also fixes a related secret-marker validation bypass in the serialization and deserialization layer (`_is_lc_secret`). That issue creates an additional path by which attacker-controlled constructor dictionaries can avoid escaping during `dumps()` -> `loads()` round-trips and reach LangChain object revival logic.  ## Impact  An attacker who can submit untrusted structured input to an affected application, and have that structure preserved in LangChain run data, may be able to inject LangChain serialized constructor payloads such as:  ```json {   \"lc\": 1,   \"type\": \"constructor\",   \"id\": [\"langchain_core\", \"messages\", \"ai\", \"AIMessage\"],   \"kwargs\": {\"content\": \"attacker-controlled content\"} } ```  If this payload reaches a broad `load()` call, LangChain may instantiate the referenced class instead of treating the payload as inert user data.  Realistic impacts include:  - Persistent chat-history poisoning when revived `AIMessage`, `HumanMessage`, or `SystemMessage` objects are stored by `RunnableWithMessageHistory`. - Prompt injection or behavior manipulation if attacker-controlled messages are later included in model context. - Instantiation of unexpected trusted LangChain objects with attacker-controlled constructor arguments. - Possible credential disclosure or server-side requests if a reachable object reads environment credentials, creates clients, or contacts attacker-controlled endpoints during initialization. - Additional prompt-template or runnable-configuration impacts in applications that separately load and execute untrusted serialized LangChain objects.  ## Remediation  LangChain will deprecate the affected APIs as part of this fix:  - `RunnableWithMessageHistory` - `astream_log()` - `astream_events(version=\"v1\")`  These are older code paths that are no longer recommended for new applications. They were not previously marked as deprecated, but recent LangChain documentation has primarily directed users toward newer streaming and memory patterns, including the `stream` API. Applications should migrate to the currently recommended APIs rather than continue depending on these older surfaces.  Separately, LangChain will update `load()` and `loads()` to tighten deserialization behavior so broad object revival is not applied implicitly to untrusted or application-controlled payloads. The older runtime surfaces listed above are being deprecated rather than preserved as supported paths for broad runtime deserialization.  This release also fixes a related secret-marker validation bypass in the serialization and deserialization layer (`_is_lc_secret`). That issue creates an additional path by which attacker-controlled constructor dictionaries can avoid escaping during `dumps()` -> `loads()` round-trips and reach LangChain object revival logic.  ## Guidance for `load()` and `loads()`  `load()` and `loads()` should be used only with trusted LangChain manifests or serialized objects from trusted storage. Do not pass user-controlled data to `load()` or `loads()`, and do not use them as general parsers for request bodies, tool inputs, chat messages, or other attacker-controlled data.  `load()` and `loads()` are beta APIs, and their behavior may change as LangChain narrows unsafe defaults. Future LangChain versions will require callers to be explicit about which objects may be revived. Users should pass a narrow `allowed_objects` value appropriate for the specific trusted manifest they are loading, rather than relying on broad defaults or `allowed_objects=\"all\"`, which permits the full trusted LangChain serialization allowlist.  ## Credits  The original issue was first reported by @u-ktdi.  Similar findings were reported by @dewankpant, @shrutilohani, @Moaaz-0x, @pucagit.  A related `_is_lc_secret` marker bypass affecting `dumps()` -> `loads()` round-trips was reported by @yardenporat353 (and a similar report by @localhost-detect)"
+    },
+    {
+     "id": "PYSEC-2026-2562",
+     "fix_versions": [
+      "1.2.11"
+     ],
+     "aliases": [
+      "CVE-2026-26013",
+      "GHSA-2g6r-c272-w58r"
+     ],
+     "description": "## Server-Side Request Forgery (SSRF) in ChatOpenAI Image Token Counting  ### Summary The `ChatOpenAI.get_num_tokens_from_messages()` method fetches arbitrary `image_url` values without validation when computing token counts for vision-enabled models. This allows attackers to trigger Server-Side Request Forgery (SSRF) attacks by providing malicious image URLs in user input.  ### Severity **Low** - The vulnerability allows SSRF attacks but has limited impact due to: - Responses are not returned to the attacker (blind SSRF) - Default 5-second timeout limits resource exhaustion - Non-image responses fail at PIL image parsing  ### Impact An attacker who can control image URLs passed to `get_num_tokens_from_messages()` can: - Trigger HTTP requests from the application server to arbitrary internal or external URLs - Cause the server to access internal network resources (private IPs, cloud metadata endpoints) - Cause minor resource consumption through image downloads (bounded by timeout)  **Note:** This vulnerability occurs during token counting, which may happen outside of model invocation (e.g., in logging, metrics, or token budgeting flows).  ### Details The vulnerable code path: 1. `get_num_tokens_from_messages()` processes messages containing `image_url` content blocks 2. For images without `detail: \"low\"`, it calls `_url_to_size()` to fetch the image and compute token counts 3. `_url_to_size()` performs `httpx.get(image_source)` on any URL without validation 4. Prior to the patch, there was no SSRF protection, size limits, or explicit timeout  **File:** `libs/partners/openai/langchain_openai/chat_models/base.py`  ### Patches The vulnerability has been patched in `langchain-openai==1.1.9` (requires `langchain-core==1.2.11`).  The patch adds: 1. **SSRF validation** using `langchain_core._security._ssrf_protection.validate_safe_url()` to block:    - Private IP ranges (RFC 1918, loopback, link-local)    - Cloud metadata endpoints (169.254.169.254, etc.)    - Invalid URL schemes 2. **Explicit size limits** (50 MB maximum, matching OpenAI's payload limit) 3. **Explicit timeout** (5 seconds, same as `httpx.get` default) 4. **Allow disabling image fetching** via `allow_fetching_images=False` parameter  ### Workarounds If you cannot upgrade immediately:  1. **Sanitize input:** Validate and filter `image_url` values before passing messages to token counting or model invocation 2. **Use network controls:** Implement egress filtering to prevent outbound requests to private IPs"
+    },
+    {
+     "id": "PYSEC-2026-2563",
+     "fix_versions": [
+      "0.3.84",
+      "1.2.28"
+     ],
+     "aliases": [
+      "CVE-2026-40087",
+      "GHSA-926x-3r5x-gfhw"
+     ],
+     "description": "LangChain's f-string prompt-template validation was incomplete in two respects.  First, some prompt template classes accepted f-string templates and formatted them without enforcing the same attribute-access validation as `PromptTemplate`. In particular, `DictPromptTemplate` and `ImagePromptTemplate` could accept templates containing attribute access or indexing expressions and subsequently evaluate those expressions during formatting.  Examples of the affected shape include:  ```python \"{message.additional_kwargs[secret]}\" \"https://example.com/{image.__class__.__name__}.png\" ```  Second, f-string validation based on parsed top-level field names did not reject nested replacement fields inside format specifiers. For example:  ```python \"{name:{name.__class__.__name__}}\" ```  In this pattern, the nested replacement field appears in the format specifier rather than in the top-level field name. As a result, earlier validation based on parsed field names did not reject the template even though Python formatting would still attempt to resolve the nested expression at runtime.  ## Affected usage  This issue is only relevant for applications that accept untrusted template strings, rather than only untrusted template variable values.  In addition, practical impact depends on what objects are passed into template formatting:  - If applications only format simple values such as strings and numbers, impact is limited and may only result in formatting errors. - If applications format richer Python objects, attribute access and indexing may interact with internal object state during formatting.  In many deployments, these conditions are not commonly present together. Applications that allow end users to author arbitrary templates often expose only a narrow set of simple template variables, while applications that work with richer internal Python objects often keep template structure under developer control. As a result, the highest-impact scenario is plausible but is not representative of all LangChain applications.  Applications that use hardcoded templates or that only allow users to provide variable values are not affected by this issue.  ## Impact  The direct issue in `DictPromptTemplate` and `ImagePromptTemplate` allowed attribute access and indexing expressions to survive template construction and then be evaluated during formatting. When richer Python objects were passed into formatting, this could expose internal fields or nested data to prompt output, model context, or logs.  The nested format-spec issue is narrower in scope. It bypassed the intended validation rules for f-string templates, but in simple cases it results in an invalid format specifier error rather than direct disclosure. Accordingly, its practical impact is lower than that of direct top-level attribute traversal.  Overall, the practical severity depends on deployment. Meaningful confidentiality impact requires attacker control over the template structure itself, and higher impact further depends on the surrounding application passing richer internal Python objects into formatting.  ## Fix  The fix consists of two changes.  First, LangChain now applies f-string safety validation consistently to `DictPromptTemplate` and `ImagePromptTemplate`, so templates containing attribute access or indexing expressions are rejected during construction and deserialization.  Second, LangChain now rejects nested replacement fields inside f-string format specifiers.  Concretely, LangChain validates parsed f-string fields and raises an error for:  - variable names containing attribute access or indexing syntax such as `.` or `[]` - format specifiers containing `{` or `}`  This blocks templates such as:  ```python \"{message.additional_kwargs[secret]}\" \"https://example.com/{image.__class__.__name__}.png\" \"{name:{name.__class__.__name__}}\" ```  The fix preserves ordinary f-string formatting features such as standard format specifiers and conversions, including examples like:  ```python \"{value:.2f}\" \"{value:>10}\" \"{value!r}\" ```  In addition, the explicit template-validation path now applies the same structural f-string checks before performing placeholder validation, ensuring that the security checks and validation checks remain aligned."
+    }
+   ]
+  },
+  {
+   "name": "langchain-community",
+   "version": "0.0.38",
+   "vulns": [
+    {
+     "id": "PYSEC-2026-1515",
+     "fix_versions": [
+      "0.3.27"
+     ],
+     "aliases": [
+      "CVE-2025-6984",
+      "GHSA-pc6w-59fv-rh23"
+     ],
+     "description": "The langchain-ai/langchain project, specifically the EverNoteLoader component, is vulnerable to XML External Entity (XXE) attacks due to insecure XML parsing. The vulnerability arises from the use of etree.iterparse() without disabling external entity references, which can lead to sensitive information disclosure. An attacker could exploit this by crafting a malicious XML payload that references local files, potentially exposing sensitive data such as /etc/passwd. This issue has been fixed in 0.3.27 of langchain-community."
+    },
+    {
+     "id": "PYSEC-2026-1514",
+     "fix_versions": [
+      "0.2.4"
+     ],
+     "aliases": [
+      "GHSA-f2jm-rw3h-6phg",
+      "CVE-2024-5998"
+     ],
+     "description": "A vulnerability in the `FAISS.deserialize_from_bytes` function of langchain-ai/langchain allows for pickle deserialization of untrusted data. This can lead to the execution of arbitrary commands via the `os.system` function. The issue affects versions prior to 0.2.4."
+    },
+    {
+     "id": "PYSEC-2026-1516",
+     "fix_versions": [
+      "0.2.9"
+     ],
+     "aliases": [
+      "GHSA-q25c-c977-4cmh",
+      "CVE-2024-3095"
+     ],
+     "description": "A Server-Side Request Forgery (SSRF) vulnerability exists in the Web Research Retriever component in langchain-community (langchain-community.retrievers.web_research.WebResearchRetriever). The vulnerability arises because the Web Research Retriever does not restrict requests to remote internet addresses, allowing it to reach local addresses. This flaw enables attackers to execute port scans, access local services, and in some scenarios, read instance metadata from cloud environments. The vulnerability is particularly concerning as it can be exploited to abuse the Web Explorer server as a proxy for web attacks on third parties and interact with servers in the local network, including reading their response data. This could potentially lead to arbitrary code execution, depending on the nature of the local services. The vulnerability is limited to GET requests, as POST requests are not possible, but the impact on confidentiality, integrity, and availability is significant due to the potential for stolen credentials and state-changing interactions with internal APIs.  The patched code: * Requires users to opt-in * Suggests using a proxy to prevent requests to local addresses"
+    },
+    {
+     "id": "PYSEC-2026-2561",
+     "fix_versions": [
+      "0.2.5"
+     ],
+     "aliases": [
+      "CVE-2024-2965",
+      "GHSA-3hjh-jh2h-vrg6"
+     ],
+     "description": "Denial of service in `SitemapLoader` Document Loader in the `langchain-community` package, affecting versions below 0.2.5. The `parse_sitemap` method, responsible for parsing sitemaps and extracting URLs, lacks a mechanism to prevent infinite recursion when a sitemap URL refers to the current sitemap itself. This oversight allows for the possibility of an infinite loop, leading to a crash by exceeding the maximum recursion depth in Python. This vulnerability can be exploited to occupy server socket/port resources and crash the Python process, impacting the availability of services relying on this functionality."
+    }
+   ]
+  },
+  {
+   "name": "langchain-openai",
+   "version": "0.1.7",
+   "vulns": [
+    {
+     "id": "PYSEC-2026-76",
+     "fix_versions": [
+      "1.1.14"
+     ],
+     "aliases": [
+      "GHSA-r7w7-9xr2-qq2r",
+      "CVE-2026-41488"
+     ],
+     "description": "## Summary  `langchain-openai`'s `_url_to_size()` helper (used by `get_num_tokens_from_messages` for image token counting) validated URLs for SSRF protection and then fetched them in a separate network operation with independent DNS resolution. This left a TOCTOU / DNS rebinding window: an attacker-controlled hostname could resolve to a public IP during validation and then to a private/localhost IP during the actual fetch.  The practical impact is limited because the fetched response body is passed directly to Pillow's `Image.open()` to extract dimensions — the response content is never returned, logged, or otherwise exposed to the caller. An attacker cannot exfiltrate data from internal services through this path. A potential risk is blind probing (inferring whether an internal host/port is open based on timing or error behavior).  ## Affected versions  - `langchain-openai` < 1.1.14  ## Patched versions  - `langchain-openai` >= 1.1.14 (requires `langchain-core` >= 1.2.31)  ## Affected code  **File:** `libs/partners/openai/langchain_openai/chat_models/base.py` — `_url_to_size()`  The vulnerable pattern was a validate-then-fetch with separate DNS resolution:  ```python validate_safe_url(image_source, allow_private=False, allow_http=True) # ... separate network operation with independent DNS resolution ... response = httpx.get(image_source, timeout=timeout) ```  ## Fix  The fix replaces the validate-then-fetch pattern with an SSRF-safe httpx transport (`SSRFSafeSyncTransport` from `langchain-core`) that:  - Resolves DNS once and validates all returned IPs against a policy (private ranges, cloud metadata, localhost, k8s internal DNS) - Pins the connection to the validated IP, eliminating the DNS rebinding window - Disables redirect following to prevent redirect-based SSRF bypasses  This fix was released in langchain-openai 1.1.14."
+    },
+    {
+     "id": "PYSEC-2026-76",
+     "fix_versions": [
+      "1.1.14"
+     ],
+     "aliases": [
+      "GHSA-r7w7-9xr2-qq2r",
+      "CVE-2026-41488"
+     ],
+     "description": "LangChain is a framework for building agents and LLM-powered applications. Prior to 1.1.14, langchain-openai's _url_to_size() helper (used by get_num_tokens_from_messages for image token counting) validated URLs for SSRF protection and then fetched them in a separate network operation with independent DNS resolution. This left a TOCTOU / DNS rebinding window: an attacker-controlled hostname could resolve to a public IP during validation and then to a private/localhost IP during the actual fetch."
+    }
+   ]
+  },
+  {
+   "name": "langchain-chroma",
+   "version": "0.1.4",
+   "vulns": []
+  },
+  {
+   "name": "langchain-huggingface",
+   "version": "0.0.3",
+   "vulns": []
+  },
+  {
+   "name": "chromadb",
+   "version": "0.4.24",
+   "vulns": [
+    {
+     "id": "CVE-2026-45830",
+     "fix_versions": [],
+     "aliases": [
+      "GHSA-2wm9-hf6c-p5cr"
+     ],
+     "description": "A lack of authorization validation in version 0.4.17 or later of the ChromaDB Python project allows any authenticated users to arbitrarily read, write, update, or delete data in any tenant's collection regardless of which tenant they belong to."
+    },
+    {
+     "id": "CVE-2026-45833",
+     "fix_versions": [],
+     "aliases": [
+      "GHSA-36p7-vc44-83pf"
+     ],
+     "description": "A code injection vulnerability in version 0.4.17 or later of the ChromaDB Python project allows an authenticated attacker to run arbitrary code on the server by sending a malicious model repository and trust_remote_code set to true in the /api/v2/tenants/default_tenant/databases/default_database/collections/{collection_id} if they have the UPDATE_COLLECTION permission."
+    }
+   ]
+  },
+  {
+   "name": "chroma-hnswlib",
+   "version": "0.7.3",
+   "vulns": []
+  },
+  {
+   "name": "sentence-transformers",
+   "version": "2.7.0",
+   "vulns": []
+  },
+  {
+   "name": "pydantic",
+   "version": "2.13.5",
+   "vulns": []
+  },
+  {
+   "name": "pydantic-core",
+   "version": "2.46.5",
+   "vulns": []
+  },
+  {
+   "name": "python-dotenv",
+   "version": "1.2.3",
+   "vulns": []
+  },
+  {
+   "name": "slowapi",
+   "version": "0.1.10",
+   "vulns": []
+  },
+  {
+   "name": "rank-bm25",
+   "version": "0.2.2",
+   "vulns": []
+  },
+  {
+   "name": "jieba",
+   "version": "0.42.1",
+   "vulns": []
+  },
+  {
+   "name": "pydantic-settings",
+   "version": "2.15.0",
+   "vulns": []
+  },
+  {
+   "name": "pyjwt",
+   "version": "2.13.0",
+   "vulns": []
+  },
+  {
+   "name": "bcrypt",
+   "version": "5.0.0",
+   "vulns": []
+  },
+  {
+   "name": "sqlalchemy",
+   "version": "2.0.52",
+   "vulns": []
+  },
+  {
+   "name": "pypdf",
+   "version": "5.9.0",
+   "vulns": [
+    {
+     "id": "PYSEC-2026-1833",
+     "fix_versions": [
+      "6.1.3"
+     ],
+     "aliases": [
+      "GHSA-vr63-x8vc-m265",
+      "CVE-2025-62707"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to an infinite loop. This requires parsing the content stream of a page which has an inline image using the DCTDecode filter.  ### Patches This has been fixed in [pypdf==6.1.3](https://github.com/py-pdf/pypdf/releases/tag/6.1.3).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3501](https://github.com/py-pdf/pypdf/pull/3501)."
+    },
+    {
+     "id": "PYSEC-2026-1829",
+     "fix_versions": [
+      "6.6.0"
+     ],
+     "aliases": [
+      "CVE-2026-22690",
+      "GHSA-4xc4-762w-m6cg"
+     ],
+     "description": "### Impact An attacker who exploits this vulnerability can craft a PDF which leads to possibly long runtimes for actually invalid files. This can be achieved by omitting the `/Root` entry in the trailer, while using a rather large `/Size` value. Only the non-strict reading mode is affected.  ### Patches This has been fixed in [pypdf==6.6.0](https://github.com/py-pdf/pypdf/releases/tag/6.6.0).  ### Workarounds  ```python from pypdf import PdfReader, PdfWriter   # Instead of reader = PdfReader(\"file.pdf\") # use the strict mode: reader = PdfReader(\"file.pdf\", strict=True)  # Instead of writer = PdfWriter(clone_from=\"file.pdf\") # use an explicit strict reader: writer = PdfWriter(clone_from=PdfReader(\"file.pdf\", strict=True)) ```  ### Resources This issue has been fixed in #3594."
+    },
+    {
+     "id": "PYSEC-2026-1832",
+     "fix_versions": [
+      "6.4.0"
+     ],
+     "aliases": [
+      "CVE-2025-66019",
+      "GHSA-m449-cwjh-6pw7"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to a memory usage of up to 1 GB per stream. This requires parsing the content stream of a page using the LZWDecode filter.  This is a follow up to [GHSA-jfx9-29x2-rv3j](https://github.com/py-pdf/pypdf/security/advisories/GHSA-jfx9-29x2-rv3j) to align the default limit with the one for *zlib*.  ### Patches This has been fixed in [pypdf==6.4.0](https://github.com/py-pdf/pypdf/releases/tag/6.4.0).  ### Workarounds If users cannot upgrade yet, use the line below to overwrite the default in their code:  ```python pypdf.filters.LZW_MAX_OUTPUT_LENGTH = 75_000_000 ```"
+    },
+    {
+     "id": "PYSEC-2026-1830",
+     "fix_versions": [
+      "6.0.0"
+     ],
+     "aliases": [
+      "CVE-2025-55197",
+      "GHSA-7hfw-26vp-jp8m"
+     ],
+     "description": "### Impact An attacker who uses this vulnerability can craft a PDF which leads to the RAM being exhausted. This requires just reading the file if a series of FlateDecode filters is used on a malicious cross-reference stream. Other content streams are affected on explicit access.  ### Patches This has been fixed in [pypdf==6.0.0](https://github.com/py-pdf/pypdf/releases/tag/6.0.0).  ### Workarounds If you cannot upgrade yet, you might want to implement the workaround for `pypdf.filters.decompress` yourself: https://github.com/py-pdf/pypdf/blob/0dd57738bbdcdb63f0fb43d8a6b3d222b6946595/pypdf/filters.py#L72-L143  ### References This issue has been reported in #3429 and fixed in #3430."
+    },
+    {
+     "id": "PYSEC-2026-1831",
+     "fix_versions": [
+      "6.1.3"
+     ],
+     "aliases": [
+      "GHSA-jfx9-29x2-rv3j",
+      "CVE-2025-62708"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory usage. This requires parsing the content stream of a page using the LZWDecode filter.  ### Patches This has been fixed in [pypdf==6.1.3](https://github.com/py-pdf/pypdf/releases/tag/6.1.3).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3502](https://github.com/py-pdf/pypdf/pull/3502)."
+    },
+    {
+     "id": "PYSEC-2026-1827",
+     "fix_versions": [
+      "6.6.2"
+     ],
+     "aliases": [
+      "CVE-2026-24688",
+      "GHSA-2q4j-m29v-hq73"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to an infinite loop. This requires accessing the outlines/bookmarks.  ### Patches  This has been fixed in [pypdf 6.6.2](https://github.com/py-pdf/pypdf/releases/tag/6.6.2).  ### Workarounds  If projects cannot upgrade yet, consider applying the changes from PR [#3610](https://github.com/py-pdf/pypdf/pull/3610)."
+    },
+    {
+     "id": "PYSEC-2026-1828",
+     "fix_versions": [
+      "6.6.0"
+     ],
+     "aliases": [
+      "CVE-2026-22691",
+      "GHSA-4f6g-68pf-7vhv"
+     ],
+     "description": "### Impact An attacker who exploits this vulnerability can craft a PDF which leads to possibly long runtimes for invalid `startxref` entries. When rebuilding the cross-reference table, PDF files with lots of whitespace characters become problematic. Only the non-strict reading mode is affected.  ### Patches This has been fixed in [pypdf==6.6.0](https://github.com/py-pdf/pypdf/releases/tag/6.6.0).  ### Workarounds  ```python from pypdf import PdfReader, PdfWriter   # Instead of reader = PdfReader(\"file.pdf\") # use the strict mode: reader = PdfReader(\"file.pdf\", strict=True)  # Instead of writer = PdfWriter(clone_from=\"file.pdf\") # use an explicit strict reader: writer = PdfWriter(clone_from=PdfReader(\"file.pdf\", strict=True)) ```  ### Resources This issue has been fixed in #3594."
+    },
+    {
+     "id": "PYSEC-2026-3023",
+     "fix_versions": [
+      "6.9.1"
+     ],
+     "aliases": [
+      "GHSA-qpxp-75px-xjcp",
+      "CVE-2026-33123"
+     ],
+     "description": "### Impact An attacker who uses this vulnerability can craft a PDF which leads to long runtimes and/or large memory usage. This requires accessing an array-based stream with lots of entries.  ### Patches This has been fixed in [pypdf==6.9.1](https://github.com/py-pdf/pypdf/releases/tag/6.9.1).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3686](https://github.com/py-pdf/pypdf/pull/3686)."
+    },
+    {
+     "id": "PYSEC-2026-3022",
+     "fix_versions": [
+      "6.13.0"
+     ],
+     "aliases": [
+      "CVE-2026-54531",
+      "GHSA-m2v9-299j-rv96"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to an infinite loop. This requires merging a file with outlines into a writer.  ### Patches  This has been fixed in [pypdf==6.13.0](https://github.com/py-pdf/pypdf/releases/tag/6.13.0).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3830](https://github.com/py-pdf/pypdf/pull/3830)."
+    },
+    {
+     "id": "PYSEC-2026-3017",
+     "fix_versions": [
+      "6.7.4"
+     ],
+     "aliases": [
+      "GHSA-f2v5-7jq9-h8cg",
+      "CVE-2026-28351"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory usage. This requires parsing the content stream using the RunLengthDecode filter.  ### Patches This has been fixed in [pypdf==6.7.4](https://github.com/py-pdf/pypdf/releases/tag/6.7.4).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3664](https://github.com/py-pdf/pypdf/pull/3664)."
+    },
+    {
+     "id": "PYSEC-2026-3019",
+     "fix_versions": [
+      "6.8.0"
+     ],
+     "aliases": [
+      "GHSA-hqmh-ppp3-xvm7",
+      "CVE-2026-31826"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory usage. This requires parsing a content stream with a rather large `/Length` value, regardless of the actual data length inside the stream.  ### Patches This has been fixed in [pypdf==6.8.0](https://github.com/py-pdf/pypdf/releases/tag/6.8.0).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3675](https://github.com/py-pdf/pypdf/pull/3675).  As far as we are aware, this mostly affects reading from buffers of unknown size, as returned by `open(\"file.pdf\", mode=\"rb\")` for example. Passing a file path or a `BytesIO` buffer to *pypdf* instead does not seem to trigger the vulnerability."
+    },
+    {
+     "id": "PYSEC-2026-3020",
+     "fix_versions": [
+      "6.12.2"
+     ],
+     "aliases": [
+      "GHSA-j543-4vmf-qm7v",
+      "CVE-2026-49461"
+     ],
+     "description": "### Impact An attacker who uses this vulnerability can craft a PDF which leads to large memory usage. This requires extracting the text of a page which contains a form XObject with self-references.  ### Patches This has been fixed in [pypdf==6.12.2](https://github.com/py-pdf/pypdf/releases/tag/6.12.2).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3805](https://github.com/py-pdf/pypdf/pull/3805)."
+    },
+    {
+     "id": "PYSEC-2026-3018",
+     "fix_versions": [
+      "6.13.1"
+     ],
+     "aliases": [
+      "CVE-2026-54651",
+      "GHSA-g9xf-7f8q-9mcj"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to an infinite loop. This requires merging a file with threads/articles into a writer.  ### Patches  This has been fixed in [pypdf==6.13.1](https://github.com/py-pdf/pypdf/releases/tag/6.13.1).  ### Workarounds  If users cannot upgrade yet, consider applying the changes from PR [#3839](https://github.com/py-pdf/pypdf/pull/3839)."
+    },
+    {
+     "id": "PYSEC-2026-3021",
+     "fix_versions": [
+      "6.10.1"
+     ],
+     "aliases": [
+      "CVE-2026-41168",
+      "GHSA-jj6c-8h6c-hppx"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes. This requires cross-reference streams with wrong large `/Size` values or object streams with wrong large `/N` values.  ### Patches  This has been fixed in [pypdf==6.10.1](https://github.com/py-pdf/pypdf/releases/tag/6.10.1).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3733](https://github.com/py-pdf/pypdf/pull/3733)."
+    },
+    {
+     "id": "PYSEC-2026-3011",
+     "fix_versions": [
+      "6.10.2"
+     ],
+     "aliases": [
+      "CVE-2026-41312",
+      "GHSA-7gw9-cf7v-778f"
+     ],
+     "description": "### Impact An attacker who uses this vulnerability can craft a PDF which leads to the RAM being exhausted. This requires accessing a stream compressed using `/FlateDecode` with a `/Predictor` unequal 1 and large predictor parameters.  ### Patches This has been fixed in [pypdf==6.10.2](https://github.com/py-pdf/pypdf/releases/tag/6.10.2).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3734](https://github.com/py-pdf/pypdf/pull/3734)."
+    },
+    {
+     "id": "PYSEC-2026-3007",
+     "fix_versions": [
+      "6.10.2"
+     ],
+     "aliases": [
+      "GHSA-4pxv-j86v-mhcw",
+      "CVE-2026-41313"
+     ],
+     "description": "### Impact An attacker who uses this vulnerability can craft a PDF which leads to long runtimes. This requires loading a PDF with a large trailer `/Size` value in incremental mode.  ### Patches This has been fixed in [pypdf==6.10.2](https://github.com/py-pdf/pypdf/releases/tag/6.10.2).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3735](https://github.com/py-pdf/pypdf/pull/3735)."
+    },
+    {
+     "id": "PYSEC-2026-3004",
+     "fix_versions": [
+      "6.12.0"
+     ],
+     "aliases": [
+      "CVE-2026-48156",
+      "GHSA-248m-82v9-q6g6"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes. This requires cross-reference streams with `/W [0 0 0]` values and large `/Size` values.  ### Patches  This has been fixed in [pypdf==6.12.0](https://github.com/py-pdf/pypdf/releases/tag/6.12.0).  ### Workarounds  If developers are unable to upgrade their apps immediately, they should consider applying the changes from PR [#3791](https://github.com/py-pdf/pypdf/pull/3791)."
+    },
+    {
+     "id": "PYSEC-2026-3005",
+     "fix_versions": [
+      "6.7.2"
+     ],
+     "aliases": [
+      "GHSA-2rw7-x74f-jg35",
+      "CVE-2026-27628"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to an infinite loop. This requires reading the file.  ### Patches  This has been fixed in [pypdf==6.7.2](https://github.com/py-pdf/pypdf/releases/tag/6.7.2).  ### Workarounds  If users cannot upgrade yet, consider applying the changes from PR [#3655](https://github.com/py-pdf/pypdf/pull/3655)."
+    },
+    {
+     "id": "PYSEC-2026-3006",
+     "fix_versions": [
+      "6.10.0"
+     ],
+     "aliases": [
+      "GHSA-3crg-w4f6-42mx",
+      "CVE-2026-40260"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory usage. This requires parsing the XMP metadata.  ### Patches This has been fixed in [pypdf==6.10.0](https://github.com/py-pdf/pypdf/releases/tag/6.10.0).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3724](https://github.com/py-pdf/pypdf/pull/3724)."
+    },
+    {
+     "id": "PYSEC-2026-3014",
+     "fix_versions": [
+      "6.7.5"
+     ],
+     "aliases": [
+      "CVE-2026-28804",
+      "GHSA-9m86-7pmv-2852"
+     ],
+     "description": "### Impact An attacker who uses this vulnerability can craft a PDF which leads to long runtimes. This requires accessing a stream which uses the `/ASCIIHexDecode` filter.  ### Patches This has been fixed in [pypdf==6.7.5](https://github.com/py-pdf/pypdf/releases/tag/6.7.5).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3666](https://github.com/py-pdf/pypdf/pull/3666)."
+    },
+    {
+     "id": "PYSEC-2026-3024",
+     "fix_versions": [
+      "6.7.1"
+     ],
+     "aliases": [
+      "GHSA-wgvp-vg3v-2xq3",
+      "CVE-2026-27025"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes and large memory consumption. This requires parsing the `/ToUnicode` entry of a font with unusually large values, for example during text extraction.  ### Patches  This has been fixed in [pypdf==6.7.1](https://github.com/py-pdf/pypdf/releases/tag/6.7.1).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3646](https://github.com/py-pdf/pypdf/pull/3646)."
+    },
+    {
+     "id": "PYSEC-2026-3026",
+     "fix_versions": [
+      "6.10.2"
+     ],
+     "aliases": [
+      "GHSA-x284-j5p8-9c5p",
+      "CVE-2026-41314"
+     ],
+     "description": "### Impact An attacker who uses this vulnerability can craft a PDF which leads to the RAM being exhausted. This requires accessing an image using `/FlateDecode` with large size values.  ### Patches This has been fixed in [pypdf==6.10.2](https://github.com/py-pdf/pypdf/releases/tag/6.10.2).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3734](https://github.com/py-pdf/pypdf/pull/3734)."
+    },
+    {
+     "id": "PYSEC-2026-3016",
+     "fix_versions": [
+      "6.12.0"
+     ],
+     "aliases": [
+      "GHSA-cj93-chg6-vgv8",
+      "CVE-2026-48155"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory usage. This requires extracting text in layout mode with large character offsets.  ### Patches  This has been fixed in [pypdf==6.12.0](https://github.com/py-pdf/pypdf/releases/tag/6.12.0).  ### Workarounds  If developers are unable to immediately upgrade, they should consider applying the changes from PR [#3790](https://github.com/py-pdf/pypdf/pull/3790)."
+    },
+    {
+     "id": "PYSEC-2026-3010",
+     "fix_versions": [
+      "6.12.2"
+     ],
+     "aliases": [
+      "CVE-2026-49460",
+      "GHSA-5hgr-hg42-57jg"
+     ],
+     "description": "### Impact An attacker who uses this vulnerability can craft a PDF which leads to long runtimes. This requires accessing a stream which uses the `/FlateDecode` filter with a PNG predictor.  ### Patches This has been fixed in [pypdf==6.12.2](https://github.com/py-pdf/pypdf/releases/tag/6.12.2).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3806](https://github.com/py-pdf/pypdf/pull/3806)."
+    },
+    {
+     "id": "PYSEC-2026-3015",
+     "fix_versions": [
+      "6.7.1"
+     ],
+     "aliases": [
+      "GHSA-9mvc-8737-8j8h",
+      "CVE-2026-27026"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes. This requires a malformed `/FlateDecode` stream, where the byte-by-byte decompression is used.  ### Patches  This has been fixed in [pypdf==6.7.1](https://github.com/py-pdf/pypdf/releases/tag/6.7.1).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3644](https://github.com/py-pdf/pypdf/pull/3644)."
+    },
+    {
+     "id": "PYSEC-2026-3025",
+     "fix_versions": [
+      "6.12.1"
+     ],
+     "aliases": [
+      "CVE-2026-48735",
+      "GHSA-wjqc-6w8f-h24c"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory usage. This requires parsing large XMP metadata, possibly with lots of unnecessary elements.  ### Patches This has been fixed in [pypdf==6.12.1](https://github.com/py-pdf/pypdf/releases/tag/6.12.1).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3796](https://github.com/py-pdf/pypdf/pull/3796)."
+    },
+    {
+     "id": "PYSEC-2026-3013",
+     "fix_versions": [
+      "6.7.1"
+     ],
+     "aliases": [
+      "CVE-2026-27024",
+      "GHSA-996q-pr4m-cvgq"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to an infinite loop. This requires accessing the children of a `TreeObject`, for example as part of outlines.  ### Patches  This has been fixed in [pypdf==6.7.1](https://github.com/py-pdf/pypdf/releases/tag/6.7.1).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3645](https://github.com/py-pdf/pypdf/pull/3645)."
+    },
+    {
+     "id": "PYSEC-2026-3009",
+     "fix_versions": [
+      "6.13.0"
+     ],
+     "aliases": [
+      "CVE-2026-54530",
+      "GHSA-52x6-gq3r-vpf4"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to an infinite loop. This requires extracting the text in layout mode.  ### Patches  This has been fixed in [pypdf==6.13.0](https://github.com/py-pdf/pypdf/releases/tag/6.13.0).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3830](https://github.com/py-pdf/pypdf/pull/3830)."
+    },
+    {
+     "id": "PYSEC-2026-3012",
+     "fix_versions": [
+      "6.9.2"
+     ],
+     "aliases": [
+      "CVE-2026-33699",
+      "GHSA-87mj-5ggw-8qc3"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to an infinite loop. This requires reading a file in non-strict mode.  ### Patches  This has been fixed in [pypdf==6.9.2](https://github.com/py-pdf/pypdf/releases/tag/6.9.2).  ### Workarounds  If users cannot upgrade yet, consider applying the changes from PR [#3693](https://github.com/py-pdf/pypdf/pull/3693)."
+    },
+    {
+     "id": "PYSEC-2026-3027",
+     "fix_versions": [
+      "6.7.3"
+     ],
+     "aliases": [
+      "GHSA-x7hp-r3qg-r3cj",
+      "CVE-2026-27888"
+     ],
+     "description": "### Impact An attacker who uses this vulnerability can craft a PDF which leads to the RAM being exhausted. This requires accessing the `xfa` property of a reader or writer and the corresponding stream being compressed using `/FlateDecode`.  ### Patches This has been fixed in [pypdf==6.7.3](https://github.com/py-pdf/pypdf/releases/tag/6.7.3).  ### Workarounds If projects cannot upgrade yet, consider applying the changes from PR [#3658](https://github.com/py-pdf/pypdf/pull/3658)."
+    },
+    {
+     "id": "PYSEC-2026-3613",
+     "fix_versions": [
+      "6.14.2"
+     ],
+     "aliases": [
+      "CVE-2026-59935",
+      "GHSA-g867-7843-wf8q"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to an infinite loop. This requires parsing the content stream of a page with a not terminated inline image, as done when extracting the page text for example. It only affects the ASCII85 and ASCIIHex filters.  ### Patches  This has been fixed in [pypdf==6.14.2](https://github.com/py-pdf/pypdf/releases/tag/6.14.2).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3892](https://github.com/py-pdf/pypdf/pull/3892)."
+    },
+    {
+     "id": "PYSEC-2026-3610",
+     "fix_versions": [
+      "6.14.0"
+     ],
+     "aliases": [
+      "GHSA-55h5-xmcq-c37v",
+      "CVE-2026-59937"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes. This requires cross-reference streams with repeated malformed cross-reference streams.  ### Patches  This has been fixed in [pypdf==6.14.0](https://github.com/py-pdf/pypdf/releases/tag/6.14.0).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3887](https://github.com/py-pdf/pypdf/pull/3887)."
+    },
+    {
+     "id": "PYSEC-2026-3612",
+     "fix_versions": [
+      "6.14.1"
+     ],
+     "aliases": [
+      "GHSA-5xf7-4p34-54qr",
+      "CVE-2026-59936"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to an infinite loop. This requires parsing the content stream of a page with a not terminated inline image, as done when extracting the page text for example.  ### Patches  This has been fixed in [pypdf==6.14.1](https://github.com/py-pdf/pypdf/releases/tag/6.14.1).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3891](https://github.com/py-pdf/pypdf/pull/3891)."
+    },
+    {
+     "id": "PYSEC-2026-3611",
+     "fix_versions": [
+      "6.14.0"
+     ],
+     "aliases": [
+      "CVE-2026-59938",
+      "GHSA-5qjq-93h5-hrgp"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory usage. This requires loading images where the declared size values are much too large compared to the actual data.  ### Patches  This has been fixed in [pypdf==6.14.0](https://github.com/py-pdf/pypdf/releases/tag/6.14.0).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3888](https://github.com/py-pdf/pypdf/pull/3888)."
+    },
+    {
+     "id": "PYSEC-2026-3655",
+     "fix_versions": [
+      "6.15.0"
+     ],
+     "aliases": [
+      "GHSA-fp3f-mc75-235c",
+      "CVE-2026-71870"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory consumption. This requires parsing the `/ToUnicode` entry of a font with unusually large values, for example during text extraction.  ### Patches  This has been fixed in [pypdf==6.15.0](https://github.com/py-pdf/pypdf/releases/tag/6.15.0).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3944](https://github.com/py-pdf/pypdf/pull/3944)."
+    },
+    {
+     "id": "PYSEC-2026-3656",
+     "fix_versions": [
+      "6.15.0"
+     ],
+     "aliases": [
+      "CVE-2026-71852",
+      "GHSA-fwg2-594c-jp42"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes and large memory consumption. This requires parsing the font width entries of a font with unusually large values, for example during text extraction.  ### Patches  This has been fixed in [pypdf==6.15.0](https://github.com/py-pdf/pypdf/releases/tag/6.15.0).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3946](https://github.com/py-pdf/pypdf/pull/3946)."
+    },
+    {
+     "id": "GHSA-jm82-fx9c-mx94",
+     "fix_versions": [
+      "6.13.3"
+     ],
+     "aliases": [],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to large memory usage, as `MAX_DECLARED_STREAM_LENGTH` is sometimes ignored. This requires parsing a content stream without a `/Length` value.  ### Patches This has been fixed in [pypdf==6.13.3](https://github.com/py-pdf/pypdf/releases/tag/6.13.3).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3871](https://github.com/py-pdf/pypdf/pull/3871)."
+    },
+    {
+     "id": "CVE-2026-84309",
+     "fix_versions": [
+      "6.16.0"
+     ],
+     "aliases": [
+      "GHSA-jp53-mhqp-8xcg"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to an infinite loop. This requires a (usually writing) code path where `TreeObject.insert_child` is involved.  ### Patches  This has been fixed in [pypdf==6.16.0](https://github.com/py-pdf/pypdf/releases/tag/6.16.0).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3964](https://github.com/py-pdf/pypdf/pull/3964)."
+    },
+    {
+     "id": "CVE-2026-84310",
+     "fix_versions": [
+      "6.16.1"
+     ],
+     "aliases": [
+      "GHSA-23w6-3w8w-8484"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes and large memory consumption. This requires accessing the outlines of a document with either lots of entries or nested outlines with long re-used nesting paths.  ### Patches  This has been fixed in [pypdf==6.16.1](https://github.com/py-pdf/pypdf/releases/tag/6.16.1).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3966](https://github.com/py-pdf/pypdf/pull/3966)."
+    },
+    {
+     "id": "CVE-2026-84311",
+     "fix_versions": [
+      "6.16.1"
+     ],
+     "aliases": [
+      "GHSA-763m-79hh-57f2"
+     ],
+     "description": "### Impact  An attacker who uses this vulnerability can craft a PDF which leads to long runtimes and large memory consumption. This requires extracting the text of a page with lots of XForm objects, where some of them might be re-used.  ### Patches  This has been fixed in [pypdf==6.16.1](https://github.com/py-pdf/pypdf/releases/tag/6.16.1).  ### Workarounds  If you cannot upgrade yet, consider applying the changes from PR [#3966](https://github.com/py-pdf/pypdf/pull/3966)."
+    },
+    {
+     "id": "CVE-2026-82398",
+     "fix_versions": [
+      "6.15.0"
+     ],
+     "aliases": [
+      "GHSA-fc8x-2rww-xw9m"
+     ],
+     "description": "### Impact An attacker who uses this vulnerability can craft a PDF which leads to long runtimes. This requires a call to `read_until_whitespace` with an input which does not have whitespace for a long time.  ### Patches This has been fixed in [pypdf==6.15.0](https://github.com/py-pdf/pypdf/releases/tag/6.15.0).  ### Workarounds If you cannot upgrade yet, consider applying the changes from PR [#3947](https://github.com/py-pdf/pypdf/pull/3947)."
+    }
+   ]
+  },
+  {
+   "name": "aiohttp",
+   "version": "3.14.3",
+   "vulns": []
+  },
+  {
+   "name": "dataclasses-json",
+   "version": "0.6.7",
+   "vulns": []
+  },
+  {
+   "name": "jsonpatch",
+   "version": "1.33",
+   "vulns": []
+  },
+  {
+   "name": "langchain-text-splitters",
+   "version": "0.0.2",
+   "vulns": [
+    {
+     "id": "PYSEC-2026-77",
+     "fix_versions": [
+      "1.1.2"
+     ],
+     "aliases": [
+      "CVE-2026-41481",
+      "GHSA-fv5p-p927-qmxr"
+     ],
+     "description": "## Summary  `HTMLHeaderTextSplitter.split_text_from_url()` validated the initial URL using `validate_safe_url()` but then performed the fetch with `requests.get()` with redirects enabled (the default). Because redirect targets were not revalidated, a URL pointing to an attacker-controlled server could redirect to internal, localhost, or cloud metadata endpoints, bypassing SSRF protections.  The response body is parsed and returned as `Document` objects to the calling application code. Whether this constitutes a data exfiltration path depends on the application: if it exposes Document contents (or derivatives) back to the requester who supplied the URL, sensitive data from internal endpoints could be leaked. Applications that store or process Documents internally without returning raw content to the requester are not directly exposed to data exfiltration through this issue.  ## Affected versions  - `langchain-text-splitters` < 1.1.2  ## Patched versions  - `langchain-text-splitters` >= 1.1.2 (requires `langchain-core` >= 1.2.31)  ## Affected code  **File:** `libs/text-splitters/langchain_text_splitters/html.py` — `split_text_from_url()`  The vulnerable pattern validated the URL once then fetched with redirects enabled:  ```python validate_safe_url(url, allow_private=False, allow_http=True) response = requests.get(url, timeout=timeout, **kwargs) ```  ## Attack scenario  1. A developer passes external URLs to `split_text_from_url()`, relying on its    built-in `validate_safe_url()` check to block requests to internal networks. 2. An attacker supplies a URL pointing to a public host they control. The URL    passes `validate_safe_url()` (public hostname, public IP). 3. The attacker's server responds with a `302` redirect to an internal endpoint    (e.g., an unauthenticated internal admin API, or a cloud instance metadata    service that does not require request headers — such as AWS IMDSv1). 4. `requests.get()` follows the redirect automatically. The redirect target is    **not** revalidated. 5. The response body is parsed and returned as `Document` objects to the    application.  **Notes:**  - The core issue is a bypass of an explicitly provided SSRF protection.   `split_text_from_url()` included `validate_safe_url()` specifically to be   safe with untrusted URLs — the redirect loophole defeated that guarantee. - Cloud metadata endpoints that require special headers (AWS IMDSv2, GCP, Azure)   are not reachable through this bug because the attacker does not control   request headers. AWS IMDSv1, which requires no headers, is reachable. - Data exfiltration requires the application to return Document contents to the   party that supplied the URL. The SSRF itself — forcing the server to issue a   request to an internal endpoint — does not require this.  ## Fix  The fix replaces `requests.get()` with an SSRF-safe httpx transport (`SSRFSafeSyncTransport` from `langchain-core`) that validates DNS results and pins connections to validated IPs on every request, including redirect targets, eliminating redirect-based bypasses.  Additionally, `split_text_from_url()` has been deprecated. Users should fetch HTML content themselves and pass it to `split_text()` directly."
+    },
+    {
+     "id": "PYSEC-2026-77",
+     "fix_versions": [
+      "1.1.2"
+     ],
+     "aliases": [
+      "CVE-2026-41481",
+      "GHSA-fv5p-p927-qmxr"
+     ],
+     "description": "LangChain is a framework for building agents and LLM-powered applications. Prior to langchain-text-splitters  1.1.2, HTMLHeaderTextSplitter.split_text_from_url() validated the initial URL using validate_safe_url() but then performed the fetch with requests.get() with redirects enabled (the default). Because redirect targets were not revalidated, a URL pointing to an attacker-controlled server could redirect to internal, localhost, or cloud metadata endpoints, bypassing SSRF protections. The response body is parsed and returned as Document objects to the calling application code. Whether this constitutes a data exfiltration path depends on the application: if it exposes Document contents (or derivatives) back to the requester who supplied the URL, sensitive data from internal endpoints could be leaked. Applications that store or process Documents internally without returning raw content to the requester are not directly exposed to data exfiltration through this issue. This vulnerability is fixed in 1.1.2."
+    },
+    {
+     "id": "PYSEC-2026-1520",
+     "fix_versions": [
+      "0.3.9"
+     ],
+     "aliases": [
+      "GHSA-m42m-m8cr-8m58",
+      "CVE-2025-6985"
+     ],
+     "description": "The HTMLSectionSplitter class in langchain-text-splitters is vulnerable to XML External Entity (XXE) attacks due to unsafe XSLT parsing. This vulnerability arises because the class allows the use of arbitrary XSLT stylesheets, which are parsed using lxml.etree.parse() and lxml.etree.XSLT() without any hardening measures. In lxml versions up to 4.9.x, external entities are resolved by default, allowing attackers to read arbitrary local files or perform outbound HTTP(S) fetches. In lxml versions 5.0 and above, while entity expansion is disabled, the XSLT document() function can still read any URI unless XSLTAccessControl is applied. This vulnerability allows remote attackers to gain read-only access to any file the LangChain process can reach, including sensitive files such as SSH keys, environment files, source code, or cloud metadata. No authentication, special privileges, or user interaction are required, and the issue is exploitable in default deployments that enable custom XSLT."
+    }
+   ]
+  },
+  {
+   "name": "langsmith",
+   "version": "0.1.147",
+   "vulns": [
+    {
+     "id": "PYSEC-2026-2582",
+     "fix_versions": [
+      "0.8.0"
+     ],
+     "aliases": [
+      "GHSA-3644-q5cj-c5c7",
+      "CVE-2026-45134"
+     ],
+     "description": "## Description  The LangSmith SDK's prompt pull methods (`pull_prompt` / `pull_prompt_commit` in Python, `pullPrompt` / `pullPromptCommit` in JS/TS) fetch and deserialize prompt manifests from the LangSmith Hub. These manifests may contain serialized LangChain objects and model configuration that affect runtime behavior. When pulling a public prompt by `owner/name` identifier, the manifest content is controlled by an external party, but prior versions of the SDK did not distinguish this from pulling a prompt within the caller's own organization.  Prompt manifests can intentionally configure a model with a custom base URL, default headers, model name, or other constructor arguments. These are supported features, but they also mean the prompt contents should be treated as executable configuration rather than plain text. A prompt can also include serialized LangChain `Runnable` or `PromptTemplate` objects with attacker-controlled constructor kwargs, or secret references that, if `secrets_from_env` is enabled, read environment variables at deserialization time. Applications are exposed when all of the following are true:  - The application calls `pull_prompt` or `pull_prompt_commit` (Python) or `pullPrompt` or `pullPromptCommit` (JS/TS) with a public `owner/name` prompt identifier. - The prompt was published or modified by an untrusted or compromised account. - The application uses the pulled prompt without independently validating its contents.  Applications that only pull prompts from their own organization (referenced by name only, without an `owner/` prefix) are not affected by the public prompt trust boundary issue described above. However, same-organization prompts carry their own risk. If an attacker gains write access to the organization (for example, through a leaked `LANGSMITH_API_KEY` or a compromised team member account), they can push a malicious prompt that is pulled and deserialized without any additional warning.  ## Impact  An attacker who publishes a malicious prompt to LangSmith Hub may be able to affect applications that pull that prompt by `owner/name`. If the prompt manifest reaches the SDK's deserialization path, the SDK will instantiate the referenced LangChain objects with the attacker-supplied constructor arguments rather than treating the manifest as inert data.  Realistic impacts include:  - Server-side request forgery (SSRF), outbound request redirection, and interception of LLM traffic if a prompt manifest configures an LLM client with an attacker-controlled `base_url`, proxy, or equivalent endpoint-setting parameter. In typical deployments, redirected requests may include prompt contents, system prompts, retrieved context, model parameters, provider credentials, or other secrets and may disclose them to the attacker-controlled endpoint. - Prompt injection or behavior manipulation if a manifest embeds attacker-controlled system messages, prompt templates, or model parameters that alter the application's behavior. - Additional deserialization risk when `include_model=True` is passed, because this expands the allowlist to partner integration classes. This is not the default, but it materially increases risk when pulling prompts from outside the caller's organization.  ## Remediation  The LangSmith SDK now blocks pulling public prompts by `owner/name` by default. Callers must explicitly opt in by passing `dangerously_pull_public_prompt=True` (Python) or `dangerouslyPullPublicPrompt: true` (JS/TS) to acknowledge the trust boundary. This flag should only be set after reviewing and trusting the prompt contents, not merely the publishing account.  Upgrade to LangSmith SDK **Python >= 0.8.0** or **JS/TS >= 0.6.0**.  ### Guidance for prompt pull methods  The prompt pull methods (`pull_prompt` / `pull_prompt_commit` in Python, `pullPrompt` / `pullPromptCommit` in JS/TS) should be used only with trusted prompts. Do not pull public prompts by `owner/name` from untrusted or unreviewed sources without understanding that the manifest contents will be deserialized and may affect runtime behavior.  When pulling prompts that include model configuration (`include_model=True` in Python, `includeModel: true` in JS/TS), the deserialization allowlist expands to include partner integration classes. Because this mode is not the default and is often unnecessary for third-party prompts, prefer the default (`false`) when pulling prompts from sources outside your organization.  Avoid passing `secrets_from_env=True` (Python) when pulling untrusted prompts. This parameter allows prompt manifests to read environment variables during deserialization. Only use it with trusted prompts from your own organization.  ### Same-organization prompts  Prompts pulled from the caller's own organization (referenced by name only, without an `owner/` prefix) are not gated by the new `dangerously_pull_public_prompt` flag, but they are not inherently safe. If an attacker gains write access to the organization (for example, through a leaked `LANGSMITH_API_KEY` or a compromised team member account), they can push a malicious prompt that redirects LLM traffic to attacker-controlled infrastructure and may disclose any credentials attached to those requests.  The security of same-organization prompts follows a shared responsibility model. The LangSmith SDK enforces trust boundaries for public prompts pulled from external accounts, but it cannot protect against compromised credentials or accounts within the caller's own organization. Securing API keys, managing team member access, and reviewing prompt contents before production deployment are the responsibility of the organization. Organizations should treat prompts as executable configuration and apply the same review and audit practices they would apply to application code.  ## Credits  First reported by @Moaaz-0x."
+    },
+    {
+     "id": "PYSEC-2026-2583",
+     "fix_versions": [
+      "0.7.31"
+     ],
+     "aliases": [
+      "GHSA-rr7j-v2q5-chgv",
+      "CVE-2026-41182"
+     ],
+     "description": "## Summary  The LangSmith SDK's output redaction controls (hideOutputs in JS, hide_outputs in Python) do not apply to streaming token events. When an LLM run produces streaming output, each chunk is recorded as a new_token event containing the raw token value. These events bypass the redaction pipeline entirely — prepareRunCreateOrUpdateInputs (JS) and _hide_run_outputs (Python) only process the inputs and outputs fields on a run, never the events array. As a result, applications relying on output redaction to prevent sensitive LLM output from being stored in LangSmith will still leak the full streamed content via run events.  ## Details  **Both JS and Python SDKs are affected.** The same pattern exists in both:  - **JS SDK**: `traceable.ts:997-1003` and `traceable.ts:1044-1050` - **Python SDK**: `run_helpers.py:1924` and `run_helpers.py:1996`  In both SDKs, `new_token` events with raw `kwargs.token` values are added during streaming, and the redaction pipeline (`hideOutputs` in JS, `hide_outputs` in Python) only processes `inputs`/`outputs` — never `events`."
+    },
+    {
+     "id": "GHSA-f4xh-w4cj-qxq8",
+     "fix_versions": [
+      "0.8.18"
+     ],
+     "aliases": [],
+     "description": "# Summary  An attacker who can send an HTTP request to a server running the LangSmith SDK's `TracingMiddleware` can cause that server to read an arbitrary file from its local filesystem and upload the contents to LangSmith as a trace attachment. Depending on how the distributed trace system is deployed, triggering a read may not require authentication. Retrieving the contents requires read access to the LangSmith workspace the traces are sent to. The net effect is a trust-boundary crossing: a party with workspace trace-read access (for example a low-privilege workspace member, a contractor, or a compromised teammate account) gains the ability to read files from any server running `TracingMiddleware`, a capability outside that workspace's intended trust boundary.  # Impact  Confidentiality (High): arbitrary read of files accessible to the server process, exposed to anyone with workspace trace-read access.  # Details  Two defects combine. A field supplied through a tracing-propagation header was merged into the run without validation, allowing injection of run attributes including attachments (CWE-346). A type check intended to gate filesystem access did not match the type of the decoded input, so the guard never engaged (CWE-843). As a result, an attacker-named file is opened by the server and uploaded as a trace attachment by the background tracing thread (CWE-22).  ## Who can exploit this  - Anyone reachable by HTTP can trigger the file read. Depending on how the distributed trace system is deployed, triggering may not require authentication. - Retrieving the file contents requires read access to the destination LangSmith workspace. The upload uses the server's own configured API key and workspace, which the attacker cannot redirect, so a zero-access outsider cannot retrieve the result; a workspace member, or anyone who has compromised one, can.  # Remediation  Upgrade the Python SDK to `>= 0.8.18`.  # Workarounds  Until upgrading, do not expose `TracingMiddleware` to untrusted HTTP traffic, and limit workspace trace-read access to trusted members.  # Credits  First reported by @Ryu7zz."
+    }
+   ]
+  },
+  {
+   "name": "httpx",
+   "version": "0.28.1",
+   "vulns": []
+  },
+  {
+   "name": "httpcore",
+   "version": "1.0.9",
+   "vulns": []
+  },
+  {
+   "name": "marshmallow",
+   "version": "3.26.2",
+   "vulns": []
+  },
+  {
+   "name": "multidict",
+   "version": "6.7.1",
+   "vulns": []
+  },
+  {
+   "name": "numpy",
+   "version": "1.26.4",
+   "vulns": []
+  },
+  {
+   "name": "openai",
+   "version": "1.109.1",
+   "vulns": []
+  },
+  {
+   "name": "anyio",
+   "version": "4.15.1",
+   "vulns": []
+  },
+  {
+   "name": "distro",
+   "version": "1.9.0",
+   "vulns": []
+  },
+  {
+   "name": "jiter",
+   "version": "0.16.0",
+   "vulns": []
+  },
+  {
+   "name": "orjson",
+   "version": "3.12.0",
+   "vulns": []
+  },
+  {
+   "name": "packaging",
+   "version": "23.2",
+   "vulns": []
+  },
+  {
+   "name": "requests",
+   "version": "2.34.2",
+   "vulns": []
+  },
+  {
+   "name": "charset-normalizer",
+   "version": "3.5.1",
+   "vulns": []
+  },
+  {
+   "name": "idna",
+   "version": "3.19",
+   "vulns": []
+  },
+  {
+   "name": "requests-toolbelt",
+   "version": "1.0.0",
+   "vulns": []
+  },
+  {
+   "name": "starlette",
+   "version": "0.37.2",
+   "vulns": [
+    {
+     "id": "PYSEC-2026-161",
+     "fix_versions": [
+      "1.0.1"
+     ],
+     "aliases": [
+      "GHSA-86qp-5c8j-p5mr",
+      "CVE-2026-48710",
+      "X41-2026-002"
+     ],
+     "description": "Starlette reconstructs the requested URL based on the HTTP Host request header and requested path, but does not perform any validation of the Host header value. This allows attackers to inject paths into the host part, prepending the actual path. However, routing in Starlette is based on the actual request path. This inconsistent interpretation of HTTP requests may lead to issues such as authentication bypass when the authentication depends on the reconstructed URL’s path."
+    },
+    {
+     "id": "PYSEC-2026-161",
+     "fix_versions": [
+      "1.0.1"
+     ],
+     "aliases": [
+      "GHSA-86qp-5c8j-p5mr",
+      "CVE-2026-48710",
+      "X41-2026-002"
+     ],
+     "description": "### Summary In affected versions, the HTTP `Host` request header was not validated before being used to reconstruct `request.url`. Because the routing algorithm relies on the raw HTTP path while `request.url` is rebuilt from the `Host` header, a malformed header could make `request.url.path` differ from the path that was actually requested. Middleware and endpoints that apply security restrictions based on `request.url` (rather than the raw `scope` path) could therefore be bypassed.  ### Details When a client requests `http://example.com/foo`, it sends:  ```http GET /foo HTTP/1.1 Host: example.com ```  Affected versions reconstructed the URL by concatenating `http://{host}{path}` and re-parsing the result. The `Host` value is only valid as a `uri-host [ \":\" port ]` per [RFC 9112 §3.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2-6), where `uri-host` follows the restricted `host` grammar of [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2). When it contains characters outside that grammar - notably `/`, `?`, or `#` - those characters move the path/query/fragment boundaries during re-parsing, so the parsed `request.url.path` no longer matches the path the server actually received. For example:  ```http GET /foo HTTP/1.1 Host: example.com/abc?bar= ```  reconstructs to `http://example.com/abc?bar=/foo`, whose parsed `path` is `/abc` - even though routing used the real path `/foo`. The router still dispatches to `/foo` and the endpoint executes, but any middleware or code that reads `request.url.path` sees `/abc`, so path-based authorization checks can be bypassed.  ### Impact Any application running an affected version that relies on `request.url` (or `request.url.path`) for security-sensitive decisions is affected. The most common case is middleware that gates access to certain path prefixes based on `request.url.path`. Deployments fronted by a proxy or load balancer are mitigated only if that proxy rejects or normalizes the malformed `Host` header before forwarding and the application does not trust attacker-controlled host headers (e.g. `X-Forwarded-Host`) elsewhere.  ### Mitigation Upgrade to a patched version, which validates the `Host` header against the grammar of [RFC 9112 §3.2](https://www.rfc-editor.org/rfc/rfc9112.html#section-3.2-6) / [RFC 3986 §3.2.2](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.2) when constructing `request.url` and falls back to `scope[\"server\"]` for malformed values."
+    },
+    {
+     "id": "PYSEC-2026-248",
+     "fix_versions": [
+      "1.3.0"
+     ],
+     "aliases": [
+      "GHSA-jp82-jpqv-5vv3",
+      "CVE-2026-54282"
+     ],
+     "description": "### Summary  In affected versions, the HTTP request path is not validated before being used to reconstruct `request.url`. Because `request.url` is rebuilt by concatenating `{scheme}://{host}{path}` and re-parsing the result, a path that does not begin with `/` (for example `@google.com`) moves the authority boundary during re-parsing, so `request.url.hostname` and `request.url.netloc` become attacker-controlled. Code that reads `request.url.hostname` (rather than the `Host` header or `scope`) can therefore be misled into trusting an attacker-supplied host.  ### Details  When a client requests a path that does not start with `/`:  ```http GET @google.com HTTP/1.1 Host: localhost ```  affected versions reconstruct the URL as `http://localhost@google.com`. Per [RFC 3986 §3.2.1](https://www.rfc-editor.org/rfc/rfc3986.html#section-3.2.1), the substring before `@` in the authority is `userinfo`, so re-parsing yields `username = \"localhost\"` and `hostname = \"google.com\"`, with an empty path:  ```text request.url          == \"http://localhost@google.com\" request.url.hostname == \"google.com\" request.url.path     == \"\" ```  The root cause is that the path is concatenated directly after the host without a separating `/`, and without validating that it begins with one. Only the `Host` header was validated when constructing `request.url`; the path was not.  This requires an ASGI server that forwards a request-target lacking a leading `/` into `scope[\"path\"]`.  ### Impact  Any application running an affected version that uses `request.url`, `request.url.netloc`, or `request.url.hostname` for a security-sensitive decision (host-based authorization, redirect/callback base, SSRF target, cache key, audit log) may be affected, when no fronting proxy or load balancer rejects the malformed request-target first.  Note that this is less exploitable than [GHSA-86qp-5c8j-p5mr](https://github.com/Kludex/starlette/security/advisories/GHSA-86qp-5c8j-p5mr): there, the poison is carried in the `Host` header, so the real path still routes to a valid endpoint while `request.url.path` lies. Here, the poison must be carried in the path itself, and that path (`@google.com`) does not match any registered route, so routing returns `404` and no endpoint handler runs. The exposure is limited to code that reads `request.url` before routing - notably middleware - or in 404/exception handlers.  ### Mitigation  Upgrade to a patched version, which prevents the request path from crossing into the URL authority. The request above instead yields `http://localhost/@google.com` with `request.url.hostname == \"localhost\"`."
+    },
+    {
+     "id": "PYSEC-2026-249",
+     "fix_versions": [
+      "1.3.1"
+     ],
+     "aliases": [
+      "GHSA-82w8-qh3p-5jfq",
+      "CVE-2026-54283"
+     ],
+     "description": "Starlette is a lightweight ASGI framework/toolkit. From 0.4.1 until 1.3.1, request.form() accepts max_fields and max_part_size to bound resource consumption while parsing form data. These limits are enforced for multipart/form-data, but silently ignored for application/x-www-form-urlencoded. An unauthenticated attacker can therefore send a urlencoded body with an arbitrarily large number of fields or an arbitrarily large field, even when the application configured limits it believed would apply. This vulnerability is fixed in 1.3.1."
+    },
+    {
+     "id": "PYSEC-2026-248",
+     "fix_versions": [
+      "1.3.0"
+     ],
+     "aliases": [
+      "GHSA-jp82-jpqv-5vv3",
+      "CVE-2026-54282"
+     ],
+     "description": "Starlette is a lightweight ASGI framework/toolkit. Prior to 1.3.0, the HTTP request path is not validated before being used to reconstruct request.url. Because request.url is rebuilt by concatenating {scheme}://{host}{path} and re-parsing the result, a path that does not begin with / (for example @google.com) moves the authority boundary during re-parsing, so request.url.hostname and request.url.netloc become attacker-controlled. Code that reads request.url.hostname (rather than the Host header or scope) can therefore be misled into trusting an attacker-supplied host. This vulnerability is fixed in 1.3.0."
+    },
+    {
+     "id": "PYSEC-2026-1943",
+     "fix_versions": [
+      "0.40.0"
+     ],
+     "aliases": [
+      "CVE-2024-47874",
+      "GHSA-f96h-pmfr-66vw"
+     ],
+     "description": "### Summary Starlette treats `multipart/form-data` parts without a `filename` as text form fields and buffers those in byte strings with no size limit. This allows an attacker to upload arbitrary large form fields and cause Starlette to both slow down significantly due to excessive memory allocations and copy operations, and also consume more and more memory until the server starts swapping and grinds to a halt, or the OS terminates the server process with an OOM error. Uploading multiple such requests in parallel may be enough to render a service practically unusable, even if reasonable request size limits are enforced by a reverse proxy in front of Starlette.  ### PoC  ```python from starlette.applications import Starlette from starlette.routing import Route  async def poc(request):     async with request.form():         pass  app = Starlette(routes=[     Route('/', poc, methods=[\"POST\"]), ]) ```  ```sh curl http://localhost:8000 -F 'big=</dev/urandom' ```  ### Impact This Denial of service (DoS) vulnerability affects all applications built with Starlette (or FastAPI) accepting form requests. "
+    },
+    {
+     "id": "PYSEC-2026-1941",
+     "fix_versions": [
+      "0.47.2"
+     ],
+     "aliases": [
+      "GHSA-2c2j-9gv5-cj73",
+      "CVE-2025-54121"
+     ],
+     "description": "### Summary When parsing a multi-part form with large files (greater than the [default max spool size](https://github.com/encode/starlette/blob/fa5355442753f794965ae1af0f87f9fec1b9a3de/starlette/formparsers.py#L126)) `starlette` will block the main thread to roll the file over to disk. This blocks the event thread which means we can't accept new connections.  ### Details Please see this discussion for details: https://github.com/encode/starlette/discussions/2927#discussioncomment-13721403. In summary the following UploadFile code (copied from [here](https://github.com/encode/starlette/blob/fa5355442753f794965ae1af0f87f9fec1b9a3de/starlette/datastructures.py#L436C5-L447C14)) has a minor bug. Instead of just checking for `self._in_memory` we should also check if the additional bytes will cause a rollover.  ```python      @property     def _in_memory(self) -> bool:         # check for SpooledTemporaryFile._rolled         rolled_to_disk = getattr(self.file, \"_rolled\", True)         return not rolled_to_disk      async def write(self, data: bytes) -> None:         if self.size is not None:             self.size += len(data)          if self._in_memory:             self.file.write(data)         else:             await run_in_threadpool(self.file.write, data) ```  I have already created a PR which fixes the problem: https://github.com/encode/starlette/pull/2962   ### PoC See the discussion [here](https://github.com/encode/starlette/discussions/2927#discussioncomment-13721403) for steps on how to reproduce.  ### Impact To be honest, very low and not many users will be impacted. Parsing large forms is already CPU intensive so the additional IO block doesn't slow down `starlette` that much on systems with modern HDDs/SSDs. If someone is running on tape they might see a greater impact."
+    },
+    {
+     "id": "PYSEC-2026-2281",
+     "fix_versions": [
+      "1.1.0"
+     ],
+     "aliases": [
+      "CVE-2026-48818",
+      "GHSA-wqp7-x3pw-xc5r"
+     ],
+     "description": "Starlette is a lightweight ASGI framework/toolkit. In versions 1.0.1 and earlier, StaticFiles on Windows is vulnerable to SSRF. An UNC path such as \\\\attacker.com\\share can cause os.path.realpath to initiate an outbound SMB connection before the path is rejected, exposing the service account’s NTLMv2 credentials for offline cracking or relay even though the HTTP response is only a 404. The issue affects default follow_symlink=False deployments, including frameworks built on Starlette such as FastAPI; POSIX systems and follow_symlink=True are unaffected. The issue is fixed in 1.1.0."
+    },
+    {
+     "id": "PYSEC-2026-2280",
+     "fix_versions": [
+      "1.1.0"
+     ],
+     "aliases": [
+      "CVE-2026-48817",
+      "GHSA-x746-7m8f-x49c"
+     ],
+     "description": "Starlette is a lightweight ASGI framework/toolkit. In versions 1.0.1 and below, when dispatching a request, HTTPEndpoint selects the handler by lowercasing the HTTP method and looking it up as an attribute with getattr, without restricting the lookup to a known set of HTTP verbs. When an HTTPEndpoint subclass is registered through Route(...) without an explicit methods= argument, the route does not constrain the method and every method reaches the endpoint. If a non-standard HTTP method whose lowercased name matches an attribute on the endpoint subclass reaches the endpoint, that attribute is invoked as if it were a request handler. An attacker can use this to reach methods that were never meant to be HTTP handlers, such as internal helpers, without the authorization checks applied by the intended public handler. An application (including Starlette-based frameworks like FastAPI) is affected if it registers an HTTPEndpoint subclass via Route(...) without explicitly setting methods=, and that subclass includes extra methods named like non-standard HTTP verbs that take one request argument and return a response. This issue has been fixed in version 1.1.0."
+    }
+   ]
+  },
+  {
+   "name": "tenacity",
+   "version": "8.5.0",
+   "vulns": []
+  },
+  {
+   "name": "tiktoken",
+   "version": "0.14.0",
+   "vulns": []
+  },
+  {
+   "name": "transformers",
+   "version": "4.57.6",
+   "vulns": [
+    {
+     "id": "PYSEC-2025-217",
+     "fix_versions": [],
+     "aliases": [
+      "CVE-2025-14929"
+     ],
+     "description": "Hugging Face Transformers X-CLIP Checkpoint Conversion Deserialization of Untrusted Data Remote Code Execution Vulnerability. This vulnerability allows remote attackers to execute arbitrary code on affected installations of Hugging Face Transformers. User interaction is required to exploit this vulnerability in that the target must visit a malicious page or open a malicious file.  The specific flaw exists within the parsing of checkpoints. The issue results from the lack of proper validation of user-supplied data, which can result in deserialization of untrusted data. An attacker can leverage this vulnerability to execute code in the context of the current process. Was ZDI-CAN-28308."
+    },
+    {
+     "id": "PYSEC-2026-2290",
+     "fix_versions": [],
+     "aliases": [
+      "GHSA-fgcw-684q-jj6r",
+      "CVE-2026-5241"
+     ],
+     "description": "A vulnerability in the LightGlue model loading path of huggingface/transformers version 5.2.0 allows an attacker-controlled model repository to execute arbitrary code during model initialization. The issue arises because the `trust_remote_code` parameter, intended to prevent remote code execution, is overridden by untrusted serialized configuration data in a nested code path. Specifically, when loading a LightGlue model using `AutoModel.from_pretrained()` with `trust_remote_code=False`, the `LightGlueConfig` reads the `trust_remote_code` value from the untrusted `config.json` file and propagates it into nested `AutoConfig.from_pretrained()` calls. This results in the execution of attacker-provided Python modules, even when the victim explicitly disables remote code execution. The vulnerability poses a high risk for environments such as API inference servers, research notebooks, CI/CD pipelines, and model evaluation workers, potentially leading to credential theft, lateral movement, or persistence/backdoor deployment."
+    },
+    {
+     "id": "PYSEC-2026-2288",
+     "fix_versions": [
+      "5.0.0"
+     ],
+     "aliases": [
+      "GHSA-69w3-r845-3855",
+      "CVE-2026-1839"
+     ],
+     "description": "A vulnerability in the HuggingFace Transformers library, specifically in the `Trainer` class, allows for arbitrary code execution. The `_load_rng_state()` method in `src/transformers/trainer.py` at line 3059 calls `torch.load()` without the `weights_only=True` parameter. This issue affects all versions of the library supporting `torch>=2.2` when used with PyTorch versions below 2.6, as the `safe_globals()` context manager provides no protection in these versions. An attacker can exploit this vulnerability by supplying a malicious checkpoint file, such as `rng_state.pth`, which can execute arbitrary code when loaded. The issue is resolved in version v5.0.0rc3."
+    },
+    {
+     "id": "PYSEC-2026-2289",
+     "fix_versions": [
+      "5.3.0"
+     ],
+     "aliases": [
+      "CVE-2026-4372",
+      "GHSA-29pf-2h5f-8g72"
+     ],
+     "description": "A critical remote code execution vulnerability exists in all versions of the HuggingFace transformers library prior to version 5.3.0. The vulnerability allows an attacker to craft a malicious `config.json` file containing the `_attn_implementation_internal` field set to an attacker-controlled HuggingFace Hub repository ID. When a victim loads this model using the standard `AutoModelForCausalLM.from_pretrained()` API, the library downloads and executes arbitrary Python code from the attacker's repository with the victim's full OS privileges. This issue arises due to unfiltered deserialization of configuration attributes, insufficient sanitization of internal fields, and unsandboxed execution of downloaded kernels. The vulnerability bypasses the `trust_remote_code` security mechanism, is invisible to the victim, and exploits the standard documented usage pattern, making it particularly severe. Users are advised to upgrade to version 5.3.0 or later to mitigate this issue."
+    },
+    {
+     "id": "PYSEC-2026-2290",
+     "fix_versions": [
+      "5.5.0"
+     ],
+     "aliases": [
+      "GHSA-fgcw-684q-jj6r",
+      "CVE-2026-5241"
+     ],
+     "description": "A vulnerability in the LightGlue model loading path of huggingface/transformers version 5.2.0 allows an attacker-controlled model repository to execute arbitrary code during model initialization. The issue arises because the `trust_remote_code` parameter, intended to prevent remote code execution, is overridden by untrusted serialized configuration data in a nested code path. Specifically, when loading a LightGlue model using `AutoModel.from_pretrained()` with `trust_remote_code=False`, the `LightGlueConfig` reads the `trust_remote_code` value from the untrusted `config.json` file and propagates it into nested `AutoConfig.from_pretrained()` calls. This results in the execution of attacker-provided Python modules, even when the victim explicitly disables remote code execution. The vulnerability poses a high risk for environments such as API inference servers, research notebooks, CI/CD pipelines, and model evaluation workers, potentially leading to credential theft, lateral movement, or persistence/backdoor deployment."
+    },
+    {
+     "id": "CVE-2026-9856",
+     "fix_versions": [
+      "5.10.0"
+     ],
+     "aliases": [
+      "GHSA-xrqw-3rrv-vx5w"
+     ],
+     "description": "A vulnerability in huggingface/transformers versions < 5.10.0 allows an attacker to perform arbitrary file writes via path traversal. The issue resides in the `save_pretrained()` methods of `PreTrainedTokenizerBase` and `ProcessorMixin`, where keys from the `chat_template` dictionary are used directly as filenames without proper validation. An attacker can exploit this by publishing a malicious Hugging Face Hub repository with a crafted `tokenizer_config.json` file. When a victim downloads and saves the tokenizer or processor, the attacker-controlled keys can escape the intended save directory, enabling arbitrary file writes with attacker-controlled content. This vulnerability affects multiple processors inheriting from `ProcessorMixin`, including Idefics, Florence, Gemma, Phi, and Qwen-VL."
+    }
+   ]
+  },
+  {
+   "name": "huggingface-hub",
+   "version": "0.36.2",
+   "vulns": []
+  },
+  {
+   "name": "tokenizers",
+   "version": "0.22.2",
+   "vulns": []
+  },
+  {
+   "name": "typing-extensions",
+   "version": "4.16.0",
+   "vulns": []
+  },
+  {
+   "name": "typing-inspect",
+   "version": "0.9.0",
+   "vulns": []
+  },
+  {
+   "name": "urllib3",
+   "version": "2.7.0",
+   "vulns": []
+  },
+  {
+   "name": "yarl",
+   "version": "1.24.5",
+   "vulns": []
+  },
+  {
+   "name": "python-multipart",
+   "version": "0.0.32",
+   "vulns": []
+  },
+  {
+   "name": "aiohappyeyeballs",
+   "version": "2.7.1",
+   "vulns": []
+  },
+  {
+   "name": "aiosignal",
+   "version": "1.4.0",
+   "vulns": []
+  },
+  {
+   "name": "annotated-types",
+   "version": "0.8.0",
+   "vulns": []
+  },
+  {
+   "name": "attrs",
+   "version": "26.1.0",
+   "vulns": []
+  },
+  {
+   "name": "build",
+   "version": "1.3.0",
+   "vulns": []
+  },
+  {
+   "name": "certifi",
+   "version": "2026.7.22",
+   "vulns": []
+  },
+  {
+   "name": "click",
+   "version": "8.5.0",
+   "vulns": []
+  },
+  {
+   "name": "colorama",
+   "version": "0.4.6",
+   "vulns": []
+  },
+  {
+   "name": "frozenlist",
+   "version": "1.8.0",
+   "vulns": []
+  },
+  {
+   "name": "fsspec",
+   "version": "2026.7.0",
+   "vulns": []
+  },
+  {
+   "name": "greenlet",
+   "version": "3.5.5",
+   "vulns": []
+  },
+  {
+   "name": "grpcio",
+   "version": "1.83.1",
+   "vulns": []
+  },
+  {
+   "name": "h11",
+   "version": "0.16.0",
+   "vulns": []
+  },
+  {
+   "name": "httptools",
+   "version": "0.8.0",
+   "vulns": []
+  },
+  {
+   "name": "jsonpointer",
+   "version": "3.1.1",
+   "vulns": []
+  },
+  {
+   "name": "kubernetes",
+   "version": "36.0.3",
+   "vulns": []
+  },
+  {
+   "name": "durationpy",
+   "version": "0.11",
+   "vulns": []
+  },
+  {
+   "name": "limits",
+   "version": "5.8.0",
+   "vulns": []
+  },
+  {
+   "name": "deprecated",
+   "version": "1.3.1",
+   "vulns": []
+  },
+  {
+   "name": "wrapt",
+   "version": "2.4.0",
+   "vulns": []
+  },
+  {
+   "name": "mmh3",
+   "version": "5.3.0",
+   "vulns": []
+  },
+  {
+   "name": "mypy-extensions",
+   "version": "1.1.0",
+   "vulns": []
+  },
+  {
+   "name": "onnxruntime",
+   "version": "1.29.0",
+   "vulns": []
+  },
+  {
+   "name": "opentelemetry-api",
+   "version": "1.44.0",
+   "vulns": []
+  },
+  {
+   "name": "opentelemetry-exporter-otlp-proto-grpc",
+   "version": "1.44.0",
+   "vulns": []
+  },
+  {
+   "name": "opentelemetry-exporter-otlp-proto-common",
+   "version": "1.44.0",
+   "vulns": []
+  },
+  {
+   "name": "opentelemetry-proto",
+   "version": "1.44.0",
+   "vulns": []
+  },
+  {
+   "name": "googleapis-common-protos",
+   "version": "1.75.3",
+   "vulns": []
+  },
+  {
+   "name": "opentelemetry-sdk",
+   "version": "1.44.0",
+   "vulns": []
+  },
+  {
+   "name": "opentelemetry-semantic-conventions",
+   "version": "0.65b0",
+   "vulns": []
+  },
+  {
+   "name": "protobuf",
+   "version": "7.36.1",
+   "vulns": []
+  },
+  {
+   "name": "opentelemetry-instrumentation-fastapi",
+   "version": "0.65b0",
+   "vulns": []
+  },
+  {
+   "name": "opentelemetry-instrumentation",
+   "version": "0.65b0",
+   "vulns": []
+  },
+  {
+   "name": "opentelemetry-instrumentation-asgi",
+   "version": "0.65b0",
+   "vulns": []
+  },
+  {
+   "name": "opentelemetry-util-http",
+   "version": "0.65b0",
+   "vulns": []
+  },
+  {
+   "name": "asgiref",
+   "version": "3.12.1",
+   "vulns": []
+  },
+  {
+   "name": "overrides",
+   "version": "7.7.0",
+   "vulns": []
+  },
+  {
+   "name": "posthog",
+   "version": "7.47.0",
+   "vulns": []
+  },
+  {
+   "name": "backoff",
+   "version": "2.2.1",
+   "vulns": []
+  },
+  {
+   "name": "propcache",
+   "version": "0.5.2",
+   "vulns": []
+  },
+  {
+   "name": "pulsar-client",
+   "version": "3.13.0",
+   "vulns": []
+  },
+  {
+   "name": "pypika",
+   "version": "0.51.1",
+   "vulns": []
+  },
+  {
+   "name": "python-dateutil",
+   "version": "2.9.0.post0",
+   "vulns": []
+  },
+  {
+   "name": "pyyaml",
+   "version": "6.0.3",
+   "vulns": []
+  },
+  {
+   "name": "regex",
+   "version": "2026.9.3",
+   "vulns": []
+  },
+  {
+   "name": "safetensors",
+   "version": "0.8.0",
+   "vulns": []
+  },
+  {
+   "name": "six",
+   "version": "1.17.0",
+   "vulns": []
+  },
+  {
+   "name": "torch",
+   "version": "2.14.0",
+   "vulns": []
+  },
+  {
+   "name": "networkx",
+   "version": "3.6.1",
+   "vulns": []
+  },
+  {
+   "name": "sympy",
+   "version": "1.14.0",
+   "vulns": []
+  },
+  {
+   "name": "mpmath",
+   "version": "1.3.0",
+   "vulns": []
+  },
+  {
+   "name": "tqdm",
+   "version": "4.70.0",
+   "vulns": []
+  },
+  {
+   "name": "typer",
+   "version": "0.27.2",
+   "vulns": []
+  },
+  {
+   "name": "annotated-doc",
+   "version": "0.0.5",
+   "vulns": []
+  },
+  {
+   "name": "rich",
+   "version": "15.0.0",
+   "vulns": []
+  },
+  {
+   "name": "pygments",
+   "version": "2.21.0",
+   "vulns": []
+  },
+  {
+   "name": "markdown-it-py",
+   "version": "4.2.0",
+   "vulns": []
+  },
+  {
+   "name": "mdurl",
+   "version": "0.1.2",
+   "vulns": []
+  },
+  {
+   "name": "shellingham",
+   "version": "1.5.4",
+   "vulns": []
+  },
+  {
+   "name": "typing-inspection",
+   "version": "0.4.4",
+   "vulns": []
+  },
+  {
+   "name": "watchfiles",
+   "version": "1.2.0",
+   "vulns": []
+  },
+  {
+   "name": "websocket-client",
+   "version": "1.9.2",
+   "vulns": []
+  },
+  {
+   "name": "websockets",
+   "version": "17.1",
+   "vulns": []
+  },
+  {
+   "name": "filelock",
+   "version": "3.32.5",
+   "vulns": []
+  },
+  {
+   "name": "flatbuffers",
+   "version": "25.12.19",
+   "vulns": []
+  },
+  {
+   "name": "importlib-resources",
+   "version": "7.1.0",
+   "vulns": []
+  },
+  {
+   "name": "jinja2",
+   "version": "3.1.6",
+   "vulns": []
+  },
+  {
+   "name": "markupsafe",
+   "version": "3.0.3",
+   "vulns": []
+  },
+  {
+   "name": "pillow",
+   "version": "12.3.0",
+   "vulns": []
+  },
+  {
+   "name": "pyproject-hooks",
+   "version": "1.2.0",
+   "vulns": []
+  },
+  {
+   "name": "requests-oauthlib",
+   "version": "2.0.0",
+   "vulns": []
+  },
+  {
+   "name": "oauthlib",
+   "version": "3.3.1",
+   "vulns": []
+  },
+  {
+   "name": "scikit-learn",
+   "version": "1.9.0",
+   "vulns": []
+  },
+  {
+   "name": "joblib",
+   "version": "1.6.0",
+   "vulns": []
+  },
+  {
+   "name": "cloudpickle",
+   "version": "3.1.2",
+   "vulns": []
+  },
+  {
+   "name": "narwhals",
+   "version": "2.25.0",
+   "vulns": []
+  },
+  {
+   "name": "scipy",
+   "version": "1.17.1",
+   "vulns": []
+  },
+  {
+   "name": "threadpoolctl",
+   "version": "3.6.0",
+   "vulns": []
+  },
+  {
+   "name": "sniffio",
+   "version": "1.3.1",
+   "vulns": []
+  }
+ ],
+ "fixes": []
+}

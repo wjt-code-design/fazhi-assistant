@@ -1,0 +1,13 @@
+{
+ "run": "r1-accept-holdout-20260914",
+ "targets": [
+  "H01",
+  "H02",
+  "H03",
+  "H04",
+  "H05"
+ ],
+ "started_at": "2026-09-13T19:20:09.895145+00:00",
+ "pid": 9432,
+ "protocol_version": "v1"
+}

@@ -6,6 +6,7 @@
 
 用法：python scripts/test_mcp_models.py
 """
+
 import base64
 import json
 import os
@@ -90,7 +91,7 @@ def main() -> int:
         subprocess.run(["powershell", "-NoProfile", "-Command", ps], check=True, capture_output=True)
     print(f"测试音频: {wav} ({os.path.getsize(wav)}B)")
 
-    print(f"\n=== 视觉测试 (qwen3.5-omni-plus) ===")
+    print("\n=== 视觉测试 (qwen3.5-omni-plus) ===")
     img_b64 = base64.b64encode(open(img, "rb").read()).decode()
     img_content = [
         {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}},
@@ -98,7 +99,7 @@ def main() -> int:
     ]
     print(call_omni(img_content)[:500])
 
-    print(f"\n=== 音频测试 (qwen3.5-omni-plus input_audio) ===")
+    print("\n=== 音频测试 (qwen3.5-omni-plus input_audio) ===")
     wav_b64 = base64.b64encode(open(wav, "rb").read()).decode()
     audio_content = [
         {"type": "input_audio", "input_audio": {"data": f"data:;base64,{wav_b64}", "format": "wav"}},

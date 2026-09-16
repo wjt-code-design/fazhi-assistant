@@ -5,6 +5,7 @@
 """
 
 import contextvars
+import hashlib
 import json
 import logging
 import time
@@ -15,10 +16,86 @@ request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id
 # token_est/tier/cache/escalated/verdict：log_account 实际传入的记账字段——此前遗漏被
 # JSON formatter 静默丢弃（每问成本算不出、eval_latency_log 的 rule 剔除恒为 0），
 # 2026-08-03 交付级验收修复。追加尾部，不动既有字段顺序。
+# llm_adapter_stage/llm_invoke_mode/llm_error_class/llm_error_status_code/llm_invoke_duration_ms：
+# T4（2026-09-09）adapter 降级观测字段，同规则追加尾部（否则被 formatter 静默丢弃）。
+# agent_repair_stage/agent_issue_count/agent_coverage_gap_count/agent_non_verbatim_count：
+#   V2-T8（2026-09-10）分解「事实缺陷修复环」观测字段。
+# agent_pre_run_reason/agent_conversation_id/agent_failure_detail：V2-T8（2026-09-10）修复——
+#   `_log_pre_run_failure`（agent/service.py）一直在传这三个字段，但从未登记在此，
+#   导致**预运行失败的唯一诊断点整体失明**：ISSUE_DECOMPOSITION_INVALID 的 7 种抛错文案
+#   （runtime.py 的 IssueDecompositionError）在日志里坍缩成一个"未知"。
+#   实测代价见 handoff §12.3；修复后已于 §12.11 验证轮拿到确切死因。
+# agent_run_id/agent_planner_raw_tail/agent_actual_route/agent_fallback_reason：V2-T8 **自审**用
+#   AST 哨兵（`tests/test_log_field_whitelist.py`）扫出的**同族**静默丢弃，一并登记：
+#     - agent_run_id（service.py 崩溃诊断）：**连哪个 run 崩了都记不到**，且该行未传 request_id ⇒ 零标识；
+#     - agent_planner_raw_tail（controller.py）：PLANNER_PARSE_ERROR 事后复盘丢掉原始输出；
+#     - agent_actual_route / agent_fallback_reason（main.py）：无法审计"是否真的走了 agent 路径"
+#       —— 而 §6.2 警告的"漏设 AGENT_ENABLED 会静默走 RAG"正靠这两个字段发现。
 _ACCOUNT_FIELDS = (
-    "method", "path", "status", "ms", "first_ms", "model", "ok", "conv_id", "user_id", "q_len",
-    "token_est", "tier", "cache", "escalated", "verdict", "kind", "detail",
+    "method",
+    "path",
+    "status",
+    "ms",
+    "first_ms",
+    "model",
+    "ok",
+    "conv_id",
+    "user_id",
+    "q_len",
+    "token_est",
+    "tier",
+    "cache",
+    "escalated",
+    "verdict",
+    "kind",
+    "detail",
+    "agent_correlation_id",
+    "agent_gate_mode",
+    "agent_gate_reason_codes",
+    "llm_adapter_stage",
+    "llm_invoke_attempt",
+    "llm_invoke_mode",
+    "llm_error_class",
+    "llm_error_status_code",
+    "llm_invoke_duration_ms",
+    "agent_repair_stage",
+    "agent_issue_count",
+    "agent_coverage_gap_count",
+    "agent_non_verbatim_count",
+    "agent_pre_run_reason",
+    "agent_conversation_id",
+    "agent_failure_detail",
+    "agent_run_id",
+    "agent_planner_raw_tail",
+    "agent_actual_route",
+    "agent_fallback_reason",
+    # agent_coverage_issues：2026-09-12 覆盖率闸门终态失败的逐争点归因字段
+    # （claim 数 / 绑定生效成文法的 claim 数 / 是否判缺绑定）。只含 issue_id 与计数，
+    # 不含任何用户文本。未登记会被 JSON formatter 静默丢弃 → 失败重新变得不可归因。
+    "agent_coverage_issues",
+    # agent_writer_summary：2026-09-12 writer 侧归因字段（每次渲染的 reason /
+    # 是否回喂 / 提出·接受·丢弃的 claim 计数 / 逐争点明细 / 失败的争点）。
+    # 用于区分「模型没产出 claim」与「产出后因 evidence_ids 为空被静默丢弃」。
+    # 同样只含标识与计数，不含草稿文本。
+    "agent_writer_summary",
+    # R1/R1b 部门法守卫（2026-09-14，预注册 dept-law-filter-r1）：
+    #   dept_filter_removed（R1 证据池剔除）与 proc_misroute_detected / proc_misroute_flag
+    #   （R1b 终稿串台红线）的可观测字段。query 为 Agent 逐争点检索的聚焦问句（非用户原文）。
+    "proc_misroute_citations",
+    "agent_domain",
+    "query",
+    "domain",
+    "removed",
+    # rerank_transient_failure（2026-09-14，retrieval._rerank_docs）：限速 429 / 5xx / 连接抖动
+    # 走"只降级本次、不标记模型耗尽"分支时的可观测字段。
+    # 未登记会被 JSON formatter 静默丢弃 → "rerank 是否在被限速"重新变得不可归因
+    # （实测动机：一次偶发失败曾导致同进程内后续 35 次全部静默降级，且日志里看不到原因）。
+    # 只含模型名与异常类名/摘要（截断 160 字符），不含任何用户文本或密钥。
+    "rerank_model",
+    "rerank_error",
 )
+
+_TEST_REQUEST_ID_FALLBACK = "unit-test-no-middleware-request-id"
 
 
 class _JsonFormatter(logging.Formatter):
@@ -105,3 +182,17 @@ def log_account(**kw) -> None:
     extra = {"request_id": request_id_var.get()}
     extra.update(kw)
     logging.getLogger("legal.chat").info("chat", extra=extra)
+
+
+def make_agent_correlation_id(conversation_id: int | str | None, request_id: str | None = None) -> str:
+    """Return a privacy-safe correlation id for one Shadow Gate observation.
+
+    Production uses the middleware request id from ``request_id_var``. Direct unit
+    calls have no middleware context, so ``-`` maps to a documented deterministic
+    fallback. Only the hash is exposed to logs and metric calls.
+    """
+    current_request_id = request_id if request_id is not None else request_id_var.get()
+    if not current_request_id or current_request_id == "-":
+        current_request_id = _TEST_REQUEST_ID_FALLBACK
+    material = f"agent-gate-v1\x00{current_request_id}\x00{conversation_id if conversation_id is not None else '-'}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]

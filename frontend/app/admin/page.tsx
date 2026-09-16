@@ -3,68 +3,21 @@ import { useEffect, useRef, useState, ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import { api, adminApi } from "@/lib/api";
+import { formatDateTime } from "@/lib/format";
 import { Logo, Spinner, StatCard, Badge, SectionTitle, EmptyState, Skeleton } from "@/components/ui";
+import type {
+  AdminSection as Section,
+  Stats,
+  UserRow,
+  KnowledgeDoc,
+  KnowledgePage,
+  ConvRow,
+  QaCandidate,
+  KnowledgeHit,
+  AuditRow,
+} from "@/lib/types";
 
-type Section = "stats" | "users" | "knowledge" | "upload" | "conversations" | "audit";
-interface Stats {
-  user_count: number;
-  conversation_count: number;
-  knowledge_count: number;
-  knowledge_expired?: number;
-  llm_model: string;
-  qa_pending?: number;
-}
-interface UserRow {
-  id: number;
-  username: string;
-  role: string;
-  is_active: boolean;
-  created_at: string;
-}
-interface KnowledgeDoc {
-  id: string;
-  content: string;
-  metadata: { source?: string; article?: string; origin?: string; status?: string; effective_from?: string; effective_to?: string };
-}
-interface KnowledgePage {
-  items: KnowledgeDoc[];
-  total: number;
-}
 const K_PAGE_SIZE = 50;
-interface ConvRow {
-  id: number;
-  username: string;
-  question: string;
-  answer: string;
-  created_at: string;
-}
-interface QaCandidate {
-  id: number;
-  question: string;
-  answer: string;
-  grounded_score: number;
-  evidence: string;
-  status: string;
-  created_at?: string;
-}
-interface KnowledgeHit {
-  chunk: string;
-  source: string;
-  article: string;
-  origin: string;
-  status?: string;
-  effective_from?: string;
-  effective_to?: string;
-  score: number;
-}
-interface AuditRow {
-  id: number;
-  admin: string;
-  action: string;
-  target: string;
-  detail: string;
-  created_at?: string;
-}
 const ICONS: Record<Section, ReactNode> = {
   stats: (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
@@ -515,7 +468,7 @@ export default function AdminPage() {
                         <td>{u.role === "admin" ? <Badge kind="accent">管理员</Badge> : <Badge>用户</Badge>}</td>
                         <td>{u.is_active ? <Badge kind="success" dot>正常</Badge> : <Badge kind="error" dot>已禁用</Badge>}</td>
                         <td className="whitespace-nowrap text-slate">
-                          {u.created_at ? new Date(u.created_at).toLocaleString("zh-CN") : "-"}
+                          {u.created_at ? formatDateTime(u.created_at) : "-"}
                         </td>
                         <td>
                           <div className="flex items-center justify-end gap-1.5">
@@ -604,7 +557,7 @@ export default function AdminPage() {
                 {/* 受控沉淀待审 */}
                 <div className="glass-card mt-4 rounded-xl px-5 py-4">
                   <SectionTitle>受控沉淀 · 待审</SectionTitle>
-                  <p className="mt-2 text-sm text-slate">高有据且带引用的问答会自动进入此处，采纳后写入"已确认问答"，今后相似问题可直接复用。</p>
+                  <p className="mt-2 text-sm text-slate">高有据且带引用的问答会自动进入此处，采纳后写入&quot;已确认问答&quot;，今后相似问题可直接复用。</p>
                   {candidates.filter((c) => c.status === "pending").length === 0 && <p className="mt-3 text-sm text-slate">暂无待审候选。</p>}
                   <div className="mt-3 space-y-2">
                     {candidates
@@ -845,7 +798,7 @@ export default function AdminPage() {
                         <td className="max-w-[200px] truncate">{c.question}</td>
                         <td className="max-w-[320px] truncate text-slate">{c.answer}</td>
                         <td className="whitespace-nowrap text-slate">
-                          {new Date(c.created_at).toLocaleString("zh-CN")}
+                          {formatDateTime(c.created_at)}
                         </td>
                       </tr>
                     ))}

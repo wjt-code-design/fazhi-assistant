@@ -1,0 +1,44 @@
+Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event CollectionQueryEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event CollectionGetEvent: capture() takes 1 positional argument but 3 were given
+Building prefix dict from the default dictionary ...
+Loading model from cache C:\Users\33393\AppData\Local\Temp\jieba.cache
+Loading model cost 0.432 seconds.
+Prefix dict has been built successfully.
+rerank_enabled=False  cache_bypassed=invalidate() per query
+
+=== REAL-q1（现状：事实性问题） ===
+query: 公司主张的连续两次绩效不合格事实是否成立？
+  top8: ['公司法第二十七条', '产品质量法第五十八条', '安全生产法第九十二条', '民法典第七百九十三条', '政府采购法第八十二条', '公司法第二百五十七条', '公司法第二百五十条', '产品质量法第五十六条']
+  required_hits: 0/4 []
+
+=== REAL-q2（现状：程序问题） ===
+query: 即使绩效不合格，公司直接解除合同而未进行培训或调岗是否合法？
+  top8: ['劳动法第九十九条', '劳动法第二十五条', '劳动法第九十七条', '劳动法第九十八条', '劳动合同法第二十二条', '劳动合同法第三十九条', '劳动法第三十二条', '劳动合同法第八十九条']
+  required_hits: 0/4 []
+
+=== REAL-q3（现状：赔偿问题） ===
+query: 公司未支付任何经济补偿即解除合同，劳动者能否要求赔偿金？
+  top8: ['劳动法第九十九条', '劳动法第九十一条', '劳动争议调解仲裁法第十六条', '劳动合同法第八十七条', '劳动合同法第四十七条', '劳动法第九十七条', '民法典第五百七十九条', '社会保险法第八十五条']
+  required_hits: 2/4 ['劳动合同法第四十七条', '劳动合同法第八十七条']
+
+=== A 法律概念关键词 ===
+query: 绩效不合格 不能胜任工作 解除劳动合同
+  top8: ['劳动法第二十五条', '劳动合同法第三十九条', '社会保险法第八十五条', '劳动合同法第二十一条', '劳动法第九十八条', '劳动合同法第八十七条', '劳动法第二十六条', '劳动合同法第三十八条']
+  required_hits: 1/4 ['劳动合同法第八十七条']
+
+=== B 法名+条号锚点 ===
+query: 劳动合同法第四十条 第四十三条 第四十七条
+  top8: ['劳动合同法第四十条']
+  required_hits: 1/4 ['劳动合同法第四十条']
+
+=== C 法条要件句 ===
+query: 不能胜任工作 经过培训或者调整工作岗位 仍不能胜任工作 提前三十日书面通知 解除劳动合同
+  top8: ['劳动合同法第三十七条', '劳动法第二十六条', '劳动法第三十一条', '劳动合同法第四十条', '劳动法第三十二条', '劳动合同法第三十八条', '社会保险法第八十五条', '劳动法第二十五条']
+  required_hits: 1/4 ['劳动合同法第四十条']
+
+=== D 罪名/概念混合 ===
+query: 不能胜任工作解除劳动合同 工会程序 经济补偿标准 二倍赔偿金
+  top8: ['劳动合同法第八十七条', '劳动合同法第四十七条', '劳动法第九十一条', '劳动争议调解仲裁法第十六条', '劳动法第二十八条', '劳动合同法第八十五条', '劳动法第三十条', '劳动法第九十九条']
+  required_hits: 2/4 ['劳动合同法第四十七条', '劳动合同法第八十七条']

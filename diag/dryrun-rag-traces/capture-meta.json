@@ -1,0 +1,14 @@
+{
+ "mode": "existing_rag",
+ "execution_id": "dryrun-rag-20260905",
+ "case_set_sha256": "51e869d7baaf38178ed57c8b70ecc27d5437a20531a65398da5b41b1491a0ab0",
+ "controls": {
+  "timeout_seconds": 90,
+  "total_timeout_seconds": 3600,
+  "max_retries": 1,
+  "concurrency": 1,
+  "cache_policy": "disabled",
+  "max_output_tokens": 4096,
+  "max_tool_calls": 8
+ }
+}

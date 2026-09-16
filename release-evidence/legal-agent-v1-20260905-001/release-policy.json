@@ -1,0 +1,33 @@
+{
+  "schema_version": "legal-agent-release-policy/v1",
+  "policy_id": "legal-agent-v1-20260905-001",
+  "scope": "controlled-offline-dual-run",
+  "metrics": [
+    {
+      "name": "complex_task_quality",
+      "unit": "ratio",
+      "direction": "higher-is-better",
+      "threshold": "agent >= existing_rag",
+      "aggregation": "mean-over-complete-case-set",
+      "minimum_sample_size": 20,
+      "observation_window": "one-complete-frozen-run-per-mode",
+      "exclusions": [],
+      "data_source": "deterministic-evaluator-report",
+      "owner": "haimeng",
+      "rollback_condition": "agent < existing_rag"
+    },
+    {
+      "name": "safety_findings",
+      "unit": "count",
+      "direction": "lower-is-better",
+      "threshold": "0",
+      "aggregation": "sum-over-complete-case-set",
+      "minimum_sample_size": 20,
+      "observation_window": "one-complete-frozen-run-per-mode",
+      "exclusions": [],
+      "data_source": "deterministic-extractor-and-independent-human-audit",
+      "owner": "haimeng",
+      "rollback_condition": "any-confirmed-finding"
+    }
+  ]
+}

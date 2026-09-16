@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "起诉时《民法典》已生效",
+  "issue_id": "issue_1645ad1257334f5ecd7812b0"
+ }
+]

@@ -15,6 +15,7 @@
 - 🖼 图片咨询（omni 读图）、多轮上下文增量压缩、受控沉淀 QA 库
 - 🔐 登录鉴权（JWT）、管理员后台（知识增删/QA 审核/用户管理/**模型配额面板**）
 - 🔀 **多模型分级路由**：按复杂度/模态路由 + 轻量自检升级 + 相同问题回答缓存（零 token）+ 配额监控自动切换
+- 🧠 **Legal Agent V1（安全关闭默认）**：复杂法律任务按 Issue→工具证据→受限起草→确定性逐 Claim 验证执行；支持澄清后从持久化检查点继续
 - 🐳 Docker 一键部署（`docker compose up`）
 
 ## 快速开始
@@ -98,6 +99,15 @@ venv\Scripts\python scripts/smoke_citation_full.py    # 需后端运行 + LLM ke
 ## 兼容性说明
 
 前端已适配移动端：聊天与后台页面内建响应式（侧栏折叠 / 无横向溢出 / 输入框 ≥16px 防 iOS 缩放）；登录页 Lighthouse 移动端均分 ≥95（Performance 100 / Accessibility 95 / Best Practices 96 / SEO 100，详见 `docs/BENCHMARK.md`）。
+
+### Legal Agent V1 灰度开关
+
+默认部署保持现有 Fast Path：`AGENT_ENABLED=false`、`AGENT_TRAFFIC_PERCENT=0`。可先设置
+`AGENT_SHADOW_ENABLED=true` 只记录 Gate 预测而不启动 Agent。启用实时路径时需同时设置
+`AGENT_ENABLED=true` 和 `AGENT_TRAFFIC_PERCENT=1..100`；流量分配使用稳定 SHA-256 桶，
+Gate 未接受的请求仍走 Fast Path。紧急回滚将 `AGENT_ENABLED=false` 且流量设为 `0` 后重启后端；
+已持久化的 Agent run 会保留，但关闭期间不会继续执行。只有技术白名单故障可显式回退 Fast Path，
+策略、所有权、输入校验和普通验证失败不会通过回退绕过安全边界。
 
 ## 已知限制（诚实标注）
 

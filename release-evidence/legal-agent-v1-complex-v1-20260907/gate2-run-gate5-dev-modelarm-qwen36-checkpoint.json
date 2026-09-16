@@ -1,0 +1,777 @@
+{
+ "run": "gate5-dev-modelarm-qwen36",
+ "targets": [
+  "C01",
+  "C02",
+  "C03",
+  "C04",
+  "C05",
+  "C06",
+  "C07",
+  "C08",
+  "C09",
+  "C10"
+ ],
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "0b8b61d7-f6e4-4148-bc95-86555629e97b",
+      "state_version": 4,
+      "conv_id": 2337
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "解除通知写“不胜任工作”"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "NON_CANONICAL_CITATION"
+     ],
+     "clar_meta": {
+      "run_id": "0b8b61d7-f6e4-4148-bc95-86555629e97b",
+      "state_version": 8,
+      "conv_id": 2337
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "公司是否支付了相当于一个月工资的代通知金（N+1中的1）。"
+    },
+    {
+     "round": 2,
+     "prompt": "双方劳动合同中是否约定了特定的解除通知期或程序条款。"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r1-f2"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "公司是否支付了相当于一个月工资的代通知金（N+1中的1）。",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "NON_CANONICAL_CITATION"
+   ],
+   "conv_id": 2337,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 18.3
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "fe3cfec2-0d24-4e5a-b3c4-8dd8c7a91dfe",
+      "state_version": 4,
+      "conv_id": 2338
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "工资结构和调休日期不完整"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "fe3cfec2-0d24-4e5a-b3c4-8dd8c7a91dfe",
+      "state_version": 8,
+      "conv_id": 2338
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "加班发生的时间段属于工作日延长、休息日还是法定节假日"
+    },
+    {
+     "round": 2,
+     "prompt": "劳动合同中约定的工资结构及加班费计算基数明确"
+    }
+   ],
+   "answered_fact_ids": [
+    "C02-r1-f2",
+    "C02-r2-f2"
+   ],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2338,
+   "final_chars": 878,
+   "final_text": "已确认事实：\n- 公司让我长期加班\n- 工资条没有加班费\n- 过去一年几乎每周六工作，公司群里有排班\n- 工资结构和调休日期不完整\n\n尚不确定的事实：\n- 劳动者能够证明存在具体的加班时长和加班事实（如考勤记录、工作邮件、审批单等）\n- 加班属于公司安排或经公司批准，而非劳动者自愿滞留\n- 劳动者主张加班费的具体起止时间段\n- 是否存在时效中断或中止的情形（如持续主张权利的证据）\n- 工资条或合同中是否明确列明加班费构成，或约定固定薪资已包含所有加班费用\n- 所谓“包薪”是否经过民主程序制定并公示，且明确区分基本工资与加班费\n\n核心法律争点：\n- 公司是否存在长期加班且未支付加班费的事实？\n- 加班费的计算基数和倍数是否符合法律规定及合同约定？\n- 追索加班费的仲裁时效是否已过？\n- 双方是否存在关于“包薪制”或“已包含加班费”的有效约定？\n\n法律依据：\n- 《劳动合同法》第八十五条\n- 《劳动合同法》第三十一条\n- 《劳动合同法》第八十二条\n- 《劳动争议调解仲裁法》第九条\n- 《劳动法》第三十七条\n- 《劳动法》第四十四条\n- 《劳动争议调解仲裁法》第二十七条\n- 《仲裁法》第九十条\n- 《民法典》第一百九十八条\n- 《民法典》第一百九十五条\n- 《民法典》第七百八十六条\n- 《民法典》第七百八十二条\n- 《民法典》第四百八十九条\n\n分情形分析：\n- （无）\n\n可执行建议与风险提示：\n用人单位安排加班的,应当按照国家有关规定向劳动者支付加班费;未按照劳动合同约定或国家规定及时足额支付劳动报酬的,由劳动行政部门责令限期支付。\n用人单位安排劳动者延长工作时间的,应支付不低于工资百分之一百五十的工资报酬;休息日安排工作又不能补休的,支付不低于百分之二百的工资报酬。\n劳动争议申请仲裁的时效期间为一年,从当事人知道或者应当知道其权利被侵害之日起计算;劳动关系存续期间因拖欠劳动报酬发生争议的,不受该时效限制,但劳动关系终止的,应自终止之日起一年内提出。\n用人单位不得强迫或者变相强迫劳动者加班,安排加班的应当按照国家有关规定支付加班费。",
+   "final_excerpt": "已确认事实：\n- 公司让我长期加班\n- 工资条没有加班费\n- 过去一年几乎每周六工作，公司群里有排班\n- 工资结构和调休日期不完整\n\n尚不确定的事实：\n- 劳动者能够证明存在具体的加班时长和加班事实（如考勤记录、工作邮件、审批单等）\n- 加",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 23.0
+  },
+  "C03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "25121c49-ff32-4e44-a3e3-ce3a1db729c6",
+      "state_version": 4,
+      "conv_id": 2339
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "我昨天提交了离职通知"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "25121c49-ff32-4e44-a3e3-ce3a1db729c6",
+      "state_version": 8,
+      "conv_id": 2339
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动者在入职后第一个月内曾提出签订书面劳动合同但被用人单位拒绝或未予回应。"
+    },
+    {
+     "round": 2,
+     "prompt": "劳动者离职的具体原因及是否有证据证明系因单位不签合同而被迫离职。"
+    }
+   ],
+   "answered_fact_ids": [
+    "C03-r1-f3"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "劳动者在入职后第一个月内曾提出签订书面劳动合同但被用人单位拒绝或未予回应。",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2339,
+   "final_chars": 951,
+   "final_text": "已确认事实：\n- 我工作十个月一直没签合同\n- 现在主动离职\n- 我昨天提交了离职通知\n- 我工作十个月一直没签合同\n- 现在主动离职\n- 我工作十个月一直没签合同\n\n尚不确定的事实：\n- 劳动者申请劳动仲裁的具体日期以及各地对于未签劳动合同二倍工资仲裁时效起算点的司法认定标准（是逐月计算还是劳动关系终止之日计算）。\n- 工作满一年未满一年的时间段内，法律后果是否直接触发无固定期限劳动合同的强制缔约义务从而停止二倍工资计算。\n\n核心法律争点：\n- 用人单位未在用工之日起一个月内与劳动者订立书面劳动合同，是否应当支付未签劳动合同的二倍工资？\n- 劳动者主动离职的行为是否影响其主张未签劳动合同二倍工资的请求权？\n- 劳动者主张的二倍工资是否已超过仲裁时效？\n- 双方是否存在视为已订立无固定期限劳动合同的情形，从而影响二倍工资的计算基数或期限？\n\n法律依据：\n- 《劳动合同法》第八十二条\n- 《劳动法》第九十九条\n- 《劳动合同法》第二十五条\n- 《劳动合同法》第十条\n- 《劳动法》第八十二条\n- 《劳动争议调解仲裁法》第四十一条\n- 《劳动争议调解仲裁法》第五条\n- 《劳动争议调解仲裁法》第二十七条\n- 《劳动争议调解仲裁法》第四十七条\n- 《劳动争议调解仲裁法》第四十八条\n- 《劳动合同法》第十三条\n- 《劳动合同法》第二十七条\n- 《劳动合同法》第十二条\n\n分情形分析：\n发生劳动争议,当事人不愿协商、协商不成或者达成和解协议后不履行的,可以向调解组织申请调解;不愿调解、调解不成或者达成调解协议后不履行的,可以向劳动争议仲裁委员会申请仲裁;对仲裁裁决不服的,除本法另有规定的外,可以向人民法院提起诉讼。\n劳动争议申请仲裁的时效期间为一年。仲裁时效期间从当事人知道或者应当知道其权利被侵害之日起计算。劳动关系存续期间因拖欠劳动报酬发生争议的,劳动者申请仲裁不受本条第一款规定的仲裁时效期间的限制;但是,劳动关系终止的,应当自劳动关系终止之日起一年内提出。\n用人单位自用工之日起超过一个月不满一年未与劳动者订立书面劳动合同的,应当向劳动者每月支付二倍的工资。\n\n可执行建议与风险提示：\n用人单位自用工之日起超过一个月不满一年未与劳动者订立书面劳动合同的,应当向劳动者每月支付二倍的工资。",
+   "final_excerpt": "已确认事实：\n- 我工作十个月一直没签合同\n- 现在主动离职\n- 我昨天提交了离职通知\n- 我工作十个月一直没签合同\n- 现在主动离职\n- 我工作十个月一直没签合同\n\n尚不确定的事实：\n- 劳动者申请劳动仲裁的具体日期以及各地对于未签劳动合",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 22.1
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "e91d1925-7e78-4c54-ad63-70b9a5e26760",
+      "state_version": 4,
+      "conv_id": 2340
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "CROSS_ISSUE_EVIDENCE"
+     ],
+     "clar_meta": {
+      "run_id": "e91d1925-7e78-4c54-ad63-70b9a5e26760",
+      "state_version": 8,
+      "conv_id": 2340
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "合同约定的违约金比例、房屋当前的市场增值幅度以及买方因房价上涨产生的具体差价损失数额。"
+    },
+    {
+     "round": 2,
+     "prompt": "该十万元在双方约定或交易习惯中被明确界定为定金（而非预付款或订金），且存在书面定金合同或条款。"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "合同约定的违约金比例、房屋当前的市场增值幅度以及买方因房价上涨产生的具体差价损失数额。",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "该十万元在双方约定或交易习惯中被明确界定为定金（而非预付款或订金），且存在书面定金合同或条款。",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "CROSS_ISSUE_EVIDENCE"
+   ],
+   "conv_id": 2340,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 13.4
+  },
+  "C05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "7日换锁"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "47f53ff0-31e9-4498-ba83-fc93168512ed",
+      "state_version": 4,
+      "conv_id": 2341
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "合同写每月5日前付款，没有写晚两天就解除"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "CROSS_ISSUE_EVIDENCE"
+     ],
+     "clar_meta": {
+      "run_id": "47f53ff0-31e9-4498-ba83-fc93168512ed",
+      "state_version": 8,
+      "conv_id": 2341
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "房东换锁行为是否导致租客无法进入房屋取回个人物品，从而造成实际损失或被视为变相驱逐。"
+    },
+    {
+     "round": 2,
+     "prompt": "租赁合同中是否明确约定了逾期支付租金的具体宽限期及房东单方解除合同的程序性要求。"
+    }
+   ],
+   "answered_fact_ids": [
+    "C05-r1-f3",
+    "C05-r1-f1"
+   ],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "CROSS_ISSUE_EVIDENCE"
+   ],
+   "conv_id": 2341,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 17.1
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "625cd1fc-b12e-4d4b-8d47-97df31e1e98d",
+      "state_version": 4,
+      "conv_id": 2342
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "NON_CANONICAL_CITATION"
+     ],
+     "clar_meta": {
+      "run_id": "625cd1fc-b12e-4d4b-8d47-97df31e1e98d",
+      "state_version": 8,
+      "conv_id": 2342
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "业主是否已经支付完毕大部分工程款或是否存在其他违约行为。"
+    },
+    {
+     "round": 2,
+     "prompt": "停工行为是否导致合同目的无法实现（即工程是否陷入长期停滞或无法复工）。"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "业主是否已经支付完毕大部分工程款或是否存在其他违约行为。",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "停工行为是否导致合同目的无法实现（即工程是否陷入长期停滞或无法复工）。",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "NON_CANONICAL_CITATION"
+   ],
+   "conv_id": 2342,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 23.8
+  },
+  "C07": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "ISSUE_DECOMPOSITION_INVALID"
+     ]
+    }
+   ],
+   "asked": [],
+   "answered_fact_ids": [],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "ISSUE_DECOMPOSITION_INVALID"
+   ],
+   "conv_id": null,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 2.5
+  },
+  "C08": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "主债务2023年8月到期",
+      "债权人2024年1月微信找过我"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "776d04fd-3c77-4f16-825b-1a0c92babbaa",
+      "state_version": 4,
+      "conv_id": 2344
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "UNSUPPORTED_NUMERIC_TOKEN"
+     ],
+     "clar_meta": {
+      "run_id": "776d04fd-3c77-4f16-825b-1a0c92babbaa",
+      "state_version": 8,
+      "conv_id": 2344
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "主债务履行期届满之日距离债权人主张权利之日的时间跨度"
+    },
+    {
+     "round": 2,
+     "prompt": "债权人主张权利的具体方式及具体时间证据"
+    }
+   ],
+   "answered_fact_ids": [
+    "C08-r1-f1",
+    "C08-r1-f3"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "债权人主张权利的具体方式及具体时间证据",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "UNSUPPORTED_NUMERIC_TOKEN"
+   ],
+   "conv_id": 2344,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 11.8
+  },
+  "C09": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "6d5b447c-de0a-4c8a-9b10-840f17f149c1",
+      "state_version": 4,
+      "conv_id": 2345
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "用了约四分之一"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "6d5b447c-de0a-4c8a-9b10-840f17f149c1",
+      "state_version": 8,
+      "conv_id": 2345
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "合同中约定了具体的违约金比例或扣除标准。"
+    },
+    {
+     "round": 2,
+     "prompt": "消费者已履行的服务期间及剩余预付费金额明确。"
+    }
+   ],
+   "answered_fact_ids": [
+    "C09-r1-f5"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "合同中约定了具体的违约金比例或扣除标准。",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2345,
+   "final_chars": 751,
+   "final_text": "已确认事实：\n- 健身房突然关门\n- 合同写概不退款\n- 合同写概不退款\n- 用了约四分之一\n\n尚不确定的事实：\n- 健身房关闭是由于经营不善、跑路等经营者原因，而非不可抗力或双方协商一致。\n- 合同中'概不退款'条款是以格式条款形式提供的。\n\n核心法律争点：\n- 健身房突然关门是否构成根本违约，从而赋予消费者法定解除权并排除格式条款效力？\n- 消费者主张解除合同时，是否需要承担违约责任（如违约金），以及剩余费用的计算方式如何确定？\n\n法律依据：\n- 《民法典》第六百三十一条\n- 《民法典》第七百一十一条\n- 《民法典》第七百三十一条\n- 《民法典》第六百三十二条\n- 《民法典》第五百八十八条\n- 《农村土地承包法》第五十九条\n- 《民法典》第五百四十条\n- 《民法典》第五百七十九条\n\n分情形分析：\n- （无）\n\n可执行建议与风险提示：\n健身房突然关门,且该关闭是由于经营不善、跑路等经营者原因所致,而非不可抗力或双方协商一致。根据《中华人民共和国民法典》第七百一十一条关于承租人未按约定使用租赁物致使损失可解除合同的规定之法理精神,以及合同目的无法实现的根本违约情形,消费者有权主张法定解除权。同时,合同中'概不退款'条款属于格式条款,若其不合理地免除经营者责任、加重消费者责任,依据相关法律规定应认定无效,从而排除该格式条款的效力,保障消费者的法定解除权及退费请求权。\n鉴于健身房突然关门构成根本违约,消费者主张解除合同具有法律依据,无需承担违约责任(如违约金)。剩余费用的计算方式应基于公平原则,扣除消费者已实际使用的部分(约四分之一)对应的费用后,退还剩余预付款项。虽然合同中有'概不退款'的约定,但如前所述,该格式条款因排除消费者主要权利而可能无效,故不能以此为由拒绝退还剩余费用。",
+   "final_excerpt": "已确认事实：\n- 健身房突然关门\n- 合同写概不退款\n- 合同写概不退款\n- 用了约四分之一\n\n尚不确定的事实：\n- 健身房关闭是由于经营不善、跑路等经营者原因，而非不可抗力或双方协商一致。\n- 合同中'概不退款'条款是以格式条款形式提供的",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 12.5
+  },
+  "C10": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "6f01accc-eb4b-40af-a9fe-e17f29fb61f0",
+      "state_version": 4,
+      "conv_id": 2346
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "6f01accc-eb4b-40af-a9fe-e17f29fb61f0",
+      "state_version": 8,
+      "conv_id": 2346
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "卖家在交易前或收款时是否明知无货而故意虚构事实"
+    },
+    {
+     "round": 2,
+     "prompt": "涉案金额是否达到当地刑事立案追诉标准的起点"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "卖家在交易前或收款时是否明知无货而故意虚构事实",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "涉案金额是否达到当地刑事立案追诉标准的起点",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2346,
+   "final_chars": 682,
+   "final_text": "已确认事实：\n- 卖家收钱后失联\n- 聊天里又承认其实根本没货\n- 卖家收钱后失联\n- 聊天里又承认其实根本没货\n\n尚不确定的事实：\n- 卖家是否有明确的身份信息及可供执行的财产线索\n- 双方是否存在明确的买卖合同关系约定\n\n核心法律争点：\n- 卖家的行为是否满足刑事诈骗罪的立案标准（如非法占有目的、数额较大）从而应当优先报警？\n- 该纠纷是否属于纯粹的民事合同违约或欺诈，适合通过民事诉讼解决？\n\n法律依据：\n- 《刑法》第一百九十三条\n- 《商业银行法》第八十二条\n- 《刑法》第一百九十五条\n- 《法律援助法》第二十九条\n- 《刑事诉讼法》第一百零三条\n- 《民事诉讼法》第一百二十五条\n- 《民事诉讼法》第九十六条\n- 《农村土地承包法》第五十九条\n\n分情形分析：\n- （无）\n\n可执行建议与风险提示：\n卖家以非法占有为目的,通过虚构事实(根本没货)和隐瞒真相(收钱后失联)骗取财物,符合《中华人民共和国刑法》第一百九十三条规定的贷款诈骗或相关诈骗犯罪的构成要件,且《中华人民共和国商业银行法》第八十二条明确规定借款人采取欺诈手段骗取贷款构成犯罪的,依法追究刑事责任。鉴于存在刑事犯罪嫌疑,应当优先报警处理。\n根据《中华人民共和国民事诉讼法》第一百二十五条规定,当事人起诉到人民法院的民事纠纷,适宜调解的,先行调解;以及第九十六条规定,人民法院审理民事案件,根据自愿原则进行调解。若该纠纷被认定为纯粹的民事合同违约或欺诈,且无其他严重刑事情节干扰,则适合通过民事诉讼及调解程序解决,依据《农村土地承包法》第五十九条,一方不履行合同义务应依法承担违约责任。",
+   "final_excerpt": "已确认事实：\n- 卖家收钱后失联\n- 聊天里又承认其实根本没货\n- 卖家收钱后失联\n- 聊天里又承认其实根本没货\n\n尚不确定的事实：\n- 卖家是否有明确的身份信息及可供执行的财产线索\n- 双方是否存在明确的买卖合同关系约定\n\n核心法律争点：",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 17.0
+  }
+ }
+}

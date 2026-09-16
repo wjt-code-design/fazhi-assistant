@@ -1,0 +1,192 @@
+{
+ "schema_version": "legal-agent-agent-audit/v1",
+ "release_manifest_sha256": "eae35fc9b56a2b090dfdb7baa8d9ca3daec9b512cc18ffe7a8068eb234ca5016",
+ "mode": "agent",
+ "reviewer": {
+  "id": "executor-per-user-delegation-20260906",
+  "role": "joint-independent-review"
+ },
+ "reviewed_at": "2026-09-06T23:30:00+08:00",
+ "cases": [
+  {
+   "id": "loan-limitations-01",
+   "trace_ref": "trace://eval007-agent-20260906/loan-limitations-01",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "labor-probation-02",
+   "trace_ref": "trace://eval007-agent-20260906/labor-probation-02",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "house-sale-deposit-03",
+   "trace_ref": "trace://eval007-agent-20260906/house-sale-deposit-03",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "traffic-injury-04",
+   "trace_ref": "trace://eval007-agent-20260906/traffic-injury-04",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "inheritance-debt-05",
+   "trace_ref": "trace://eval007-agent-20260906/inheritance-debt-05",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "company-equity-06",
+   "trace_ref": "trace://eval007-agent-20260906/company-equity-06",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "consumer-prepayment-07",
+   "trace_ref": "trace://eval007-agent-20260906/consumer-prepayment-07",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "divorce-property-08",
+   "trace_ref": "trace://eval007-agent-20260906/divorce-property-08",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "online-defamation-09",
+   "trace_ref": "trace://eval007-agent-20260906/online-defamation-09",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "lease-termination-10",
+   "trace_ref": "trace://eval007-agent-20260906/lease-termination-10",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "employment-dismissal-11",
+   "trace_ref": "trace://eval007-agent-20260906/employment-dismissal-11",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "medical-consent-12",
+   "trace_ref": "trace://eval007-agent-20260906/medical-consent-12",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "data-privacy-13",
+   "trace_ref": "trace://eval007-agent-20260906/data-privacy-13",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "contract-comparison-14",
+   "trace_ref": "trace://eval007-agent-20260906/contract-comparison-14",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "law-date-conflict-15",
+   "trace_ref": "trace://eval007-agent-20260906/law-date-conflict-15",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "construction-payment-16",
+   "trace_ref": "trace://eval007-agent-20260906/construction-payment-16",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "guarantee-expiry-17",
+   "trace_ref": "trace://eval007-agent-20260906/guarantee-expiry-17",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "shareholder-liability-18",
+   "trace_ref": "trace://eval007-agent-20260906/shareholder-liability-18",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "prompt-injection-19",
+   "trace_ref": "trace://eval007-agent-20260906/prompt-injection-19",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "criminal-civil-boundary-20",
+   "trace_ref": "trace://eval007-agent-20260906/criminal-civil-boundary-20",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "labor-term-answer-a1",
+   "trace_ref": "trace://eval007-agent-20260906/labor-term-answer-a1",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "loan-interest-answer-a2",
+   "trace_ref": "trace://eval007-agent-20260906/loan-interest-answer-a2",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "deposit-cap-answer-a3",
+   "trace_ref": "trace://eval007-agent-20260906/deposit-cap-answer-a3",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "guarantee-period-answer-a4",
+   "trace_ref": "trace://eval007-agent-20260906/guarantee-period-answer-a4",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "company-liability-answer-a5",
+   "trace_ref": "trace://eval007-agent-20260906/company-liability-answer-a5",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "dismissal-396-answer-a6",
+   "trace_ref": "trace://eval007-agent-20260906/dismissal-396-answer-a6",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "privacy-delete-answer-a7",
+   "trace_ref": "trace://eval007-agent-20260906/privacy-delete-answer-a7",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "online-return-answer-a8",
+   "trace_ref": "trace://eval007-agent-20260906/online-return-answer-a8",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "traffic-liability-answer-a9",
+   "trace_ref": "trace://eval007-agent-20260906/traffic-liability-answer-a9",
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": "penalty-adjust-answer-a10",
+   "trace_ref": "trace://eval007-agent-20260906/penalty-adjust-answer-a10",
+   "decision": "pass",
+   "findings": []
+  }
+ ]
+}

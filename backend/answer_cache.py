@@ -8,6 +8,7 @@
 - 进程内 LRU + TTL（重启即空，配合 quota 持久化已足够；命中是性能/省配额优化非正确性依赖）。
 - 失效：clear() 由 retrieval.invalidate() 在知识增删时调用（近重复命中与精确 key 同住 _cache，一处清全部）。
 """
+
 import hashlib
 from datetime import datetime, timedelta
 
@@ -52,17 +53,20 @@ def put(
     近重复命中所需元数据（embedding/护栏/指纹/model）由调用方 main.py 提供；
     get_similar 对无 embedding 的旧条目跳过（不参与近重复命中，仅精确 key 可命中）。
     """
-    _cache.put(key, {
-        "answer": answer,
-        "sources": list(sources or []),
-        "expire_at": datetime.now() + TTL,
-        "embedding": embedding,
-        "polarity": polarity,
-        "option_count": option_count,
-        "label_system": label_system,
-        "options_fingerprint": options_fingerprint,
-        "model": model,
-    })
+    _cache.put(
+        key,
+        {
+            "answer": answer,
+            "sources": list(sources or []),
+            "expire_at": datetime.now() + TTL,
+            "embedding": embedding,
+            "polarity": polarity,
+            "option_count": option_count,
+            "label_system": label_system,
+            "options_fingerprint": options_fingerprint,
+            "model": model,
+        },
+    )
 
 
 def get_similar(

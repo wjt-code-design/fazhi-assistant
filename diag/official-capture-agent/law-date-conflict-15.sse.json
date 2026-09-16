@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "合同具体约定的权利义务内容",
+  "issue_id": "issue_375a9ab568b839d8b1feff09"
+ }
+]

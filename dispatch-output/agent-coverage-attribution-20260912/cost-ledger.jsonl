@@ -1,0 +1,16 @@
+{"time": 1789194525.4577465, "event": "reserved", "call": 1, "model": "qwen3.8-flash", "reserve_cny": "2", "accounted_upper_cny": "2"}
+{"time": 1789194537.6753426, "event": "finished", "call": 1, "status": 200, "usage": {"completion_tokens": 557, "prompt_tokens": 792, "prompt_tokens_details": {"cached_tokens": 0, "text_tokens": 792}, "total_tokens": 1349}, "accounted_cny": "0.0021375", "accounted_upper_cny": "0.0021375", "halt": false}
+{"time": 1789194538.3952954, "event": "reserved", "call": 2, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0021375"}
+{"time": 1789194539.1721082, "event": "finished", "call": 2, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0021375", "halt": false}
+{"time": 1789194539.8116865, "event": "reserved", "call": 3, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0021375"}
+{"time": 1789194540.4346223, "event": "finished", "call": 3, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0021375", "halt": false}
+{"time": 1789194541.0799775, "event": "reserved", "call": 4, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0021375"}
+{"time": 1789194541.6703355, "event": "finished", "call": 4, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0021375", "halt": false}
+{"time": 1789194542.237855, "event": "reserved", "call": 5, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0021375"}
+{"time": 1789194542.540025, "event": "finished", "call": 5, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0021375", "halt": false}
+{"time": 1789194542.8019252, "event": "reserved", "call": 6, "model": "qwen3.8-flash", "reserve_cny": "2", "accounted_upper_cny": "2.0021375"}
+{"time": 1789194565.7865756, "event": "finished", "call": 6, "status": 200, "usage": {"completion_tokens": 1577, "prompt_tokens": 3704, "prompt_tokens_details": {"cached_tokens": 0, "text_tokens": 3704}, "total_tokens": 5281}, "accounted_cny": "0.0072211", "accounted_upper_cny": "0.0093586", "halt": false}
+{"time": 1789194565.8521805, "event": "reserved", "call": 7, "model": "qwen3.8-flash", "reserve_cny": "2", "accounted_upper_cny": "2.0093586"}
+{"time": 1789194572.1733918, "event": "finished", "call": 7, "status": 200, "usage": {"completion_tokens": 499, "prompt_tokens": 3761, "prompt_tokens_details": {"cached_tokens": 3328, "text_tokens": 3761}, "total_tokens": 4260}, "accounted_cny": "0.0043561", "accounted_upper_cny": "0.0137147", "halt": false}
+{"time": 1789194572.2459195, "event": "reserved", "call": 8, "model": "qwen3.8-flash", "reserve_cny": "2", "accounted_upper_cny": "2.0137147"}
+{"time": 1789194600.0442362, "event": "finished", "call": 8, "status": 200, "usage": {"completion_tokens": 1017, "prompt_tokens": 5086, "prompt_tokens_details": {"cached_tokens": 3328, "text_tokens": 5086}, "total_tokens": 6103}, "accounted_cny": "0.0068147", "accounted_upper_cny": "0.0205294", "halt": false}

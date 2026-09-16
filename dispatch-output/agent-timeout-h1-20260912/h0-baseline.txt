@@ -1,0 +1,173 @@
+======================================================================
+H0 BASELINE CHECK time_utc= 2026-09-12T05:18:58.552854
+======================================================================
+
+[1] candidate-manifest after_sha256 核验
+  backend/agent/service.py                      sha_match=True lines=568(exp 568,ok)
+  backend/agent/runtime.py                      sha_match=True lines=902(exp 902,ok)
+  backend/agent/controller.py                   sha_match=True lines=1008(exp 1008,ok)
+  backend/agent/planner.py                      sha_match=True lines=115(exp 115,ok)
+  backend/tests/test_agent_chat_integration.py  sha_match=True lines=1621(exp 1621,ok)
+  backend/tests/test_agent_runtime.py           sha_match=True lines=865(exp 865,ok)
+  backend/tests/test_agent_gate.py              sha_match=True lines=548(exp 548,ok)
+  => ALL_7_MATCH = True
+
+[2] agent-mainline-fix-20260911 目录内容
+   __pycache__                                             <dir>
+   backend__agent__chat_integration.py.before              11467
+   backend__agent__controller.py.before                    43647
+   backend__agent__planner.py.before                       4117
+   backend__agent__repository.py.before                    5866
+   backend__agent__runtime.py.before                       42485
+   backend__agent__service.py.before                       23260
+   backend__agent__verifier.py.before                      14512
+   backend__agent__writer.py.before                        26877
+   backend__settings.py.before                             6945
+   backend__tests__test_agent_chat_integration.py.before   60352
+   backend__tests__test_agent_controller.py.before         49118
+   backend__tests__test_agent_coverage_loop.py.before      18808
+   backend__tests__test_agent_gate.py.before               21667
+   backend__tests__test_agent_runtime.py.before            36310
+   blank-red.exit.txt                                      3
+   blank-red.txt                                           9319
+   boundary-red.exit.txt                                   3
+   boundary-red.txt                                        6904
+   candidate-manifest.json                                 2183
+   candidate.coverage                                      413696
+   candidate.diff                                          35852
+   focused.exit.txt                                        3
+   focused.txt                                             5529
+   format.exit.txt                                         3
+   format.txt                                              29
+   full-first-junit.xml                                    125327
+   full-first.exit.txt                                     3
+   full-first.txt                                          10883
+   full-junit.xml                                          121948
+   full-tests.exit.txt                                     3
+   full-tests.txt                                          7261
+   legacy_planner_probe.py                                 841
+   lint.exit.txt                                           3
+   lint.txt                                                20
+   mypy.exit.txt                                           3
+   mypy.txt                                                45
+   planner-red.exit.txt                                    3
+   planner-red.txt                                         6019
+   review-report.md                                        5888
+   runtime-red.exit.txt                                    3
+   runtime-red.txt                                         20496
+   service-red.exit.txt                                    3
+   service-red.txt                                         10796
+   test-app.sqlite                                         180224
+   test-quota.sqlite                                       12288
+   verify.ps1                                              1334
+
+[3] agent-quality-20260911 目录内容
+   __pycache__                                             <dir>
+   budget_guard.py                                         4965
+   c01-runner.exit.txt                                     3
+   c01-runner.log                                          229
+   cost-ledger-startup-only.jsonl                          0
+   cost-ledger.jsonl                                       1529
+   evaluation.sqlite                                       180224
+   frozen-hashes.json                                      462
+   gate2-run-quality-q38-c01-20260911-01-checkpoint.json   7187
+   gate2-run-quality-q38-c01-20260911-01-sessions.json     7158
+   gate2-run-quality-q38-c01-20260911-01.claim.json        168
+   preregistration.md                                      2726
+   quota.sqlite                                            12288
+   runtime-manifest.json                                   1981
+   serve.py                                                2921
+   server-startup-failed.log                               998
+   server.exit.txt                                         3
+   server.log                                              2441
+   shutdown-check.json                                     148
+   test_budget_guard.py                                    2806
+
+[4] 进程扫描 (tasklist)
+  匹配进程数 = 1
+    "python.exe","28744","Console","2","24,372 K"
+
+[5] 端口 18111 监听检查 (netstat)
+  18111 相关行数 = 0
+
+[6] 关键超时常量现状
+  --- backend/tools/gateway.py
+     44| from .legal_retrieval import retrieve_laws
+     89|     def wait_for_idle(self, timeout: float | None = None) -> bool:
+     91|             return self._condition.wait_for(lambda: self._outstanding == 0, timeout=timeout)
+    118|     timeout_seconds: float
+    125|     "retrieve_laws": ToolPolicy(
+    126|         RetrieveLawsInput, RetrieveLawsOutput, cast(ToolWrapper, retrieve_laws), 8.0, 0, True, 6
+    172|             allowed = {"timeout_seconds", "retry_count", "max_calls_per_run"}
+    228|             raw_output = future.result(timeout=policy.timeout_seconds)
+    240|             # not begin after their caller has already received a timeout.
+    247|                 error_code="TOOL_TIMEOUT",
+  --- backend/retrieval.py
+      1| """检索编排：向量 + BM25(jieba) 经 RRF 融合召回候选池 + 池内余弦精排 + 结果缓存 + 云 rerank。
+      4| - 云 rerank（ADR-011）：qwen3-rerank 系多模型按配额自动轮换，全耗尽回落池内余弦精排。
+     16| import httpx
+     26| # ---- rerank（准度主菜，ADR-011）：qwen3-rerank 系经 OpenAI 兼容 /reranks 端点 ----
+     27| # 多模型按配额自动轮换（qwen3-rerank → gte-rerank-v2 → qwen3-vl-rerank）：每次请求选
+     30| _rerank_client = None
+     31| _rerank_client_lock = threading.Lock()
+     34| def _get_rerank_client():
+     35|     """懒构建 rerank OpenAI client。未启用/未配任何 key → None。
+     37|     key 来源：rerank_api_key 或 provider 级 siliconflow_api_key（2026-09-06 切换
+     38|     BAAI/bge-reranker-v2-m3 时只配后者——门禁必须同时接受两个来源，否则只填
+     39|     SILICONFLOW_API_KEY 时 rerank 会被静默跳过、回落余弦精排）。
+     41|     global _rerank_client
+     42|     _effective_key = settings.rerank_api_key or settings.siliconflow_api_key
+     43|     if not settings.rerank_enabled or not _effective_key:
+     45|     if _rerank_client is not None:
+     46|         return _rerank_client
+     47|     with _rerank_client_lock:
+     48|         if _rerank_client is None:
+     51|             _rerank_client = OpenAI(
+     53|                 base_url=settings.rerank_base_url,
+     54|                 timeout=30,
+     56|     return _rerank_client
+     60| # 纯条号（"第三百四十七条"/"第一千二百六十条"）无语义 → rerank query 回落整句（B10）。
+     64| def _rerank_query(query: str, units: list[tuple[str, str]]) -> str:
+     65|     """rerank 用聚焦检索词：语义锚点优先，纯条号/无锚点回落整句截断。
+     67|     rerank 对聚焦 query 打分更准（省 token 是附带收益）；但**纯条号锚点无语义**
+     79| # 原生 DashScope rerank 格式模型：OpenAI 兼容 /reranks 端点不支持，须走原生 text-rerank 端点
+     81| _NATIVE_RERANK_MODELS = {"gte-rerank-v2", "qwen3-vl-rerank"}
+     82| _SILICONFLOW_RERANK_MODELS = {"BAAI/bge-reranker-v2-m3"}  # SiliconFlow Jina 风格 /rerank
+     85| def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
+     86|     """云 rerank 重排候选池，返回按分数降序的新排序。耗尽自动换下一个（块 2.2 扩展）。
+     88|     - 按 rerank 队列（qwen3-rerank → gte-rerank-v2 → qwen3-vl-rerank）依次尝试：
+     90|     - query 用锚点检索词（阶段4 _rerank_query），省 token
+     91|     - rerank 整个候选池（实测 12-17 条），不裁剪——池外碰不到，池内全排最优
+     92|     - 端点分流：qwen3-rerank 走 OpenAI 兼容 /reranks（扁平 body）；gte-rerank-v2 / qwen3-vl-rerank
+     93|       走 DashScope 原生 text-rerank 端点（嵌套 body，兼容端点不支持）
+     96|     client = _get_rerank_client()
+     99|     hard = settings.rerank_hard_threshold
+    100|     for model in quota_utils.rerank_model_list():
+    107|                 # SiliconFlow：Jina 风格 POST {base}/rerank（扁平 body），Bearer 用
+    108|                 # rerank_api_key 或 provider 级 siliconflow_api_key（2026-09-06 用户指定
+    109|                 # BAAI/bge-reranker-v2-m3）。响应顶层 results[{index,relevance_score}]，
+    110|                 # 与下方共享解析兼容。httpx 直连（OpenAI client 无 /rerank 端点映射）。
+    111|                 _rr = httpx.post(
+    112|                     settings.rerank_base_url.rstrip("/") + "/rerank",
+    119|                     headers={"Authorization": f"Bearer {settings.rerank_api_key or settings.siliconflow_api_key}"},
+    120|                     timeout=30,
+    125|                 # DashScope 原生：嵌套 input/parameters + 原生 text-rerank 端点。
+    126|                 # 用 httpx 直连——OpenAI client 无法解析原生响应（ValueError，2026-08-07 实测）。
+    127|                 _rr = httpx.post(
+    128|                     settings.rerank_native_url,
+    134|                     headers={"Authorization": f"Bearer {settings.rerank_api_key}"},
+    135|                     timeout=30,
+    140|                 # OpenAI 兼容：扁平 body + /reranks
+    142|                     "/reranks",
+    151|             # 配额扣减（ADR-011 阶段E）：rerank 按输入 token 计费（query + documents），
+    623|     """余弦精排（rerank 关闭 / 失败时的回退口径，2026-08-04 恢复旧版单段行为）。
+    779|         if settings.rerank_enabled:
+    780|             # rerank 开（ADR-011 准度主菜）：锚点保底不动，其余位次由 qwen3-rerank 定序。
+    781|             # 跳过 cosine 整池重嵌（rerank 已接管高位定序，避免既重嵌又 rerank 浪费网络往返）。
+    782|             reranked = _rerank_docs(_rerank_query(query, units), rest_docs)
+    783|             if reranked is not None:
+    784|                 docs = [pool[did] for did in anchor_guaranteed] + reranked
+    786|                 # rerank 失败 → 回退原余弦精排（安全）
+    790|             # rerank 关（本地 BGE 回退）：余弦精排 + 锚点保底前置（机制保证核心条文必现）
+    856|     - 每单元走 `hybrid_retrieve`（内部已含锚点保底 + rerank），合并后按"题干→选项"
+    861|       segfault 的窗口（恢复 rerank/降并发/串行/嵌入锁均压不住）——**生产稳定优先回退

@@ -16,7 +16,9 @@ def seed():
         username = os.getenv("ADMIN_USERNAME", "admin")
         password = os.getenv("ADMIN_PASSWORD", "")
         if not password:
-            print("错误：未设置 ADMIN_PASSWORD，拒绝创建管理员（禁止公知默认口令 admin12345 上线，对抗审计 2026-08-07）")
+            print(
+                "错误：未设置 ADMIN_PASSWORD，拒绝创建管理员（禁止公知默认口令 admin12345 上线，对抗审计 2026-08-07）"
+            )
             raise SystemExit(1)
         existing = db.query(User).filter(User.username == username).first()
         if existing:

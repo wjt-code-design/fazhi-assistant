@@ -1,0 +1,125 @@
+{
+ "schema_version": "legal-agent-eval-answers/v1",
+ "cases": [
+  {
+   "id": "loan-limitations-01",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "债权人是否在2021年还款期限届满后的三年内主张过权利",
+    "trace_ref": "trace://dryrun-agent-20260905/loan-limitations-01",
+    "latency_ms": 46318.8,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "labor-probation-02",
+   "answer": {
+    "claims": [
+     {
+      "text": "不合法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "**法律依据**",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "根据《劳动合同法》第十九条，三年以上固定期限和无固定期限的劳动合同，试用期不得超过六个月。",
+      "evidence_ids": [
+       "劳动合同法:19"
+      ],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "同时，该条明确规定“同一用人单位与同一劳动者只能约定一次试用期”。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "**具体分析**",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "1. **法定上限**：三年劳动合同的试用期法定上限为六个月。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "公司初始约定六个月试用期本身符合法律规定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "2. **延长行为的违法性**：公司再行延长两个月，导致总试用期达到八个月，明显超过六个月的法定上限。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "此外，延长试用期实质上构成了“再次约定试用期”，违反了“只能约定一次试用期”的强制性规定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "3. **试用期解除限制**：根据《劳动合同法》第二十一条，试用期解除劳动合同需符合法定情形（如第三十九条、第四十条第一项、第二项）。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "若公司以“试用期不符合录用条件”为由解除合同，必须在法定试用期内提出，延长部分不产生试用期效力。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "**法律后果**",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "根据《劳动合同法》第八十三条，违法约定的试用期已经履行的，由用人单位以劳动者试用期满月工资为标准，按已经履行的超过法定试用期的期间向劳动者支付赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "本案中，超期的两个月属于违法履行，公司应支付相应赔偿。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "**风险提示**",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "劳动者可就超期试用部分主张赔偿金，并可要求用人单位补足试用期工资与转正工资的差额（如有）。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "建议收集劳动合同、试用期延长通知、工资发放记录等证据，通过劳动监察投诉或劳动仲裁维权。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     },
+     {
+      "text": "本答复仅供参考，不构成正式法律意见。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02"
+     }
+    ],
+    "detected_issues": [
+     "劳动合同",
+     "试用期"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://dryrun-agent-20260905/labor-probation-02",
+    "latency_ms": 17140.0,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  }
+ ]
+}

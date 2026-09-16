@@ -1,0 +1,350 @@
+FF.FFFF                                                                  [100%]
+================================== FAILURES ===================================
+___ test_runtime_factory_builds_real_components_and_snapshots_budgets[3-1] ____
+
+max_steps = 3, max_tools = 1
+
+    @pytest.mark.parametrize("max_steps,max_tools", [(3, 1), (16, 10), (32, 20)])
+    def test_runtime_factory_builds_real_components_and_snapshots_budgets(max_steps, max_tools):
+        transport = RecordingTransport(valid_issue_json())
+        settings = SettingsSnapshot()
+        settings.agent_max_steps = max_steps
+        settings.agent_max_tool_calls = max_tools
+    
+        runtime = build_agent_runtime(db=object(), user_id=9, settings=settings, llm=transport)
+        snapped = runtime.budgets.model_copy(deep=True)
+        settings.agent_max_steps = 31  # 冻结快照：此后改 settings 不得影响已构建的预算
+    
+        # V2-T8：预算取自 settings，但**上限被抬到装得下契约允许的最大分解**（_MAX_ISSUES=8）。
+        # 期望值用**独立手算的常数**，不引用实现函数/常量（原版用 _fit_budgets_to_max_decomposition(...)
+        # 算期望 ⇒ 与实现同源，改坏公式两端一起改，测试形同恒真；违反 CONTRIBUTING「期望值来自独立来源」）。
+        #   手算依据：契约允许 8 个争点；观测趋势 steps ≈ 8 + 2N ⇒ 8 争点约需 24–26 步，上限取 29；
+        #             工具预算 = 8 次检索 + 3 次查询余量 = 11。
+>       assert runtime.budgets == AgentBudgets(
+            max_steps=max_steps,
+            max_tool_calls=max_tools,
+            max_replans=3,
+            max_clarifications=2,
+            max_duplicate_attempts_per_issue=2,
+            max_verifier_research_returns=1,
+        )
+E       assert AgentBudgets(...rch_returns=1) == AgentBudgets(...rch_returns=1)
+E         
+E         Use -v to get more diff
+
+tests\test_agent_runtime.py:282: AssertionError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+__ test_runtime_factory_builds_real_components_and_snapshots_budgets[16-10] ___
+
+max_steps = 16, max_tools = 10
+
+    @pytest.mark.parametrize("max_steps,max_tools", [(3, 1), (16, 10), (32, 20)])
+    def test_runtime_factory_builds_real_components_and_snapshots_budgets(max_steps, max_tools):
+        transport = RecordingTransport(valid_issue_json())
+        settings = SettingsSnapshot()
+        settings.agent_max_steps = max_steps
+        settings.agent_max_tool_calls = max_tools
+    
+        runtime = build_agent_runtime(db=object(), user_id=9, settings=settings, llm=transport)
+        snapped = runtime.budgets.model_copy(deep=True)
+        settings.agent_max_steps = 31  # 冻结快照：此后改 settings 不得影响已构建的预算
+    
+        # V2-T8：预算取自 settings，但**上限被抬到装得下契约允许的最大分解**（_MAX_ISSUES=8）。
+        # 期望值用**独立手算的常数**，不引用实现函数/常量（原版用 _fit_budgets_to_max_decomposition(...)
+        # 算期望 ⇒ 与实现同源，改坏公式两端一起改，测试形同恒真；违反 CONTRIBUTING「期望值来自独立来源」）。
+        #   手算依据：契约允许 8 个争点；观测趋势 steps ≈ 8 + 2N ⇒ 8 争点约需 24–26 步，上限取 29；
+        #             工具预算 = 8 次检索 + 3 次查询余量 = 11。
+>       assert runtime.budgets == AgentBudgets(
+            max_steps=max_steps,
+            max_tool_calls=max_tools,
+            max_replans=3,
+            max_clarifications=2,
+            max_duplicate_attempts_per_issue=2,
+            max_verifier_research_returns=1,
+        )
+E       assert AgentBudgets(...rch_returns=1) == AgentBudgets(...rch_returns=1)
+E         
+E         Use -v to get more diff
+
+tests\test_agent_runtime.py:282: AssertionError
+_ test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble[duplicate_question] _
+
+defect = 'duplicate_question'
+
+    @pytest.mark.parametrize("defect", ["duplicate_question", "untrusted_source", "blank_question", "blank_unknown"])
+    def test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble(defect):
+        request = bootstrap(_QUERY)
+        candidate = json.loads(_issue_json("公司拖欠我两个月工资", "在昨天口头解除劳动合同"))
+        if defect == "duplicate_question":
+            candidate["issues"][1]["question"] = "  " + candidate["issues"][0]["question"] + "  "
+        elif defect == "untrusted_source":
+            # raw_query can include framing that belongs to neither trusted input source.
+            request = replace(request, user_text="公司拖欠我两个月工资")
+        elif defect == "blank_question":
+            candidate["issues"][1]["question"] = "   "
+        else:
+            candidate["issues"][1]["unknown_facts"] = [{"statement": "  ", "why_outcome_changes": "必要事实"}]
+        transport = RecordingTransport(_issue_json("公司拖欠我两个月工资"), json.dumps(candidate))
+    
+>       state = build_initial_agent_state(request, decomposer=LLMIssueDecomposer(transport))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_agent_runtime.py:673: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+bootstrap = RequestBootstrap(conv_id=17, summary='不应发送给 Issue 分解器的历史摘要', recent=[{'role': 'assistant', 'content': '不应发送的历史回答'}], r...ntent='legal_query', is_exam=False, has_options=False, contract_mode=False, contract_text=None, client_truncated=False)
+decomposer = <agent.runtime.LLMIssueDecomposer object at 0x0000021A136AA310>
+budgets = None
+
+    def build_initial_agent_state(
+        bootstrap: RequestBootstrap,
+        *,
+        decomposer: LLMIssueDecomposer,
+        budgets: AgentBudgets | None = None,
+    ) -> LegalAgentState:
+        raw = decomposer.decompose_with_fact_repair(bootstrap)
+        if _contains_key(raw, _SERVER_OWNED_ISSUE_FIELDS):
+            raise AdapterPolicyViolation("Issue output contains server-owned fields")
+        try:
+            proposal = _IssueEnvelope.model_validate(raw)
+        except (TypeError, ValidationError, ValueError) as exc:
+            raise IssueDecompositionError("issue decomposition output does not match the schema") from exc
+    
+        normalized_questions = [" ".join(issue.question.split()) for issue in proposal.issues]
+        if len(normalized_questions) != len(set(normalized_questions)):
+>           raise IssueDecompositionError("issue decomposition contains duplicate questions")
+E           agent.runtime.IssueDecompositionError: issue decomposition contains duplicate questions
+
+agent\runtime.py:643: IssueDecompositionError
+_ test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble[untrusted_source] _
+
+defect = 'untrusted_source'
+
+    @pytest.mark.parametrize("defect", ["duplicate_question", "untrusted_source", "blank_question", "blank_unknown"])
+    def test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble(defect):
+        request = bootstrap(_QUERY)
+        candidate = json.loads(_issue_json("公司拖欠我两个月工资", "在昨天口头解除劳动合同"))
+        if defect == "duplicate_question":
+            candidate["issues"][1]["question"] = "  " + candidate["issues"][0]["question"] + "  "
+        elif defect == "untrusted_source":
+            # raw_query can include framing that belongs to neither trusted input source.
+            request = replace(request, user_text="公司拖欠我两个月工资")
+        elif defect == "blank_question":
+            candidate["issues"][1]["question"] = "   "
+        else:
+            candidate["issues"][1]["unknown_facts"] = [{"statement": "  ", "why_outcome_changes": "必要事实"}]
+        transport = RecordingTransport(_issue_json("公司拖欠我两个月工资"), json.dumps(candidate))
+    
+>       state = build_initial_agent_state(request, decomposer=LLMIssueDecomposer(transport))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_agent_runtime.py:673: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+bootstrap = RequestBootstrap(conv_id=17, summary='不应发送给 Issue 分解器的历史摘要', recent=[{'role': 'assistant', 'content': '不应发送的历史回答'}], r...ntent='legal_query', is_exam=False, has_options=False, contract_mode=False, contract_text=None, client_truncated=False)
+decomposer = <agent.runtime.LLMIssueDecomposer object at 0x0000021A136A2950>
+budgets = None
+
+    def build_initial_agent_state(
+        bootstrap: RequestBootstrap,
+        *,
+        decomposer: LLMIssueDecomposer,
+        budgets: AgentBudgets | None = None,
+    ) -> LegalAgentState:
+        raw = decomposer.decompose_with_fact_repair(bootstrap)
+        if _contains_key(raw, _SERVER_OWNED_ISSUE_FIELDS):
+            raise AdapterPolicyViolation("Issue output contains server-owned fields")
+        try:
+            proposal = _IssueEnvelope.model_validate(raw)
+        except (TypeError, ValidationError, ValueError) as exc:
+            raise IssueDecompositionError("issue decomposition output does not match the schema") from exc
+    
+        normalized_questions = [" ".join(issue.question.split()) for issue in proposal.issues]
+        if len(normalized_questions) != len(set(normalized_questions)):
+            raise IssueDecompositionError("issue decomposition contains duplicate questions")
+    
+        raw_query = bootstrap.raw_query
+        user_text = bootstrap.user_text or ""
+        image_description = bootstrap.image_description or ""
+        issues: list[LegalIssue] = []
+        seen_ids: set[str] = set()
+        for proposed in proposal.issues:
+            question = " ".join(proposed.question.split())
+            issue_id = _issue_id(question)
+            if issue_id in seen_ids:
+                raise IssueDecompositionError("issue identifier collision")
+            seen_ids.add(issue_id)
+            facts: list[Fact] = []
+            for proposed_fact in proposed.facts:
+                quote = proposed_fact.quote.strip()
+                if quote not in raw_query:
+                    raise IssueDecompositionError("Issue fact is not a verbatim request fragment")
+                if quote in user_text:
+                    source = SourceType.USER
+                elif quote in image_description:
+                    source = SourceType.DOCUMENT
+                else:
+>                   raise IssueDecompositionError("Issue fact has no trusted request source")
+E                   agent.runtime.IssueDecompositionError: Issue fact has no trusted request source
+
+agent\runtime.py:666: IssueDecompositionError
+_ test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble[blank_question] _
+
+defect = 'blank_question'
+
+    @pytest.mark.parametrize("defect", ["duplicate_question", "untrusted_source", "blank_question", "blank_unknown"])
+    def test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble(defect):
+        request = bootstrap(_QUERY)
+        candidate = json.loads(_issue_json("公司拖欠我两个月工资", "在昨天口头解除劳动合同"))
+        if defect == "duplicate_question":
+            candidate["issues"][1]["question"] = "  " + candidate["issues"][0]["question"] + "  "
+        elif defect == "untrusted_source":
+            # raw_query can include framing that belongs to neither trusted input source.
+            request = replace(request, user_text="公司拖欠我两个月工资")
+        elif defect == "blank_question":
+            candidate["issues"][1]["question"] = "   "
+        else:
+            candidate["issues"][1]["unknown_facts"] = [{"statement": "  ", "why_outcome_changes": "必要事实"}]
+        transport = RecordingTransport(_issue_json("公司拖欠我两个月工资"), json.dumps(candidate))
+    
+>       state = build_initial_agent_state(request, decomposer=LLMIssueDecomposer(transport))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_agent_runtime.py:673: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+bootstrap = RequestBootstrap(conv_id=17, summary='不应发送给 Issue 分解器的历史摘要', recent=[{'role': 'assistant', 'content': '不应发送的历史回答'}], r...ntent='legal_query', is_exam=False, has_options=False, contract_mode=False, contract_text=None, client_truncated=False)
+decomposer = <agent.runtime.LLMIssueDecomposer object at 0x0000021A1389C2D0>
+budgets = None
+
+    def build_initial_agent_state(
+        bootstrap: RequestBootstrap,
+        *,
+        decomposer: LLMIssueDecomposer,
+        budgets: AgentBudgets | None = None,
+    ) -> LegalAgentState:
+        raw = decomposer.decompose_with_fact_repair(bootstrap)
+        if _contains_key(raw, _SERVER_OWNED_ISSUE_FIELDS):
+            raise AdapterPolicyViolation("Issue output contains server-owned fields")
+        try:
+            proposal = _IssueEnvelope.model_validate(raw)
+        except (TypeError, ValidationError, ValueError) as exc:
+            raise IssueDecompositionError("issue decomposition output does not match the schema") from exc
+    
+        normalized_questions = [" ".join(issue.question.split()) for issue in proposal.issues]
+        if len(normalized_questions) != len(set(normalized_questions)):
+            raise IssueDecompositionError("issue decomposition contains duplicate questions")
+    
+        raw_query = bootstrap.raw_query
+        user_text = bootstrap.user_text or ""
+        image_description = bootstrap.image_description or ""
+        issues: list[LegalIssue] = []
+        seen_ids: set[str] = set()
+        for proposed in proposal.issues:
+            question = " ".join(proposed.question.split())
+            issue_id = _issue_id(question)
+            if issue_id in seen_ids:
+                raise IssueDecompositionError("issue identifier collision")
+            seen_ids.add(issue_id)
+            facts: list[Fact] = []
+            for proposed_fact in proposed.facts:
+                quote = proposed_fact.quote.strip()
+                if quote not in raw_query:
+                    raise IssueDecompositionError("Issue fact is not a verbatim request fragment")
+                if quote in user_text:
+                    source = SourceType.USER
+                elif quote in image_description:
+                    source = SourceType.DOCUMENT
+                else:
+                    raise IssueDecompositionError("Issue fact has no trusted request source")
+                facts.append(
+                    Fact(
+                        statement=quote,
+                        source=source,
+                        source_ref=_request_ref(bootstrap, source),
+                        confidence=1.0,
+                    )
+                )
+            issues.append(
+>               LegalIssue(
+                    issue_id=issue_id,
+                    question=question,
+                    facts=facts,
+                    unknown_facts=[
+                        UnknownFact(
+                            statement=item.statement.strip(),
+                            why_outcome_changes=item.why_outcome_changes.strip(),
+                        )
+                        for item in proposed.unknown_facts
+                    ],
+                )
+            )
+E           pydantic_core._pydantic_core.ValidationError: 1 validation error for LegalIssue
+E           question
+E             String should have at least 1 character [type=string_too_short, input_value='', input_type=str]
+E               For further information visit https://errors.pydantic.dev/2.13/v/string_too_short
+
+agent\runtime.py:676: ValidationError
+_ test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble[blank_unknown] _
+
+defect = 'blank_unknown'
+
+    @pytest.mark.parametrize("defect", ["duplicate_question", "untrusted_source", "blank_question", "blank_unknown"])
+    def test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble(defect):
+        request = bootstrap(_QUERY)
+        candidate = json.loads(_issue_json("公司拖欠我两个月工资", "在昨天口头解除劳动合同"))
+        if defect == "duplicate_question":
+            candidate["issues"][1]["question"] = "  " + candidate["issues"][0]["question"] + "  "
+        elif defect == "untrusted_source":
+            # raw_query can include framing that belongs to neither trusted input source.
+            request = replace(request, user_text="公司拖欠我两个月工资")
+        elif defect == "blank_question":
+            candidate["issues"][1]["question"] = "   "
+        else:
+            candidate["issues"][1]["unknown_facts"] = [{"statement": "  ", "why_outcome_changes": "必要事实"}]
+        transport = RecordingTransport(_issue_json("公司拖欠我两个月工资"), json.dumps(candidate))
+    
+>       state = build_initial_agent_state(request, decomposer=LLMIssueDecomposer(transport))
+                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_agent_runtime.py:673: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+agent\runtime.py:680: in build_initial_agent_state
+    unknown_facts=[
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+.0 = <list_iterator object at 0x0000021A136C6A70>
+
+            unknown_facts=[
+>               UnknownFact(
+                    statement=item.statement.strip(),
+                    why_outcome_changes=item.why_outcome_changes.strip(),
+                )
+                for item in proposed.unknown_facts
+            ],
+        )
+    )
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for UnknownFact
+E   statement
+E     String should have at least 1 character [type=string_too_short, input_value='', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/string_too_short
+
+agent\runtime.py:681: ValidationError
+============================== warnings summary ===============================
+tests/test_agent_runtime.py::test_runtime_factory_builds_real_components_and_snapshots_budgets[3-1]
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_runtime.py::test_runtime_factory_builds_real_components_and_snapshots_budgets[3-1]
+FAILED tests/test_agent_runtime.py::test_runtime_factory_builds_real_components_and_snapshots_budgets[16-10]
+FAILED tests/test_agent_runtime.py::test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble[duplicate_question]
+FAILED tests/test_agent_runtime.py::test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble[untrusted_source]
+FAILED tests/test_agent_runtime.py::test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble[blank_question]
+FAILED tests/test_agent_runtime.py::test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble[blank_unknown]
+6 failed, 1 passed, 50 deselected, 1 warning in 51.86s

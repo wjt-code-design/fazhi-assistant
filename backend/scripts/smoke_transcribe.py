@@ -12,6 +12,7 @@
 判定：任一 wav 变体返回非空文本 = 通过；全挂 = 后端实现须降级（保留 Web Speech 或换 paraformer ASR）。
 绝不打印 API key。超时 30s，单轮成本极小。
 """
+
 import base64
 import math
 import os
@@ -42,8 +43,7 @@ def make_wav(path: str, seconds: float = 1.0, rate: int = 16000, freq: float = 4
         w.setsampwidth(2)
         w.setframerate(rate)
         frames = b"".join(
-            struct.pack("<h", int(12000 * math.sin(2 * math.pi * freq * i / rate)))
-            for i in range(int(rate * seconds))
+            struct.pack("<h", int(12000 * math.sin(2 * math.pi * freq * i / rate))) for i in range(int(rate * seconds))
         )
         w.writeframes(frames)
 
@@ -167,18 +167,21 @@ def main() -> int:
 
     results: list[tuple[str, str]] = []
     attempts = [
-        ("OpenAI兼容 input_audio data:;base64, · livetranslate 非实时",
-         lambda: openai_compatible(MODEL_LT, b64, "data:;base64,")),
-        ("OpenAI兼容 input_audio 裸base64 · livetranslate 非实时",
-         lambda: openai_compatible(MODEL_LT, b64, "")),
-        ("OpenAI兼容 input_audio data:;base64, · livetranslate realtime",
-         lambda: openai_compatible(MODEL_LT_RT, b64, "data:;base64,")),
-        ("DashScope原生 multimodal-generation · livetranslate 非实时",
-         lambda: dash_native_mm(MODEL_LT, b64, LLM_KEY)),
-        ("DashScope原生 multimodal-generation · livetranslate realtime",
-         lambda: dash_native_mm(MODEL_LT_RT, b64, LLM_KEY)),
-        ("DashScope原生 ASR paraformer-realtime-v2（兜底）",
-         lambda: dash_asr_paraformer(b64, LLM_KEY)),
+        (
+            "OpenAI兼容 input_audio data:;base64, · livetranslate 非实时",
+            lambda: openai_compatible(MODEL_LT, b64, "data:;base64,"),
+        ),
+        ("OpenAI兼容 input_audio 裸base64 · livetranslate 非实时", lambda: openai_compatible(MODEL_LT, b64, "")),
+        (
+            "OpenAI兼容 input_audio data:;base64, · livetranslate realtime",
+            lambda: openai_compatible(MODEL_LT_RT, b64, "data:;base64,"),
+        ),
+        ("DashScope原生 multimodal-generation · livetranslate 非实时", lambda: dash_native_mm(MODEL_LT, b64, LLM_KEY)),
+        (
+            "DashScope原生 multimodal-generation · livetranslate realtime",
+            lambda: dash_native_mm(MODEL_LT_RT, b64, LLM_KEY),
+        ),
+        ("DashScope原生 ASR paraformer-realtime-v2（兜底）", lambda: dash_asr_paraformer(b64, LLM_KEY)),
     ]
 
     passed = False
@@ -189,7 +192,7 @@ def main() -> int:
         passed = passed or ok
         verdict = "✅ 通过" if ok else ("❌ 失败" if code != 200 else "⚠️ 空返回")
         results.append((name, verdict))
-        print(f"[{verdict}] {name}  (HTTP {code}, {time.time()-t0:.1f}s)")
+        print(f"[{verdict}] {name}  (HTTP {code}, {time.time() - t0:.1f}s)")
         if ok:
             print(f"        转写结果: {out[:200]}")
         else:

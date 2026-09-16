@@ -1,12 +1,14 @@
+import asyncio
 import base64
 import json
 import logging
 import os
 import socket
 import time
-from contextlib import asynccontextmanager
+from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
 from datetime import datetime
+from threading import Event
 from typing import Any
 from urllib.parse import urlparse
 
@@ -33,6 +35,25 @@ import quality
 import query_understand
 import quota_store
 import routing_metrics
+from agent.chat_integration import (
+    CoverageProjection,
+    coverage_from_state_json,
+    encode_sse_stream,
+    serialize_agent_events,
+)
+from agent.controller import (
+    _DEFAULT_RUN_LOCKS,
+    RESUME_CONFLICT_DETAIL,
+    RESUME_NOT_FOUND_DETAIL,
+    ResumeRunConflict,
+    ResumeRunNotFound,
+    resume_with_user_fact,
+)
+from agent.gate import GATE_TECHNICAL_FAILURE, AgentGateDecision, decide_gate
+from agent.schemas import LegalAgentState
+from agent.service import execute_agent_request
+from agent.verifier import VerificationResult, render_verified
+from agent.writer import DraftAnswer
 from audit import log_audit
 from auth import create_token, get_current_user, hash_password, require_admin, verify_password
 from curation import should_curate
@@ -48,10 +69,11 @@ from domain_rules import (
     is_contract_review,
 )
 from intent import classify_intent
+from llm_errors import is_transient_error
 from llm_guard import LLMBusyError, llm_guard
 from llm_registry import QuotaExhausted, estimate_tokens, registry
 from memory import compress, load_context, needs_compress, recent_messages, rewrite_query
-from models import AnalysisRun, AuditLog, Conversation, Feedback, Message, QaCandidate, User
+from models import AgentRun, AnalysisRun, AuditLog, Conversation, Feedback, Message, QaCandidate, User
 from multimodal import (
     AUDIO_EXTS,
     MEDIA_DIR,
@@ -61,7 +83,13 @@ from multimodal import (
     transcribe_audio,
     validate_image,
 )
-from observability import RequestIdMiddleware, log_account, setup_logging
+from observability import (
+    RequestIdMiddleware,
+    log_account,
+    make_agent_correlation_id,
+    request_id_var,
+    setup_logging,
+)
 from prompts import (
     _EXAM_TYPE_SUFFIX,
     _EXAM_VERDICT_RULE,
@@ -76,20 +104,30 @@ from prompts import (
 )
 from quota_utils import UtilityQuotaExhausted
 from rag_chain import clean_answer, embeddings, format_docs, make_chain, stream_with_retry, vectorstore
+from request_bootstrap import (
+    DEFAULT_CONTRACT_STATE,
+    BootstrapDependencies,
+    FastPathDependencies,
+    RequestBootstrap,
+    bootstrap_request,
+    cleanup_persisted_images,
+    configure_default_image_describer,
+    is_contract_exit,
+    prepare_fast_path,
+)
 from retrieval import (
     _normalize_article,
-    article_in_kb,
     citation_grounding,
     citation_verify,
     exact_article_lookup,
     extract_citations,
-    source_in_kb,
     grounded_top_score,
     prewarm,
     retrieve,
     retrieve_exam,
     retrieve_for_test,
     scenario_supplement_docs,
+    source_in_kb,
 )
 from schemas import (
     ChatIn,
@@ -98,6 +136,8 @@ from schemas import (
     FeedbackIn,
     KnowledgeAddIn,
     KnowledgeTestIn,
+    LlmDisableIn,
+    LlmPromoteIn,
     LlmQuotaIn,
     LlmSwitchIn,
     LoginIn,
@@ -187,7 +227,9 @@ class MaxContentLengthMiddleware:
         if cl:
             try:
                 if int(cl) > self.max_bytes:
-                    resp = JSONResponse(status_code=413, content={"detail": f"请求体过大（>{self.max_bytes // (1024 * 1024)}MB）"})
+                    resp = JSONResponse(
+                        status_code=413, content={"detail": f"请求体过大（>{self.max_bytes // (1024 * 1024)}MB）"}
+                    )
                     await resp(scope, receive, send)
                     return
             except (ValueError, TypeError):
@@ -238,7 +280,14 @@ app.add_middleware(MaxContentLengthMiddleware, max_bytes=12 * 1024 * 1024)
 # ==================== 健康检查 ====================
 @app.get("/api/health")
 def health():
-    return {"status": "ok"}
+    """能力发现（阶段B 诚实停用）：前端据此隐藏未验证能力的入口，而非展示必然失败的按钮。"""
+    return {
+        "status": "ok",
+        "capabilities": {
+            "image_chat": registry.has_modality("vision"),
+            "voice_transcribe": settings.feature_transcribe and registry.has_modality("voice"),
+        },
+    }
 
 
 @app.get("/api/utility/quota")
@@ -298,9 +347,10 @@ def healthz():
 @limiter.limit("10/minute")
 async def register(request: Request, body: RegisterIn):
     # 方案C（2026-08-08，用户要求"一个用户只能注册一个账号"）：默认关闭公开注册，仅管理员开户。
-    # 前端不再引导注册，绕过前端直调本接口也 403；.env SELF_REGISTER=true 可重开（小团队自管）。
+    # 前端不再引导注册，绕过前端直调本接口也 403；.env FEATURE_SELF_REGISTER=true 可重开（小团队自管）。
     if not settings.feature_self_register:
         raise HTTPException(status_code=403, detail="注册已关闭，请联系管理员创建账号")
+
     def _do():
         db = SessionLocal()
         try:
@@ -399,7 +449,7 @@ def _build_messages(pre: dict) -> list:
             # 多轮图片上下文：历史图片用其视觉描述代替裸 [图片]，否则后续轮次看不到图里内容
             desc = m.get("image_desc") or ""
             body = m["content"] or ""
-            content = (f"[用户上传的图片，内容如下：{desc}]\n{body}" if desc else body)
+            content = f"[用户上传的图片，内容如下：{desc}]\n{body}" if desc else body
             history.append(HumanMessage(content=content))
         elif m["role"] == "assistant":
             history.append(AIMessage(content=m["content"] or ""))
@@ -432,20 +482,27 @@ def _rewrite_for_retrieval(raw_query: str, recent_ser: list, recent: list, has_o
         return rewrite_query(registry.get(), recent, raw_query)
 
 
-# 会话级合同状态（code-review #1：续聊短句追问不脱离合同路径；内存集，重启清空）
-_contract_convs: set[int] = set()
-# 已产出完整评估报告的会话（区分"首次真评估"与"续聊追问"；need_clarify 反问不算）
-_contract_reviewed_convs: set[int] = set()
-# 合同模式退出短语：用户明确离开/换话题 → 清会话级合同状态，走普通法律问答（对抗审计 2026-08-07）
-_CONTRACT_EXIT_MARKS = (
-    "退出合同", "不审合同", "不用审了", "不再审合同", "结束合同", "结束评估",
-    "换个话题", "换一个问题", "暂停", "结束",
-)
+# 会话级合同状态保留 main 公共符号；canonical storage 供公开 bootstrap 默认适配器共享。
+_contract_convs = DEFAULT_CONTRACT_STATE.active
+_contract_reviewed_convs = DEFAULT_CONTRACT_STATE.reviewed
 
 
-def _is_contract_exit(text: str) -> bool:
-    t = (text or "").strip().lower()
-    return any(m in t for m in _CONTRACT_EXIT_MARKS)
+def _describe_image_for_bootstrap(image: str, text: str) -> str:
+    """Resolve the image capability here so bootstrap never selects a provider.
+
+    阶段B（2026-09-05）：必须按模态取视觉模型。旧写法 registry.get() 会拿默认文本模型
+    （LongCat 实测静默忽略图片）——能力缺失已由 chat() 的 501 门拦截，此处再遇
+    QuotaExhausted 说明能力存在但配额耗尽，显式 503 而非静默降级为"无图回答"。
+    """
+    try:
+        _, vision_llm = registry.pick("vision", "flag")
+    except QuotaExhausted as qe:
+        raise HTTPException(status_code=503, detail="视觉模型配额不足，请稍后重试") from qe
+    with llm_guard:
+        return describe_image(vision_llm, image, text)
+
+
+configure_default_image_describer(_describe_image_for_bootstrap)
 
 
 def _contract_messages(pre: dict, cd: dict) -> list:
@@ -494,184 +551,244 @@ def _contract_messages(pre: dict, cd: dict) -> list:
     return [SystemMessage(content=sys_text), HumanMessage(content=user_content)]
 
 
-def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool = False):
-    """流式前的全部准备（独立会话，线程池内执行）。校验失败抛 ValueError。"""
-    db = SessionLocal()
+def _best_effort_log_agent_gate_failure(correlation_id: str | None = None) -> None:
+    """Emit the terminal Gate failure signal without ever entering another observer."""
+    extra = {
+        "agent_gate_mode": "fast_path",
+        "agent_gate_reason_codes": [GATE_TECHNICAL_FAILURE],
+    }
+    if correlation_id is not None:
+        extra["agent_correlation_id"] = correlation_id
     try:
-        conv = db.get(Conversation, conversation_id) if conversation_id else None
-        if conv is None or conv.user_id != user_id:
-            conv = Conversation(user_id=user_id, title="", summary="", message_count=0)
-            db.add(conv)
-            db.flush()
-        summary, recent = load_context(db, conv)
-        recent_ser = [{"role": m.role, "content": m.content or "", "image_desc": m.image_desc or ""} for m in recent]
+        logging.getLogger("legal.chat").exception(GATE_TECHNICAL_FAILURE, extra=extra)
+    except Exception:
+        # Logging is the terminal best-effort sink. Never recurse into metrics,
+        # account logging, or the request coordinator from this failure path.
+        pass
 
-        image_rel = thumb_rel = None
-        desc = ""
-        if image:
-            validate_image(image)  # 失败抛 ValueError（单一全模态模型）
-            image_rel, thumb_rel = persist_image(image)
-            with llm_guard:  # 图片描述是 LLM 调用，同样占并发位
-                desc = describe_image(registry.get(), image, text or "")
 
-        raw_query = " ".join(p for p in [text or "", desc] if p).strip()
-        if not raw_query:
-            raw_query = "请描述并分析图片中的法律相关内容"
-        # 多轮补充辅助：追问短，靠最近用户消息的关键词触发场景补充（对抗审计 2026-08-07）
-        _supp_extra = " ".join(
-            (m.get("content") or "") for m in recent_ser if m["role"] == "user" and m.get("content")
+def _observe_agent_gate(
+    correlation_id: str,
+    mode: str,
+    reason_codes: list[str],
+    *,
+    technical_failure: bool,
+) -> None:
+    """Best-effort, privacy-safe Gate observers; failures never alter request execution."""
+    try:
+        routing_metrics.record_agent_gate(
+            mode,
+            reason_codes,
+            correlation_id,
+            technical_failure=technical_failure,
         )
-        _supp_text = (text or raw_query) + (" " + _supp_extra[-400:] if _supp_extra else "")
-        # 意图先判（raw，不改写）：非检索分支（chitchat/cheating/元问题）完全不碰改写（决策 2）
-        intent = classify_intent(text or raw_query)
-        is_exam = query_understand._is_exam_question(text or raw_query)
-        has_options = query_understand.has_exam_options(text or raw_query)
-        # 合同 / 文书风险评估（确定性骨架，2026-08-06）：legal_query + 触发命中
-        # 或本会话上轮已进合同模式（续聊短句追问不脱离合同路径，code-review #1）。
-        # 2026-08-06 图片识别合同（二期）：去 not image——多模态转写出的合同全文（desc）
-        # 触发 is_contract_review 即进合同路径；普通图片描述不触发，走原多模态问答。
-        # 合同模式退出（对抗审计 2026-08-07）：明确表达离开/换话题 → 清会话级合同状态，
-        # 后续问题走普通法律问答，不再被强制路由进合同路径
-        _raw_q = text or raw_query
-        if conv.id in _contract_convs and _is_contract_exit(_raw_q):
-            _contract_convs.discard(conv.id)
-            _contract_reviewed_convs.discard(conv.id)
-        contract_mode = (
-            settings.feature_multi_analyze
-            and intent == "legal_query"
-            and (is_contract_review(_raw_q) or conv.id in _contract_convs)
-        )
-
-        # ── 五路意图分流总表（intent 由 classify_intent 判定）────────────────────
-        #   study_aid        → 学习引导：具体题分步检索；元问题/回滚不检索，邀请发题
-        #   cheating_request → 作弊索取：定向检索作弊条文用于拒答
-        #   chitchat         → 闲聊：不检索（零上下文纯聊天），不参与 RAG 质检
-        #   legal_query(默认)→ 法律咨询：改写 + 检索（合同子分支走确定性骨架短路）
-        #   meta(元问题)      → 不检索、不改写（仅 study_aid 下可判定）
-        if intent == "study_aid":
-            if settings.feature_study_retrieval and not query_understand.is_meta_study(text or raw_query):
-                rewritten = _rewrite_for_retrieval(raw_query, recent_ser, recent, has_options)  # 具体题：惰性改写
-                docs = scenario_supplement_docs(_supp_text) + retrieve_exam(rewritten)  # 具体题：场景补充 + 分步检索
-            else:
-                rewritten = raw_query  # 元问题/回滚：不检索不改写
-                docs = []  # 元问题/回滚：不检索，邀请发题
-            qa_hit = None
-        elif intent == "cheating_request":
-            rewritten = raw_query
-            docs = cheating_docs()
-            qa_hit = None
-        elif intent == "chitchat":
-            # 闲聊：不检索（零上下文，纯聊天），也不参与 RAG 质检（任务2）
-            rewritten = raw_query
-            docs = []
-            qa_hit = None
-        else:
-            if contract_mode:
-                # 合同 / 文书风险评估：确定性骨架短路单轮检索 + QA（省 12k embedding）；
-                # 不改写（code-review #8：续聊不烧 LLM rewrite）
-                rewritten = raw_query
-                if is_contract_review(text or raw_query):
-                    _contract_convs.add(conv.id)  # 会话级合同状态（#1：续聊不断裂）
-                    # 图片合同（二期）：contract_text 用多模态转写全文（desc），不含用户请求词；
-                    # 文字合同用 raw。desc 需单独判定是合同（防普通图片摘要误入）。
-                    if image and desc and is_contract_review(desc):
-                        contract_text = desc
-                    else:
-                        contract_text = text or raw_query
-                else:
-                    # 续聊追问：拼上轮最近的合同文本
-                    prev = ""
-                    for m in reversed(recent_ser):
-                        content = m["content"] or ""
-                        idesc = m.get("image_desc") or ""
-                        # 图片合同：转写全文存于 image_desc，用户请求词在 content（仅传图时为"[图片]"）。
-                        # 仅传图场景 content 非合同文本——须以 image_desc 是合同转写为准（code-review 2026-08-06）
-                        is_contract_msg = is_contract_review(content) or (
-                            content == "[图片]" and is_contract_review(idesc)
-                        )
-                        if m["role"] == "user" and is_contract_msg:
-                            prev = idesc if is_contract_review(idesc) else content
-                            break
-                    contract_text = ((prev + "\n" + (text or "")) if prev else (text or raw_query)).strip()
-                contract_data = build_contract_data(contract_text)
-                if client_truncated:
-                    # 文件上传超长截断信号穿透（截到恰 12000 时 build_contract_data 判不出
-                    # len>limit，code-review 2026-08-06）——报告"未覆盖条款段"尾注 + analysis_runs 才准确
-                    contract_data["truncated"] = True
-                docs = contract_data["docs"]
-                qa_hit = None
-            else:
-                rewritten = _rewrite_for_retrieval(raw_query, recent_ser, recent, has_options)
-                if is_exam:
-                    # 选项题 → 分步检索 + 场景定向补充前置（死刑复核/正当防卫等核心条防漏）
-                    docs = scenario_supplement_docs(_supp_text) + retrieve_exam(rewritten)
-                else:
-                    docs = retrieve(rewritten, k=10)  # k6→10：跨法律召回测试显示 k=6 常漏同法目标条文（79%→88%）
-                qa_hit = ks.search_qa(rewritten)  # 保持 raw（决策 4：桥接只归检索层，不进 QA 缓存）
-                # 场景定向补充（仅非选项题，法考题已走 retrieve_exam 逐项检索）
-                if not is_exam:
-                    docs = scenario_supplement_docs(_supp_text) + docs
-                    if is_consumer_clause_scenario(text or raw_query):
-                        docs = consumer_clause_docs() + docs
-                    if is_consumer_fraud_scenario(text or raw_query):
-                        docs = consumer_fraud_docs() + docs
-        context = format_docs(docs)
-        sources = [
-            {
-                "source": d.metadata.get("source", ""),
-                "article": d.metadata.get("article", ""),
-                # 时效快照（阶段6）：供受控沉淀 evidence 与未来微调数据集使用
-                "effective_from": d.metadata.get("effective_from", ""),
-                "effective_to": d.metadata.get("effective_to", ""),
-                "status": d.metadata.get("status", ""),
-            }
-            for d in docs
-        ]
-
-        user_content = text if text and text.strip() else ("[图片]" if image else "")
-        db.add(
-            Message(
-                conversation_id=conv.id,
-                role="user",
-                content=user_content,
-                image_ref=image_rel,
-                thumb_ref=thumb_rel,
-                image_desc=desc or None,
+    except Exception:
+        try:
+            log_account(
+                agent_correlation_id=correlation_id,
+                agent_gate_mode="fast_path",
+                agent_gate_reason_codes=[GATE_TECHNICAL_FAILURE],
             )
+        except Exception:
+            _best_effort_log_agent_gate_failure(correlation_id)
+        return
+
+    try:
+        log_account(
+            agent_correlation_id=correlation_id,
+            agent_gate_mode=mode,
+            agent_gate_reason_codes=reason_codes,
         )
-        # 对抗审计 v2 #21：message_count 读-改-写原子化——同会话并发请求时两次 +1 只生效一次的
-        # 竞态改为 DB 侧原子自增（本地 +1 仅保持 conv 对象一致，不参与实际计数）
-        # 注意（2026-08-08 修复）：_pre 参数名 text 覆盖了 SQLAlchemy 的 text()，曾致
-        # TypeError 'str' not callable（问答 500）——改用 ORM func.coalesce 原子自增。
-        db.query(Conversation).filter(Conversation.id == conv.id).update(
-            {"message_count": func.coalesce(Conversation.message_count, 0) + 1}
+    except Exception:
+        if not technical_failure:
+            try:
+                routing_metrics.record_agent_gate(
+                    "fast_path",
+                    [GATE_TECHNICAL_FAILURE],
+                    correlation_id,
+                    technical_failure=True,
+                )
+            except Exception:
+                pass
+        _best_effort_log_agent_gate_failure(correlation_id)
+
+
+def _run_agent_gate_shadow(bootstrap) -> None:
+    """Predict and observe only; Task 6 never selects or starts Agent Path."""
+    correlation_id = make_agent_correlation_id(conversation_id=bootstrap.conv_id)
+    try:
+        decision: AgentGateDecision = decide_gate(bootstrap)
+    except Exception:
+        _observe_agent_gate(
+            correlation_id,
+            "fast_path",
+            [GATE_TECHNICAL_FAILURE],
+            technical_failure=True,
         )
-        conv.message_count = (conv.message_count or 0) + 1
-        conv.last_active_at = datetime.utcnow()
-        if not conv.title:
-            conv.title = ((text or ("[图片] " + (desc[:20] if desc else ""))) or "新对话")[:200]
-        if not conv.question:
-            conv.question = (text or user_content)[:2000]
-        db.commit()
-        return dict(
-            conv_id=conv.id,
-            summary=summary,
-            recent=recent_ser,
-            context=context,
-            qa_hit=qa_hit,
-            sources=sources,
-            image=image,
-            user_text=text or "",
-            image_rel=image_rel,
-            thumb_rel=thumb_rel,
-            rewritten=rewritten,
-            intent=intent,
-            is_exam=is_exam,
-            has_options=has_options,
-            contract_data=(contract_data if contract_mode else None),
+        return
+    _observe_agent_gate(
+        correlation_id,
+        decision.mode,
+        list(decision.reason_codes),
+        technical_failure=False,
+    )
+
+
+def _bootstrap_only(user_id: int, conversation_id, text: str, image, client_truncated: bool = False):
+    """Persist one accepted user request without starting either answer path."""
+    return bootstrap_request(
+        user_id,
+        conversation_id,
+        text,
+        image,
+        client_truncated,
+        _deps=BootstrapDependencies(
+            session_factory=SessionLocal,
+            load_context=load_context,
+            validate_image=validate_image,
+            persist_image=persist_image,
+            cleanup_persisted_image=cleanup_persisted_images,
+            describe_image=_describe_image_for_bootstrap,
+            classify_intent=classify_intent,
+            is_exam_question=query_understand._is_exam_question,
+            has_exam_options=query_understand.has_exam_options,
+            is_contract_review=is_contract_review,
+            feature_multi_analyze=settings.feature_multi_analyze,
+            contract_conversations=_contract_convs,
+            contract_reviewed_conversations=_contract_reviewed_convs,
+            is_contract_exit=is_contract_exit,
+        ),
+    )
+
+
+def _prepare_fast_path_only(bootstrap: RequestBootstrap):
+    """Run legacy retrieval from an already committed bootstrap exactly once."""
+    return prepare_fast_path(
+        bootstrap,
+        _deps=FastPathDependencies(
+            feature_study_retrieval=settings.feature_study_retrieval,
+            is_meta_study=query_understand.is_meta_study,
+            rewrite_for_retrieval=_rewrite_for_retrieval,
+            scenario_supplement_docs=scenario_supplement_docs,
+            retrieve_exam=retrieve_exam,
+            cheating_docs=cheating_docs,
+            build_contract_data=build_contract_data,
+            retrieve=retrieve,
+            search_qa=ks.search_qa,
+            is_consumer_clause_scenario=is_consumer_clause_scenario,
+            consumer_clause_docs=consumer_clause_docs,
+            is_consumer_fraud_scenario=is_consumer_fraud_scenario,
+            consumer_fraud_docs=consumer_fraud_docs,
+            format_docs=format_docs,
+        ),
+    )
+
+
+def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool = False):
+    """Compatibility coordinator for committed bootstrap plus legacy fast retrieval."""
+    bootstrap = _bootstrap_only(user_id, conversation_id, text, image, client_truncated)
+    if settings.agent_shadow_enabled:
+        try:
+            _run_agent_gate_shadow(bootstrap)
+        except Exception:
+            # Correlation/observer setup is technical infrastructure too. The Fast
+            # Path remains authoritative even if the best-effort observer itself fails.
+            _best_effort_log_agent_gate_failure()
+    return _prepare_fast_path_only(bootstrap)
+
+
+def _stable_agent_request_seed(user_id: int, conversation_id: int) -> str:
+    """Length-delimited request assignment material; this value is never logged."""
+    request_id = request_id_var.get()
+    parts = (str(user_id), str(conversation_id), request_id if request_id != "-" else "test-request")
+    return "|".join(f"{len(part)}:{part}" for part in parts)
+
+
+def _record_actual_agent_route(route: str, *, fallback_reason: str | None = None) -> None:
+    """Best-effort observer; metric failure cannot change the selected route."""
+    try:
+        routing_metrics.record_agent_route(route, fallback_reason=fallback_reason)
+    except Exception:
+        try:
+            log_account(agent_actual_route=route, agent_fallback_reason=fallback_reason)
+        except Exception:
+            pass
+
+
+def fallback_to_fast_path(bootstrap: RequestBootstrap, reason_code: str) -> dict:
+    """Prepare Fast Path only for one allowlisted technical Agent failure."""
+    if not routing_metrics.is_technical_fallback_reason(reason_code):
+        raise ValueError("Agent failure is not eligible for Fast Path fallback")
+    prepared = _prepare_fast_path_only(bootstrap)
+    prepared["agent_fallback_reason"] = reason_code
+    return prepared
+
+
+def _resume_bootstrap(*, conversation_id: int, answer: str, state: LegalAgentState) -> RequestBootstrap:
+    """Build a non-persisting Planner snapshot after an owned clarification CAS."""
+    issue_context = "；".join(issue.question for issue in state.issues)
+    query = f"原法律争点：{issue_context}\n用户补充：{answer.strip()}"
+    return RequestBootstrap(
+        conv_id=conversation_id,
+        summary="",
+        recent=[],
+        recent_messages=[],
+        image=None,
+        user_text=query,
+        image_rel=None,
+        thumb_rel=None,
+        image_description="",
+        raw_query=query,
+        supplement_text=query,
+        intent="legal_query",
+        is_exam=False,
+        has_options=False,
+        contract_mode=False,
+        contract_text=None,
+        client_truncated=False,
+    )
+
+
+def _agent_streaming_response(result) -> StreamingResponse:
+    return StreamingResponse(
+        encode_sse_stream(serialize_agent_events(result)),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache, no-transform",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Content-Type": "text/event-stream; charset=utf-8",
+        },
+    )
+
+
+async def _execute_agent_observing_disconnect(request: Request, **kwargs):
+    """Run one bounded service call while projecting client disconnect into a stop check."""
+    disconnected = Event()
+    finished = asyncio.Event()
+
+    async def watch_disconnect() -> None:
+        while not finished.is_set():
+            if await request.is_disconnected():
+                disconnected.set()
+                return
+            try:
+                await asyncio.wait_for(finished.wait(), timeout=0.1)
+            except TimeoutError:
+                continue
+
+    watcher = asyncio.create_task(watch_disconnect())
+    try:
+        return await run_in_threadpool(
+            execute_agent_request,
+            cancelled=disconnected.is_set,
+            **kwargs,
         )
     finally:
-        db.close()
+        finished.set()
+        watcher.cancel()
+        with suppress(asyncio.CancelledError):
+            await watcher
 
 
 def _record_analysis(
@@ -687,9 +804,7 @@ def _record_analysis(
     """
     db = SessionLocal()
     try:
-        article_count = len(
-            {d.metadata.get("article", "") for d in cd.get("docs", []) if d.metadata.get("article")}
-        )
+        article_count = len({d.metadata.get("article", "") for d in cd.get("docs", []) if d.metadata.get("article")})
         db.add(
             AnalysisRun(
                 user_id=user_id,
@@ -712,6 +827,60 @@ def _record_analysis(
 # 三分法接地量化（B3）：in_context / recall_miss / hallucination 累计，进程内。
 # 供验收/复盘读值；后续可接 admin 面板。多 worker 下为分片值（单 worker 部署无此问题）。
 _grounding_stats: dict = {"in_context": 0, "recall_miss": 0, "hallucination": 0}
+
+
+@dataclass(frozen=True)
+class AgentFinalizationResult:
+    """Buffered Task 9 result; this seam performs no storage, routing or SSE."""
+
+    answer: str | None
+    reason_code: str
+
+
+def finalize_verified_agent_answer(
+    state: LegalAgentState,
+    draft: DraftAnswer,
+    verification: VerificationResult,
+    *,
+    citation_checker=citation_verify,
+    quality_checker=quality.self_check,
+    expand_law_names_fn=output_normalize.expand_law_names,
+    expand_citations_fn=output_normalize.expand_citations,
+    money_normalize_fn=output_normalize.money_normalize,
+    strip_notes_fn=output_normalize.strip_unprovided_notes,
+    source_lookup=source_in_kb,
+) -> AgentFinalizationResult:
+    """Run deterministic final gates on a complete buffer and reveal only PASS.
+
+    Normalization intentionally happens after the first citation and quality
+    checks, then citations are checked again because expansion can create a
+    newly recognizable canonical citation.
+    """
+
+    answer = render_verified(state, draft, verification)
+    if answer is None:
+        return AgentFinalizationResult(answer=None, reason_code="VERIFIER_NOT_PASS")
+    try:
+        if citation_checker(answer):
+            return AgentFinalizationResult(answer=None, reason_code="CITATION_CHECK_FAILED")
+        quality_result = quality_checker(answer, True)
+        if not quality_result.ok:
+            return AgentFinalizationResult(
+                answer=None,
+                reason_code=f"QUALITY_CHECK_FAILED:{quality_result.reason}",
+            )
+        normalized = expand_law_names_fn(answer)
+        normalized = expand_citations_fn(normalized)
+        normalized = money_normalize_fn(normalized)
+        normalized = strip_notes_fn(normalized, source_lookup)
+        if citation_checker(normalized):
+            return AgentFinalizationResult(
+                answer=None,
+                reason_code="POST_NORMALIZE_CITATION_CHECK_FAILED",
+            )
+    except Exception:
+        return AgentFinalizationResult(answer=None, reason_code="FINAL_GATE_TECHNICAL_FAILURE")
+    return AgentFinalizationResult(answer=normalized, reason_code="READY")
 
 
 def _post(pre: dict, answer: str, curate: bool = True):
@@ -807,11 +976,15 @@ def _token_charge(resp, text: str) -> int:
     return _usage_total(resp) or estimate_tokens(text)
 
 
-def _safe_pick(modality: str, tier: str) -> tuple[str, Any, bool]:
+def _safe_pick(modality: str, tier: str, *, exclude: set[str] | None = None) -> tuple[str, Any, bool]:
     """pick 耗尽/无该档模型时回退默认模型。第三项 degraded：回退模型本身也已不可用
-    （配额耗尽/低于阈值），调用方应明说降级，不静默烧耗尽模型。"""
+    （配额耗尽/低于阈值），调用方应明说降级，不静默烧耗尽模型。
+
+    exclude（F7，2026-09-14）：本次重试中**已尝试过**的模型 key，透传给 `registry.pick` 以
+    避免重复选中同一模型 —— 瞬时故障不再 `mark_depleted` 时，靠它推进到下一个模型。
+    """
     try:
-        key, llm = registry.pick(modality, tier)
+        key, llm = registry.pick(modality, tier, exclude=exclude)
         return key, llm, False
     except QuotaExhausted:
         dk = registry.default_key()
@@ -839,12 +1012,7 @@ def _cacheable(pre: dict) -> bool:
     评测 19/20 带库内引用，写闸见 _cache_write_ok，防"引在库但答非所问"入缓存）。"""
     intent = pre.get("intent")
     ok_intent = intent == "legal_query" or (settings.feature_study_cache and intent == "study_aid")
-    return (
-        ok_intent
-        and not pre.get("image")
-        and not pre.get("recent")
-        and bool(pre.get("sources"))
-    )
+    return ok_intent and not pre.get("image") and not pre.get("recent") and bool(pre.get("sources"))
 
 
 def _cache_key(pre: dict) -> str:
@@ -987,7 +1155,9 @@ def _light_buffered_locked(pre: dict, messages: list, modality: str, ctx_present
     try:
         fkey, fllm = registry.pick(modality, "flag")
     except QuotaExhausted:
-        return _LightResult((raw + NOTE_QUOTA) if raw else "", lkey, modality, "light", usage, False, v.reason or "low_quota")
+        return _LightResult(
+            (raw + NOTE_QUOTA) if raw else "", lkey, modality, "light", usage, False, v.reason or "low_quota"
+        )
     if fkey == lkey:  # 轻量即旗舰，无更强者可升
         return _LightResult((raw + NOTE_COMPLEX) if raw else "", lkey, modality, "light", usage, False, v.reason)
     fresp = fllm.invoke(messages)
@@ -1037,17 +1207,18 @@ async def chat_file(request: Request, file: UploadFile = File(...), user: User =
 
 @app.post("/api/chat/transcribe")
 @limiter.limit("20/minute")
-async def chat_transcribe(
-    request: Request, file: UploadFile = File(...), user: User = Depends(get_current_user)
-):
+async def chat_transcribe(request: Request, file: UploadFile = File(...), user: User = Depends(get_current_user)):
     """语音→文字（M2，Qwen livetranslate 语音模型转写，前端 PC 语音输入）。
 
     前端 MediaRecorder→PCM→WAV（webm/opus 不被语音模型接受，见 scripts/smoke_transcribe.py）。
     门禁实测：OpenAI 兼容 /chat/completions + input_audio(data:;base64, 前缀 + wav) + stream +
     translation_options(source/target 均 zh)。失败显式 502，让前端回退浏览器 Web Speech。
     """
-    if not settings.feature_transcribe:
-        raise HTTPException(status_code=501, detail="语音转写未启用（feature_transcribe=False）")
+    if not settings.feature_transcribe or not registry.has_modality("voice"):
+        raise HTTPException(
+            status_code=501,
+            detail="语音转写未启用（feature_transcribe=False 或所配置模型无语音能力）",
+        )
     raw = await _read_capped(file, settings.audio_max_mb * 1024 * 1024, f"音频过大（>{settings.audio_max_mb}MB）")
     fname = file.filename or ""
     ext = fname.rsplit(".", 1)[-1].lower() if "." in fname else ""
@@ -1177,22 +1348,157 @@ async def _stream_with_status_preframe(gen):
         yield frame
 
 
+def serialize_clarification_event(*, run_id: str, state_version: int, prompt: str, issue_id: str) -> dict[str, object]:
+    """Project one public clarification event; internal evaluator data is excluded."""
+    return {
+        "type": "clarification",
+        "run_id": run_id,
+        "state_version": state_version,
+        "prompt": prompt,
+        "issue_id": issue_id,
+    }
+
+
 @app.post("/api/chat")
 @limiter.limit("60/minute")
 async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
     text = (body.content if body.content is not None else body.question) or ""
     text = text.strip()
     image = body.image
+    # 阶段B 能力门（2026-09-05）：当前注册模型无视觉能力时显式 501，禁止把图片内容块
+    # 静默回退给文本模型（LongCat 实测会忽略图片并按文字作答——诚实停用优于悄悄答错）。
+    if image and not registry.has_modality("vision"):
+        raise HTTPException(status_code=501, detail="图片理解当前不可用：所配置模型无视觉能力")
     t0 = time.perf_counter()
+    pre = None
+    if body.agent_run_id is not None:
+        assert body.agent_state_version is not None and body.conversation_id is not None
+        if not text:
+            raise HTTPException(status_code=400, detail="请输入对 Agent 追问的回答")
+        if not settings.agent_enabled:
+            raise HTTPException(status_code=503, detail="Agent 当前已停用，请稍后重试")
+        db = SessionLocal()
+        try:
+            resumed = await run_in_threadpool(
+                resume_with_user_fact,
+                db=db,
+                run_locks=_DEFAULT_RUN_LOCKS,
+                run_id=str(body.agent_run_id),
+                expected_version=body.agent_state_version,
+                user_id=user.id,
+                conversation_id=body.conversation_id,
+                answer=text,
+            )
+            resume_bootstrap = _resume_bootstrap(
+                conversation_id=body.conversation_id,
+                answer=text,
+                state=resumed.state,
+            )
+            agent_result = await _execute_agent_observing_disconnect(
+                request,
+                db=db,
+                user_id=user.id,
+                settings=settings,
+                bootstrap=resume_bootstrap,
+                finalizer=finalize_verified_agent_answer,
+                run_id=resumed.run_id,
+            )
+        except ResumeRunNotFound:
+            raise HTTPException(status_code=404, detail=RESUME_NOT_FOUND_DETAIL) from None
+        except ResumeRunConflict:
+            raise HTTPException(status_code=409, detail=RESUME_CONFLICT_DETAIL) from None
+        finally:
+            db.close()
+        _record_actual_agent_route("agent_path")
+        if agent_result.outcome != "fallback":
+            return _agent_streaming_response(agent_result)
+        _record_actual_agent_route("fast_path", fallback_reason=agent_result.reason_code)
+        pre = await run_in_threadpool(
+            fallback_to_fast_path,
+            resume_bootstrap,
+            agent_result.reason_code,
+        )
     if not text and not image:
         raise HTTPException(status_code=400, detail="请输入问题或上传图片")
-    try:
-        pre = await run_in_threadpool(_pre, user.id, body.conversation_id, text, image, body.truncated)
-    except ValueError as ve:
-        raise HTTPException(status_code=400, detail=str(ve)) from ve
-    except LLMBusyError:
-        raise HTTPException(status_code=503, detail="服务繁忙，请稍后重试") from None
+    if pre is None:
+        try:
+            if not settings.agent_enabled:
+                pre = await run_in_threadpool(
+                    _pre,
+                    user.id,
+                    body.conversation_id,
+                    text,
+                    image,
+                    body.truncated,
+                )
+                _record_actual_agent_route("fast_path")
+            else:
+                bootstrap = await run_in_threadpool(
+                    _bootstrap_only,
+                    user.id,
+                    body.conversation_id,
+                    text,
+                    image,
+                    body.truncated,
+                )
+                correlation_id = make_agent_correlation_id(conversation_id=bootstrap.conv_id)
+                try:
+                    gate = decide_gate(bootstrap)
+                except Exception:
+                    _observe_agent_gate(
+                        correlation_id,
+                        "fast_path",
+                        [GATE_TECHNICAL_FAILURE],
+                        technical_failure=True,
+                    )
+                    selected = False
+                else:
+                    _observe_agent_gate(
+                        correlation_id,
+                        gate.mode,
+                        list(gate.reason_codes),
+                        technical_failure=False,
+                    )
+                    forced_manual = bool(getattr(body, "force_agent", False)) and gate.mode != "refuse"
+                    selected = forced_manual or routing_metrics.should_route_agent(
+                        gate,
+                        settings,
+                        _stable_agent_request_seed(user.id, bootstrap.conv_id),
+                    )
+                if selected:
+                    db = SessionLocal()
+                    try:
+                        agent_result = await _execute_agent_observing_disconnect(
+                            request,
+                            db=db,
+                            user_id=user.id,
+                            settings=settings,
+                            bootstrap=bootstrap,
+                            finalizer=finalize_verified_agent_answer,
+                        )
+                    finally:
+                        db.close()
+                    _record_actual_agent_route("agent_path")
+                    if agent_result.outcome != "fallback":
+                        return _agent_streaming_response(agent_result)
+                    _record_actual_agent_route(
+                        "fast_path",
+                        fallback_reason=agent_result.reason_code,
+                    )
+                    pre = await run_in_threadpool(
+                        fallback_to_fast_path,
+                        bootstrap,
+                        agent_result.reason_code,
+                    )
+                else:
+                    _record_actual_agent_route("fast_path")
+                    pre = await run_in_threadpool(_prepare_fast_path_only, bootstrap)
+        except ValueError as ve:
+            raise HTTPException(status_code=400, detail=str(ve)) from ve
+        except LLMBusyError:
+            raise HTTPException(status_code=503, detail="服务繁忙，请稍后重试") from None
 
+    assert pre is not None
     messages = _build_messages(pre)
 
     # ---- 多模型路由决策（feature_router 关 → 全走 legacy 流式，旧行为零变化） ----
@@ -1222,7 +1528,9 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             strategy = "direct"
         else:
             strategy = clarify.decide(
-                pre["intent"], text, bool(pre["sources"]),
+                pre["intent"],
+                text,
+                bool(pre["sources"]),
                 _clarified.get(pre["conv_id"], False),
             )
     cache_key = None if body.no_cache else (_cache_key(pre) if (use_router and _cacheable(pre)) else None)
@@ -1234,6 +1542,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
     async def stream():
         _posted = False  # 本轮 assistant 消息是否已落库（对抗审计 v2 #5/#8：客户端断开时 finally 兜底占位）
         try:
+            if pre.get("agent_fallback_reason"):
+                yield f"data: {json.dumps({'type': 'restart', 'reason_code': pre['agent_fallback_reason']}, ensure_ascii=False)}\n\n"
             # ── 分支决策总览图（零 token 优先，LLM 兜底）─────────────────────────
             #   0   → 精确/近重复缓存命中          → 零 token 直返
             #   0.2 → QA 持久语义缓存命中           → 零 token 直返
@@ -1252,10 +1562,15 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield f"data: {json.dumps({'content': ca}, ensure_ascii=False)}\n\n"
                 routing_metrics.record("cache", False, "pass", "hit", checked=False)
                 log_account(
-                    model="cache", tier="cache", cache="hit",
+                    model="cache",
+                    tier="cache",
+                    cache="hit",
                     first_ms=round((_f0 - t0) * 1000, 1),
-                    ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
-                    conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
+                    ms=round((time.perf_counter() - t0) * 1000, 1),
+                    ok=True,
+                    conv_id=pre["conv_id"],
+                    user_id=user.id,
+                    q_len=len(text),
                 )
                 yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -1275,10 +1590,16 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield f"data: {json.dumps({'content': qa_ans}, ensure_ascii=False)}\n\n"
                 routing_metrics.record("qa_cache", False, "pass", "hit", checked=False)
                 log_account(
-                    model="qa_cache", tier="qa_cache", cache="hit", token_est=0,
+                    model="qa_cache",
+                    tier="qa_cache",
+                    cache="hit",
+                    token_est=0,
                     first_ms=round((_f0 - t0) * 1000, 1),
-                    ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
-                    conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
+                    ms=round((time.perf_counter() - t0) * 1000, 1),
+                    ok=True,
+                    conv_id=pre["conv_id"],
+                    user_id=user.id,
+                    q_len=len(text),
                 )
                 yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -1298,10 +1619,16 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield f"data: {json.dumps({'content': msg}, ensure_ascii=False)}\n\n"
                 routing_metrics.record(strategy, False, "pass", "miss", checked=False)
                 log_account(
-                    model="rule", tier=strategy, cache="miss", token_est=0,
+                    model="rule",
+                    tier=strategy,
+                    cache="miss",
+                    token_est=0,
                     first_ms=round((_f0 - t0) * 1000, 1),
-                    ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
-                    conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
+                    ms=round((time.perf_counter() - t0) * 1000, 1),
+                    ok=True,
+                    conv_id=pre["conv_id"],
+                    user_id=user.id,
+                    q_len=len(text),
                 )
                 yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -1321,10 +1648,16 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     yield f"data: {json.dumps({'content': CONTRACT_CLARIFY_PROMPT}, ensure_ascii=False)}\n\n"
                     routing_metrics.record("contract_clarify", False, "pass", "miss", checked=False)
                     log_account(
-                        model="rule", tier="contract_clarify", cache="miss", token_est=0,
+                        model="rule",
+                        tier="contract_clarify",
+                        cache="miss",
+                        token_est=0,
                         first_ms=round((_f0 - t0) * 1000, 1),
-                        ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
-                        conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
+                        ms=round((time.perf_counter() - t0) * 1000, 1),
+                        ok=True,
+                        conv_id=pre["conv_id"],
+                        user_id=user.id,
+                        q_len=len(text),
                     )
                     yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
                     yield "data: [DONE]\n\n"
@@ -1351,12 +1684,13 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 # registry.variant(True) + on_model_failure 空实现 + 零扣减——后备模型从不记账
                 _ccur = {"key": flag_key}
                 _rstart = False  # 重试零重答：清空半截并通知前端（对抗审计 2026-08-07）
+                _ctried: set[str] = set()  # F7：已尝试过的模型 key（瞬时故障不标记时靠它推进）
 
                 def _cmake_chain(_i, _disabled):
                     if use_router:
                         if _i == 0 and _ccur["key"]:
                             return make_chain(flag_llm)
-                        key, llm, _ = _safe_pick(modality, tier or "flag")
+                        key, llm, _ = _safe_pick(modality, tier or "flag", exclude=_ctried)
                         _ccur["key"] = key
                         return make_chain(llm)
                     return make_chain(registry.get() if _i == 0 else registry.variant(True))
@@ -1364,7 +1698,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 def _cfail(_e):
                     nonlocal _rstart
                     if use_router and _ccur["key"]:
-                        registry.mark_depleted(_ccur["key"], "model_failure")
+                        # F7（2026-09-14）：瞬时故障（429/5xx/连接抖动）**不再标记耗尽** —— 该模型其实
+                        # 仍可用（同 1k 修复口径）；改由 _ctried 排除已试过的 key 来推进到下一个模型
+                        # （否则 pick 会再选回同一模型 → 死循环）。
+                        _ctried.add(_ccur["key"])
+                        if not is_transient_error(_e):
+                            registry.mark_depleted(_ccur["key"], "model_failure")
                     _rstart = True
 
                 async for piece in stream_with_retry(
@@ -1387,9 +1726,13 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     _contract_reviewed_convs.add(pre["conv_id"])  # 完整报告已产出：之后续聊才算追问
                     # 合同分支补配额记账（原零扣减，后备模型用量从不计入）
                     if use_router and _ccur["key"]:
-                        est = estimate_tokens(answer) + estimate_tokens(pre.get("context", "") + pre.get("user_text", ""))
+                        est = estimate_tokens(answer) + estimate_tokens(
+                            pre.get("context", "") + pre.get("user_text", "")
+                        )
                         # 对抗审计 v2 #20：SQLite 扣减同步阻塞事件循环 → 线程池
-                        await run_in_threadpool(registry.deduct, _ccur["key"], est * registry.thinking_mult(_ccur["key"]))
+                        await run_in_threadpool(
+                            registry.deduct, _ccur["key"], est * registry.thinking_mult(_ccur["key"])
+                        )
                     bad = citation_verify(answer)
                     if cache_key:
                         # 继承回答缓存（code-review #5：重复贴同一合同零重烧）
@@ -1400,10 +1743,15 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
                 routing_metrics.record("contract_review", False, "pass", "miss", checked=False)
                 log_account(
-                    model="contract_review", tier="contract_review", cache="miss",
+                    model="contract_review",
+                    tier="contract_review",
+                    cache="miss",
                     first_ms=round((_f0 or 0.0) * 1000, 1),
-                    ms=round((time.perf_counter() - t0) * 1000, 1), ok=True,
-                    conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
+                    ms=round((time.perf_counter() - t0) * 1000, 1),
+                    ok=True,
+                    conv_id=pre["conv_id"],
+                    user_id=user.id,
+                    q_len=len(text),
                 )
                 yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -1411,8 +1759,11 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 try:
                     await run_in_threadpool(
                         _record_analysis,
-                        user.id, pre["conv_id"], "image" if pre.get("image") else "text",
-                        cd, int((time.perf_counter() - t0) * 1000),
+                        user.id,
+                        pre["conv_id"],
+                        "image" if pre.get("image") else "text",
+                        cd,
+                        int((time.perf_counter() - t0) * 1000),
                     )
                 except Exception as e:
                     print(f"[analysis-run] {e}", flush=True)
@@ -1439,12 +1790,18 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     await run_in_threadpool(registry.deduct, res.key, res.usage)
                 routing_metrics.record(res.tier, res.escalated, res.verdict, "miss", checked=True)
                 log_account(
-                    model=registry.model_of(res.key), tier=res.tier,
-                    escalated=res.escalated, verdict=res.verdict, cache="miss",
+                    model=registry.model_of(res.key),
+                    tier=res.tier,
+                    escalated=res.escalated,
+                    verdict=res.verdict,
+                    cache="miss",
                     token_est=res.usage,
                     first_ms=round((_f0 - t0) * 1000, 1) if answer else None,
-                    ms=round((time.perf_counter() - t0) * 1000, 1), ok=bool(answer),
-                    conv_id=pre["conv_id"], user_id=user.id, q_len=len(text),
+                    ms=round((time.perf_counter() - t0) * 1000, 1),
+                    ok=bool(answer),
+                    conv_id=pre["conv_id"],
+                    user_id=user.id,
+                    q_len=len(text),
                 )
                 yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
@@ -1459,6 +1816,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 分支2：旗舰 / legacy 流式（空答重试 + 配额耗尽自动换模型 块2.2）
             current = {"key": flag_key}
             _restart_pending = False  # 重试将零重答：清空已发半截，防拼接（对抗审计 2026-08-07）
+            _tried: set[str] = set()  # F7：已尝试过的模型 key（瞬时故障不标记时靠它推进）
 
             def make_chain_fn(_i, disabled):
                 # 首次用已 pick 的模型；重试（空答/配额耗尽 mark_depleted 后）重新 pick →
@@ -1468,7 +1826,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         key = current["key"]
                         llm = registry.variant_of(key, disabled) if disabled else flag_llm
                     else:
-                        key, llm, _ = _safe_pick(modality, tier or "flag")
+                        key, llm, _ = _safe_pick(modality, tier or "flag", exclude=_tried)
                         current["key"] = key
                         if disabled:
                             llm = registry.variant_of(key, disabled)
@@ -1477,17 +1835,22 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 return make_chain(llm)
 
             def _on_model_failure(_e):
-                # 任何失败（配额耗尽/模型名错/瞬时错误，真实 API 报错非估算）→ 立即
-                # mark_depleted，下一轮落后备——确保没人盯梢也能自动切换（用户核心要求）
+                # 失败后切换模型（明细：配额耗尽/模型名错 → mark_depleted；瞬时故障 → 只排除不标记，
+                # F7 2026-09-14：瞬时（429/5xx/连接抖动）标记会把仍可用的模型永久禁用，
+                # 同 1k 修复口径；靠 _tried 排除已试过的 key 推进，避免 pick 选回同一模型 → 死循环）
                 nonlocal _restart_pending
                 if use_router and current["key"]:
-                    registry.mark_depleted(current["key"], "model_failure")
+                    _tried.add(current["key"])
+                    if not is_transient_error(_e):
+                        registry.mark_depleted(current["key"], "model_failure")
                 _restart_pending = True  # 下一 config 将从零重答：前端需清空半截
 
             chunks = []
             _f0 = None
             async for piece in stream_with_retry(
-                make_chain_fn, messages, [(False, 0.0), (True, 0.5), (False, 0.5)],
+                make_chain_fn,
+                messages,
+                [(False, 0.0), (True, 0.5), (False, 0.5)],
                 on_model_failure=_on_model_failure,
             ):
                 if _restart_pending:
@@ -1537,7 +1900,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         kind="multi_incomplete",
                         conv_id=pre["conv_id"],
                         user_id=user.id,
-                        detail=f"len={len((pre.get('user_text') or ''))}",
+                        detail=f"len={len(pre.get('user_text') or '')}",
                     )
             if not answer:
                 yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
@@ -1560,8 +1923,13 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         emb = await run_in_threadpool(_embed_question, pre.get("rewritten") or "")
                         pol, cnt, lab, fp = _cache_guards(pre.get("rewritten") or "")
                         answer_cache.put(
-                            cache_key, answer, pre["sources"],
-                            embedding=emb, polarity=pol, option_count=cnt, label_system=lab,
+                            cache_key,
+                            answer,
+                            pre["sources"],
+                            embedding=emb,
+                            polarity=pol,
+                            option_count=cnt,
+                            label_system=lab,
                             options_fingerprint=fp,
                             model=registry.model_of(flag_key) if use_router else "",
                         )
@@ -1587,12 +1955,18 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 # 对抗审计 v2 #20：SQLite 扣减同步阻塞事件循环 → 线程池
                 await run_in_threadpool(registry.deduct, current["key"], est * registry.thinking_mult(current["key"]))
             routing_metrics.record(
-                (tier or "flag") if use_router else "legacy", False, verdict_flag, "miss",
+                (tier or "flag") if use_router else "legacy",
+                False,
+                verdict_flag,
+                "miss",
                 checked=bool(use_router and answer),
             )
             log_account(
-                model=(registry.model_of(current["key"]) if use_router and current["key"] else registry.config()["model"]),
-                tier=(tier or "flag") if use_router else "legacy", cache="miss",
+                model=(
+                    registry.model_of(current["key"]) if use_router and current["key"] else registry.config()["model"]
+                ),
+                tier=(tier or "flag") if use_router else "legacy",
+                cache="miss",
                 token_est=estimate_tokens(answer) if answer else 0,
                 first_ms=round((_f0 - t0) * 1000, 1) if _f0 else None,
                 ms=round((time.perf_counter() - t0) * 1000, 1),
@@ -1635,6 +2009,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             if not _posted:
                 try:
                     import asyncio
+
                     asyncio.get_running_loop().run_in_executor(None, _post_placeholder, pre)
                 except Exception:
                     pass
@@ -1706,11 +2081,39 @@ def get_conversation(conv_id: int, user: User = Depends(get_current_user), db: S
     if not conv or conv.user_id != user.id:
         raise HTTPException(status_code=404, detail="会话不存在")
     msgs = db.query(Message).filter(Message.conversation_id == conv_id).order_by(Message.created_at.asc()).all()
+    # T1（2026-09-16）覆盖投影：批量读取本页消息关联的 run（禁止逐消息 N+1）。
+    # - Agent assistant 消息（有关联 run）→ run.state_json 的结构化覆盖（full/partial）；
+    # - 旧消息 / 无关联（agent_run_id 为 NULL）→ unknown，不得推断 full；
+    # - 用户消息 → None（覆盖不适用）。
+    coverage_by_run: dict[str, tuple[CoverageProjection, list[dict[str, str]]]] = {}
+    run_ids = [m.agent_run_id for m in msgs if m.agent_run_id]
+    if run_ids:
+        for run in db.query(AgentRun).filter(AgentRun.id.in_(run_ids)).all():
+            coverage_by_run[str(run.id)] = coverage_from_state_json(run.state_json)  # str(): 运行时为 str，仅类型收窄
+    message_outs = []
+    for m in msgs:
+        coverage = coverage_by_run.get(str(m.agent_run_id)) if m.agent_run_id else None
+        if m.role == "assistant":
+            coverage_status, uncovered = coverage if coverage is not None else ("unknown", [])
+        else:
+            coverage_status, uncovered = None, []
+        message_outs.append(
+            MessageOut(
+                id=m.id,
+                role=m.role,
+                content=m.content,
+                image_ref=m.image_ref,
+                thumb_ref=m.thumb_ref,
+                created_at=m.created_at,
+                coverage_status=coverage_status,
+                uncovered_issues=uncovered,
+            )
+        )
     return ConversationDetail(
         id=conv.id,
         title=conv.title or "",
         summary=conv.summary or "",
-        messages=[MessageOut.model_validate(m) for m in msgs],
+        messages=message_outs,
     )
 
 
@@ -1853,7 +2256,17 @@ def admin_knowledge(limit: int = 50, offset: int = 0, source: str = None, _admin
 
 @app.post("/api/admin/knowledge")
 def admin_add_knowledge(body: KnowledgeAddIn, admin: User = Depends(require_admin)):
-    extra = {"effective_from": body.effective_from, "effective_to": body.effective_to, "status": body.status or "现行"}
+    extra = {
+        "effective_from": body.effective_from,
+        "effective_to": body.effective_to,
+        "status": body.status or "现行",
+        "version_id": body.version_id,
+        "promulgated_at": body.promulgated_at,
+        "source_url": body.source_url,
+        "source_document_sha256": body.source_document_sha256,
+        "supersedes_version_id": body.supersedes_version_id,
+        "reviewed_at": body.reviewed_at,
+    }
     n = ks.add_text(body.content, source=body.title, article=body.article, origin="manual", extra_meta=extra)
     log_audit(admin.id, "knowledge.add", target=f"{body.title} {body.article}".strip(), detail=f"chunks={n}")
     return {"added_chunks": n}
@@ -1956,6 +2369,30 @@ async def admin_llm_switch(request: Request, body: LlmSwitchIn, _admin: User = D
     return cfg
 
 
+@app.post("/api/admin/llm-promote")
+@limiter.limit("10/minute")
+def admin_llm_promote(request: Request, body: LlmPromoteIn, _admin: User = Depends(require_admin)):
+    """把某模型提为所在 (modality, tier) 自动路由链首（运行时生效，重启回落 .env）。"""
+    try:
+        new_priority = registry.promote(body.key)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    log_audit(_admin.id, "llm.promote", target=body.key)
+    return {"key": body.key, "priority": new_priority}
+
+
+@app.post("/api/admin/llm-disable")
+@limiter.limit("10/minute")
+def admin_llm_disable(request: Request, body: LlmDisableIn, _admin: User = Depends(require_admin)):
+    """禁用/启用某模型参与自动路由（运行时生效，重启回落 .env；不影响显式指定场景）。"""
+    try:
+        registry.set_disabled(body.key, body.disabled)
+    except KeyError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    log_audit(_admin.id, "llm.disable" if body.disabled else "llm.enable", target=body.key)
+    return {"key": body.key, "admin_disabled": body.disabled}
+
+
 @app.get("/api/admin/llm-status")
 def admin_llm_status(_admin: User = Depends(require_admin)):
     """模型配额 + 路由运行态指标（仅管理员；普通用户接口不返回模型信息）。
@@ -1982,6 +2419,7 @@ async def admin_llm_quota(request: Request, body: LlmQuotaIn, _admin: User = Dep
       （runtime_used = total - remaining - initial，共享 initial 下按模型记）
     """
     import quota_utils as qu
+
     # 工具模型：rerank 队列或当前 embedding 模型
     if body.key in qu.rerank_model_list() or body.key == qu.embedding_model_key():
         total = qu.utility_quota_total_for(body.key)
@@ -2024,7 +2462,9 @@ def admin_audit(limit: int = 100, db: Session = Depends(get_db), _admin: User = 
 # ==================== 用户反馈（点赞/踩/纠错） ====================
 @app.post("/api/feedback")
 @limiter.limit("20/minute")
-def post_feedback(request: Request, body: FeedbackIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+def post_feedback(
+    request: Request, body: FeedbackIn, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
     # 归属校验：conversation_id 必须属于当前用户（防伪造他人会话反馈、灌爆待审队列，对抗审计 2026-08-07）
     if body.conversation_id is not None:
         conv = db.get(Conversation, body.conversation_id)

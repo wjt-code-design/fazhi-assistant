@@ -1,0 +1,29 @@
+T8 改动集前后对照（同模型 qwen3.8-flash / 同 10 题 / 唯一变量 = 候选）
+  基线 BASE=gate5-dev-run-14-qwen38-t8（claim 2026-09-10 09:42:21）
+  新轮 NEW =gate5-dev-run-15-qwen38-t8b（claim 2026-09-10 10:37:52）
+
+case 应有   | 改动前 issues/steps/预算           | 改动后 issues/steps/预算           | err(改后)
+----------------------------------------------------------------------------------------------------------------------
+C01  4    | 4/16/26                       | 5/19/29                       | -
+C02  4    | 3/13/26                       | 5/19/29                       | -
+C03  5    | 4/16/26                       | 2/11/29                       | -
+C04  5    | 4/16/26                       | 2/11/29                       | NON_CANONICAL_CITATION
+C05  5    | 4/16/26                       | 4/16/29                       | -
+C06  5    | 无记录                           | 5/19/29                       | CROSS_ISSUE_EVIDENCE
+C07  5    | 1/11/26                       | 2/11/29                       | UNSUPPORTED_NUMERIC_TOKEN
+C08  5    | 5/19/26                       | 4/16/29                       | CROSS_ISSUE_EVIDENCE
+C09  5    | 3/13/26                       | 4/16/29                       | -
+C10  4    | 4/16/26                       | 4/16/29                       | -
+
+争点总数：应有 47 ｜ 改动前 32（缺 32%）｜ 改动后 37（缺 21%）
+completed：改动前 7/10 ｜ 改动后 6/10
+两层 judge：改动前 mechanical=7 full_closure=0/10 ｜ 改动后 mechanical=6 full_closure=0/10
+
+可机械推导的两项核对（**权威判据见本轮预登记文件**，不在此硬编码，避免残留过期措辞）：
+  · 争点总数：上升 ✅（32 → 37）
+  · ≥5 争点的题：['C01', 'C02', 'C06']；其中 completed：['C01', 'C02']
+  · 出现 AGENT_BUDGET_EXCEEDED 的题：无
+
+错误码分布：
+  改动前: (无错误码)=7, EVIDENCE_COVERAGE_DEFICIENT=2, ISSUE_DECOMPOSITION_INVALID=1
+  改动后: (无错误码)=6, CROSS_ISSUE_EVIDENCE=2, NON_CANONICAL_CITATION=1, UNSUPPORTED_NUMERIC_TOKEN=1

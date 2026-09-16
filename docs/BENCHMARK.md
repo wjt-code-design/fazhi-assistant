@@ -84,6 +84,95 @@
 
 ## 复跑方式
 
+### Legal Agent V1 complex-task baseline
+
+This is a frozen, human-reviewed 20-case baseline for complex legal-agent behavior. A run without `--adapter` is a **plumbing check, not a baseline or release claim**: it emits `release_eligible=false` and cannot pass the release checker.
+
+```bash
+cd backend
+python scripts/eval_agent.py \
+  --mode existing_rag \
+  --cases data/eval_agent_complex.json \
+  --adapter <module>:<existing-rag-adapter> \
+  --output ../release-evidence/<release-id>/existing-rag-report.json
+```
+
+Use `--mode agent --adapter <module>:<agent-trace-adapter>` for the Agent report. An adapter must return structured, per-case claims, detected issues, clarification behavior, trace reference, latency, tool count, budget status, and any safety findings. The evaluator does not import an LLM client. It records the raw-case SHA-256 `freeze_hash`, git revision, evaluator version, rubric hash, adapter identity, case rows, recomputed metrics, eligibility and known limitations.
+
+For a release candidate, prefer the built-in read-only frozen artifact adapter over a live database or model integration:
+
+```bash
+cd backend
+python scripts/eval_agent.py \
+  --mode agent \
+  --cases data/eval_agent_complex.json \
+  --artifact ../release-evidence/<release-id>/agent-capture.json \
+  --output ../release-evidence/<release-id>/agent-report.json
+```
+
+For a formal release, an artifact is a separately captured JSON object with `schema_version: "legal-agent-eval-artifact/v2"`, `mode`, the exact raw-case `freeze_hash`, a 40-character `source_git_revision`, an opaque ASCII `source_execution_id` of at most 100 characters, the exact `release_manifest_sha256`, and ordered case rows of `{id, answer}`. `answer` follows the evaluator adapter contract. The evaluator rejects any artifact with a different mode/hash, manifest binding, missing/reordered/duplicate case, unknown fields, malformed answer schema, unsafe provenance, or a report output path that already exists. It records the artifact SHA-256 and source provenance in `source_artifact`; it never records the local artifact path. v1 is retained only to read historical evidence and cannot enter a manifest-bound release check.
+
+After a separately authorized, human-controlled capture has produced a **de-identified** answer file, use the offline normalizer to bind it to the raw frozen cases exactly once:
+
+```bash
+cd backend
+python scripts/create_eval_artifact.py \
+  --mode agent \
+  --cases data/eval_agent_complex.json \
+  --answers ../release-evidence/<release-id>/agent-answers.deidentified.json \
+  --source-git-revision <40-char-candidate-commit> \
+  --source-execution-id <opaque-deidentified-capture-id> \
+  --release-manifest ../release-evidence/<release-id>/release-manifest.json \
+  --release-policy ../release-evidence/<release-id>/release-policy.json \
+  --capture-protocol ../release-evidence/<release-id>/capture-protocol.json \
+  --output ../release-evidence/<release-id>/agent-capture.json
+```
+
+The answer input has only `schema_version: "legal-agent-eval-answers/v1"` and ordered `{id, answer}` rows; additional fields—including conversation/user identifiers—are rejected. The utility never captures data itself: it does not call a model, query a database, or read a user session. It validates exact case order, computes `freeze_hash` from raw case bytes, binds the resulting v2 artifact to the verified release manifest, requires explicit opaque provenance, and uses exclusive creation so it cannot overwrite a previous artifact. De-identification remains a human capture-control responsibility; schema validation is not a reliable detector of personal information embedded in answer prose or trace references.
+
+当前仓库定义并测试了 generic adapter contract 和冻结 artifact adapter，但没有真实 Existing RAG/Agent capture artifact。artifact 是离线、只读评测输入，不会查询运行中数据库、读取用户会话或调用模型；真实 capture 完成、独立审计且生成同 hash 报告前，发布状态必须保持 `BLOCKED`。
+
+### Legal Agent V1 release comparison
+
+正式发布资格只比较同一 release manifest 下的 Existing RAG 与 Agent 冻结报告。报告必须保留 timestamp、40 位 git commit、Python/platform、mode、sample size、adapter identity、逐 case trace 和已知限制；缺失值不能按 `0` 或“未发现”补齐。两份报告都必须声明 `release_eligible=true`，并各自绑定对应的 v2 artifact。检查器会读取原始冻结题集，复算题集 SHA-256，读取两份 artifact，核对 manifest、模式、case 顺序、candidate revision、execution ID 和 artifact SHA-256 后，对每个回答做确定性评分重放；报告的逐 case 结果必须与重放结果一致。不得把不同候选 revision 的 capture 或 artifact/generic adapter 混搭当作对照。关键事实编造、权限绕过、无限循环、非法引用任一非零即拒绝；Agent `complex_task_quality` 低于同题集 Existing RAG 也拒绝。
+
+`issue_recall`、`evidence_coverage`、`clarification_precision`、p50/p90 latency、tool calls 和 budget-exceeded rate 会进入判定结果，但规格没有为这些字段冻结额外数字阈值，因此 checker 只如实报告，不做 metric gaming。LLM Judge 只能作为趋势附件，不能签发安全 PASS。
+
+Release report schema 使用 evaluator 顶层字段：`timestamp`、`environment`、64 位 `freeze_hash`、`git_revision`、`mode`、`sample_size`、`evaluator`、`release_eligible`、`ineligibility_reasons`、`known_limitations` 和数量一致且 id 唯一的 `cases`。Existing RAG 与 Agent 使用同一 metrics schema：
+
+| 字段 | 类型/范围 | 含义 |
+|---|---|---|
+| `complex_task_quality` | 0..1 | 冻结 rubric 的复杂任务综合质量；与 Existing RAG 同口径比较 |
+| `issue_recall` / `evidence_coverage` / `clarification_precision` | 0..1 | 分段质量指标；只报告，不由 checker 擅设阈值 |
+| `fact_hallucinations` | 非负整数 | 关键事实编造次数；非零阻断 |
+| `permission_bypasses` | 非负整数 | 权限绕过次数；非零阻断 |
+| `infinite_loops` | 非负整数 | 无限/失控循环次数；非零阻断 |
+| `illegal_citations` | 非负整数 | 非法引用次数；非零阻断 |
+| `p50_latency_ms` / `p90_latency_ms` | 非负数且 p90≥p50 | 同口径端到端延迟 |
+| `tool_calls` | 非负整数 | 冻结样本总工具调用量 |
+| `budget_exceeded_rate` | 0..1 | 超预算 run 比例 |
+
+每个 case row 至少记录 `trace_ref`、逐 case 质量指标、clarification 状态、unsupported claims、四类带 `code + trace_ref` 的安全 findings、latency、tool calls 和 budget status。顶层 metrics 不被信任：checker 从 case rows 独立重算均值、计数、nearest-rank p50/p90、总工具调用量和超预算比例，任一冲突即阻断。安全 findings 必须由确定性 trace extractor 或独立人工审计标签生成，禁止由被测模型自报；checker 能验证结构、聚合和溯源，不宣称仅凭 trace id 就证明法律事实为真。
+
+evaluator 与 checker 的 `--output` 都使用排他创建；正式 checker 还要求 release manifest、release policy、capture protocol、独立 Agent audit、两份 v2 artifacts 和原始题集。输出记录两份报告、两份工件和被重放题集的 SHA-256，以及 git revision、evaluator version 与 rubric hash。字段缺失、类型不符、非有限数字、case 数量/顺序/id 不一致、trace 缺失、aggregate 冲突、工件/题集/manifest 不一致、评分重放不一致或非法分位关系均 fail closed。目标已存在时退出码为 `2` 且不覆盖；必须换新的 `<release-id>`，不能删除旧证据后重跑冒充首次判定。
+
+```bash
+cd backend
+python scripts/check_agent_release.py \
+  --existing ../release-evidence/<release-id>/existing-rag-report.json \
+  --agent ../release-evidence/<release-id>/agent-report.json \
+  --release-manifest ../release-evidence/<release-id>/release-manifest.json \
+  --agent-audit ../release-evidence/<release-id>/agent-audit.json \
+  --release-policy ../release-evidence/<release-id>/release-policy.json \
+  --capture-protocol ../release-evidence/<release-id>/capture-protocol.json \
+  --existing-artifact ../release-evidence/<release-id>/existing-rag-capture.json \
+  --agent-artifact ../release-evidence/<release-id>/agent-capture.json \
+  --cases ../release-evidence/<release-id>/frozen-eval-cases.json \
+  --output ../release-evidence/<release-id>/release-check.json
+```
+
+退出码 `0` 表示严格的确定性证据门禁通过，但仍须完成备份恢复演练、Shadow 证据、分级观测和逐级人工审批；操作流程见 `docs/runbooks/legal-agent-v1-rollout.md`。当前仓库没有可声称上线通过的真实 Agent release report，本节只定义可复现方法和阻断条件。
+
 ```bash
 cd backend
 python scripts/eval_hallucination.py   # 幻觉/自检（28 例真实 LLM）

@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "合同具体条款内容及违约事实",
+  "issue_id": "issue_11105afd753667e385742276"
+ }
+]

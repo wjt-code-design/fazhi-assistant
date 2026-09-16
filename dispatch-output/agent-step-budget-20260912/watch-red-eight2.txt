@@ -1,0 +1,109 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_____ test_eight_issue_decomposition_reaches_drafting_within_step_budget ______
+
+db = <sqlalchemy.orm.session.Session object at 0x00000133D9E84CD0>
+
+    def test_eight_issue_decomposition_reaches_drafting_within_step_budget(db):
+        """回归（2026-09-12 付费 run budget20-q38-c01-20260912-01 真实复现）：
+    
+        planner 实测规划出 **8 个争点**（历轮 3/4/4/5/8 —— 模型驱动、无上界）。
+        步数成本随 N 线性：每次检索 2 个检查点、每次澄清 2 个、backfill 每争点 1 个。
+        澄清会在扇出中途打断（`_seed_issue_retrievals` 遇 WAITING_USER 即 break），
+        导致后续争点只能靠 backfill 补，步数在 20 内耗尽 → `budget_exceeded:step_preflight`。
+    
+        修复方向（用户选定 C-1 批量检索）：扇出期间**暂缓澄清**（登记不问），
+        全部争点检索完再问 —— 澄清仍 ≤2 轮，backfill 不再触发，步数与澄清解耦。
+        """
+        from agent.controller import _DEFAULT_RUN_LOCKS, resume_with_user_fact
+        from agent.service import execute_agent_request
+    
+        n_issues = 8
+        user = User(username="eight-issue-owner", password_hash="x")
+        db.add(user)
+        db.commit()
+        conversation = Conversation(user_id=user.id, title="", summary="", message_count=1)
+        db.add(conversation)
+        db.commit()
+    
+        transport = _MultiIssueTransport(n_issues)
+        gateway = _law_gateway()
+        settings = SimpleNamespace(
+            agent_max_steps=20,
+            agent_max_tool_calls=10,
+            agent_max_replans=3,
+            agent_max_clarifications=2,
+            agent_max_verifier_research_returns=1,
+        )
+    
+        run_id: str | None = None
+        version: int | None = None
+        result = None
+        for turn in range(1, 9):
+            if run_id is None:
+                result = execute_agent_request(
+                    db=db,
+                    user_id=user.id,
+                    settings=settings,
+                    bootstrap=_multi_issue_bootstrap(conversation.id),
+                    finalizer=_finalize,
+                    llm=transport,
+                    gateway=gateway,
+                )
+            else:
+                resumed = resume_with_user_fact(
+                    db=db,
+                    run_locks=_DEFAULT_RUN_LOCKS,
+                    run_id=run_id,
+                    expected_version=version,
+                    user_id=user.id,
+                    conversation_id=conversation.id,
+                    answer=f"事实补充：第{turn}轮",
+                )
+                version = resumed.new_state_version
+                result = execute_agent_request(
+                    db=db,
+                    user_id=user.id,
+                    settings=settings,
+                    bootstrap=_multi_issue_bootstrap(conversation.id),
+                    finalizer=_finalize,
+                    llm=transport,
+                    gateway=gateway,
+                    run_id=run_id,
+                )
+            if result.run_id:
+                run_id = result.run_id
+            if result.state_version is not None:
+                version = result.state_version
+            if result.outcome != "clarification":
+                break
+    
+        assert result is not None
+        run = db.get(AgentRun, run_id)
+        state = LegalAgentState.model_validate_json(run.state_json)
+>       assert "budget_exceeded" not in str(state.terminal_decision), (
+            f"8 争点场景不得因步数预算停止（terminal_decision={state.terminal_decision}，"
+            f"steps={state.steps}/{state.budgets.max_steps}）—— 这是 C-1 批量检索要消除的缺陷"
+        )
+E       AssertionError: 8 争点场景不得因步数预算停止（terminal_decision=kind='stop' reason='budget_exceeded:step_preflight'，steps=18/20）—— 这是 C-1 批量检索要消除的缺陷
+E       assert 'budget_exceeded' not in "kind='stop'...p_preflight'"
+E         
+E         'budget_exceeded' is contained here:
+E           kind='stop' reason='budget_exceeded:step_preflight'
+E         ?                     +++++++++++++++
+
+tests\test_agent_chat_integration.py:1734: AssertionError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+============================== warnings summary ===============================
+tests/test_agent_chat_integration.py::test_eight_issue_decomposition_reaches_drafting_within_step_budget
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_chat_integration.py::test_eight_issue_decomposition_reaches_drafting_within_step_budget
+1 failed, 34 deselected, 1 warning in 16.44s

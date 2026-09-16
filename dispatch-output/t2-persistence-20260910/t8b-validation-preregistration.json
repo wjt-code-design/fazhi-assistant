@@ -1,0 +1,48 @@
+{
+ "run_id": "gate5-dev-run-15-qwen38-t8b",
+ "kind": "T8 收尾改动（第三处修复环 + Pareto 规则 + slack 6）的验证轮（预登记）",
+ "preregistered_at_utc": "2026-09-10T10:37:00+00:00",
+ "purpose": "验证 2026-09-10 18:24–18:45 的 T8 收尾改动在真实链路上是否生效。",
+ "baseline": {
+  "run": "gate5-dev-run-14-qwen38-t8",
+  "note": "同模型/同题集/同 runner；唯一变量 = 候选（本轮新增：非逐字引用修复环、Pareto 采纳规则、slack 3→6）"
+ },
+ "required_precondition": {
+  "service_restart": "**必须重启服务**——改动是 Python 源码，前一个进程（OC92m7）内存里仍是旧代码，不重启则本轮无效。",
+  "verify": "重启后跑前置哨兵：`GET /api/admin/stats` 的 llm_model == qwen3.8-flash，且伪造 agent_run_id 得 404（AGENT_ENABLED 生效）"
+ },
+ "judgement": {
+  "note": "沿用上一轮教训：**判据必须能区分'好结果'与'没生效'**，因此每条都给出可区分的观测点。",
+  "main_falsifiable": [
+   {
+    "claim": "第三处修复环（非逐字引用）在真实链路上被触发并生效",
+    "observable": "服务日志出现 `issue_decomposition_repair`，且 `agent_repair_stage` ∈ {repaired, repair_ineffective}，或 `agent_non_verbatim_count > 0`",
+    "falsified_if": "整轮日志**没有任何** `issue_decomposition_repair` 记录，同时又出现 `agent_pre_run_failure` 且 detail 含 'verbatim'（= 无修复机会的旧症状）"
+   },
+   {
+    "claim": "争点覆盖不因本轮改动退化",
+    "observable": "逐题 issue 数 + 总数",
+    "falsified_if": "争点总数 < 32（上一轮基线）"
+   },
+   {
+    "claim": "8 争点边界不再零余量",
+    "observable": "逐题实测 steps 与 `budget_snapshot.max_steps`（本轮为 29）",
+    "falsified_if": "出现 `AGENT_BUDGET_EXCEEDED`（说明 29 仍不够）"
+   }
+  ],
+  "expectation": "**`full_closure` 预期仍为 0/10**（writer 引用轴，不在本轮射程）。本轮**不拿它判成败**，只看有无异常恶化。",
+  "measured_axes": [
+    "逐题 issue 数 / steps / 生效 max_steps / error_codes",
+    "日志 `issue_decomposition_repair` 的 stage 与计数（uncovered / non_verbatim）",
+    "日志 `agent_pre_run_failure` 的 reason 与 detail（若出现）",
+    "两层 judge：mechanical_pass_count 与 full_closure"
+  ]
+ },
+ "red_lines": [
+  "不 commit / 不 stash / 不 checkout / 不 reset",
+  "不修改冻结物", "不跑 gate2-run-12",
+  "共享数据库 / 端口 / 付费账户禁止并发；unknown_server_state 未经人工确认不得重跑",
+  "不得把本轮与 LongCat 基线并列；不得声称质量提升或统计显著"
+ ],
+ "expected_output": "release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-15-qwen38-t8b-sessions.json"
+}

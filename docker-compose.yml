@@ -6,7 +6,8 @@
 # 公网手机端（可选）：配 DOMAIN=fazhi.你的域名.com + 反代/穿透层，或云服务器场景 Caddy 自动证书
 #
 # 诚实标注：
-#   - 后端镜像约 1.5GB（BGE 模型烘焙），首次构建需数分钟（下载 CPU torch + 模型）。
+#   - 后端镜像约 3.92GB（2026-09-04 实测；早期写的 1.5GB 已过时），首次构建需数十分钟
+#     （下载 CPU torch + 依赖 + BGE 模型；其中 BGE 烘焙一层实测约 24 分钟）。
 #   - 并发模型：单 worker（uvicorn 默认 1 进程）——多 worker 会撞本地 Chroma/SQLite 锁。
 #   - 端口收紧（2026-08-08）：backend/frontend 不再对宿主机暴露，仅 compose 内网互通；
 #     公网只暴露 80/443（Caddy），防绕过反代直打后端。
@@ -19,10 +20,25 @@ services:
       # 从宿主 .env 读取（compose 自动加载根目录 .env）
       - LLM_API_KEY=${LLM_API_KEY}
       - LLM_BASE_URL=${LLM_BASE_URL}
+      # Optional deployment-specific model registry override (JSON; no secrets).
+      - LLM_MODELS_JSON=${LLM_MODELS_JSON:-}
+      - AGENT_ENABLED=${AGENT_ENABLED:-false}
+      - AGENT_SHADOW_ENABLED=${AGENT_SHADOW_ENABLED:-false}
+      - AGENT_TRAFFIC_PERCENT=${AGENT_TRAFFIC_PERCENT:-0}
       - JWT_SECRET=${JWT_SECRET}
       - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
       - ADMIN_PASSWORD=${ADMIN_PASSWORD:?请在根 .env 设置 ADMIN_PASSWORD}
       - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      # 2026-09-04：chromadb 0.4.24 与 posthog 7.45.3 不兼容，访问向量库时抛
+      #   "Failed to send telemetry event ...: capture() takes 1 positional argument but
+      #    3 were given"。异常被 chromadb 自身 try/except 吞掉，不影响功能
+      #   （/healthz 仍 200、vector:true），仅污染日志。
+      #   诚实标注：本开关 **不能消除该报错**。实测 chromadb Settings 确已读到
+      #   anonymized_telemetry=False（内部仅设 posthog.disabled=True），但 TypeError 发生在
+      #   posthog.capture() 的参数绑定阶段，早于 disabled 判断，与是否禁用无关。
+      #   保留理由：它是 chromadb 官方隐私开关，待 posthog 降级后即可生效。
+      #   若要根治日志噪音：把 posthog 降到 <4（需改 requirements 并重建镜像，约 40 分钟）。
+      - ANONYMIZED_TELEMETRY=False
       # SQLite 落在挂载卷内（避免单文件挂载的目录坑）
       - DATABASE_URL=sqlite:////data/app.db
       - QUOTA_DB=/data/quota_used.sqlite

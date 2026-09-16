@@ -1,0 +1,29 @@
+T8 改动集前后对照（同模型 qwen3.8-flash / 同 10 题 / 唯一变量 = 候选）
+  基线 BASE=gate5-dev-run-13-qwen38（claim 2026-09-10 07:22:46）
+  新轮 NEW =gate5-dev-run-14-qwen38-t8（claim 2026-09-10 09:42:21）
+
+case 应有   | 改动前 issues/steps/预算           | 改动后 issues/steps/预算           | err(改后)
+----------------------------------------------------------------------------------------------------------------------
+C01  4    | 1/9/16                        | 4/16/26                       | -
+C02  4    | 4/16/16                       | 3/13/26                       | -
+C03  5    | 3/13/16                       | 4/16/26                       | -
+C04  5    | 1/9/16                        | 4/16/26                       | EVIDENCE_COVERAGE_DEFICIEN
+C05  5    | 1/11/16                       | 4/16/26                       | -
+C06  5    | 3/13/16                       | 无记录                           | ISSUE_DECOMPOSITION_INVALI
+C07  5    | 1/11/16                       | 1/11/26                       | -
+C08  5    | 1/9/16                        | 5/19/26                       | -
+C09  5    | 2/11/16                       | 3/13/26                       | EVIDENCE_COVERAGE_DEFICIEN
+C10  4    | 1/9/16                        | 4/16/26                       | -
+
+争点总数：应有 47 ｜ 改动前 18（缺 62%）｜ 改动后 32（缺 32%）
+completed：改动前 7/10 ｜ 改动后 7/10
+两层 judge：改动前 mechanical=7 full_closure=0/10 ｜ 改动后 mechanical=7 full_closure=0/10
+
+预登记命题核验：
+  ① 契约加固提高争点覆盖（证伪条件：总数 ≤ 基线）→ 未被证伪 ✅
+  ② 预算修正使 5 争点题能跑完 → 未被证伪 ✅（≥5 争点的题：['C08']，completed：['C08']）
+  ③ 覆盖度守卫生效（需看服务日志 issue_decomposition_coverage 触发/有效次数）→ 见日志核验
+
+错误码分布：
+  改动前: (无错误码)=7, UNSUPPORTED_NUMERIC_TOKEN=2, EVIDENCE_COVERAGE_DEFICIENT=1
+  改动后: (无错误码)=7, EVIDENCE_COVERAGE_DEFICIENT=2, ISSUE_DECOMPOSITION_INVALID=1

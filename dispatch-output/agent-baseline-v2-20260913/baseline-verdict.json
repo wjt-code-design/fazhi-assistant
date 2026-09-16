@@ -1,0 +1,412 @@
+{
+ "run": "baseline-v2 merged (run-1 + run-2)",
+ "source_of": {
+  "E02": "run-4",
+  "E06": "run-4",
+  "E07": "run-3",
+  "E08": "run-3",
+  "E09": "run-3",
+  "E10": "run-3",
+  "C09": "run-2",
+  "C10": "run-2",
+  "E01": "run-2",
+  "E03": "run-2",
+  "E04": "run-2",
+  "E05": "run-2",
+  "C01": "run-1",
+  "C02": "run-1",
+  "C03": "run-1",
+  "C04": "run-1",
+  "C05": "run-1",
+  "C06": "run-1",
+  "C07": "run-1",
+  "C08": "run-1"
+ },
+ "tally": {
+  "n": 20,
+  "completed": 6,
+  "forbidden_fail": 0,
+  "scope_mismatch": 1,
+  "required_pool_hits": 22,
+  "required_total": 53,
+  "missing": []
+ },
+ "per_case": {
+  "E02": {
+   "domain": "跨部门法-纯民事借贷",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "UNSUPPORTED_NUMERIC_TOKEN"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "民法典#第六百六十七条": false,
+    "民法典#第六百七十五条": true,
+    "民法典#第一百八十八条": false
+   },
+   "forbidden_cited_in_final": {
+    "刑事诉讼法#第一百零一条": false,
+    "刑事诉讼法#第一百零三条": false,
+    "刑法#第二百六十六条": false,
+    "行政诉讼法#第五十条": false,
+    "行政诉讼法#第五十一条": false,
+    "行政诉讼法#第五十二条": false
+   },
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": true
+  },
+  "E06": {
+   "domain": "scope边界-多争点触发",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 2,
+   "error_codes": [],
+   "redline_over_2_rounds": true,
+   "final_chars": 0,
+   "required_in_pool": {
+    "劳动合同法#第三十条": false,
+    "民法典#第五百七十七条": false
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": true,
+   "scope_trigger_expected": true
+  },
+  "E07": {
+   "domain": "scope边界-不触发",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "ISSUE_CLAIMS_MISSING"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "民法典#第五百零九条": false,
+    "民法典#第五百七十七条": false
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "E08": {
+   "domain": "条件化-时效关键事实缺失",
+   "agent_completed": true,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [],
+   "redline_over_2_rounds": false,
+   "final_chars": 969,
+   "required_in_pool": {
+    "民法典#第六百七十五条": false,
+    "民法典#第一百八十八条": true
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "E09": {
+   "domain": "条件化-金额证据不足",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "UNKNOWN_MISSING_INFORMATION"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "劳动合同法#第三十条": true,
+    "民法典#第五百七十九条": false
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "E10": {
+   "domain": "库外诚实-司法解释",
+   "agent_completed": true,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [],
+   "redline_over_2_rounds": false,
+   "final_chars": 443,
+   "required_in_pool": {
+    "民法典#第六百八十条": true
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "C09": {
+   "domain": "消费者交易",
+   "agent_completed": true,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [],
+   "redline_over_2_rounds": false,
+   "final_chars": 1031,
+   "required_in_pool": {
+    "消费者权益保护法#第二十六条": false,
+    "民法典#第四百九十六条": false,
+    "民法典#第四百九十七条": true,
+    "民法典#第五百七十七条": false
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "C10": {
+   "domain": "多争点综合",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "ISSUE_CLAIMS_MISSING"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "民法典#第五百七十七条": false,
+    "刑法#第二百六十六条": true
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "E01": {
+   "domain": "跨部门法-民事起诉条件",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "UNKNOWN_MISSING_INFORMATION"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "民法典#第一百八十八条": false,
+    "民法典#第一百九十五条": false,
+    "民事诉讼法#第一百二十二条": true
+   },
+   "forbidden_cited_in_final": {
+    "行政诉讼法#第四十九条": false,
+    "行政诉讼法#第五十一条": false
+   },
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "E03": {
+   "domain": "跨部门法-装修停工",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "UNKNOWN_FACT_ID"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "民法典#第五百七十七条": false,
+    "民法典#第八百零六条": false
+   },
+   "forbidden_cited_in_final": {
+    "刑法#第二百二十四条": false
+   },
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "E04": {
+   "domain": "跨部门法-轻微交通事故",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "UNKNOWN_MISSING_INFORMATION"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "道路交通安全法#第七十六条": true,
+    "民法典#第一千一百六十五条": false,
+    "民法典#第一千一百七十九条": true
+   },
+   "forbidden_cited_in_final": {
+    "刑法#第一百三十三条": false
+   },
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "E05": {
+   "domain": "跨部门法-消费欺诈三倍赔偿",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "GENERATOR_FAILURE"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "消费者权益保护法#第五十五条": false,
+    "民法典#第一百四十八条": false,
+    "民法典#第五百七十七条": false
+   },
+   "forbidden_cited_in_final": {
+    "行政处罚法#第六十三条": false,
+    "行政处罚法#第二十九条": false
+   },
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "C01": {
+   "domain": "劳动争议",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "NON_CANONICAL_CITATION"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "劳动合同法#第四十条": false,
+    "劳动合同法#第四十三条": true,
+    "劳动合同法#第四十七条": false,
+    "劳动合同法#第八十七条": true
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "C02": {
+   "domain": "劳动争议",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "UNSUPPORTED_CITATION"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "劳动法#第三十六条": false,
+    "劳动法#第四十四条": true,
+    "劳动争议调解仲裁法#第二十七条": true
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "C03": {
+   "domain": "劳动争议",
+   "agent_completed": true,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [],
+   "redline_over_2_rounds": false,
+   "final_chars": 858,
+   "required_in_pool": {
+    "劳动合同法#第十条": true,
+    "劳动合同法#第八十二条": true
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "C04": {
+   "domain": "合同履行与解除",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "UNKNOWN_EVIDENCE_ID"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "民法典#第五百八十六条": false,
+    "民法典#第五百八十七条": true,
+    "民法典#第五百八十八条": false
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "C05": {
+   "domain": "合同履行与解除",
+   "agent_completed": true,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [],
+   "redline_over_2_rounds": false,
+   "final_chars": 812,
+   "required_in_pool": {
+    "民法典#第五百七十七条": true,
+    "民法典#第七百二十二条": true
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "C06": {
+   "domain": "合同履行与解除",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "ISSUE_CLAIMS_MISSING"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "民法典#第五百零九条": false,
+    "民法典#第五百四十三条": false,
+    "民法典#第五百七十七条": false
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "C07": {
+   "domain": "诉讼时效与保证期间",
+   "agent_completed": true,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [],
+   "redline_over_2_rounds": false,
+   "final_chars": 557,
+   "required_in_pool": {
+    "民法典#第一百八十八条": false,
+    "民法典#第一百九十五条": true,
+    "民法典#第六百七十五条": false
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  },
+  "C08": {
+   "domain": "诉讼时效与保证期间",
+   "agent_completed": false,
+   "rounds": 2,
+   "clar_rounds": 1,
+   "error_codes": [
+    "GENERATOR_FAILURE"
+   ],
+   "redline_over_2_rounds": false,
+   "final_chars": 0,
+   "required_in_pool": {
+    "民法典#第六百八十六条": true,
+    "民法典#第六百九十二条": true,
+    "民法典#第六百九十三条": true,
+    "民法典#第六百九十五条": false
+   },
+   "forbidden_cited_in_final": {},
+   "scope_clarification_seen": false,
+   "scope_trigger_expected": false
+  }
+ }
+}

@@ -1,0 +1,29 @@
+{
+  "schema_version": "legal-agent-agent-audit/v1",
+  "release_manifest_sha256": "<sha256-of-validated-release-manifest>",
+  "mode": "agent",
+  "reviewer": {
+    "id": "<non-secret-reviewer-identifier>",
+    "role": "joint-independent-review"
+  },
+  "reviewed_at": "YYYY-MM-DDTHH:MM:SS+08:00",
+  "cases": [
+    {
+      "id": "<frozen-case-id-in-original-order>",
+      "trace_ref": "<deidentified-trace-reference-from-agent-report>",
+      "decision": "pass",
+      "findings": []
+    },
+    {
+      "id": "<case-with-confirmed-problem>",
+      "trace_ref": "<deidentified-trace-reference-from-agent-report>",
+      "decision": "finding",
+      "findings": [
+        {
+          "code": "<controlled-finding-code>",
+          "trace_ref": "<deidentified-trace-reference>"
+        }
+      ]
+    }
+  ]
+}

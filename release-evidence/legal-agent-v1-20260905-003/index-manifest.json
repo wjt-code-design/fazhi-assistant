@@ -1,0 +1,24 @@
+{
+ "schema_version": "legal-agent-file-boundary/v1",
+ "candidate_git_revision": "366c16f191e54264a01890da788b37bf2fea9f04",
+ "boundary": "active-local-chroma-index",
+ "active_collections": [
+  "legal_provisions_cos",
+  "qa_pairs"
+ ],
+ "selection": "shared chroma.sqlite3 plus vector segment directories referenced by the active local collections",
+ "canonicalization": "sort unique POSIX-relative paths; concatenate path + NUL + decimal byte size + NUL + lowercase file SHA-256 + LF; hash UTF-8 bytes with SHA-256",
+ "aggregate_sha256": "f4f03d40dfefedc491cd26f066fca152e73821c951e99f81ba3df6b6e5c5bbf4",
+ "files": [
+  "backend/chroma_db/9f605bf2-1ce3-4532-96a7-9d744169fc02/data_level0.bin",
+  "backend/chroma_db/9f605bf2-1ce3-4532-96a7-9d744169fc02/header.bin",
+  "backend/chroma_db/9f605bf2-1ce3-4532-96a7-9d744169fc02/length.bin",
+  "backend/chroma_db/9f605bf2-1ce3-4532-96a7-9d744169fc02/link_lists.bin",
+  "backend/chroma_db/c887503d-c573-4676-ab00-97867e944bfe/data_level0.bin",
+  "backend/chroma_db/c887503d-c573-4676-ab00-97867e944bfe/header.bin",
+  "backend/chroma_db/c887503d-c573-4676-ab00-97867e944bfe/index_metadata.pickle",
+  "backend/chroma_db/c887503d-c573-4676-ab00-97867e944bfe/length.bin",
+  "backend/chroma_db/c887503d-c573-4676-ab00-97867e944bfe/link_lists.bin",
+  "backend/chroma_db/chroma.sqlite3"
+ ]
+}

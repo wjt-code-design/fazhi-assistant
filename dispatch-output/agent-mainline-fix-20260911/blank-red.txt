@@ -1,0 +1,193 @@
+.FF...                                                                   [100%]
+================================== FAILURES ===================================
+_ test_issue_decomposition_fails_closed_for_empty_duplicate_owned_or_invented_data[payload1] _
+
+payload = {'issues': [{'question': '   ', 'facts': [], 'unknown_facts': []}]}
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"issues": []},
+            {"issues": [{"question": "   ", "facts": [], "unknown_facts": []}]},
+            {"issues": [{"question": "争点", "facts": [], "unknown_facts": [
+                {"statement": "  ", "why_outcome_changes": "必要事实"}
+            ]}]},
+            {"issues": [{"question": "同一争点", "facts": [], "unknown_facts": []}] * 2},
+            {
+                "issues": [
+                    {
+                        "issue_id": "model-owned",
+                        "question": "争点",
+                        "facts": [],
+                        "unknown_facts": [],
+                    }
+                ]
+            },
+            {
+                "issues": [
+                    {
+                        "question": "争点",
+                        "facts": [{"quote": "用户从未说过这件事"}],
+                        "unknown_facts": [],
+                    }
+                ]
+            },
+        ],
+    )
+    def test_issue_decomposition_fails_closed_for_empty_duplicate_owned_or_invented_data(payload):
+        transport = RecordingTransport(json.dumps(payload, ensure_ascii=False))
+    
+        with pytest.raises((IssueDecompositionError, AdapterPolicyViolation)):
+>           build_initial_agent_state(bootstrap(), decomposer=LLMIssueDecomposer(transport))
+
+tests\test_agent_runtime.py:144: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+agent\runtime.py:602: in build_initial_agent_state
+    return _assemble_initial_state(raw, bootstrap, budgets)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+raw = {'issues': [{'question': '   ', 'facts': [], 'unknown_facts': []}]}
+bootstrap = RequestBootstrap(conv_id=17, summary='不应发送给 Issue 分解器的历史摘要', recent=[{'role': 'assistant', 'content': '不应发送的历史回答'}], r...ntent='legal_query', is_exam=False, has_options=False, contract_mode=False, contract_text=None, client_truncated=False)
+budgets = None
+
+    def _assemble_initial_state(
+        raw: object, bootstrap: RequestBootstrap, budgets: AgentBudgets | None = None
+    ) -> LegalAgentState:
+        if _contains_key(raw, _SERVER_OWNED_ISSUE_FIELDS):
+            raise AdapterPolicyViolation("Issue output contains server-owned fields")
+        try:
+            proposal = _IssueEnvelope.model_validate(raw)
+        except (TypeError, ValidationError, ValueError) as exc:
+            raise IssueDecompositionError("issue decomposition output does not match the schema") from exc
+    
+        normalized_questions = [" ".join(issue.question.split()) for issue in proposal.issues]
+        if len(normalized_questions) != len(set(normalized_questions)):
+            raise IssueDecompositionError("issue decomposition contains duplicate questions")
+    
+        raw_query = bootstrap.raw_query
+        user_text = bootstrap.user_text or ""
+        image_description = bootstrap.image_description or ""
+        issues: list[LegalIssue] = []
+        seen_ids: set[str] = set()
+        for proposed in proposal.issues:
+            question = " ".join(proposed.question.split())
+            issue_id = _issue_id(question)
+            if issue_id in seen_ids:
+                raise IssueDecompositionError("issue identifier collision")
+            seen_ids.add(issue_id)
+            facts: list[Fact] = []
+            for proposed_fact in proposed.facts:
+                quote = proposed_fact.quote.strip()
+                if quote not in raw_query:
+                    raise IssueDecompositionError("Issue fact is not a verbatim request fragment")
+                if quote in user_text:
+                    source = SourceType.USER
+                elif quote in image_description:
+                    source = SourceType.DOCUMENT
+                else:
+                    raise IssueDecompositionError("Issue fact has no trusted request source")
+                facts.append(
+                    Fact(
+                        statement=quote,
+                        source=source,
+                        source_ref=_request_ref(bootstrap, source),
+                        confidence=1.0,
+                    )
+                )
+            issues.append(
+>               LegalIssue(
+                    issue_id=issue_id,
+                    question=question,
+                    facts=facts,
+                    unknown_facts=[
+                        UnknownFact(
+                            statement=item.statement.strip(),
+                            why_outcome_changes=item.why_outcome_changes.strip(),
+                        )
+                        for item in proposed.unknown_facts
+                    ],
+                )
+            )
+E           pydantic_core._pydantic_core.ValidationError: 1 validation error for LegalIssue
+E           question
+E             String should have at least 1 character [type=string_too_short, input_value='', input_type=str]
+E               For further information visit https://errors.pydantic.dev/2.13/v/string_too_short
+
+agent\runtime.py:650: ValidationError
+_ test_issue_decomposition_fails_closed_for_empty_duplicate_owned_or_invented_data[payload2] _
+
+payload = {'issues': [{'question': '争点', 'facts': [], 'unknown_facts': [{'statement': '  ', 'why_outcome_changes': '必要事实'}]}]}
+
+    @pytest.mark.parametrize(
+        "payload",
+        [
+            {"issues": []},
+            {"issues": [{"question": "   ", "facts": [], "unknown_facts": []}]},
+            {"issues": [{"question": "争点", "facts": [], "unknown_facts": [
+                {"statement": "  ", "why_outcome_changes": "必要事实"}
+            ]}]},
+            {"issues": [{"question": "同一争点", "facts": [], "unknown_facts": []}] * 2},
+            {
+                "issues": [
+                    {
+                        "issue_id": "model-owned",
+                        "question": "争点",
+                        "facts": [],
+                        "unknown_facts": [],
+                    }
+                ]
+            },
+            {
+                "issues": [
+                    {
+                        "question": "争点",
+                        "facts": [{"quote": "用户从未说过这件事"}],
+                        "unknown_facts": [],
+                    }
+                ]
+            },
+        ],
+    )
+    def test_issue_decomposition_fails_closed_for_empty_duplicate_owned_or_invented_data(payload):
+        transport = RecordingTransport(json.dumps(payload, ensure_ascii=False))
+    
+        with pytest.raises((IssueDecompositionError, AdapterPolicyViolation)):
+>           build_initial_agent_state(bootstrap(), decomposer=LLMIssueDecomposer(transport))
+
+tests\test_agent_runtime.py:144: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+agent\runtime.py:602: in build_initial_agent_state
+    return _assemble_initial_state(raw, bootstrap, budgets)
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+agent\runtime.py:654: in _assemble_initial_state
+    unknown_facts=[
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+.0 = <list_iterator object at 0x0000029C37F77BE0>
+
+            unknown_facts=[
+>               UnknownFact(
+                    statement=item.statement.strip(),
+                    why_outcome_changes=item.why_outcome_changes.strip(),
+                )
+                for item in proposed.unknown_facts
+            ],
+        )
+    )
+E   pydantic_core._pydantic_core.ValidationError: 1 validation error for UnknownFact
+E   statement
+E     String should have at least 1 character [type=string_too_short, input_value='', input_type=str]
+E       For further information visit https://errors.pydantic.dev/2.13/v/string_too_short
+
+agent\runtime.py:655: ValidationError
+============================== warnings summary ===============================
+tests/test_agent_runtime.py::test_issue_decomposition_fails_closed_for_empty_duplicate_owned_or_invented_data[payload0]
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_runtime.py::test_issue_decomposition_fails_closed_for_empty_duplicate_owned_or_invented_data[payload1]
+FAILED tests/test_agent_runtime.py::test_issue_decomposition_fails_closed_for_empty_duplicate_owned_or_invented_data[payload2]
+2 failed, 4 passed, 52 deselected, 1 warning in 22.77s

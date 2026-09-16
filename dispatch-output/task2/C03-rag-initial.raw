@@ -1,0 +1,183 @@
+# case=C03 mode=rag-initial status=200 started=2026-09-08T14:46:56
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "1"}
+
+data: {"content": ". 案情"}
+
+data: {"content": "与争议焦点\n"}
+
+data: {"content": "您"}
+
+data: {"content": "工作十个月期间"}
+
+data: {"content": "未签订书面劳动合同"}
+
+data: {"content": "，现"}
+
+data: {"content": "主动离职。核心"}
+
+data: {"content": "争议在于：劳动者"}
+
+data: {"content": "主动辞职是否影响"}
+
+data: {"content": "其主张未签"}
+
+data: {"content": "劳动合同双倍工资的权利"}
+
+data: {"content": "。\n\n2."}
+
+data: {"content": " 法律依据\n"}
+
+data: {"content": "根据《劳动合同法》"}
+
+data: {"content": "第八十二条，用人单位"}
+
+data: {"content": "自用工之日起超过"}
+
+data: {"content": "一个月不满一年未"}
+
+data: {"content": "与劳动者订立书面"}
+
+data: {"content": "劳动合同的，应当向"}
+
+data: {"content": "劳动者每月支付二"}
+
+data: {"content": "倍的工资。\n\n"}
+
+data: {"content": "3. 逐项"}
+
+data: {"content": "论证\n第一，"}
+
+data: {"content": "关于双倍工资的法定"}
+
+data: {"content": "性。法律规定用人单位"}
+
+data: {"content": "必须在用工一个月内签订合同"}
+
+data: {"content": "，否则需承担"}
+
+data: {"content": "“每月支付二"}
+
+data: {"content": "倍工资"}
+
+data: {"content": "”的法律责任。"}
+
+data: {"content": "这"}
+
+data: {"content": "属于法律强制规定的"}
+
+data: {"content": "惩罚性赔偿，"}
+
+data: {"content": "目的在于"}
+
+data: {"content": "督促单位合规，"}
+
+data: {"content": "不以劳动者是否提出"}
+
+data: {"content": "索赔为前提。\n"}
+
+data: {"content": "第二，关于"}
+
+data: {"content": "主动离职的影响。"}
+
+data: {"content": "司法"}
+
+data: {"content": "实践中普遍认为，未"}
+
+data: {"content": "签劳动合同的双倍"}
+
+data: {"content": "工资是基于劳动关系存续"}
+
+data: {"content": "期间的违法状态产生的"}
+
+data: {"content": "债权。只要该"}
+
+data: {"content": "十个月的劳动关系实际"}
+
+data: {"content": "存在且未签合同"}
+
+data: {"content": "的事实成立，双倍"}
+
+data: {"content": "工资的请求权即"}
+
+data: {"content": "已"}
+
+data: {"content": "产生。劳动者主动"}
+
+data: {"content": "辞职（"}
+
+data: {"content": "依据《劳动合同法》"}
+
+data: {"content": "第三"}
+
+data: {"content": "十七条）或被迫"}
+
+data: {"content": "解除（依据第三"}
+
+data: {"content": "十八条），均不影响"}
+
+data: {"content": "对"}
+
+data: {"content": "之前违法事实的"}
+
+data: {"content": "追责"}
+
+data: {"content": "。\n第三，"}
+
+data: {"content": "关于时效"}
+
+data: {"content": "风险。需注意劳动仲裁"}
+
+data: {"content": "时效通常为一年。"}
+
+data: {"content": "从您离职之日"}
+
+data: {"content": "或最后应得"}
+
+data: {"content": "双倍工资月份起"}
+
+data: {"content": "算"}
+
+data: {"content": "，若已超过一年"}
+
+data: {"content": "未主张，可能存在"}
+
+data: {"content": "败诉风险。"}
+
+data: {"content": "此外"}
+
+data: {"content": "，双倍工资最多"}
+
+data: {"content": "支持11个月"}
+
+data: {"content": "，您的情况在"}
+
+data: {"content": "覆盖范围内。\n\n"}
+
+data: {"content": "4."}
+
+data: {"content": " 结论与风险"}
+
+data: {"content": "\n您可以要求公司"}
+
+data: {"content": "支付未签合同期间的"}
+
+data: {"content": "双倍工资"}
+
+data: {"content": "差额（最多1"}
+
+data: {"content": "1个月"}
+
+data: {"content": "）。建议尽快申请"}
+
+data: {"content": "劳动仲裁。本答复"}
+
+data: {"content": "仅供参考，不构成"}
+
+data: {"content": "正式法律意见。"}
+
+data: {"conversation_id": 2211, "sources": [{"source": "劳动合同法", "article": "第十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第二十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第三十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第三十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第四百八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百零二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百零九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百二十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百六十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百七十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百八十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百九十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百一十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第八十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动法", "article": "第九十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动法", "article": "第九十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动法", "article": "第九十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第二十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "社会保险法", "article": "第八十五条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

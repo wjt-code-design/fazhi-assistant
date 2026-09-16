@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "是否存在正在进行的不法侵害",
+  "issue_id": "issue_86a408b61723a8e03bb5d566"
+ }
+]

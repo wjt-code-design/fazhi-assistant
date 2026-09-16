@@ -16,8 +16,13 @@ def test_valid_by_time_matrix():
     assert rc.is_valid_by_time({"status": "现行", "effective_from": "", "effective_to": ""}, "2026-08-01") is True
     assert rc.is_valid_by_time({"status": "已废止"}, "2026-08-01") is False
     assert (
-        rc.is_valid_by_time({"status": "已废止", "effective_to": "2020-12-31"}, "2000-01-01") is False
-    )  # 已废止恒为 False
+        rc.is_valid_by_time(
+            {"status": "已废止", "effective_from": "1999-10-01", "effective_to": "2020-12-31"},
+            "2000-01-01",
+        )
+        is True
+    )  # 当前虽已废止，但在历史有效期内仍应可检索
+    assert rc.is_valid_by_time({"status": "已废止", "effective_to": "2020-12-31"}, "2021-01-01") is False
     assert rc.is_valid_by_time({"status": "现行", "effective_to": "2020-12-31"}, "2026-08-01") is False  # 已过废止日
     assert (
         rc.is_valid_by_time({"status": "现行", "effective_to": "2020-12-31"}, "2020-12-31") is True
@@ -103,6 +108,8 @@ def test_admin_knowledge_add_contract_with_time_fields(monkeypatch):
             assert md["effective_from"] == "2026-01-01"
             assert md["effective_to"] == "2030-12-31"
             assert md["status"] == "即将施行"
+            assert md["version_id"].startswith("lv-")
+            assert len(md["source_document_sha256"]) == 64
         finally:
             from rag_chain import vectorstore
 
@@ -111,9 +118,7 @@ def test_admin_knowledge_add_contract_with_time_fields(monkeypatch):
                 vectorstore._collection.delete(ids=ids)
 
 
-# ---------- 检索端到端：已废止恒排除 / 已过期（未标废止）可被历史 cutoff 命中 / 管理端可见 ----------
-# 语义（D2）：status=已废止 是管理员权威标记，恒排除（即使 cutoff 早于废止日）；
-# 历史 cutoff 只对「仍标现行但已过 effective_to」的条文生效。
+# ---------- 检索端到端：当前排除失效版本 / 历史 cutoff 恢复当时有效版本 / 管理端可见 ----------
 def test_retrieval_excludes_expired_but_admin_test_sees_it():
     import retrieval
     from rag_chain import vectorstore
@@ -143,13 +148,14 @@ def test_retrieval_excludes_expired_but_admin_test_sees_it():
         extra_meta={"effective_from": "1999-10-01", "effective_to": "2020-12-31", "status": "现行", "category": "民法"},
     )
     try:
-        # 今天检索：两条都不应命中（已废止恒排除；现行但已过废止日也排除）
+        # 今天检索：两条都已超过 effective_to，不应命中。
         today_docs = retrieval.retrieve(c2[:40], k=4)
         assert not any(d.metadata.get("source") == source for d in today_docs), "失效条文不应进入用户问答检索"
-        # 废止日之前（历史视角）：标"现行"但已过期的 c2 应命中；标"已废止"的 c1 恒不命中
+        # 废止日之前（历史视角）：两条在当时均有效，当前 status 不得抹掉历史版本。
         past_docs = retrieval.retrieve(c2[:40], k=4, cutoff="2000-01-01")
         assert any(d.metadata.get("article") == "第九条" for d in past_docs), "cutoff 在废止日前应命中已过期条文"
-        assert not any(d.metadata.get("article") == "第八条" for d in past_docs), "已废止标记恒排除"
+        historical_c1 = retrieval.retrieve(c1[:40], k=4, cutoff="2000-01-01")
+        assert any(d.metadata.get("article") == "第八条" for d in historical_c1), "历史 cutoff 应恢复当时有效版本"
         # 管理端检索测试：不过滤，且带 status 标注
         hits = retrieval.retrieve_for_test(c2[:40], k=5)
         mine = {h["article"]: h for h in hits if h["source"] == source}

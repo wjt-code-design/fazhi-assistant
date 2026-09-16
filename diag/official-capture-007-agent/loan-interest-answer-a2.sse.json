@@ -1,0 +1,290 @@
+[
+ {
+  "type": "status",
+  "msg": "正在思考…"
+ },
+ {
+  "content": "①案情与争议"
+ },
+ {
+  "content": "焦点\n朋友借款"
+ },
+ {
+  "content": "10万元，"
+ },
+ {
+  "content": "书面约定月利率"
+ },
+ {
+  "content": "1%（年化"
+ },
+ {
+  "content": "12%），"
+ },
+ {
+  "content": "争议焦点为该约定"
+ },
+ {
+  "content": "利率是否受法律"
+ },
+ {
+  "content": "保护。\n\n②"
+ },
+ {
+  "content": "法律依据\n根据"
+ },
+ {
+  "content": "《民法典》第六百"
+ },
+ {
+  "content": "八十条第一款规定"
+ },
+ {
+  "content": "，禁止高利放"
+ },
+ {
+  "content": "贷，借款的"
+ },
+ {
+  "content": "利率不得违反国家"
+ },
+ {
+  "content": "有关规定。\n\n③"
+ },
+ {
+  "content": "逐项论证\n"
+ },
+ {
+  "content": "月利率1%"
+ },
+ {
+  "content": "折算为"
+ },
+ {
+  "content": "年化利率12"
+ },
+ {
+  "content": "%。该利率"
+ },
+ {
+  "content": "是否受法律保护"
+ },
+ {
+  "content": "，关键在于其是否"
+ },
+ {
+  "content": "违反了国家有关"
+ },
+ {
+  "content": "利率上限"
+ },
+ {
+  "content": "的规定。当前司法"
+ },
+ {
+  "content": "实践中，民间借贷"
+ },
+ {
+  "content": "利率的法定保护"
+ },
+ {
+  "content": "上限参照合同成立"
+ },
+ {
+  "content": "时一年期贷款"
+ },
+ {
+  "content": "市场报价利率（"
+ },
+ {
+  "content": "LPR）的四"
+ },
+ {
+  "content": "倍。因此，"
+ },
+ {
+  "content": "需将年化1"
+ },
+ {
+  "content": "2%与借款"
+ },
+ {
+  "content": "合同成立时的一年"
+ },
+ {
+  "content": "期LPR四"
+ },
+ {
+  "content": "倍进行对比"
+ },
+ {
+  "content": "：若年化1"
+ },
+ {
+  "content": "2%未超过"
+ },
+ {
+  "content": "该上限"
+ },
+ {
+  "content": "，则受"
+ },
+ {
+  "content": "法律强制"
+ },
+ {
+  "content": "力"
+ },
+ {
+  "content": "保护；若超过"
+ },
+ {
+  "content": "，则超过部分的"
+ },
+ {
+  "content": "利息约定无效"
+ },
+ {
+  "content": "，不受法律保护"
+ },
+ {
+  "content": "，借款人有权拒绝"
+ },
+ {
+  "content": "支付超出部分的利息"
+ },
+ {
+  "content": "。\n\n④结论"
+ },
+ {
+  "content": "与风险\n年化12%的"
+ },
+ {
+  "content": "利率并非绝对受"
+ },
+ {
+  "content": "保护或不受保护"
+ },
+ {
+  "content": "，需结合借款合同成立时的具体"
+ },
+ {
+  "content": "LPR数值判断"
+ },
+ {
+  "content": "。若借款发生时"
+ },
+ {
+  "content": "LPR较高，"
+ },
+ {
+  "content": "四倍LPR"
+ },
+ {
+  "content": "超过12%"
+ },
+ {
+  "content": "，则全部受"
+ },
+ {
+  "content": "保护；若L"
+ },
+ {
+  "content": "PR下调导致四"
+ },
+ {
+  "content": "倍LPR低于"
+ },
+ {
+  "content": "12%，"
+ },
+ {
+  "content": "则超出部分存在"
+ },
+ {
+  "content": "不受法律保护的风险"
+ },
+ {
+  "content": "。本答复仅供参考"
+ },
+ {
+  "content": "，不构成正式"
+ },
+ {
+  "content": "法律意见。"
+ },
+ {
+  "sources": [
+   {
+    "source": "民法典",
+    "article": "第六百八十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第六百七十四条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第六百七十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第六百七十七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第六百七十一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第三百八十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第六百九十一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第六百六十八条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第六百七十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第三百九十一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   }
+  ]
+ }
+]

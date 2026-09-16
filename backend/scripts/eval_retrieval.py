@@ -59,7 +59,14 @@ def main():
             mrr_sum += 1.0 / rank
         kw = all(norm(kw) in text for kw in c.get("expected_keywords", []))
         hit_kw += kw
-        rows.append({"id": c.get("id"), "source_ok": bool(srcs[:4] and any(s in exp_src for s in srcs[:4])), "mrr_rank": rank, "question": c["question"]})
+        rows.append(
+            {
+                "id": c.get("id"),
+                "source_ok": bool(srcs[:4] and any(s in exp_src for s in srcs[:4])),
+                "mrr_rank": rank,
+                "question": c["question"],
+            }
+        )
     print(f"样本 n={n}")
     for k in KS:
         print(f"  recall_article@{k} = {recall[k] / n:.3f}")

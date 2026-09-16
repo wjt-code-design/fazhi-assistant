@@ -1,0 +1,206 @@
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "①案情"}
+
+data: {"content": "与争议焦点\n"}
+
+data: {"content": "本案中，借款"}
+
+data: {"content": "约定202"}
+
+data: {"content": "1年还款，"}
+
+data: {"content": "至今未还，"}
+
+data: {"content": "2026"}
+
+data: {"content": "年拟起诉"}
+
+data: {"content": "。争议焦点在于"}
+
+data: {"content": "：202"}
+
+data: {"content": "6年起诉是否"}
+
+data: {"content": "已超过诉讼时效，"}
+
+data: {"content": "以及超过诉讼时效"}
+
+data: {"content": "的法律后果。\n\n"}
+
+data: {"content": "②法律依据\n"}
+
+data: {"content": "根据《民法典》"}
+
+data: {"content": "第六百七十五条，"}
+
+data: {"content": "借款人应当按照约定的期限"}
+
+data: {"content": "返还借款。根据"}
+
+data: {"content": "《民法典》第一百九"}
+
+data: {"content": "十二条，诉讼时效"}
+
+data: {"content": "期间届满的，"}
+
+data: {"content": "义务人可以提出不"}
+
+data: {"content": "履行义务的抗辩"}
+
+data: {"content": "；诉讼时效期间"}
+
+data: {"content": "届满后，义务"}
+
+data: {"content": "人同意履行的"}
+
+data: {"content": "，不得以诉讼时效"}
+
+data: {"content": "期间届满为由抗"}
+
+data: {"content": "辩；义务人"}
+
+data: {"content": "已经自愿履行的"}
+
+data: {"content": "，不得请求返还"}
+
+data: {"content": "。\n\n③逐"}
+
+data: {"content": "项论证\n首先"}
+
+data: {"content": "，还款期限"}
+
+data: {"content": "届满日为20"}
+
+data: {"content": "21年，"}
+
+data: {"content": "诉讼时效从履行"}
+
+data: {"content": "期限届满之次"}
+
+data: {"content": "日起算。结合"}
+
+data: {"content": "《民法典》第一百九"}
+
+data: {"content": "十二条关于“诉讼"}
+
+data: {"content": "时效期间届满”"}
+
+data: {"content": "的规定及诉讼时效"}
+
+data: {"content": "制度的一般原理，"}
+
+data: {"content": "普通诉讼时效期间"}
+
+data: {"content": "通常为三年。自"}
+
+data: {"content": "2021"}
+
+data: {"content": "年还款期限届满"}
+
+data: {"content": "起算，至"}
+
+data: {"content": "2024"}
+
+data: {"content": "年诉讼时效期间"}
+
+data: {"content": "届满。20"}
+
+data: {"content": "26年起诉"}
+
+data: {"content": "，已超过三年的诉讼"}
+
+data: {"content": "时效期间。\n"}
+
+data: {"content": "其次，超过诉讼"}
+
+data: {"content": "时效期间起诉，"}
+
+data: {"content": "并不影响起诉权"}
+
+data: {"content": "，法院应当受理"}
+
+data: {"content": "。但在实体审理"}
+
+data: {"content": "中，若被告"}
+
+data: {"content": "提出诉讼时效抗"}
+
+data: {"content": "辩，根据《"}
+
+data: {"content": "民法典》第一百九十二条"}
+
+data: {"content": "，被告有权拒绝"}
+
+data: {"content": "履行义务，原告"}
+
+data: {"content": "将丧失胜诉"}
+
+data: {"content": "权，面临败"}
+
+data: {"content": "诉风险。\n"}
+
+data: {"content": "最后，存在例外"}
+
+data: {"content": "情形。根据《"}
+
+data: {"content": "民法典》第一百九十二条"}
+
+data: {"content": "第二款，如果义务"}
+
+data: {"content": "人同意履行或者"}
+
+data: {"content": "已经自愿履行的"}
+
+data: {"content": "，则不得以诉讼"}
+
+data: {"content": "时效期间届满为由"}
+
+data: {"content": "抗辩。因此"}
+
+data: {"content": "，若20"}
+
+data: {"content": "26年被告"}
+
+data: {"content": "仍愿意还款或"}
+
+data: {"content": "已部分还款，"}
+
+data: {"content": "则原告仍可能"}
+
+data: {"content": "获得胜诉判决"}
+
+data: {"content": "。\n\n④结论"}
+
+data: {"content": "与风险\n2"}
+
+data: {"content": "026年"}
+
+data: {"content": "可以起诉，但"}
+
+data: {"content": "存在因被告提出"}
+
+data: {"content": "时效抗辩而"}
+
+data: {"content": "败诉的重大风险"}
+
+data: {"content": "。建议收集在"}
+
+data: {"content": "诉讼时效期间内向"}
+
+data: {"content": "对方主张权利的证据"}
+
+data: {"content": "，或争取获得"}
+
+data: {"content": "对方同意履行的"}
+
+data: {"content": "书面凭证，以"}
+
+data: {"content": "排除时效抗辩"}
+
+data: {"content": "的适用。"}
+
+data: {"conversation_id": 5, "sources": [{"source": "民事诉讼法", "article": "第二十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第三十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第六十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第六十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百零三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百四十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百五十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百七十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第二百条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第二百三十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百七十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百九十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百七十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第二百五十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百七十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "治安管理处罚法", "article": "第一百四十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第二百六十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百七十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百七十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "国家通用语言文字法", "article": "第三十二条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

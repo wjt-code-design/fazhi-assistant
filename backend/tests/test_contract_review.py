@@ -1,4 +1,5 @@
 """合同评估触发/切分/标签/rubric 单测（纯逻辑——domain_rules 合同函数只依赖 re，秒级不停后端）。"""
+
 import os
 import sys
 
@@ -82,6 +83,6 @@ def test_is_labor_clause_boundary_words():
 
 
 def test_is_labor_clause_not_misclassify_services():
-    """"培训"不进特征词：培训服务合同（消费场景）不得判为劳动，保留格式条款映射。"""
+    """ "培训"不进特征词：培训服务合同（消费场景）不得判为劳动，保留格式条款映射。"""
     assert D.is_labor_clause("本合同约定培训课程费用一经收取概不退款") is False
     assert D.is_labor_clause("甲方将房屋出租给乙方，租金每月三千元") is False

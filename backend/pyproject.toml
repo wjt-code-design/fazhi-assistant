@@ -1,6 +1,21 @@
 [tool.ruff]
 line-length = 120
 target-version = "py311"
+# **冻结物**（执行书 T0 红线 + 哈希锚定物，见 dispatch-output/.../candidate-manifest-*.json
+# 的 frozen_files_sha256）一律跳过 ruff —— 对它们做任何 lint 自动修复或格式化都会改变冻结哈希，
+# 等价于"修改冻结物"，违反 docs/code-review-standard.md §2 B1。
+# 代价：这 6 个文件失去 ruff 覆盖（它们本就被冻结、不接受改动，故无实际损失）。
+# 若将来 unfreeze，**必须删掉本 exclude** 并接受其 lint 修复。
+# 2026-09-16 unfreeze 记录：verifier.py（T2 渲染收窄，handoff 授权）与 chat_integration.py
+# （T1 覆盖契约；不在 1e9 候选 candidate-hashes.json 锚定内）已由用户工作流解冻并接受改动
+# ⇒ 两项从 exclude 删除（履行本注释义务，恢复 lint 覆盖）；state_machine/repository/prompts/
+# gate5_judge 仍冻结保留。
+exclude = [
+    "agent/state_machine.py",
+    "agent/repository.py",
+    "prompts.py",
+    "scripts/gate5_judge.py",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP", "B"]
@@ -14,6 +29,8 @@ ignore = ["E501", "B008"]
 "main.py" = ["E402"]  # 必须先 load_dotenv 再 import 业务模块（启动强校验）
 "multimodal.py" = ["E402"]
 "seed_admin.py" = ["E402"]
+"auth.py" = ["E402"]  # UTC 兼容 shim 必须先于 import（服务器为 Python 3.10，无 datetime.UTC）
+"mcp_server.py" = ["E402"]  # 必须先 load_dotenv 再 import FastMCP
 
 [tool.mypy]
 python_version = 3.11
@@ -22,7 +39,17 @@ check_untyped_defs = false
 warn_unused_ignores = false
 warn_redundant_casts = false
 no_implicit_optional = false
-exclude = ["tests/"]
+# 2026-09-10 修复（见 docs/code-review-standard.md §1.1）：原本只有 `exclude = ["tests/"]`，
+# 存在两个问题，导致 `mypy .` **直接中止**（"Source file found twice under different module names"）
+# ⇒ 类型检查实际**零覆盖**：
+#   ① mypy 的 exclude 是 re.match 语义（须能匹配从路径开头起的整串），"tests/" 匹配不到 "tests/xxx.py"；
+#   ② backend/ 与 scripts/ 均无 __init__.py，scripts/capture_protocol.py 被同时映射为
+#      `capture_protocol`（顶层）与 `scripts.capture_protocol`（命名空间包）⇒ 冲突。
+# 处置：显式声明 backend/ 为包基础目录，scripts/ 视为命名空间包；exclude 写成能匹配整条路径的形式。
+mypy_path = "."
+explicit_package_bases = true
+# （venv 必须排除：首次修好后 mypy 连 venv\Scripts\pywin32_testall.py 都在检查）
+exclude = ["(?x)^(tests/|scripts/|venv/)"]
 
 # SQLAlchemy 2.0 用 Column 而非 Mapped 注解 → Column[T] 被当 T 的误报（框架摩擦，基线忽略）
 # 迁移到 Mapped[mapped_column] 后应移除这些 override
@@ -50,6 +77,9 @@ disable_error_code = ["arg-type", "assignment", "return-value", "union-attr"]
 [[tool.mypy.overrides]]
 module = "multimodal"
 disable_error_code = ["operator", "assignment", "dict-item", "union-attr", "arg-type"]
+
+# verifier：2026-09-16 已解冻（T2 渲染收窄，handoff 授权），此前的 var-annotated override
+# 已按本注释义务删除（实测 mypy 对该文件零报错——advice 已有可推断上下文，无需补注解）。
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

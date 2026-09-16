@@ -1,0 +1,13 @@
+Timeout (0:00:30)!
+Thread 0x000033f0 (most recent call first):
+  File "C:\Users\33393\AppData\Local\Programs\Python\Python311\Lib\concurrent\futures\thread.py", line 81 in _worker
+  File "C:\Users\33393\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 975 in run
+  File "C:\Users\33393\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 1038 in _bootstrap_inner
+  File "C:\Users\33393\AppData\Local\Programs\Python\Python311\Lib\threading.py", line 995 in _bootstrap
+
+Thread 0x000011b8 (most recent call first):
+  File "C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\sqlalchemy\sql\type_api.py", line 1005 in _static_cache_key
+  File "C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\sqlalchemy\util\langhelpers.py", line 1123 in __get__
+  File ???, line ??? in C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\sqlalchemy\sql\compiler.py
+  File ???, line ??? in ???
+  File 

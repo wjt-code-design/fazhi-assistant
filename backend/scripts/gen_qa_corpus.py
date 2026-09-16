@@ -8,6 +8,7 @@
 用法：cd backend && venv\\Scripts\\python.exe scripts/gen_qa_corpus.py
 依赖：backend/.env 已配 ZHIPUAI_API_KEY
 """
+
 import os
 import sys
 
@@ -24,7 +25,6 @@ import query_understand  # noqa: E402
 from prompts import SYSTEM_STUDY  # noqa: E402
 from rag_chain import clean_answer, format_docs  # noqa: E402
 from retrieval import (  # noqa: E402
-    _normalize_article,
     citation_verify,
     extract_citations,
     retrieve,
@@ -173,7 +173,7 @@ def main() -> int:
             fail += 1
             print(f"  ✗ 未过验证：{q[:30]}…（{reason}）", flush=True)
             continue
-        evidence = "|".join(f"{d.metadata.get('source','')}|{d.metadata.get('article','')}" for d in docs[:1])
+        evidence = "|".join(f"{d.metadata.get('source', '')}|{d.metadata.get('article', '')}" for d in docs[:1])
         fingerprint = query_understand._options_fingerprint(q)
         ks.add_qa_pair(q, answer, evidence=evidence, fingerprint=fingerprint)
         ok += 1

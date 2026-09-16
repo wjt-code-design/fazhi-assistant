@@ -1,8 +1,8 @@
 {
   "_comment": "法智知识库批量导入模板。复制本文件为 data/laws_extra.json 后填写（脚本忽略 _comment 与未知键）。",
-  "_comment2": "字段：title=法律名称(必填) article_number=条号(必填) category=分类(建议) content=条文原文(必填，请填权威原文，一字不差) status=现行/已废止/即将施行(默认现行) effective_from=施行日期(YYYY-MM-DD，可空) effective_to=废止日期(YYYY-MM-DD，可空)。",
+  "_comment2": "字段：title/article_number/content 必填；status 支持现行/已修改/已废止/即将施行/未生效；effective_from/effective_to/promulgated_at/reviewed_at 为 YYYY-MM-DD；source_url 必须为权威 HTTPS 地址；source_document_sha256 可留空由脚本按原文生成；version_id 可留空由法名+条号+生效日稳定生成。",
   "_comment3": "注意：若 (title, article_number) 与 data/laws.json 的种子条文重复，脚本会警告并跳过——那种内容应直接改 laws.json 后重建。",
-  "_comment4": "导入幂等：同 (title, article_number) 重复导入会替换旧内容，不会翻倍。",
+  "_comment4": "导入幂等：同 (title, article_number, version_id) 替换；不同生效日形成不同版本并保留历史。",
   "entries": [
       {
         "title": "劳动法",
@@ -10,8 +10,13 @@
         "category": "劳动法",
         "content": "（条文原文，一字不差）",
         "status": "现行",
+        "promulgated_at": "1994-07-05",
         "effective_from": "1995-01-01",
-        "effective_to": ""
+        "effective_to": "",
+        "source_url": "https://www.gov.cn/",
+        "source_document_sha256": "",
+        "supersedes_version_id": "",
+        "reviewed_at": "2026-09-05"
       }
   ]
 }

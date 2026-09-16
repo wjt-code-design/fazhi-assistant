@@ -1,0 +1,17 @@
+{
+ "schema_version": "final-candidate-freeze-closure/v1",
+ "phase": "Phase 5 Freeze 闭环补充（freeze-manifest.json 本体不变，冻结身份保持）",
+ "closed_at": "2026-09-07",
+ "closure": {
+  "S5_citation_reeval": {
+   "status": "DONE",
+   "result": "s5-reeval-20260907.json：517 claims 0 非法引用（含「本法」合法指代排除规则），verdict=PASS"
+  },
+  "S4_evaluator_reeval": {
+   "status": "DONE",
+   "result": "s4-report-agent.json：30 题全量重评 fact_hallucination/permission_bypass/infinite_loop/illegal_citation 全 0"
+  },
+  "open_items": []
+ },
+ "invalidation_recheck": "gate.py 加固（CRIMINAL_CIVIL_BOUNDARY）已按 §⑦ 重跑 G-1/G-2/S9 并 PASS；G-3 在新候选上已跑并 PASS；index 物理漂移已按 §②.5 以 S5 重跑闭环"
+}

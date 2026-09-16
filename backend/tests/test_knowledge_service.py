@@ -33,7 +33,12 @@ def test_concurrent_add_text_idempotent():
     _cleanup()
     try:
         # 基线：单次写入的 chunk 数
-        base_n = ks.add_text("第一条　这是用于并发测试的条文正文，句子一。句子二。", source=_TEST_SOURCE, article="第一条", origin="manual")
+        base_n = ks.add_text(
+            "第一条　这是用于并发测试的条文正文，句子一。句子二。",
+            source=_TEST_SOURCE,
+            article="第一条",
+            origin="manual",
+        )
         assert base_n >= 1
 
         # 并发：4 线程同 (source, article) 写不同版本

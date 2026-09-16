@@ -1,0 +1,373 @@
+# case=C02 mode=rag-full-facts status=200 started=2026-09-08T14:46:44
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "存在"}
+
+data: {"content": "法律不确定性。"}
+
+data: {"content": "加班费的"}
+
+data: {"content": "计算"}
+
+data: {"content": "受举证情况、"}
+
+data: {"content": "地方"}
+
+data: {"content": "司法实践及公司"}
+
+data: {"content": "规章制度合规性的影响"}
+
+data: {"content": "，"}
+
+data: {"content": "以下分析基于您"}
+
+data: {"content": "提供的信息并结合相关法律"}
+
+data: {"content": "条文进行推导。"}
+
+data: {"content": "\n\n1."}
+
+data: {"content": " 案情与争议"}
+
+data: {"content": "焦点\n核心争议"}
+
+data: {"content": "在于：在标准"}
+
+data: {"content": "工时制下，"}
+
+data: {"content": "长期"}
+
+data: {"content": "周末加班且工资"}
+
+data: {"content": "条无记录的情况下"}
+
+data: {"content": "，劳动者能否主张"}
+
+data: {"content": "加班费以及"}
+
+data: {"content": "具体金额如何认定"}
+
+data: {"content": "。关键在于“排"}
+
+data: {"content": "班表”作为"}
+
+data: {"content": "证据的证明力，"}
+
+data: {"content": "以及调休抵扣"}
+
+data: {"content": "的合法性。\n\n"}
+
+data: {"content": "2"}
+
+data: {"content": ". 法律依据（"}
+
+data: {"content": "引条文）\n"}
+
+data: {"content": "根据《劳动法》"}
+
+data: {"content": "第四"}
+
+data: {"content": "十四条规定，安排"}
+
+data: {"content": "劳动者延长工作时间的"}
+
+data: {"content": "，"}
+
+data: {"content": "支付不低于工资的百分"}
+
+data: {"content": "之一百五十的工资"}
+
+data: {"content": "报酬"}
+
+data: {"content": "；休息日安排"}
+
+data: {"content": "劳动者"}
+
+data: {"content": "工作又不能安排补"}
+
+data: {"content": "休的，支付"}
+
+data: {"content": "不低于工资的"}
+
+data: {"content": "百分之二百的工资报酬"}
+
+data: {"content": "。"}
+
+data: {"content": "\n根据《劳动合同法"}
+
+data: {"content": "》第三"}
+
+data: {"content": "十一条规定，用人单位"}
+
+data: {"content": "安排"}
+
+data: {"content": "加班的，应当按照"}
+
+data: {"content": "国家有关规定向劳动者"}
+
+data: {"content": "支付加班费。"}
+
+data: {"content": "\n根据《劳动法"}
+
+data: {"content": "》第五十条规定"}
+
+data: {"content": "，工资"}
+
+data: {"content": "应当以货币形式"}
+
+data: {"content": "按月"}
+
+data: {"content": "支付给劳动者本人。"}
+
+data: {"content": "不得克扣或者"}
+
+data: {"content": "无故拖欠劳动者的工资"}
+
+data: {"content": "。\n\n3."}
+
+data: {"content": " 逐项论证\n"}
+
+data: {"content": "一、关于周六"}
+
+data: {"content": "工作的性质认定\n"}
+
+data: {"content": "每周六工作属于"}
+
+data: {"content": "在"}
+
+data: {"content": "休息日加班。"}
+
+data: {"content": "依据"}
+
+data: {"content": "上述《劳动法》"}
+
+data: {"content": "第四十四条第（"}
+
+data: {"content": "二）项，"}
+
+data: {"content": "休息"}
+
+data: {"content": "日加班优先适用"}
+
+data: {"content": "“补休”，"}
+
+data: {"content": "只有在不能安排补"}
+
+data: {"content": "休时"}
+
+data: {"content": "，才需支付"}
+
+data: {"content": "20"}
+
+data: {"content": "0%的加班"}
+
+data: {"content": "费。您提到"}
+
+data: {"content": "“偶尔调休"}
+
+data: {"content": "”，若公司未"}
+
+data: {"content": "足额安排补休"}
+
+data: {"content": "，剩余"}
+
+data: {"content": "未调休的"}
+
+data: {"content": "周六"}
+
+data: {"content": "工作时间应折算为"}
+
+data: {"content": "加班费。\n\n"}
+
+data: {"content": "二"}
+
+data: {"content": "、关于加班费的"}
+
+data: {"content": "计算基数与金额"}
+
+data: {"content": "\n您的月工资"}
+
+data: {"content": "为"}
+
+data: {"content": "10,0"}
+
+data: {"content": "00元"}
+
+data: {"content": "。法定月计"}
+
+data: {"content": "薪"}
+
+data: {"content": "天数通常为21"}
+
+data: {"content": ".75天"}
+
+data: {"content": "，"}
+
+data: {"content": "日工资约为4"}
+
+data: {"content": "59.7"}
+
+data: {"content": "7"}
+
+data: {"content": "元。\n若"}
+
+data: {"content": "无法通过调休"}
+
+data: {"content": "抵消"}
+
+data: {"content": "，每多出一个"}
+
+data: {"content": "周六的加班，"}
+
+data: {"content": "公司"}
+
+data: {"content": "应额外支付约"}
+
+data: {"content": "919."}
+
+data: {"content": "54元（"}
+
+data: {"content": "4"}
+
+data: {"content": "59.7"}
+
+data: {"content": "7元×"}
+
+data: {"content": "200%"}
+
+data: {"content": "）。\n需注意，"}
+
+data: {"content": "若公司规章制度明确规定"}
+
+data: {"content": "“周末值班/"}
+
+data: {"content": "加班可用其他时间"}
+
+data: {"content": "调休”，且"}
+
+data: {"content": "实际已执行了"}
+
+data: {"content": "相应调休，"}
+
+data: {"content": "则该"}
+
+data: {"content": "部分可能不被支持"}
+
+data: {"content": "现金补偿。但"}
+
+data: {"content": "“偶尔调休"}
+
+data: {"content": "”意味着"}
+
+data: {"content": "大部分周六并未得到"}
+
+data: {"content": "补偿，这部分差额"}
+
+data: {"content": "存在较大胜诉"}
+
+data: {"content": "空间。\n\n三"}
+
+data: {"content": "、关于举证责任"}
+
+data: {"content": "\n群里的排"}
+
+data: {"content": "班记录"}
+
+data: {"content": "是证明加班事实"}
+
+data: {"content": "的关键证据。结合"}
+
+data: {"content": "《劳动合同法》第三"}
+
+data: {"content": "十一条，公司有义务"}
+
+data: {"content": "支付加班费。"}
+
+data: {"content": "若公司无法提供"}
+
+data: {"content": "完整的考勤和调"}
+
+data: {"content": "休"}
+
+data: {"content": "记录，应承担不利"}
+
+data: {"content": "后果。\n\n4"}
+
+data: {"content": ". 结论与"}
+
+data: {"content": "风险\n您可能追回"}
+
+data: {"content": "的是过去一年中所有"}
+
+data: {"content": "未被有效调休"}
+
+data: {"content": "抵扣"}
+
+data: {"content": "的周六加班对应的"}
+
+data: {"content": "200%"}
+
+data: {"content": "工资"}
+
+data: {"content": "差额。\n风险提示"}
+
+data: {"content": "：\n1."}
+
+data: {"content": " 仲裁"}
+
+data: {"content": "时效：劳动争议申请"}
+
+data: {"content": "仲裁的时效期间"}
+
+data: {"content": "为一年"}
+
+data: {"content": "，从当事人知道"}
+
+data: {"content": "或者"}
+
+data: {"content": "应当知道其权利"}
+
+data: {"content": "被"}
+
+data: {"content": "侵害之日起计算。"}
+
+data: {"content": "建议"}
+
+data: {"content": "尽快固定排班"}
+
+data: {"content": "证据"}
+
+data: {"content": "并主张权利。"}
+
+data: {"content": "\n2"}
+
+data: {"content": ". 调休"}
+
+data: {"content": "抵扣：如果公司"}
+
+data: {"content": "能证明已"}
+
+data: {"content": "安排了等时的调"}
+
+data: {"content": "休，则"}
+
+data: {"content": "无需支付该部分的"}
+
+data: {"content": "加班费。因此"}
+
+data: {"content": "，最终可追回"}
+
+data: {"content": "金额取决于“总"}
+
+data: {"content": "加班时长”减去"}
+
+data: {"content": "“有效调休"}
+
+data: {"content": "时长"}
+
+data: {"content": "”。"}
+
+data: {"conversation_id": 2210, "sources": [{"source": "劳动合同法", "article": "第十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第二十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第三十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第三十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第二十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第三十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第三十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第三十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第四十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第七十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第一百八十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第一百八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第一百八十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第五十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第三十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第八十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第八百八十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第八百八十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "国家赔偿法", "article": "第三十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第六十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动法", "article": "第九十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动法", "article": "第五十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "票据法", "article": "第七十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "票据法", "article": "第七十一条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

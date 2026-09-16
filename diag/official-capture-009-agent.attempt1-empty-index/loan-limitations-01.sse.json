@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "债务人自2021年还款期限届满后至2026年期间是否曾同意履行义务或承认债务",
+  "issue_id": "issue_53198d94f74e90a1317d7744"
+ }
+]

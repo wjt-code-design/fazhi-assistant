@@ -28,3 +28,17 @@ def test_leak_fragments_are_in_system_base():
     """P1-7：泄露检测特征片段与提示词同源——任一片段不在 SYSTEM_BASE 即失败提醒同步更新。"""
     for frag in LEAK_FRAGMENTS:
         assert frag in SYSTEM_BASE, f"LEAK_FRAGMENTS 片段已失效（不再出现在 SYSTEM_BASE）：{frag}"
+
+
+def test_citation_verify_discipline_locked_in_system_base():
+    """2026-09-07 法条引用精度修复：生成端条号核对纪律必须保留在 SYSTEM_BASE。
+
+    质量检测证实 criminal-civil-boundary-20（第一百零十三条 条号错位）与
+    law-date-conflict-15（已废止法越库引用）两类问题；此锁防止硬约束行被后续删改。
+    """
+    assert "引用核对纪律" in SYSTEM_BASE
+    assert "不得臆造或推算条号" in SYSTEM_BASE
+    assert "不得作为引用依据" in SYSTEM_BASE
+    # 2026-09-07 011：禁止方括号/无书名号变体记法（010 实证 [民法典 第X条] 漏抽教训）
+    assert "书名号" in SYSTEM_BASE
+    assert "禁止用方括号" in SYSTEM_BASE

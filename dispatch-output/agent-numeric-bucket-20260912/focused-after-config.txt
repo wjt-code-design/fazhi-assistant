@@ -1,0 +1,14 @@
+........................................................................ [ 63%]
+..........................................                               [100%]
+============================== warnings summary ===============================
+tests/test_agent_chat_integration.py::test_final_agent_answer_is_stored_once_with_completed_checkpoint
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+tests/test_agent_chat_integration.py::test_chat_live_agent_selection_bootstraps_once_and_never_prepares_fast_path
+tests/test_agent_chat_integration.py::test_forbidden_agent_failure_never_calls_fast_path_fallback
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\httpx\_client.py:690: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+114 passed, 3 warnings in 20.39s

@@ -1,8 +1,11 @@
 import os
-from datetime import timezone, datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
-UTC = timezone.utc  # Python 3.10 兼容：datetime.UTC 需 3.11+，服务器为 3.10
-
+# 2026-09-10（独立验收回执 §D.1）：部署环境为 Python 3.11（backend/Dockerfile「FROM python:3.11-slim」、
+# DEPLOYMENT.md §2.1「后端（Python 3.11）」）⇒ `datetime.UTC`（3.11+ 别名）可用，
+# ruff UP017 自动修复已统一至此写法。原注释「服务器为 3.10，需 timezone.utc 兼容」
+# 自 Dockerfile 切 3.11 起即过期，且与代码自相矛盾，本处据实更正（原 `UTC = timezone.utc`
+# 兼容别名已随之删除——它对本仓库的任何运行环境都已是 no-op）。
 import bcrypt
 import jwt
 from fastapi import Depends, HTTPException

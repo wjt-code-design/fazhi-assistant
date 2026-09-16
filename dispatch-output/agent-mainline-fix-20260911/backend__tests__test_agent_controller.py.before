@@ -1,0 +1,1135 @@
+import ast
+import json
+from dataclasses import replace
+from datetime import date, datetime
+from pathlib import Path
+
+import pytest
+from pydantic import BaseModel
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+
+from agent.controller import (
+    AgentController,
+    ControllerResult,
+    ControllerRun,
+    InMemoryRunLockRegistry,
+    SQLAlchemyControllerRepository,
+    UncertainExecutionState,
+)
+from agent.evaluator import EvaluationDecision, EvaluationOutcome
+from agent.planner import PlannerParseError, PlannerPolicyViolation, parse_plan_decision
+from agent.repository import CheckpointMetadata, create_run
+from agent.schemas import (
+    AgentBudgets,
+    AgentStatus,
+    Evidence,
+    LegalAgentState,
+    LegalIssue,
+    LegalValidity,
+    Observation,
+    SourceType,
+    UnknownFact,
+)
+from request_bootstrap import RequestBootstrap
+from tools.contracts import DuplicateToolCall, RetrievalMetadata, RetrieveLawsOutput, ToolContext, ToolEvidence
+from tools.gateway import ToolGateway
+
+
+@pytest.fixture
+def sqlite_db(tmp_path, monkeypatch):
+    import database
+    import migrations
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'agent-controller.db'}")
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    monkeypatch.setattr(database, "engine", engine)
+    monkeypatch.setattr(migrations, "engine", engine)
+    monkeypatch.setattr(database, "SessionLocal", session_factory)
+    migrations.run_migrations()
+    migrations.run_migrations()
+    session = session_factory()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()
+
+
+def bootstrap(conv_id: int = 11) -> RequestBootstrap:
+    return RequestBootstrap(
+        conv_id=conv_id,
+        summary="summary",
+        recent=[],
+        recent_messages=[],
+        image=None,
+        user_text="诉讼时效",
+        image_rel=None,
+        thumb_rel=None,
+        image_description="",
+        raw_query="诉讼时效",
+        supplement_text="诉讼时效",
+        intent="legal_query",
+        is_exam=False,
+        has_options=False,
+        contract_mode=False,
+        contract_text=None,
+        client_truncated=False,
+    )
+
+
+def initial_state(*, budgets: AgentBudgets | None = None, unknown: bool = False) -> LegalAgentState:
+    unknowns = [UnknownFact(statement="是否约定履行期限", why_outcome_changes="影响起算时间")] if unknown else []
+    return LegalAgentState(
+        budgets=budgets or AgentBudgets(),
+        issues=[LegalIssue(issue_id="issue-a", question="诉讼时效", unknown_facts=unknowns)],
+    )
+
+
+def sufficient_state(*, budgets: AgentBudgets | None = None) -> LegalAgentState:
+    """V2-G1：评估器判 SUFFICIENT 的构造——issue 无 unknown_facts + 有效成文法证据 + succeeded observation。
+
+    置 PLANNING：门只在 PLANNING 决策循环内生效（_drive:422），bootstrapping 会走早期返回不经门。
+    """
+    from agent.state_machine import transition
+
+    evidence = Evidence(
+        evidence_id="evidence-a",
+        source_id="statute:民法典:第一百八十八条",
+        source_ref="《民法典》第一百八十八条",
+        source_type=SourceType.STATUTE,
+        snippet="诉讼时效期间为三年。",
+        legal_validity=LegalValidity.EFFECTIVE,
+        acquired_at=datetime(2026, 8, 30),
+    )
+    state = transition(initial_state(budgets=budgets), AgentStatus.PLANNING)
+    state.issues[0].unknown_facts = []
+    state.evidence.append(evidence)
+    state.observations.append(
+        Observation(
+            issue_id="issue-a",
+            statement="已取得诉讼时效规则",
+            evidence_ids=["evidence-a"],
+            confidence=1.0,
+            status="succeeded",
+            tool_name=None,
+            output=None,
+            error_code=None,
+            duration_ms=0,
+        )
+    )
+    return state
+
+
+def exhausted_with_evidence_state() -> LegalAgentState:
+    """V2-G1 B 条件：澄清预算已耗尽(max_clarifications=0) + 每 issue 已有证据 + 仍有 unknown_facts。"""
+    state = sufficient_state(budgets=AgentBudgets(max_clarifications=0))
+    state.issues[0].unknown_facts = [UnknownFact(statement="是否约定履行期限", why_outcome_changes="影响起算时间")]
+    return state
+
+
+class SequencePlanner:
+    def __init__(self, decisions):
+        self.decisions = list(decisions)
+        self.calls = []
+
+    def decide(self, *, state, bootstrap, feedback=None):
+        self.calls.append((state, bootstrap))
+        if not self.decisions:
+            raise AssertionError("planner called more times than expected")
+        return self.decisions.pop(0)
+
+
+class FakeRepository:
+    def __init__(self, state, *, conversation_id=11, user_id=7, law_as_of=date(2026, 8, 30)):
+        self.current = ControllerRun(
+            run_id="run-a",
+            user_id=user_id,
+            conversation_id=conversation_id,
+            law_as_of=law_as_of,
+            state=state,
+            version=0,
+        )
+        self.checkpoints = []
+        self.fail_on_save_number = None
+
+    def load(self, *, run_id, conversation_id):
+        assert run_id == "run-a"
+        if conversation_id != self.current.conversation_id:
+            return None
+        return replace(
+            self.current,
+            state=LegalAgentState.model_validate_json(self.current.state.model_dump_json()),
+        )
+
+    def save(self, run, state, *, checkpoint=None, new_evidence_by_issue=None):
+        number = len(self.checkpoints) + 1
+        if self.fail_on_save_number == number:
+            raise RuntimeError(f"save-{number}-failed")
+        state_snapshot = LegalAgentState.model_validate_json(state.model_dump_json())
+        self.checkpoints.append((state_snapshot, checkpoint, new_evidence_by_issue or {}))
+        self.current = replace(
+            run,
+            state=state_snapshot,
+            version=run.version + 1,
+            degraded_reason=(checkpoint.degraded_reason if checkpoint else run.degraded_reason),
+            pending_question=(checkpoint.pending_question if checkpoint else run.pending_question),
+        )
+        return self.current
+
+
+class RecordingGateway:
+    """测试用网关：默认每次调用返回同一 output；可传 outputs 序列按调用次序弹出。
+
+    V2-G2 后控制流变化：无证据 issue 会先被服务端扇出检索（query=issue.question），
+    之后 planner 决策才触发工具调用。需要"扇出不产有效证据、保留 planner 路径"的测试
+    传 empty=True（扇出/所有检索均返回空证据 → 评估 MISSING_EVIDENCE → replan → planner 可被调用）。
+    """
+
+    def __init__(self, output=None, *, failure_code=None, empty: bool = False, outputs=None):
+        self.policies = ToolGateway().policies
+        default_out = RetrieveLawsOutput(
+            statement="found",
+            evidence=[
+                ToolEvidence(
+                    source_id="chunk-1",
+                    source="中华人民共和国民法典",
+                    article="第一百八十八条",
+                    snippet="诉讼时效期间为三年。",
+                    legal_validity="effective",
+                )
+            ],
+            retrieval=RetrievalMetadata(query="诉讼时效", requested_k=1, returned_count=1),
+        )
+        self.output = output or default_out
+        if empty:
+            self.output = RetrieveLawsOutput(statement="none", evidence=[])
+        self._outputs = list(outputs) if outputs else []
+        self.failure_code = failure_code
+        self.calls = []
+
+    def execute(self, context, decision):
+        from agent.schemas import Observation
+
+        self.calls.append((context, decision))
+        if self.failure_code:
+            return Observation(
+                issue_id=decision.issue_id,
+                statement="failed",
+                tool_name=decision.tool_name,
+                status="failed",
+                error_code=self.failure_code,
+            )
+        out = self.output
+        if self._outputs:
+            out = self._outputs.pop(0)
+        return Observation(
+            issue_id=decision.issue_id,
+            statement=out.statement,
+            tool_name=decision.tool_name,
+            output=out,
+        )
+
+
+def tool_decision(query="诉讼时效"):
+    return {
+        "kind": "tool_call",
+        "issue_id": "issue-a",
+        "tool_name": "retrieve_laws",
+        "args": {"query": query, "k": 1},
+    }
+
+
+def empty_laws_output() -> RetrieveLawsOutput:
+    """扇出用的空证据输出：检索执行成功但无有效 statute 证据 → 评估 MISSING_EVIDENCE → replan。
+
+    V2-G2 后：无证据 issue 会被服务端先扇出一次 retrieve_laws。需要"扇出不产证据、
+    保留 planner 决策路径"的测试用这个构造（配合 RecordingGateway(output=...) 或 outputs 序列）。
+    """
+    return RetrieveLawsOutput(statement="none", evidence=[])
+
+
+def controller(repository, planner, gateway, *, budgets=None, clock=None):
+    return AgentController(
+        planner=planner,
+        gateway=gateway,
+        repository=repository,
+        budgets=budgets or AgentBudgets(),
+        run_locks=InMemoryRunLockRegistry(),
+        clock=clock or (lambda: datetime(2026, 8, 30, 8, 0)),
+    )
+
+
+def test_parser_validates_tool_args_with_gateway_policy_and_keeps_canonical_type():
+    gateway = ToolGateway()
+
+    decision = parse_plan_decision(tool_decision(), policies=gateway.policies, issue_ids={"issue-a"})
+
+    assert decision.kind == "tool_call"
+    assert type(decision.args) is gateway.policies["retrieve_laws"].input_model
+    assert decision.args.model_dump() == {"query": "诉讼时效", "k": 1, "category": None}
+
+
+@pytest.mark.parametrize(
+    "raw",
+    [
+        {"kind": "unknown"},
+        {"kind": "tool_call", "issue_id": "issue-a", "tool_name": "missing", "args": {}},
+        {"kind": "tool_call", "issue_id": "unknown", "tool_name": "retrieve_laws", "args": {"query": "x"}},
+        {"kind": "tool_call", "issue_id": "issue-a", "tool_name": "retrieve_laws", "args": {"query": ""}},
+        {"kind": "tool_call", "issue_id": "issue-a", "tool_name": "retrieve_laws", "args": {"query": "x", "extra": 1}},
+        {"kind": "finish_research", "summary": "done", "extra": "not allowed"},
+        {"kind": "tool_call", "issue_id": "issue-a", "tool_name": "ask_user", "args": {"question": "x"}},
+    ],
+)
+def test_parser_rejects_ordinary_malformed_unknown_or_extra_content(raw):
+    with pytest.raises(PlannerParseError):
+        parse_plan_decision(raw, policies=ToolGateway().policies, issue_ids={"issue-a"})
+
+
+@pytest.mark.parametrize(
+    "args",
+    [
+        {"query": "x", "user_id": 9},
+        {"query": "x", "nested": {"conversation_id": 9}},
+        {"query": "x", "nested": [{"run_id": "foreign"}]},
+        {"query": "x", "law_as_of": "2030-01-01"},
+        {"query": "x", "budgets": {"max_steps": 999}},
+        {"query": "x", "max_tool_calls": 999},
+        {"query": "x", "max_verifier_research_returns": 999},
+        {"query": "x", "verifier_research_returns": 999},
+    ],
+)
+def test_parser_treats_ownership_and_server_budget_injection_as_policy_violation(args):
+    with pytest.raises(PlannerPolicyViolation):
+        parse_plan_decision(
+            {**tool_decision(), "args": args},
+            policies=ToolGateway().policies,
+            issue_ids={"issue-a"},
+        )
+
+
+def test_parser_treats_top_level_ownership_injection_as_policy_violation():
+    with pytest.raises(PlannerPolicyViolation):
+        parse_plan_decision(
+            {**tool_decision(), "user_id": 999},
+            policies=ToolGateway().policies,
+            issue_ids={"issue-a"},
+        )
+
+
+def test_parser_detects_ownership_injection_inside_nested_pydantic_model():
+    class HostileArgs(BaseModel):
+        query: str
+        nested: dict[str, int]
+
+    with pytest.raises(PlannerPolicyViolation):
+        parse_plan_decision(
+            {**tool_decision(), "args": HostileArgs(query="x", nested={"run_id": 9})},
+            policies=ToolGateway().policies,
+            issue_ids={"issue-a"},
+        )
+
+
+def test_one_tool_reaches_drafting_without_another_planner_call_and_uses_trusted_context():
+    # V2-G2：无证据 issue 先被服务端扇出一次（empty → MISSING_EVIDENCE → replan），
+    # 之后 planner 的 tool_call 第二次检索（有效证据）→ SUFFICIENT → DRAFTING。
+    # 语义保持：一次 planner 工具决策到达 DRAFTING 且使用可信 context，无需第二轮 planner。
+    state = initial_state()
+    repository = FakeRepository(state)
+    planner = SequencePlanner([tool_decision()])
+    gateway = RecordingGateway(outputs=[empty_laws_output()])
+    before = state.model_dump(mode="json")
+
+    agent = controller(repository, planner, gateway)
+    result = agent.run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.DRAFTING
+    assert result.state.tool_calls == 2  # 扇出 1 次 + planner 工具 1 次
+    assert result.degraded is False
+    assert len(planner.calls) == 1
+    assert len(gateway.calls) == 2
+    # 扇出与 planner 工具都使用同一个可信 ToolContext
+    for _, call in gateway.calls:
+        assert call.issue_id == "issue-a"
+    context = gateway.calls[1][0]
+    assert context == ToolContext(
+        user_id=7,
+        conversation_id=11,
+        run_id="run-a",
+        law_as_of=date(2026, 8, 30),
+    )
+    assert state.model_dump(mode="json") == before
+
+
+def test_strict_checkpoint_order_and_version_progression_surrounds_tool_call():
+    repository = FakeRepository(initial_state())
+    planner = SequencePlanner([tool_decision()])
+    gateway = RecordingGateway()
+
+    result = controller(repository, planner, gateway).run("run-a", bootstrap())
+
+    assert [item[0].status for item in repository.checkpoints] == [
+        AgentStatus.PLANNING,
+        AgentStatus.EXECUTING,
+        AgentStatus.EVALUATING,
+        AgentStatus.DRAFTING,
+    ]
+    assert [item[1].decision for item in repository.checkpoints] == [
+        "bootstrap",
+        "tool_call",
+        "tool_result",
+        "evaluation",
+    ]
+    executing = repository.checkpoints[1][1]
+    assert isinstance(executing, CheckpointMetadata)
+    assert executing.fingerprint in result.state.action_fingerprints
+    assert repository.current.version == 4
+    assert repository.checkpoints[2][2]["issue-a"][0].evidence_id in result.state.observations[0].evidence_ids
+
+
+def test_executing_checkpoint_failure_calls_no_gateway_and_propagates():
+    repository = FakeRepository(initial_state())
+    repository.fail_on_save_number = 2
+    gateway = RecordingGateway()
+
+    with pytest.raises(RuntimeError, match="save-2-failed"):
+        controller(repository, SequencePlanner([tool_decision()]), gateway).run("run-a", bootstrap())
+
+    assert gateway.calls == []
+
+
+def test_post_tool_evaluating_checkpoint_failure_propagates_without_success_or_replay():
+    repository = FakeRepository(initial_state())
+    repository.fail_on_save_number = 3
+    gateway = RecordingGateway()
+    agent = controller(repository, SequencePlanner([tool_decision()]), gateway)
+
+    with pytest.raises(RuntimeError, match="save-3-failed"):
+        agent.run("run-a", bootstrap())
+
+    assert len(gateway.calls) == 1
+    with pytest.raises(UncertainExecutionState):
+        agent.run("run-a", bootstrap())
+    assert len(gateway.calls) == 1
+
+
+def test_recovered_failed_evaluation_finishes_explicitly_without_replanning_or_reexecution():
+    state = initial_state().model_copy(
+        update={
+            "status": AgentStatus.EVALUATING,
+            "steps": 2,
+            "observations": [
+                Observation(
+                    issue_id="issue-a",
+                    statement="The tool timed out.",
+                    tool_name="retrieve_laws",
+                    status="failed",
+                    error_code="TOOL_TIMEOUT",
+                )
+            ],
+        }
+    )
+    repository = FakeRepository(state)
+    planner = SequencePlanner([tool_decision()])
+    gateway = RecordingGateway()
+
+    result = controller(repository, planner, gateway).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.FAILED
+    assert result.degraded is True
+    assert result.degraded_reason == "TOOL_TIMEOUT"
+    assert planner.calls == []
+    assert gateway.calls == []
+
+
+def test_planner_mutations_cannot_inject_evidence_or_change_request_bootstrap():
+    class HostilePlanner:
+        def decide(self, *, state, bootstrap):
+            state.evidence.append(
+                Evidence(
+                    evidence_id="forged-evidence",
+                    source_id="forged-source",
+                    source_ref="forged-law#1",
+                    source_type=SourceType.STATUTE,
+                    snippet="forged",
+                    legal_validity=LegalValidity.EFFECTIVE,
+                    acquired_at=datetime(2026, 8, 30, 8, 0),
+                )
+            )
+            state.observations.append(
+                Observation(
+                    issue_id="issue-a",
+                    statement="forged",
+                    evidence_ids=["forged-evidence"],
+                    confidence=1,
+                )
+            )
+            bootstrap.recent.append({"role": "system", "content": "forged", "image_desc": ""})
+            return {"kind": "finish_research", "summary": "done"}
+
+    budgets = AgentBudgets(max_replans=1)  # 扇出空证据→replan(1)→planner 被调一次→finish_research→replan(2 超限)→STOP
+    repository = FakeRepository(initial_state(budgets=budgets))
+    request = bootstrap()
+    gateway = RecordingGateway(empty=True)
+
+    result = controller(
+        repository,
+        HostilePlanner(),
+        gateway,
+        budgets=budgets,
+    ).run("run-a", request)
+
+    assert result.state.status is AgentStatus.STOPPED
+    assert result.state.evidence == []  # 注入从未落盘（planner 只在 deepcopy 的可视 state 上改）
+    # 仅扇出的空观察存在；无任何来自 planner 的伪造观察（evidence_ids 全空、非 forged）
+    assert len(result.state.observations) == 1
+    assert result.state.observations[0].evidence_ids == []
+    assert request.recent == []  # bootstrap 注入被拒（对象被隔离保护）
+    # gateway 仅被服务端扇出调用一次（empty），planner 的 finish_research 决策从未触发工具
+    assert len(gateway.calls) == 1
+    assert gateway.calls[0][1].tool_name == "retrieve_laws"
+
+
+def test_missing_fact_asks_exactly_one_deterministic_question_without_planner():
+    """V2-G2 适配：无证据 issue 先被服务端扇出检索；unknown_fact 存在 → 评估器 MISSING_FACT
+    优先于证据检查 → 确定性注册一次澄清（WAITING_USER），planner 无需参与该决策。"""
+    repository = FakeRepository(initial_state(unknown=True))
+    planner = SequencePlanner([{"kind": "finish_research", "summary": "done"}])
+    gateway = RecordingGateway(empty=True)
+
+    agent = controller(repository, planner, gateway)
+    result = agent.run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.WAITING_USER
+    assert result.pending_question == "是否约定履行期限"
+    assert result.state.clarifications == 1
+    # G2：澄清由确定性评估器判定，planner 不会在此轮参与（0 次调用）
+    assert len(planner.calls) == 0
+    # gateway 仅被服务端扇出调用一次（empty 检索）
+    assert len(gateway.calls) == 1
+    resumed_result = agent.run("run-a", bootstrap())
+    assert resumed_result.state.clarifications == 1
+    assert resumed_result.pending_question == "是否约定履行期限"
+    assert len(planner.calls) == 0
+
+
+def test_ask_user_forced_to_conditional_analysis_when_clarify_budget_exhausted():
+    """Gate 4：澄清预算已耗尽时评估器仍判定 MISSING_FACT → 确定性强制条件化（转 DRAFTING 产出分情形分析）。
+
+    统一门位于 _handle_evaluation 的 MISSING_FACT 分支：无论 Planner 输出 ask_user 还是
+    finish_research，都不再注册超出预算的澄清（原行为：register_clarification 触发
+    BudgetExceeded→STOP→静默降级，用户最后回答被丢弃）。
+    """
+    budgets = AgentBudgets(max_clarifications=2)
+    state = initial_state(unknown=True, budgets=budgets).model_copy(
+        update={"status": AgentStatus.PLANNING, "clarifications": 2}
+    )
+    repository = FakeRepository(state)
+    planner = SequencePlanner([{"kind": "ask_user", "question": "是否约定履行期限"}])
+    gateway = RecordingGateway()
+
+    result = controller(repository, planner, gateway, budgets=budgets).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.DRAFTING, f"expected DRAFTING, got {result.state.status}"
+    assert result.state.clarifications == 2  # 未注册第 3 次澄清
+    reason = repository.checkpoints[-1][1].reason_code
+    assert reason == "CLARIFY_BUDGET_EXHAUSTED"
+    # V2-G2：无证据 issue 先被扇出检索一次（gateway 被调 1 次），但评估 MISSING_FACT+澄清耗尽
+    # 仍确定性强制条件化——不因多了本次检索而继续追问
+    assert len(gateway.calls) == 1
+
+    # 预算未耗尽时行为不变：仍然正常发起澄清（对照保护）
+    state2 = initial_state(unknown=True, budgets=budgets).model_copy(
+        update={"status": AgentStatus.PLANNING, "clarifications": 1}
+    )
+    repository2 = FakeRepository(state2)
+    planner2 = SequencePlanner([{"kind": "ask_user", "question": "是否约定履行期限"}])
+    result2 = controller(repository2, planner2, RecordingGateway(), budgets=budgets).run("run-a", bootstrap())
+    assert result2.state.status is AgentStatus.WAITING_USER
+    assert result2.state.clarifications == 2
+
+
+def test_finish_research_forced_to_conditional_analysis_when_clarify_budget_exhausted():
+    """Gate 4 统一门：Planner 输出 finish_research、评估器仍 MISSING_FACT 且轮数已满 → 同样强制条件化。
+
+    覆盖 C10 实测路径：第三次"澄清"由 finish_research 决策 + 评估器 MISSING_FACT 注册，
+    此前仅拦 ask_user 是不足的。
+    """
+    budgets = AgentBudgets(max_clarifications=2)
+    state = initial_state(unknown=True, budgets=budgets).model_copy(
+        update={"status": AgentStatus.PLANNING, "clarifications": 2}
+    )
+    repository = FakeRepository(state)
+    planner = SequencePlanner([{"kind": "finish_research", "summary": "done"}])
+
+    result = controller(repository, planner, RecordingGateway(), budgets=budgets).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.DRAFTING
+    assert result.state.clarifications == 2
+    assert repository.checkpoints[-1][1].reason_code == "CLARIFY_BUDGET_EXHAUSTED"
+
+
+def test_empty_issue_state_fails_safe_before_planner_or_gateway():
+    repository = FakeRepository(LegalAgentState())
+    planner = SequencePlanner([tool_decision()])
+    gateway = RecordingGateway()
+
+    result = controller(repository, planner, gateway).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.FAILED
+    assert result.degraded is False
+    assert repository.checkpoints[-1][1].reason_code == "INTEGRITY_NO_ISSUES"
+    assert planner.calls == []
+    assert gateway.calls == []
+
+
+def test_missing_evidence_replans_then_duplicate_budget_stops_without_reexecution():
+    budgets = AgentBudgets(max_replans=3, max_duplicate_attempts_per_issue=1)
+    repository = FakeRepository(initial_state(budgets=budgets))
+    planner = SequencePlanner([tool_decision(), tool_decision(), tool_decision()])
+    gateway = RecordingGateway(output=empty_laws_output())  # 扇出与 planner 均无有效证据
+
+    result = controller(repository, planner, gateway, budgets=budgets).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.STOPPED
+    assert result.degraded_reason == "AGENT_BUDGET_EXCEEDED"
+    assert result.state.duplicate_attempts_by_issue == {"issue-a": 2}
+    # V2-G2：2 次 gateway 调用 = 服务端扇出 1 次 + planner 首次工具执行 1 次；后续重复被去重不重执行
+    assert len(gateway.calls) == 2
+
+
+def test_incomplete_tool_evidence_is_not_materialized_or_linked():
+    repository = FakeRepository(initial_state())
+    incomplete = RetrieveLawsOutput(
+        statement="partial",
+        evidence=[
+            ToolEvidence(
+                source_id="chunk-without-article",
+                source="中华人民共和国民法典",
+                article=None,
+                snippet="内容存在但来源字段不完整。",
+                legal_validity="effective",
+            )
+        ],
+    )
+    planner = SequencePlanner([tool_decision(), {"kind": "stop", "reason": "no evidence"}])
+
+    result = controller(repository, planner, RecordingGateway(output=incomplete)).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.STOPPED
+    assert result.state.evidence == []
+    assert result.state.observations[0].evidence_ids == []
+
+
+def test_unique_replan_budget_terminates_explicitly():
+    budgets = AgentBudgets(max_replans=1, max_duplicate_attempts_per_issue=3)
+    repository = FakeRepository(initial_state(budgets=budgets))
+    planner = SequencePlanner([tool_decision("first"), tool_decision("second")])
+    gateway = RecordingGateway(output=RetrieveLawsOutput(statement="none", evidence=[]))
+
+    result = controller(repository, planner, gateway, budgets=budgets).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.STOPPED
+    assert result.state.replans == 2
+    assert result.degraded_reason == "AGENT_BUDGET_EXCEEDED"
+    assert len(gateway.calls) == 2
+
+
+def test_step_preflight_stops_before_gateway_when_three_checkpoints_do_not_fit():
+    budgets = AgentBudgets(max_steps=3)
+    repository = FakeRepository(initial_state(budgets=budgets))
+    gateway = RecordingGateway()
+
+    result = controller(repository, SequencePlanner([tool_decision()]), gateway, budgets=budgets).run(
+        "run-a", bootstrap()
+    )
+
+    assert result.state.status is AgentStatus.STOPPED
+    assert result.degraded_reason == "AGENT_BUDGET_EXCEEDED"
+    assert gateway.calls == []
+
+
+@pytest.mark.parametrize(
+    "error_code", ["TOOL_TIMEOUT", "TOOL_BUSY", "TOOL_EXECUTION_ERROR", "TOOL_CALL_LIMIT_EXCEEDED"]
+)
+def test_tool_failure_persists_observation_then_fails_without_retry(error_code):
+    repository = FakeRepository(initial_state())
+    gateway = RecordingGateway(failure_code=error_code)
+
+    result = controller(repository, SequencePlanner([tool_decision()]), gateway).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.FAILED
+    assert result.degraded is True
+    assert result.degraded_reason == error_code
+    assert result.state.observations[-1].error_code == error_code
+    assert [item[0].status for item in repository.checkpoints][-2:] == [
+        AgentStatus.EVALUATING,
+        AgentStatus.FAILED,
+    ]
+    assert len(gateway.calls) == 1
+
+
+def test_gateway_duplicate_after_durable_registration_is_invariant_failure_not_retry():
+    class DuplicateGateway(RecordingGateway):
+        def execute(self, context, decision):
+            self.calls.append((context, decision))
+            raise DuplicateToolCall("gateway already saw fingerprint")
+
+    repository = FakeRepository(initial_state())
+    gateway = DuplicateGateway()
+
+    result = controller(repository, SequencePlanner([tool_decision()]), gateway).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.FAILED
+    assert result.degraded_reason == "GATEWAY_DUPLICATE_INVARIANT"
+    assert len(gateway.calls) == 1
+    assert [item[0].status for item in repository.checkpoints][-2:] == [
+        AgentStatus.EXECUTING,
+        AgentStatus.FAILED,
+    ]
+
+
+class FeedbackRecordingPlanner:
+    """记录每次 decide 的 feedback 参数，用于验证错误回喂正向路径（评测器纠偏 F6）。"""
+
+    def __init__(self, decisions):
+        self.decisions = list(decisions)
+        self.feedbacks = []
+
+    def decide(self, *, state, bootstrap, feedback=None):
+        self.feedbacks.append(feedback)
+        if not self.decisions:
+            raise AssertionError("planner called more times than expected")
+        return self.decisions.pop(0)
+
+
+def test_parse_error_is_explicit_degraded_failure_and_never_calls_gateway():
+    repository = FakeRepository(initial_state())
+    # V2-G2：empty 扇出（无有效证据）→ MISSING_EVIDENCE → replan → planner 才被调用；
+    # 两个坏决策 → 回喂重试仍失败 → fail-closed。planner 的坏输出从未触达 gateway。
+    gateway = RecordingGateway(empty=True)
+
+    # 两个坏决策：首次 parse 失败触发错误回喂重试，第二次仍失败 → fail-closed
+    result = controller(repository, SequencePlanner([{"kind": "unknown"}, {"kind": "unknown"}]), gateway).run(
+        "run-a", bootstrap()
+    )
+
+    assert result.state.status is AgentStatus.FAILED
+    assert result.degraded_reason == "PLANNER_PARSE_ERROR"
+    # gateway 仅被服务端扇出（empty 检索）调用一次；planner 的坏 JSON 决策从未触发任何工具
+    assert len(gateway.calls) == 1
+
+
+def test_parse_error_retry_with_feedback_recovers_to_success_path():
+    """F6：首轮坏决策触发错误回喂，第二次带反馈重试成功 → 会话继续（不 fail-closed）。
+
+    V2-G2：初始无证据 → 扇出 empty（MISSING_EVIDENCE → replan）→ planner 才被调用。
+    坏决策 → 回喂 → 好决策（工具执行返回有效证据）→ SUFFICIENT → DRAFTING。
+    """
+    repository = FakeRepository(initial_state())
+    # outputs 序列：第 1 次调用（服务端扇出）返回空证据；planner 的工具执行返回默认有效证据
+    gateway = RecordingGateway(outputs=[empty_laws_output()])
+    planner = FeedbackRecordingPlanner([{"kind": "unknown"}, tool_decision()])
+
+    result = controller(repository, planner, gateway).run("run-a", bootstrap())
+
+    assert result.state.status is not AgentStatus.FAILED
+    assert len(planner.feedbacks) == 2
+    assert planner.feedbacks[0] is None
+    assert isinstance(planner.feedbacks[1], str) and "校验失败" in planner.feedbacks[1]
+
+
+def test_g1_gate_skips_planner_when_sufficient():
+    """V2-G1 红：评估器判 SUFFICIENT 后，确定性终稿门应先于 planner 触发（旧实现 planner 被调用 → SequencePlanner([]) 抛 AssertionError → 红）。"""
+    repository = FakeRepository(sufficient_state())
+    planner = SequencePlanner([])  # 任何 decide 调用都会 AssertionError
+    gateway = RecordingGateway()
+
+    result = controller(repository, planner, gateway).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.DRAFTING
+    assert planner.calls == []
+
+
+def test_g1_gate_forces_drafting_when_clarify_exhausted_with_evidence():
+    """V2-G1 红：MISSING_FACT + 澄清预算耗尽 + 每 issue 有证据 → 门强制转 DRAFTING（不问 planner）。"""
+    repository = FakeRepository(exhausted_with_evidence_state())
+    planner = SequencePlanner([])
+    gateway = RecordingGateway()
+
+    result = controller(repository, planner, gateway).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.DRAFTING
+    assert planner.calls == []
+
+
+def test_g1_gate_off_when_no_evidence_yet():
+    """V2-G1 负例：没有任何有效证据时门不触发，planner 照常被调用（会话正常推进）。
+
+    V2-G2 适配：无证据 issue 先被扇出 empty（MISSING_EVIDENCE → replan），之后 planner 的
+    tool_call 第二次检索返回有效证据 → SUFFICIENT → DRAFTING——门在无证据时不拦截 planner。
+    """
+    repository = FakeRepository(initial_state())
+    planner = SequencePlanner([tool_decision()])
+    gateway = RecordingGateway(outputs=[empty_laws_output()])
+
+    result = controller(repository, planner, gateway).run("run-a", bootstrap())
+
+    assert planner.calls, "无证据时应走 planner 路径（门未触发）"
+    assert isinstance(result, ControllerResult)
+
+
+def test_g2_issue_fanout_retrieves_for_evidence_less_issues():
+    """V2-G2 红：进入 PLANNING 后，无证据 issue 应被服务端自动扇出一次定向检索。
+
+    旧实现不做扇出：gateway.calls 为空且 planner 必须先被调用一次。
+    构造：issue-a 无任何证据（initial_state）、gateway 返回 SUFFICIENT 级证据 →
+    扇出后的确定性评估应推进到 DRAFTING，全程无需 planner 决策。
+    """
+    repository = FakeRepository(initial_state())
+    planner = SequencePlanner([])  # 任何 decide 调用都会 AssertionError → 扇出必须先行
+    gateway = RecordingGateway()
+
+    result = controller(repository, planner, gateway).run("run-a", bootstrap())
+
+    assert isinstance(result, ControllerResult)
+    assert result.state.status is AgentStatus.DRAFTING
+    assert any("诉讼时效" in str(call) for call in gateway.calls)  # 扇出检索确实发生
+    assert planner.calls == []  # 扇出+评估已足够，无需 planner
+
+
+def test_g2_fanout_respects_existing_evidence_per_issue():
+    """V2-G2 负例：issue 已有证据则不再扇出（避免重复检索浪费预算）。"""
+    repository = FakeRepository(sufficient_state())
+    planner = SequencePlanner([])
+    gateway = RecordingGateway()
+
+    result = controller(repository, planner, gateway).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.DRAFTING
+    # 证据已足时 G1 门应先行转 DRAFTING；若扇出未经证据检查，会多一次 gateway 调用
+    assert len(gateway.calls) == 0
+
+
+def test_policy_injection_is_hard_failure_without_fallback_content():
+    repository = FakeRepository(initial_state())
+    # V2-G2：empty 扇出（无证据→replan）让 planner 的 hostile 决策真实可达，验证注入被 fail-closed
+    gateway = RecordingGateway(empty=True)
+    hostile = {**tool_decision(), "args": {"query": "x", "user_id": 999}}
+
+    result = controller(repository, SequencePlanner([hostile]), gateway).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.FAILED
+    assert result.degraded is False
+    assert result.degraded_reason is None
+    assert result.pending_question is None
+    # 仅服务端扇出 1 次；hostile 决策在 parse 层被拒，从未触达 gateway
+    assert len(gateway.calls) == 1
+
+
+def test_policy_injection_remains_hard_failed_when_step_budget_is_exhausted():
+    budgets = AgentBudgets(max_steps=4)
+    repository = FakeRepository(initial_state(budgets=budgets))
+    hostile = {**tool_decision(), "args": {"query": "x", "user_id": 999}}
+
+    result = controller(
+        repository,
+        SequencePlanner([hostile]),
+        RecordingGateway(empty=True),
+        budgets=budgets,
+    ).run("run-a", bootstrap())
+
+    assert result.state.status is AgentStatus.FAILED
+    assert result.degraded is False
+    assert result.degraded_reason is None
+
+
+def test_bootstrap_conversation_mismatch_is_rejected_before_planner_or_gateway():
+    repository = FakeRepository(initial_state(), conversation_id=11)
+    planner = SequencePlanner([tool_decision()])
+    gateway = RecordingGateway()
+
+    with pytest.raises(PermissionError):
+        controller(repository, planner, gateway).run("run-a", bootstrap(conv_id=12))
+
+    assert planner.calls == []
+    assert gateway.calls == []
+
+
+def test_deployment_budgets_are_snapshotted_only_for_bootstrapping_run():
+    configured = AgentBudgets(max_steps=17, max_tool_calls=8)
+    bootstrap_repository = FakeRepository(initial_state(budgets=AgentBudgets(max_steps=2)))
+    result = controller(
+        bootstrap_repository,
+        SequencePlanner([{"kind": "stop", "reason": "done"}]),
+        RecordingGateway(),
+        budgets=configured,
+    ).run("run-a", bootstrap())
+    assert result.state.budgets == configured
+
+    recovered_state = initial_state(budgets=AgentBudgets(max_steps=9)).model_copy(
+        update={"status": AgentStatus.PLANNING, "steps": 1}
+    )
+    recovered_repository = FakeRepository(recovered_state)
+    recovered = controller(
+        recovered_repository,
+        SequencePlanner([{"kind": "stop", "reason": "done"}]),
+        RecordingGateway(),
+        budgets=configured,
+    ).run("run-a", bootstrap())
+    assert recovered.state.budgets.max_steps == 9
+
+
+def test_controller_module_has_no_direct_ai_retrieval_or_cache_imports():
+    path = Path(__file__).parents[1] / "agent" / "controller.py"
+    tree = ast.parse(path.read_text(encoding="utf-8"))
+    forbidden = {"llm", "llm_registry", "retrieval", "rag_chain", "knowledge_service", "cache"}
+    imports = {
+        alias.name.split(".")[0] for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names
+    }
+    imports.update((node.module or "").split(".")[0] for node in ast.walk(tree) if isinstance(node, ast.ImportFrom))
+
+    assert imports.isdisjoint(forbidden)
+
+
+def test_real_sqlite_controller_is_owner_scoped_and_persists_state_step_order_and_evidence(sqlite_db):
+    from models import AgentEvidence, AgentRun, AgentStep, Conversation, User
+
+    owner = User(username="controller-owner", password_hash="test")
+    other = User(username="controller-other", password_hash="test")
+    sqlite_db.add_all([owner, other])
+    sqlite_db.commit()
+    conversation = Conversation(user_id=owner.id, question="", answer="")
+    sqlite_db.add(conversation)
+    sqlite_db.commit()
+    run = create_run(
+        sqlite_db,
+        user_id=owner.id,
+        conversation_id=conversation.id,
+        state=initial_state(),
+    )
+    output = RetrieveLawsOutput(
+        statement="found",
+        evidence=[
+            ToolEvidence(
+                source_id="sqlite-chunk",
+                source="中华人民共和国民法典",
+                article="第一百八十八条",
+                snippet="诉讼时效期间为三年。",
+                legal_validity="effective",
+            )
+        ],
+    )
+    gateway = ToolGateway(wrapper_overrides={"retrieve_laws": lambda *_: output})
+    agent = AgentController(
+        planner=SequencePlanner([tool_decision()]),
+        gateway=gateway,
+        repository=SQLAlchemyControllerRepository(db=sqlite_db, user_id=owner.id),
+        budgets=AgentBudgets(),
+        run_locks=InMemoryRunLockRegistry(),
+        clock=lambda: datetime(2026, 8, 30, 8, 0),
+    )
+    request = bootstrap(conv_id=conversation.id)
+
+    result = agent.run(run.id, request)
+
+    persisted = sqlite_db.get(AgentRun, run.id)
+    assert LegalAgentState.model_validate_json(persisted.state_json) == result.state
+    assert result.state.status is AgentStatus.DRAFTING
+    steps = sqlite_db.query(AgentStep).filter_by(agent_run_id=run.id).order_by(AgentStep.state_version).all()
+    assert [step.status for step in steps] == ["planning", "executing", "evaluating", "drafting"]
+    assert [step.decision for step in steps] == ["bootstrap", "tool_call", "tool_result", "evaluation"]
+    assert all(step.state_version == index for index, step in enumerate(steps, start=1))
+    audit = sqlite_db.query(AgentEvidence).filter_by(agent_run_id=run.id).one()
+    assert audit.source_identifier == "sqlite-chunk"
+    assert json.loads(audit.provenance)["evidence_id"] == result.state.evidence[0].evidence_id
+
+    foreign_agent = AgentController(
+        planner=SequencePlanner([tool_decision()]),
+        gateway=gateway,
+        repository=SQLAlchemyControllerRepository(db=sqlite_db, user_id=other.id),
+        budgets=AgentBudgets(),
+    )
+    with pytest.raises(PermissionError):
+        foreign_agent.run(run.id, request)
+
+
+def _multi_issue_unknown_state(*, n_issues: int, max_clarifications: int) -> LegalAgentState:
+    """构造 n 个无证据 issue，每个都带 unknown_facts（评估器 MISSING_FACT 优先于证据检查）。
+
+    用于复现"扇出被澄清打断"缺陷：第 1 个 issue 检索到证据后立即评估 → MISSING_FACT
+    （澄清预算已耗尽）→ _handle_evaluation 强制 DRAFTING 并 return → 剩余 issue 不再扇出。
+    """
+    from agent.state_machine import transition
+
+    state = transition(
+        LegalAgentState(
+            budgets=AgentBudgets(max_clarifications=max_clarifications),
+            issues=[
+                LegalIssue(
+                    issue_id=f"issue-{i}",
+                    question=f"争点{i}的法律依据",
+                    unknown_facts=[UnknownFact(statement=f"事实{i}", why_outcome_changes="影响结论")],
+                )
+                for i in range(n_issues)
+            ],
+        ),
+        AgentStatus.PLANNING,
+    )
+    return state
+
+
+def test_seed_retrievals_covers_every_issue_before_forcing_drafting():
+    """扇出内部不得因一次评估推进就 return —— 剩余 issue 必须继续补检索。
+
+    ⚠️ 定位说明（2026-09-10 修正）：本测试抓的是**次生行为**（扇出循环被
+    `_handle_evaluation` 的 ControllerResult 打断），**不是**线上 probe-15 C01 失败的
+    根因。根因的实证复现见
+    `tests/test_agent_chat_integration.py::test_clarify_budget_exhaustion_must_not_skip_unretrieved_issues`
+    （澄清预算耗尽时强制 DRAFTING 未校验"每 issue 已检索"）。
+
+    本测试仍有价值：它固定"扇出应尽可能在一轮内补齐所有 issue"这一语义，
+    与根因修复方向一致（减少对澄清轮次的依赖）。
+    """
+    budgets = AgentBudgets(max_clarifications=0)  # 澄清预算已耗尽 → 首个评估即强制 DRAFTING
+    state = _multi_issue_unknown_state(n_issues=4, max_clarifications=0)
+    repository = FakeRepository(state)
+    gateway = RecordingGateway()  # 每次检索都返回有效成文法证据
+
+    result = controller(repository, planner=SequencePlanner([]), gateway=gateway, budgets=budgets).run(
+        "run-a", bootstrap()
+    )
+
+    retrieved_issues = {call[1].issue_id for call in gateway.calls}
+    assert retrieved_issues == {"issue-0", "issue-1", "issue-2", "issue-3"}, (
+        f"扇出遗漏 issue：{sorted(retrieved_issues)}"
+    )
+    observed_issues = {obs.issue_id for obs in result.state.observations if obs.status == "succeeded"}
+    assert observed_issues == {"issue-0", "issue-1", "issue-2", "issue-3"}, (
+        f"successful observation 覆盖不足：{sorted(observed_issues)}"
+    )
+
+
+# ==================== F12 覆盖缺口补测（2026-09-11 深度审查） ====================
+# 覆盖：① _deterministic_finish_gate 第三象限（MISSING_FACT+耗尽+并非每 issue 有证据 → None）
+#       ② _handle_evaluation 未知 outcome（FAIL_SAFE）→ fail-closed 失败
+#       ③ _handle_evaluation 的 BudgetExceeded → _persist_budget_stop（降级）
+#       ④ backfill 分支的 checkpoint reason 落盘断言
+
+
+class _FixedEvaluator:
+    """固定评估决策的假评估器（直调 controller 内部方法用，不经 LLM）。"""
+
+    def __init__(self, decision):
+        self._decision = decision
+
+    def evaluate(self, state):
+        return self._decision
+
+
+def _partial_evidence_state(**budget_kwargs) -> LegalAgentState:
+    """两个 issue：issue-a 有有效成文法证据 + succeeded observation；issue-b 无证据、无检索指纹。"""
+    state = sufficient_state(budgets=AgentBudgets(max_clarifications=0, **budget_kwargs))
+    state.issues.append(LegalIssue(issue_id="issue-b", question="另一争点", unknown_facts=[]))
+    return state
+
+
+def test_finish_gate_third_quadrant_returns_none():
+    """F12-①：MISSING_FACT + 澄清预算耗尽 + **并非每 issue 都有证据** ⇒ 门必须返回 None。
+
+    这是门与 `_handle_evaluation` backfill 分支之间的边界：门若在此象限放行，
+    会让无证据的 issue 被强制 DRAFTING（缺证据绑定）。放行 planner 是正确去向。
+    """
+    decision = EvaluationDecision(
+        outcome=EvaluationOutcome.MISSING_FACT,
+        reason_code="OUTCOME_CHANGING_FACT_UNKNOWN",
+        issue_id="issue-b",
+    )
+    repository = FakeRepository(_partial_evidence_state())
+    agent = controller(repository, planner=SequencePlanner([]), gateway=None)
+    agent._evaluator = _FixedEvaluator(decision)
+
+    state = _partial_evidence_state()
+    assert agent._deterministic_finish_gate(state) is None, (
+        "第三象限（有 issue 无证据）不得放行——否则无证据 issue 会被强制 DRAFTING"
+    )
+
+
+def test_finish_gate_quadrant_b_still_forces_conditional_analysis():
+    """F12-① 正向对照：B 象限（每 issue 都有证据）门必须放行（返回评估决策）。"""
+    decision = EvaluationDecision(
+        outcome=EvaluationOutcome.MISSING_FACT,
+        reason_code="OUTCOME_CHANGING_FACT_UNKNOWN",
+        issue_id="issue-a",
+    )
+    repository = FakeRepository(initial_state())
+    agent = controller(repository, planner=SequencePlanner([]), gateway=None)
+    agent._evaluator = _FixedEvaluator(decision)
+
+    gate = agent._deterministic_finish_gate(exhausted_with_evidence_state())
+    assert gate is not None and gate.outcome is EvaluationOutcome.MISSING_FACT
+
+
+def test_handle_evaluation_unknown_outcome_fails_closed():
+    """F12-②：未知 outcome（FAIL_SAFE 不在 _handle_evaluation 的处理集内）→ fail-closed 失败。
+
+    守卫该分支的存在性：若有人"清理"了这个 else，FAIL_SAFE 会静默落入某个错误分支。
+    """
+    decision = EvaluationDecision(outcome=EvaluationOutcome.FAIL_SAFE, reason_code="INTEGRITY_NO_ISSUES")
+    repository = FakeRepository(initial_state())
+    agent = controller(repository, planner=SequencePlanner([]), gateway=None)
+
+    result = agent._handle_evaluation(repository.current, decision)
+
+    assert isinstance(result, ControllerResult)
+    last_decision, last_reason = repository.checkpoints[-1][1].decision, repository.checkpoints[-1][1].reason_code
+    assert (last_decision, last_reason) == ("failure", "INTEGRITY_NO_ISSUES")
+
+
+def test_handle_evaluation_budget_exceeded_degrades_to_budget_stop():
+    """F12-③：分支内 BudgetExceeded（register_replan 超 replan 预算）→ 降级为预算停。
+
+    该路径此前只有 preflight 测试触达过，分支内的 except 从未被直接执行。
+    """
+    decision = EvaluationDecision(
+        outcome=EvaluationOutcome.MISSING_EVIDENCE,
+        reason_code="MISSING_EFFECTIVE_STATUTE",
+        issue_id="issue-a",
+    )
+    repository = FakeRepository(_partial_evidence_state(max_replans=0))  # replans=0，max=0 ⇒ register_replan 必抛
+    agent = controller(repository, planner=SequencePlanner([]), gateway=None)
+
+    result = agent._handle_evaluation(repository.current, decision)
+
+    assert result.degraded is True
+    assert result.degraded_reason == "AGENT_BUDGET_EXCEEDED"
+    last = repository.checkpoints[-1][1]
+    assert (last.decision, last.reason_code) == ("stop", "AGENT_BUDGET_EXCEEDED")
+
+
+def test_handle_evaluation_backfill_records_pending_retrieval_reason():
+    """F12-④：backfill 分支（澄清耗尽 + 有 issue 从未发起检索）必须落盘专用 checkpoint reason。
+
+    该分支此前仅集成测试覆盖，无单测断言 checkpoint 元数据——而它正是 C01 无界循环修复的
+    终止条件出口（`_every_issue_retrieval_attempted` 为 False 时的去向）。
+    """
+    decision = EvaluationDecision(
+        outcome=EvaluationOutcome.MISSING_FACT,
+        reason_code="OUTCOME_CHANGING_FACT_UNKNOWN",
+        issue_id="issue-b",
+    )
+    repository = FakeRepository(_partial_evidence_state())
+    agent = controller(repository, planner=SequencePlanner([]), gateway=None)
+
+    result = agent._handle_evaluation(repository.current, decision)
+
+    from agent.controller import ControllerResult as _CR
+
+    assert not isinstance(result, _CR), "backfill 返回 ControllerRun（回 PLANNING），不是终态"
+    last = repository.checkpoints[-1][1]
+    assert (last.decision, last.reason_code) == (
+        "backfill_retrieval",
+        "CLARIFY_BUDGET_EXHAUSTED_PENDING_RETRIEVAL",
+    )
+    assert result.state.status is AgentStatus.PLANNING

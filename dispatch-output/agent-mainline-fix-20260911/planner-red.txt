@@ -1,0 +1,105 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+______ test_planner_transport_error_is_not_retried_as_bad_output[False] _______
+
+db = <sqlalchemy.orm.session.Session object at 0x000001E0DBB17350>
+feedback_first = False
+
+    @pytest.mark.parametrize("feedback_first", [False, True])
+    def test_planner_transport_error_is_not_retried_as_bad_output(db, feedback_first):
+        from agent.service import execute_agent_request
+    
+        class UnavailablePlanner(_CoverageLoopTransport):
+            def invoke(self, messages):
+                if "Planner" in messages[0].content:
+                    self.calls.append(("planner", len(messages)))
+                    if feedback_first and sum(kind == "planner" for kind, _ in self.calls) == 1:
+                        return SimpleNamespace(content='{"kind":"invalid-decision"}')
+                    raise TimeoutError("secret-provider-details")
+                return super().invoke(messages)
+    
+        def no_laws(_context, args):
+            return {
+                "kind": "retrieve_laws",
+                "statement": "未命中依据",
+                "evidence": [],
+                "retrieval": {"query": args.query, "requested_k": 4, "returned_count": 0},
+            }
+    
+        user, conversation = _owner_conversation(db)
+        transport = UnavailablePlanner(_two_issue_payload())
+        result = execute_agent_request(
+            db=db,
+            user_id=user.id,
+            settings=_settings(),
+            bootstrap=_two_issue_bootstrap(conversation.id),
+            finalizer=_finalize,
+            llm=transport,
+            gateway=ToolGateway(wrapper_overrides={"retrieve_laws": no_laws}),
+        )
+>       assert sum(kind == "planner" for kind, _ in transport.calls) == (2 if feedback_first else 1)
+E       assert 4 == 1
+E        +  where 4 = sum(<generator object test_planner_transport_error_is_not_retried_as_bad_output.<locals>.<genexpr> at 0x000001E0DBC097E0>)
+
+tests\test_agent_chat_integration.py:1257: AssertionError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+------------------------------ Captured log call ------------------------------
+WARNING  legal.agent:controller.py:521 planner_schema_failure
+_______ test_planner_transport_error_is_not_retried_as_bad_output[True] _______
+
+db = <sqlalchemy.orm.session.Session object at 0x000001E0DBBDBC90>
+feedback_first = True
+
+    @pytest.mark.parametrize("feedback_first", [False, True])
+    def test_planner_transport_error_is_not_retried_as_bad_output(db, feedback_first):
+        from agent.service import execute_agent_request
+    
+        class UnavailablePlanner(_CoverageLoopTransport):
+            def invoke(self, messages):
+                if "Planner" in messages[0].content:
+                    self.calls.append(("planner", len(messages)))
+                    if feedback_first and sum(kind == "planner" for kind, _ in self.calls) == 1:
+                        return SimpleNamespace(content='{"kind":"invalid-decision"}')
+                    raise TimeoutError("secret-provider-details")
+                return super().invoke(messages)
+    
+        def no_laws(_context, args):
+            return {
+                "kind": "retrieve_laws",
+                "statement": "未命中依据",
+                "evidence": [],
+                "retrieval": {"query": args.query, "requested_k": 4, "returned_count": 0},
+            }
+    
+        user, conversation = _owner_conversation(db)
+        transport = UnavailablePlanner(_two_issue_payload())
+        result = execute_agent_request(
+            db=db,
+            user_id=user.id,
+            settings=_settings(),
+            bootstrap=_two_issue_bootstrap(conversation.id),
+            finalizer=_finalize,
+            llm=transport,
+            gateway=ToolGateway(wrapper_overrides={"retrieve_laws": no_laws}),
+        )
+>       assert sum(kind == "planner" for kind, _ in transport.calls) == (2 if feedback_first else 1)
+E       assert 3 == 2
+E        +  where 3 = sum(<generator object test_planner_transport_error_is_not_retried_as_bad_output.<locals>.<genexpr> at 0x000001E0DBD54C80>)
+
+tests\test_agent_chat_integration.py:1257: AssertionError
+------------------------------ Captured log call ------------------------------
+WARNING  legal.agent:controller.py:521 planner_schema_failure
+============================== warnings summary ===============================
+tests/test_agent_chat_integration.py::test_planner_transport_error_is_not_retried_as_bad_output[False]
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_chat_integration.py::test_planner_transport_error_is_not_retried_as_bad_output[False]
+FAILED tests/test_agent_chat_integration.py::test_planner_transport_error_is_not_retried_as_bad_output[True]
+2 failed, 29 deselected, 1 warning in 28.23s

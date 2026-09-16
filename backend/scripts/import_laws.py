@@ -2,7 +2,7 @@
 
 - 模板见 data/laws_extra.example.json（复制为 data/laws_extra.json 后填写）。
 - 逐条校验（必填字段 / 日期格式 / status 白名单），报全量错误，不 fail-fast。
-- 幂等：按 (title, article_number) 删旧再写；与 origin=seed 种子重叠时警告并跳过
+- 版本化幂等：同法名、条号、生效日替换；不同生效日并存；与 origin=seed 种子重叠时警告并跳过
   （那种内容应改 data/laws.json 后运行 knowledge_base.py 重建）。
 - origin 固定为 "import"（区别于 seed/manual/upload，管理端可显示第三态徽章）。
 
@@ -21,6 +21,7 @@ sys.path.insert(0, BACKEND)
 os.chdir(BACKEND)
 
 import knowledge_service as ks  # noqa: E402
+from law_versions import replaceable_version_ids, version_metadata  # noqa: E402
 from rag_chain import vectorstore  # noqa: E402
 from retrieval_core import STATUS_WHITELIST  # noqa: E402
 
@@ -43,10 +44,20 @@ def validate_entry(e: dict) -> list:
     status = (e.get("status") or "现行").strip()
     if status not in STATUS_WHITELIST:
         errors.append(f"status 必须是 {'/'.join(STATUS_WHITELIST)}，当前为 {status!r}")
-    for k in ("effective_from", "effective_to"):
+    for k in ("promulgated_at", "effective_from", "effective_to", "reviewed_at"):
         v = (e.get(k) or "").strip()
         if v and not _DATE_RE.match(v):
             errors.append(f"{k} 格式必须为 YYYY-MM-DD（当前 {v!r}）")
+    effective_from = (e.get("effective_from") or "").strip()
+    effective_to = (e.get("effective_to") or "").strip()
+    if effective_from and effective_to and effective_to < effective_from:
+        errors.append("effective_to 不能早于 effective_from")
+    source_hash = (e.get("source_document_sha256") or "").strip()
+    if source_hash and not re.fullmatch(r"[0-9a-f]{64}", source_hash):
+        errors.append("source_document_sha256 必须为 64 位小写十六进制")
+    source_url = (e.get("source_url") or "").strip()
+    if source_url and not re.match(r"^https://[^\s]+$", source_url):
+        errors.append("source_url 必须为 HTTPS URL")
     return errors
 
 
@@ -97,19 +108,25 @@ def main():
             print(f"  跳过（与种子冲突，请改 laws.json 后重建）：{title} {article}")
             n_skip += 1
             continue
-        stale = vectorstore._collection.get(where={"$and": [{"source": title}, {"article": article}]})["ids"]
+        extra = {
+            "category": e.get("category", ""),
+            **version_metadata(e, title=title, article=article, content=e["content"]),
+        }
+        existing = vectorstore._collection.get(
+            where={"$and": [{"source": title}, {"article": article}]}, include=["metadatas"]
+        )
+        stale = replaceable_version_ids(
+            existing["ids"],
+            existing.get("metadatas") or [],
+            version_id=extra["version_id"],
+            effective_from=extra["effective_from"],
+        )
         n_del += len(stale)
         n_add += 1
         if args.dry_run:
             print(f"  将替换 {len(stale)} 旧片段 + 新增：{title} {article}")
             continue
-        # 旧片段删除由 add_text(origin="import") 内部按 (source, article) 幂等处理
-        extra = {
-            "category": e.get("category", ""),
-            "effective_from": (e.get("effective_from") or "").strip(),
-            "effective_to": (e.get("effective_to") or "").strip(),
-            "status": (e.get("status") or "现行").strip(),
-        }
+        # 同版本旧片段删除由 add_text(origin="import") 在新片段写入成功后处理。
         n = ks.add_text(e["content"], source=title, article=article, origin="import", extra_meta=extra)
         print(f"  已导入：{title} {article}（{n} 片段）")
 

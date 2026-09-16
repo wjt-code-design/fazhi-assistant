@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "卖家是否存在故意隐瞒无货事实的欺诈行为",
+  "issue_id": "issue_61c8a6be60014ac0a7f9c2ba"
+ }
+]

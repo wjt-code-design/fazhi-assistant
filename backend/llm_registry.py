@@ -11,6 +11,7 @@
 配额运行态经 quota_store（独立 SQLite）持久化，重启不丢。
 探针结论沿用：langchain 流式无 stream_options 400；接受 extra_body 关思考（variant）。
 """
+
 import json
 import threading
 from dataclasses import dataclass, field
@@ -34,37 +35,253 @@ DEFAULT_ROLES: list[dict[str, Any]] = [
     # 文本队列按**质量序**（强模型优先，弱模型兜底；配额耗尽或质量不达标时自动切换）。
     # priority 强弱依据用户给出的从弱到强排名反转而来；改 priority 一行即可换序。
     # quota_total 默认 100 万，initial_used 待管理员用 /api/admin/llm-quota 校准真实值。
-    {"key": "text_flag", "model": "qwen3.7-plus", "modality": "text", "tier": "flag", "priority": 0, "capabilities": ["text"], "disable_thinking": True, "initial_used": 28580},  # 现役旗舰；关深度思考：法律引用无需长思考
-    {"key": "text_ds_flash", "model": "deepseek-v4-flash", "modality": "text", "tier": "flag", "priority": 1, "capabilities": ["text"], "disable_thinking": True},  # 用户确认：最强非思考模型
-    {"key": "text_max_37d", "model": "qwen3.7-max-2026-06-08", "modality": "text", "tier": "flag", "priority": 2, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_max_37", "model": "qwen3.7-max", "modality": "text", "tier": "flag", "priority": 3, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_max_37pv", "model": "qwen3.7-max-preview", "modality": "text", "tier": "flag", "priority": 4, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_max_36pv", "model": "qwen3.6-max-preview", "modality": "text", "tier": "flag", "priority": 5, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_ds_pro", "model": "deepseek-v4-pro", "modality": "text", "tier": "flag", "priority": 6, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_kimi", "model": "kimi-k2.6", "modality": "text", "tier": "flag", "priority": 7, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_glm52", "model": "glm-5.2", "modality": "text", "tier": "flag", "priority": 8, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_glm5", "model": "glm-5", "modality": "text", "tier": "flag", "priority": 9, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_plus_36", "model": "qwen3.6-plus", "modality": "text", "tier": "flag", "priority": 10, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_plus_35", "model": "qwen3.5-plus-2026-02-15", "modality": "text", "tier": "flag", "priority": 11, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_qwen_plus", "model": "qwen-plus-2025-07-28", "modality": "text", "tier": "flag", "priority": 12, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_ds_flash0731", "model": "deepseek-v4-flash-0731", "modality": "text", "tier": "flag", "priority": 13, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_flash_37", "model": "qwen3.7-flash-2026-07-15", "modality": "text", "tier": "flag", "priority": 14, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_flash_35", "model": "qwen3.5-flash-2026-02-23", "modality": "text", "tier": "flag", "priority": 15, "capabilities": ["text"], "disable_thinking": True},
-    {"key": "text_thinking_32b", "model": "qwen3-vl-32b-thinking", "modality": "text", "tier": "flag", "priority": 16, "capabilities": ["text"], "disable_thinking": False},  # 思考专属版，仅最后兜底
-    {"key": "text_thinking_235b", "model": "qwen3-vl-235b-a22b-thinking", "modality": "text", "tier": "flag", "priority": 17, "capabilities": ["text"], "disable_thinking": False},  # 思考专属版，仅最后兜底
-    {"key": "text_glm45air", "model": "glm-4.5-air", "provider": "zhipu", "modality": "text", "tier": "flag", "priority": 18, "capabilities": ["text"], "disable_thinking": True},  # 智谱免费（8-23 到期）：强文本后备
-    {"key": "vision_flag", "model": "qwen3.5-omni-plus-2026-03-15", "modality": "vision", "tier": "flag", "priority": 0, "capabilities": ["text", "vision"], "disable_thinking": True, "initial_used": 140644},  # 关深度思考，图片回答同样提速
-    {"key": "vision_rt", "model": "qwen3.5-omni-plus-realtime", "modality": "vision", "tier": "flag", "priority": 1, "capabilities": ["text", "vision"], "disable_thinking": True},
-    {"key": "vision_glm41v", "model": "glm-4.1v-thinking-flashx", "provider": "zhipu", "modality": "vision", "tier": "flag", "priority": 2, "capabilities": ["text", "vision"], "disable_thinking": False},  # 智谱多模态思考版，视觉最后兜底
+    {
+        "key": "text_flag",
+        "model": "qwen3.7-plus",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 0,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+        "initial_used": 28580,
+    },  # 现役旗舰；关深度思考：法律引用无需长思考
+    {
+        "key": "text_ds_flash",
+        "model": "deepseek-v4-flash",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 1,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },  # 用户确认：最强非思考模型
+    {
+        "key": "text_max_37d",
+        "model": "qwen3.7-max-2026-06-08",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 2,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_max_37",
+        "model": "qwen3.7-max",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 3,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_max_37pv",
+        "model": "qwen3.7-max-preview",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 4,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_max_36pv",
+        "model": "qwen3.6-max-preview",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 5,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_ds_pro",
+        "model": "deepseek-v4-pro",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 6,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_kimi",
+        "model": "kimi-k2.6",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 7,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_glm52",
+        "model": "glm-5.2",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 8,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_glm5",
+        "model": "glm-5",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 9,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_plus_36",
+        "model": "qwen3.6-plus",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 10,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_plus_35",
+        "model": "qwen3.5-plus-2026-02-15",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 11,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_qwen_plus",
+        "model": "qwen-plus-2025-07-28",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 12,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_ds_flash0731",
+        "model": "deepseek-v4-flash-0731",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 13,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_flash_37",
+        "model": "qwen3.7-flash-2026-07-15",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 14,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_flash_35",
+        "model": "qwen3.5-flash-2026-02-23",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 15,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "text_thinking_32b",
+        "model": "qwen3-vl-32b-thinking",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 16,
+        "capabilities": ["text"],
+        "disable_thinking": False,
+    },  # 思考专属版，仅最后兜底
+    {
+        "key": "text_thinking_235b",
+        "model": "qwen3-vl-235b-a22b-thinking",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 17,
+        "capabilities": ["text"],
+        "disable_thinking": False,
+    },  # 思考专属版，仅最后兜底
+    {
+        "key": "text_glm45air",
+        "model": "glm-4.5-air",
+        "provider": "zhipu",
+        "modality": "text",
+        "tier": "flag",
+        "priority": 18,
+        "capabilities": ["text"],
+        "disable_thinking": True,
+    },  # 智谱免费（8-23 到期）：强文本后备
+    {
+        "key": "vision_flag",
+        "model": "qwen3.5-omni-plus-2026-03-15",
+        "modality": "vision",
+        "tier": "flag",
+        "priority": 0,
+        "capabilities": ["text", "vision"],
+        "disable_thinking": True,
+        "initial_used": 140644,
+    },  # 关深度思考，图片回答同样提速
+    {
+        "key": "vision_rt",
+        "model": "qwen3.5-omni-plus-realtime",
+        "modality": "vision",
+        "tier": "flag",
+        "priority": 1,
+        "capabilities": ["text", "vision"],
+        "disable_thinking": True,
+    },
+    {
+        "key": "vision_glm41v",
+        "model": "glm-4.1v-thinking-flashx",
+        "provider": "zhipu",
+        "modality": "vision",
+        "tier": "flag",
+        "priority": 2,
+        "capabilities": ["text", "vision"],
+        "disable_thinking": False,
+    },  # 智谱多模态思考版，视觉最后兜底
     # voice 语音档（M2，2026-08-06 门禁实测）：livetranslate 做语音→文字（ASR），qwen-tts 是文本→语音（备用）。
     # 转写调用链：OpenAI 兼容 /chat/completions + input_audio（data:;base64, 前缀 + wav/mp3/m4a/flac/ogg）
     # + stream=true + top-level translation_options（source/target 均 zh=转写）。disable_thinking 留 False：
     # 语音模型不吃 thinking 参数（门禁 ChatOpenAI 未带 extra_body 才成功）。
-    {"key": "voice_lt", "model": "qwen3-livetranslate-flash-2025-12-01", "modality": "voice", "tier": "flag", "priority": 0, "capabilities": ["speech", "asr"], "translation_options": {"source_lang": "zh", "target_lang": "zh"}},  # 现役转写
-    {"key": "voice_lt_rt", "model": "qwen3-livetranslate-flash-realtime-2025-09-22", "modality": "voice", "tier": "flag", "priority": 1, "capabilities": ["speech", "asr"]},  # realtime（websocket，备用）
-    {"key": "voice_tts", "model": "qwen-tts-2025-05-22", "modality": "voice", "tier": "flag", "priority": 2, "capabilities": ["speech", "tts"]},  # TTS 备用（朗读回答未来用）
-    {"key": "voice_tts_rt_latest", "model": "qwen-tts-realtime-latest", "modality": "voice", "tier": "flag", "priority": 3, "capabilities": ["speech", "tts"]},
-    {"key": "voice_tts_rt", "model": "qwen-tts-realtime-2025-07-15", "modality": "voice", "tier": "flag", "priority": 4, "capabilities": ["speech", "tts"]},
+    {
+        "key": "voice_lt",
+        "model": "qwen3-livetranslate-flash-2025-12-01",
+        "modality": "voice",
+        "tier": "flag",
+        "priority": 0,
+        "capabilities": ["speech", "asr"],
+        "translation_options": {"source_lang": "zh", "target_lang": "zh"},
+    },  # 现役转写
+    {
+        "key": "voice_lt_rt",
+        "model": "qwen3-livetranslate-flash-realtime-2025-09-22",
+        "modality": "voice",
+        "tier": "flag",
+        "priority": 1,
+        "capabilities": ["speech", "asr"],
+    },  # realtime（websocket，备用）
+    {
+        "key": "voice_tts",
+        "model": "qwen-tts-2025-05-22",
+        "modality": "voice",
+        "tier": "flag",
+        "priority": 2,
+        "capabilities": ["speech", "tts"],
+    },  # TTS 备用（朗读回答未来用）
+    {
+        "key": "voice_tts_rt_latest",
+        "model": "qwen-tts-realtime-latest",
+        "modality": "voice",
+        "tier": "flag",
+        "priority": 3,
+        "capabilities": ["speech", "tts"],
+    },
+    {
+        "key": "voice_tts_rt",
+        "model": "qwen-tts-realtime-2025-07-15",
+        "modality": "voice",
+        "tier": "flag",
+        "priority": 4,
+        "capabilities": ["speech", "tts"],
+    },
 ]
 
 # 各模态的 tier 回退链（请求某 tier 时，从该 tier 起沿链向上找未耗尽的）
@@ -159,6 +376,7 @@ class LLMRegistry:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._entries: dict[str, ModelEntry] = {}
+        self._admin_disabled: set[str] = set()  # 管理员禁用开关：只影响 pick 自动路由
         self._load()
 
     def _load(self) -> None:
@@ -170,6 +388,9 @@ class LLMRegistry:
                 if provider == "zhipu":  # 智谱平台（8-23 到期免费 token）：独立 base_url/key
                     base_url = r.get("base_url") or settings.zhipu_base_url
                     api_key = r.get("api_key") or settings.zhipuai_api_key
+                elif provider == "dashscope":  # 阿里云百炼：全模态角色（vision/voice）专用
+                    base_url = r.get("base_url") or settings.dashscope_base_url
+                    api_key = r.get("api_key") or settings.dashscope_api_key
                 else:
                     base_url = r.get("base_url") or settings.llm_base_url
                     api_key = r.get("api_key") or settings.api_key
@@ -241,6 +462,13 @@ class LLMRegistry:
             e = self._default_entry()
             return {"model": e.model if e else "", "capabilities": sorted(e.capabilities) if e else []}
 
+    def has_modality(self, modality: str) -> bool:
+        """该模态是否注册了已构建实例的模型（Capability Gate：无则上游必须显式 501，
+        禁止借 _safe_pick 静默回退文本模型——2026-09-05 阶段B：LongCat 无视觉/语音能力，
+        实测其会静默忽略图片内容块）。"""
+        with self._lock:
+            return any(e.modality == modality and e.llm is not None for e in self._entries.values())
+
     def reload(self, model: str | None = None) -> dict[str, Any]:
         """兼容：仅重建默认 entry（旧单模型热切换语义）。多模型整体重载用 _load。"""
         with self._lock:
@@ -263,20 +491,31 @@ class LLMRegistry:
                 raise KeyError(f"模型不可用: {key}")
             return e.llm
 
-    def pick(self, modality: str, tier: str) -> tuple[str, ChatOpenAI]:
-        """按 (modality, tier) 选模型：从请求 tier 沿回退链找首个可用；全不可用抛 QuotaExhausted。"""
+    def pick(self, modality: str, tier: str, *, exclude: set[str] | None = None) -> tuple[str, ChatOpenAI]:
+        """按 (modality, tier) 选模型：从请求 tier 沿回退链找首个可用；全不可用抛 QuotaExhausted。
+
+        exclude（2026-09-14，失败即换模型）：排除**本次调用中已尝试过**的 key。
+        动机：瞬时故障（429/5xx/连接抖动）**不标记 `unavailable`**（模型其实还可用，
+        见 `llm_errors.is_transient_error`），故不能靠 `unavailable` 推进到下一个模型 ——
+        改由调用方把已试过的 key 放进 `exclude`，既换到下一个模型、又不会回头重试同一 key
+        （也正因此，循环以「已尝试集合」而非「是否成功」为终止条件，构造上必然终止）。
+        缺省 None 时行为与历史逐字一致。
+        """
         with self._lock:
             chain = TIER_CHAIN.get(modality, ["flag"])
             try:
                 start = chain.index(tier)
             except ValueError:
                 start = 0
+            skipped = exclude or set()
             for t in chain[start:]:
                 candidates = [e for e in self._entries.values() if e.modality == modality and e.tier == t]
                 # 同档按能力优先级（priority 升序）选，配额只判可用；同优先级再比剩余配额
                 candidates.sort(key=lambda e: (e.priority, -e.quota_left))
                 for e in candidates:
-                    if not e.unavailable:
+                    if e.key in skipped:
+                        continue
+                    if not e.unavailable and e.key not in self._admin_disabled:
                         assert e.llm is not None
                         return e.key, e.llm
             raise QuotaExhausted(f"模态 {modality} 无可用模型（全耗尽或低于阈值 {QUOTA_THRESHOLD:.0%}）")
@@ -355,6 +594,38 @@ class LLMRegistry:
         quota_store.set_initial(key, new_init)
         return {"key": key, "model": e.model, "quota_left": e.quota_left, "initial_used": e.initial_used}
 
+    def set_disabled(self, key: str, disabled: bool) -> None:
+        """管理员开关（2026-09-15）：禁用/启用某模型参与**自动路由**（pick）。
+
+        与配额 `unavailable` 语义独立：禁用只影响自动路由，不影响 `pick_by_key`
+        （judge 等显式指定场景）。运行时生效，重启后回落 .env 配置。
+        """
+        with self._lock:
+            if key not in self._entries:
+                raise KeyError(f"未知模型 key: {key}")
+            if disabled:
+                self._admin_disabled.add(key)
+            else:
+                self._admin_disabled.discard(key)
+
+    def promote(self, key: str) -> int:
+        """管理员开关（2026-09-15）：把某模型提为所在 (modality, tier) 链首。
+
+        实现为其 priority 置为同链其他模型的最小值 -1（确定性：重复 promote 同一
+        key 无变化）。运行时生效，重启后回落 .env 配置。返回新 priority。
+        """
+        with self._lock:
+            e = self._entries.get(key)
+            if e is None or e.llm is None:
+                raise KeyError(f"未知模型 key: {key}")
+            peers = [
+                x.priority
+                for x in self._entries.values()
+                if x.modality == e.modality and x.tier == e.tier and x.key != key
+            ]
+            e.priority = (min(peers) - 1) if peers else 0
+            return e.priority
+
     def status(self) -> list[dict[str, Any]]:
         """管理员用：各模型配额与可用状态。"""
         with self._lock:
@@ -370,6 +641,7 @@ class LLMRegistry:
                     "quota_left": e.quota_left,
                     "depleted": e.depleted,
                     "below_threshold": e.below_threshold,
+                    "admin_disabled": e.key in self._admin_disabled,
                 }
                 for e in self._entries.values()
             ]
@@ -441,5 +713,6 @@ class LLMRegistry:
             i["degraded"] = degraded
         items.extend(rerank_items)
         return items
+
 
 registry = LLMRegistry()

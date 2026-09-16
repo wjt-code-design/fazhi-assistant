@@ -1,0 +1,235 @@
+# case=C07 mode=rag-initial status=200 started=2026-09-08T14:48:29
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "1"}
+
+data: {"content": ". 案情"}
+
+data: {"content": "与争议焦点\n"}
+
+data: {"content": "借款人"}
+
+data: {"content": "于202"}
+
+data: {"content": "1"}
+
+data: {"content": "年到期未还款"}
+
+data: {"content": "，债权人现在起诉"}
+
+data: {"content": "是否超过"}
+
+data: {"content": "诉讼时效。核心在于"}
+
+data: {"content": "确认起算点"}
+
+data: {"content": "及"}
+
+data: {"content": "是否存在时效中断或"}
+
+data: {"content": "中止情形。\n\n"}
+
+data: {"content": "2."}
+
+data: {"content": " 法律依据\n根据"}
+
+data: {"content": "《民法典》第一百"}
+
+data: {"content": "八十九条，当事人"}
+
+data: {"content": "约定同一债务分期"}
+
+data: {"content": "履行的，诉讼时效期间"}
+
+data: {"content": "自最后一期履行"}
+
+data: {"content": "期限届满之日起计算"}
+
+data: {"content": "。根据《民法典"}
+
+data: {"content": "》第一百"}
+
+data: {"content": "九十五条，权利人"}
+
+data: {"content": "提起诉讼、申请仲裁"}
+
+data: {"content": "或"}
+
+data: {"content": "提出履行请求等"}
+
+data: {"content": "情形导致诉讼时效中断"}
+
+data: {"content": "，从中"}
+
+data: {"content": "断、有关程序"}
+
+data: {"content": "终结"}
+
+data: {"content": "时起，诉讼时效期间"}
+
+data: {"content": "重新计算。"}
+
+data: {"content": "根据《民事诉讼法》"}
+
+data: {"content": "第二百五"}
+
+data: {"content": "十条，申请执行的"}
+
+data: {"content": "期间为二年，"}
+
+data: {"content": "申请执行时效的中止"}
+
+data: {"content": "、中断，适用法律"}
+
+data: {"content": "有关诉讼时效中止、"}
+
+data: {"content": "中断的规定。\n\n"}
+
+data: {"content": "3. 逐项"}
+
+data: {"content": "论证"}
+
+data: {"content": "\n首先确定起"}
+
+data: {"content": "算时间。若"}
+
+data: {"content": "借款"}
+
+data: {"content": "合同约定了明确还款"}
+
+data: {"content": "日期"}
+
+data: {"content": "（如20"}
+
+data: {"content": "2"}
+
+data: {"content": "1年12"}
+
+data: {"content": "月31日"}
+
+data: {"content": "），则诉讼时效"}
+
+data: {"content": "从该日期的"}
+
+data: {"content": "次日起开始计算"}
+
+data: {"content": "，"}
+
+data: {"content": "通常普通诉讼时效为"}
+
+data: {"content": "三年。若债权"}
+
+data: {"content": "人在此三年内曾"}
+
+data: {"content": "向债务人主张过"}
+
+data: {"content": "权利（如发送"}
+
+data: {"content": "催款函、"}
+
+data: {"content": "微信"}
+
+data: {"content": "催讨等），"}
+
+data: {"content": "根据"}
+
+data: {"content": "《民法典》第一百"}
+
+data: {"content": "九十五条，诉讼时效"}
+
+data: {"content": "发生中断并重新"}
+
+data: {"content": "计算。"}
+
+data: {"content": "其次，需核实"}
+
+data: {"content": "当前时间点。假设"}
+
+data: {"content": "到期日为20"}
+
+data: {"content": "21"}
+
+data: {"content": "年底，至2"}
+
+data: {"content": "02"}
+
+data: {"content": "4年已超过三年"}
+
+data: {"content": "基础"}
+
+data: {"content": "时效。但如果中间"}
+
+data: {"content": "存在催收行为且"}
+
+data: {"content": "能举证，时效"}
+
+data: {"content": "可能"}
+
+data: {"content": "已多次重置。"}
+
+data: {"content": "最后"}
+
+data: {"content": "，即便实体上"}
+
+data: {"content": "可能面临对方提出"}
+
+data: {"content": "“诉讼时效抗辩"}
+
+data: {"content": "”的风险，法院"}
+
+data: {"content": "不得主动适用诉讼时效"}
+
+data: {"content": "规定，需由"}
+
+data: {"content": "当事人"}
+
+data: {"content": "提出。\n\n4"}
+
+data: {"content": ". 结论"}
+
+data: {"content": "与风险\n不一定"}
+
+data: {"content": "过时效。如果"}
+
+data: {"content": "债权人在20"}
+
+data: {"content": "21年至起诉"}
+
+data: {"content": "前期间有持续"}
+
+data: {"content": "催收证据"}
+
+data: {"content": "，时效可能尚未"}
+
+data: {"content": "届满。建议立即"}
+
+data: {"content": "整理所有催款"}
+
+data: {"content": "记录、转账凭证"}
+
+data: {"content": "等证据提交法院。"}
+
+data: {"content": "若确"}
+
+data: {"content": "已过时效且无"}
+
+data: {"content": "中断证据，存在"}
+
+data: {"content": "败诉风险，"}
+
+data: {"content": "但"}
+
+data: {"content": "起诉本身不会直接"}
+
+data: {"content": "导致权利丧失，"}
+
+data: {"content": "仅是"}
+
+data: {"content": "抗辩权产生"}
+
+data: {"content": "。"}
+
+data: {"conversation_id": 2219, "sources": [{"source": "民事诉讼法", "article": "第二十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第三十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第六十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第六十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百零三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百四十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百五十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百七十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第二百条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第二百三十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百八十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百九十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百九十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百九十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百九十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百九十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第二百五十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百七十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "仲裁法", "article": "第九十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百二十三条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

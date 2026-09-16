@@ -7,6 +7,7 @@
 
 用法：cd backend && venv\\Scripts\\python.exe qa_seeds.py
 """
+
 import os
 import sys
 

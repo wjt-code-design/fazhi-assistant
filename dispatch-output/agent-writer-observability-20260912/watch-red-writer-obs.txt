@@ -1,0 +1,88 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+_________ test_writer_summary_distinguishes_zero_claims_from_dropped __________
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x00000296DDA20DD0>
+
+    def test_writer_summary_distinguishes_zero_claims_from_dropped(caplog):
+        """(a) 分支：模型没产出任何 claim。"""
+        import logging as _logging
+    
+        with caplog.at_level(_logging.INFO, logger="legal.agent"):
+            result = EvidenceBoundedWriter(
+                RecordingGenerator({"claims": [], "missing_information": []})
+            ).render(state())
+    
+        assert result.status is WriterStatus.READY
+        recs = _writer_summaries(caplog)
+>       assert recs, "writer 必须留下 agent_writer_summary 诊断，否则 claims=0 不可归因"
+E       AssertionError: writer 必须留下 agent_writer_summary 诊断，否则 claims=0 不可归因
+E       assert []
+
+tests\test_agent_writer.py:220: AssertionError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+________ test_writer_summary_shows_dropped_claim_for_missing_evidence _________
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x00000296DDBC1D50>
+
+    def test_writer_summary_shows_dropped_claim_for_missing_evidence(caplog):
+        """(b) 分支：产出了 claim，但因 evidence_ids 为空被丢弃 —— 必须与 (a) 可区分。"""
+        import logging as _logging
+    
+        with caplog.at_level(_logging.INFO, logger="legal.agent"):
+            result = EvidenceBoundedWriter(
+                RecordingGenerator(response_claim(evidence_ids=[], text="一定胜诉"))
+            ).render(state())
+    
+        assert result.status is WriterStatus.READY
+>       summary = _writer_summaries(caplog)[-1].agent_writer_summary
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_agent_writer.py:240: IndexError
+____________ test_writer_summary_reports_failing_reason_and_issue _____________
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x00000296DDB691D0>
+
+    def test_writer_summary_reports_failing_reason_and_issue(caplog):
+        """writer `_fail` 必须带出**失败原因 + 出问题的争点**（循环内 _fail 也要有）。"""
+        import logging as _logging
+    
+        # 未加书名号的引用 → has_noncanonical_citation 命中 → 循环内 _fail
+        response = response_claim(text="依据民法典第五百八十五条，违约金过高可以调整。")
+        with caplog.at_level(_logging.INFO, logger="legal.agent"):
+            result = EvidenceBoundedWriter(RecordingGenerator(response)).render(state())
+    
+        assert result.status is WriterStatus.FAIL_SAFE
+        assert result.reason_code == "NON_CANONICAL_CITATION"
+>       summary = _writer_summaries(caplog)[-1].agent_writer_summary
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_agent_writer.py:259: IndexError
+__________ test_writer_summary_field_is_registered_in_log_whitelist ___________
+
+    def test_writer_summary_field_is_registered_in_log_whitelist():
+        """白名单回归：字段未登记会被 JSON formatter 静默丢弃（同 V2-T8 教训）。"""
+        from observability import _ACCOUNT_FIELDS
+    
+>       assert "agent_writer_summary" in _ACCOUNT_FIELDS
+E       AssertionError: assert 'agent_writer_summary' in ('method', 'path', 'status', 'ms', 'first_ms', 'model', ...)
+
+tests\test_agent_writer.py:269: AssertionError
+============================== warnings summary ===============================
+tests/test_agent_writer.py::test_writer_summary_distinguishes_zero_claims_from_dropped
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_writer.py::test_writer_summary_distinguishes_zero_claims_from_dropped
+FAILED tests/test_agent_writer.py::test_writer_summary_shows_dropped_claim_for_missing_evidence
+FAILED tests/test_agent_writer.py::test_writer_summary_reports_failing_reason_and_issue
+FAILED tests/test_agent_writer.py::test_writer_summary_field_is_registered_in_log_whitelist
+4 failed, 28 deselected, 1 warning in 27.40s

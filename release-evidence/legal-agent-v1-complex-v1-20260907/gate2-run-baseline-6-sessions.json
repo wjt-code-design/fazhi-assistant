@@ -1,0 +1,1486 @@
+{
+ "run": "baseline-6",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "解除通知写“不胜任工作”"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "fef59b01-fdf5-4abe-a5a8-1fb1ce1f83f1",
+      "state_version": 4,
+      "conv_id": 2136
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "月平均工资 12,000 元"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "UNSUPPORTED_CITATION"
+     ],
+     "clar_meta": {
+      "run_id": "fef59b01-fdf5-4abe-a5a8-1fb1ce1f83f1",
+      "state_version": 8,
+      "conv_id": 2136
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "公司是否向员工出具书面解除通知并说明理由"
+    },
+    {
+     "round": 2,
+     "prompt": "公司是否提前三十日书面通知或额外支付一个月工资作为代通知金"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r1-f2",
+    "C01-r2-f3"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "UNSUPPORTED_CITATION"
+   ],
+   "conv_id": 2136,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 85.0
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "工资结构和调休日期不完整"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "63e3a31d-88bd-4852-aea3-f9688e588d0b",
+      "state_version": 4,
+      "conv_id": 2137
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "63e3a31d-88bd-4852-aea3-f9688e588d0b",
+      "state_version": 8,
+      "conv_id": 2137
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动合同约定的工资标准及实际发放的工资结构"
+    },
+    {
+     "round": 2,
+     "prompt": "实际加班的具体时长、日期及加班类型（工作日/休息日/法定休假日）"
+    }
+   ],
+   "answered_fact_ids": [
+    "C02-r2-f2",
+    "C02-r1-f2"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2137,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 106.9
+  },
+  "C03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "我昨天提交了离职通知"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "11054f81-ec34-4278-a17b-6fbeb0af96c4",
+      "state_version": 4,
+      "conv_id": 2138
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "11054f81-ec34-4278-a17b-6fbeb0af96c4",
+      "state_version": 8,
+      "conv_id": 2138
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "主动离职是否意味着劳动者放弃双倍工资请求权。"
+    },
+    {
+     "round": 2,
+     "prompt": "用人单位是否曾提出签订合同而劳动者拒绝。"
+    }
+   ],
+   "answered_fact_ids": [
+    "C03-r1-f3"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 2,
+     "prompt": "用人单位是否曾提出签订合同而劳动者拒绝。"
+    }
+   ],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2138,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 91.6
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "ISSUE_DECOMPOSITION_INVALID"
+     ]
+    }
+   ],
+   "asked": [],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "ISSUE_DECOMPOSITION_INVALID"
+   ],
+   "conv_id": null,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 22.2
+  },
+  "C05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "9a02266a-9101-4ecd-a2a4-32e2089cad2f",
+      "state_version": 4,
+      "conv_id": 2140
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "当地法律对租金支付宽限期的强制性规定"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "当地法律对租金支付宽限期的强制性规定"
+    }
+   ],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2140,
+   "final_chars": 822,
+   "final_excerpt": "①案情与争议焦点\n承租人晚交两天房租，房东单方换锁并扣押金。争议焦点为：1. 晚交两天房租是否构成根本违约并产生法定解除权；2. 房东直接换锁是否合法；3. 房东扣押金是否合法。\n\n②法律依据\n根据《民法典》第722条、第563条、第577",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 126.2
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "约定三个月完工",
+      "现在已超过新工期五十天"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "666e6d22-b064-4765-accb-780708331d43",
+      "state_version": 4,
+      "conv_id": 2141
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "现在已超过新工期五十天"
+     ],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "666e6d22-b064-4765-accb-780708331d43",
+      "state_version": 8,
+      "conv_id": 2141
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "合同是否约定具体工期及延期违约金条款"
+    },
+    {
+     "round": 2,
+     "prompt": "延期是否因不可抗力或业主原因导致"
+    }
+   ],
+   "answered_fact_ids": [
+    "C06-r1-f3",
+    "C06-r2-f2",
+    "C06-r2-f2"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2141,
+   "final_chars": 978,
+   "final_excerpt": "### ①案情与争议焦点\n本案系装饰装修合同纠纷，核心争点有三：一是装修公司延期交付（现超新工期50天）是否构成违约及责任承担；二是材料涨价后装修公司要求加钱有无法律依据、业主能否拒绝；三是以停工相威胁是否合法及业主应对方式。\n\n### ②",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 102.6
+  },
+  "C07": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "2021年6月30日到期"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "a2b86f3c-60e8-4333-af54-96e43d535637",
+      "state_version": 4,
+      "conv_id": 2142
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "我2023年5月微信催过"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "a2b86f3c-60e8-4333-af54-96e43d535637",
+      "state_version": 8,
+      "conv_id": 2142
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "借款合同约定的具体到期日（年/月/日）"
+    },
+    {
+     "round": 2,
+     "prompt": "债权人是否在时效期间内向债务人主张过权利（如催款通知、短信、函件等）"
+    }
+   ],
+   "answered_fact_ids": [
+    "C07-r1-f1",
+    "C07-r1-f2"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2142,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 67.2
+  },
+  "C08": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "88026a79-baa7-4f9c-a4f2-3124715a1085",
+      "state_version": 4,
+      "conv_id": 2143
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "AGENT_BUDGET_EXCEEDED"
+     ],
+     "clar_meta": {
+      "run_id": "88026a79-baa7-4f9c-a4f2-3124715a1085",
+      "state_version": 8,
+      "conv_id": 2143
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "主合同（借款合同）是否有效"
+    },
+    {
+     "round": 2,
+     "prompt": "保证人签署担保合同时是否具有完全民事行为能力，意思表示是否真实"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "主合同（借款合同）是否有效"
+    },
+    {
+     "round": 2,
+     "prompt": "保证人签署担保合同时是否具有完全民事行为能力，意思表示是否真实"
+    }
+   ],
+   "error_codes": [
+    "AGENT_BUDGET_EXCEEDED"
+   ],
+   "conv_id": 2143,
+   "final_chars": 1173,
+   "final_excerpt": "因你未保留相关合同及履行信息，以下先列明各争点的法律判断依据，再说明需补充的关键信息：\n\n一、保证方式的认定\n法律依据：根据《民法典》第六百八十六条，保证方式没有约定或约定不明的，按照一般保证承担保证责任；第六百八十七条明确，当事人在保证合",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 115.9
+  },
+  "C09": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "ISSUE_DECOMPOSITION_INVALID"
+     ]
+    }
+   ],
+   "asked": [],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "ISSUE_DECOMPOSITION_INVALID"
+   ],
+   "conv_id": null,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 14.5
+  },
+  "C10": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "0fed924f-1e70-4b8a-a638-8a37dba6607d",
+      "state_version": 4,
+      "conv_id": 2145
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "0fed924f-1e70-4b8a-a638-8a37dba6607d",
+      "state_version": 8,
+      "conv_id": 2145
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "卖家在收款时是否具有非法占有目的"
+    },
+    {
+     "round": 2,
+     "prompt": "涉案金额是否达到当地诈骗罪刑事立案标准"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "卖家在收款时是否具有非法占有目的"
+    },
+    {
+     "round": 2,
+     "prompt": "涉案金额是否达到当地诈骗罪刑事立案标准"
+    }
+   ],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2145,
+   "final_chars": 1596,
+   "final_excerpt": "根据您描述的情况，卖家收钱后失联且承认无货，可能涉及刑事诈骗或民事欺诈。以下结合相关法律条文进行分析：\n\n### 一、案情与争议焦点\n本案的核心是卖家在收取货款后失联，并自认无货可供。争议焦点在于：\n1. 该行为是否构成刑事诈骗罪？\n2. ",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 109.4
+  }
+ }
+}

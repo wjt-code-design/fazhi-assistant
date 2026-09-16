@@ -51,7 +51,8 @@ export function annotate(raw: string): string {
   const text = escapeHtml(raw);
   const quotes: string[] = [];
 
-  // 1) 引号内先暂存为占位符——引号内永不标注（保持现有行为）
+  // 1) 引号内先暂存为占位符——避开外层的高亮正则（法条/时间/金额），
+  //    占位符还原时对引号内原文摘录做同样的语义高亮（见 4），格式统一。
   const tmp = text.replace(QUOTE_RE, (m) => {
     quotes.push(m);
     return `${PH}${quotes.length - 1}${PH}`;

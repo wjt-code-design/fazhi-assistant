@@ -2,6 +2,22 @@
 
 > 每条决策带「背景 → 决策 → 后果/代价」，不写「全对」，而是如实记录权衡与代价。
 
+## ADR-016 Agent V1 SQLite migration backup and recovery (2026-08-27)
+
+- **背景**：Agent V1 新增可恢复运行记录与审计表；现有单文件 SQLite 数据库必须在升级前可恢复。
+- **决策**：生产迁移前先停止写入并执行 `sqlite3 app.db '.backup before_agent_v1.db'`。恢复时执行 `sqlite3 app.db '.restore before_agent_v1.db'`，然后运行应用迁移以确认 schema 可用。
+- **要求**：每次生产迁移前必须在同版本 SQLite 和备份介质上演练备份与恢复；仅生成备份而未验证恢复不算完成。
+- **代价**：迁移窗口需要短暂冻结写入，并增加一次演练时间；换来出现异常时可验证的回滚路径。
+
+## ADR-017 Agent V1 deterministic release gate and staged rollback (2026-09-01)
+
+- **背景**：离线 evaluator、Gate 预测和运行态指标分别回答不同问题，任何单项全绿都不能证明 Agent 可以向真实用户放量；LLM Judge 与被测生成链同频时尤其不能签发安全 PASS。
+- **决策**：发布检查器只读取已冻结的离线证据，不调用模型、数据库或用户会话。正式检查必须输入 release manifest、policy、capture protocol、两份报告、两份 v2 artifact、原始冻结题集和独立 Agent audit。Existing RAG 与 Agent 必须使用相同 `freeze_hash`、evaluator version、`rubric_hash` 和逐 case trace，并同时绑定同一 manifest；无 adapter 或复现元数据不完整的报告显式不可发布。checker 不信任顶层 aggregate，而从 case rows 独立重算全部质量、分位、工具、预算与安全计数；它还会直接验证工件 SHA/provenance，并以题集和冻结回答确定性重放每个 case，报告行与重放结果不一致即拒绝。关键事实编造、权限绕过、无限循环、非法引用为零容忍硬门禁；Agent 复杂任务质量不得低于同题集 Existing RAG。其余指标如实输出，只有冻结 rubric 或既有生产 SLO 才能提供阈值。
+- **发布顺序**：Gate Shadow → 离线 Agent Shadow 对照 → 5% → 10% → 25% → 50% → 100%。每一级必须完成预声明观测窗口、四个生产剧本和独立人类审批，不允许自动晋级或跳级。
+- **回滚**：`AGENT_ENABLED=false` 且 `AGENT_TRAFFIC_PERCENT=0` 只切回 Fast Path，保留全部 Agent run/trace。普通质量或延迟回滚不恢复数据库；只有确认数据损坏并获得独立授权后，才使用已完成隔离恢复验证的备份。
+- **当前限制**：V1 在线路径支持 Gate Shadow 和实时灰度，但尚无后台双跑且不展示 Agent 答案的 Shadow Traffic executor；evaluator 现在提供严格的冻结 artifact adapter，以及只接收人工脱敏离线 `{id, answer}` 证据的 normalizer。正式 evidence 使用 v2 artifact，必须同题集、同 evidence mode、同 candidate revision、同 release manifest；normalizer 不访问数据库、用户会话或模型，拒绝额外身份字段、不匹配 case、字符串伪装的数值/布尔值和不安全 provenance。normalizer 不能凭 schema 识别 prose/trace 中的个人信息，脱敏仍须独立审计。尚无真实 capture artifact。在专用双跑/采集流程产出真实同 hash 报告、工件、重放检查和独立审计前，发布保持 `BLOCKED`，不得把实时 Agent 流量称为 Shadow。
+- **代价**：发布需要两份可追溯报告、恢复演练、较长观测窗口和逐级人工操作；换来不会因漂亮但同源或不可复现的指标自动放量。
+
 ---
 
 ## ADR-001 单一 omni 模型，不用「分类模型 + 生成模型」双模型

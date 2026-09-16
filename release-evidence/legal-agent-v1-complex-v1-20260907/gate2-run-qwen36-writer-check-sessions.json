@@ -1,0 +1,82 @@
+{
+ "run": "qwen36-writer-check",
+ "results": {
+  "C03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "15356e1b-2cac-45c0-8fcc-2eef79e8841f",
+      "state_version": 4,
+      "conv_id": 2206
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "我昨天提交了离职通知"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "CROSS_ISSUE_EVIDENCE"
+     ],
+     "clar_meta": {
+      "run_id": "15356e1b-2cac-45c0-8fcc-2eef79e8841f",
+      "state_version": 8,
+      "conv_id": 2206
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "双倍工资差额的计算基数及起止时间"
+    },
+    {
+     "round": 2,
+     "prompt": "主动离职是否导致双倍工资请求权的丧失"
+    }
+   ],
+   "answered_fact_ids": [
+    "C03-r1-f3"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "双倍工资差额的计算基数及起止时间"
+    }
+   ],
+   "error_codes": [
+    "CROSS_ISSUE_EVIDENCE"
+   ],
+   "conv_id": 2206,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 60.4
+  }
+ }
+}

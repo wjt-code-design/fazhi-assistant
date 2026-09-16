@@ -1,0 +1,1090 @@
+{
+ "run": "gate5-dev-run-6",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "f79a61de-5588-4537-9bb2-7fbc766dee18",
+      "state_version": 4,
+      "conv_id": 2256
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "月平均工资 12,000 元"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "f79a61de-5588-4537-9bb2-7fbc766dee18",
+      "state_version": 8,
+      "conv_id": 2256
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "解除劳动合同是否属于法律规定的应当支付经济补偿或赔偿金的情形"
+    },
+    {
+     "round": 2,
+     "prompt": "公司是否提前三十日书面通知或额外支付了一个月工资作为代通知金"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r2-f3"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "解除劳动合同是否属于法律规定的应当支付经济补偿或赔偿金的情形"
+    }
+   ],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2256,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 1279.2
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "工资结构和调休日期不完整"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "a64b7731-e25b-4f16-b004-262ec1bc95cb",
+      "state_version": 4,
+      "conv_id": 2257
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "a64b7731-e25b-4f16-b004-262ec1bc95cb",
+      "state_version": 8,
+      "conv_id": 2257
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动合同约定的工资标准及工资结构"
+    },
+    {
+     "round": 2,
+     "prompt": "双方是否约定加班费计算基数"
+    }
+   ],
+   "answered_fact_ids": [
+    "C02-r2-f2",
+    "C02-r1-f2"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2257,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 226.6
+  },
+  "C03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "我昨天提交了离职通知"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "f826d9d6-b2c6-4c39-bc6f-21dca6cec647",
+      "state_version": 4,
+      "conv_id": 2258
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "UNSUPPORTED_NUMERIC_TOKEN"
+     ],
+     "clar_meta": {
+      "run_id": "f826d9d6-b2c6-4c39-bc6f-21dca6cec647",
+      "state_version": 8,
+      "conv_id": 2258
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "入职满一个月的起算点及离职时间点"
+    },
+    {
+     "round": 2,
+     "prompt": "双倍工资差额的仲裁时效是否已过"
+    }
+   ],
+   "answered_fact_ids": [
+    "C03-r1-f3"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 2,
+     "prompt": "双倍工资差额的仲裁时效是否已过"
+    }
+   ],
+   "error_codes": [
+    "UNSUPPORTED_NUMERIC_TOKEN"
+   ],
+   "conv_id": 2258,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 294.2
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "卖方微信说有人出价更高"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "f4bb81ae-6d0e-44ee-920c-26b7d940b797",
+      "state_version": 4,
+      "conv_id": 2259
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "f4bb81ae-6d0e-44ee-920c-26b7d940b797",
+      "state_version": 8,
+      "conv_id": 2259
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "卖家涨价不卖不存在不可抗力或情势变更等免责事由"
+    },
+    {
+     "round": 2,
+     "prompt": "双方明确约定该十万元为定金"
+    }
+   ],
+   "answered_fact_ids": [
+    "C04-r1-f3"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 2,
+     "prompt": "双方明确约定该十万元为定金"
+    }
+   ],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2259,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 173.4
+  },
+  "C05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "押金两个月"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "4279575b-9653-4f02-904b-9608b662215e",
+      "state_version": 4,
+      "conv_id": 2260
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "房东没催告",
+      "7日换锁"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "4279575b-9653-4f02-904b-9608b662215e",
+      "state_version": 8,
+      "conv_id": 2260
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "房东扣押金的数额与租客晚交房租造成的实际损失是否相当"
+    },
+    {
+     "round": 2,
+     "prompt": "房东换锁前是否对租客进行了催告"
+    }
+   ],
+   "answered_fact_ids": [
+    "C05-r2-f3",
+    "C05-r1-f2",
+    "C05-r1-f3"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2260,
+   "final_chars": 486,
+   "final_text": "已确认事实：\n- 我晚交两天房租\n- 房东直接换锁\n- 扣押金\n- 押金两个月\n- 房东没催告；7日换锁\n\n尚不确定的事实：\n- 租赁合同中是否明确约定晚交房租两天房东有权单方换锁或解除合同\n\n核心法律争点：\n- 租客晚交两天房租，房东直接换锁并扣押金的行为是否合法？\n\n法律依据：\n- 《民法典》第七百五十三条\n- 《民法典》第七百五十六条\n- 《民法典》第七百一十九条\n- 《民法典》第七百一十六条\n- 《民法典》第七百二十二条\n- 《民法典》第七百五十二条\n- 《民法典》第七百二十九条\n- 《民法典》第七百一十一条\n- 《民法典》第七百二十三条\n- 《民法典》第七百四十条\n\n分情形分析：\n根据《中华人民共和国民法典》第722条,承租人迟延支付租金的,出租人应先催告在合理期限内支付,逾期不支付的方可解除合同。本案中,承租人仅晚交两天房租,出租人未催告即直接换锁,不符合法定解除条件,该换锁行为可能不合法。\n\n可执行建议与风险提示：\n综上,房东未催告即直接换锁可能不合法;扣押金行为需结合租赁合同约定及实际损失判断,目前缺失租赁合同相关约定信息,无法确定其合法性。",
+   "final_excerpt": "已确认事实：\n- 我晚交两天房租\n- 房东直接换锁\n- 扣押金\n- 押金两个月\n- 房东没催告；7日换锁\n\n尚不确定的事实：\n- 租赁合同中是否明确约定晚交房租两天房东有权单方换锁或解除合同\n\n核心法律争点：\n- 租客晚交两天房租，房东直接",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 225.0
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "ISSUE_DECOMPOSITION_INVALID"
+     ]
+    }
+   ],
+   "asked": [],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "ISSUE_DECOMPOSITION_INVALID"
+   ],
+   "conv_id": null,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 16.2
+  },
+  "C07": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "2021年6月30日到期"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "5fd8ed02-e9eb-4e53-ae91-91de49b5fb63",
+      "state_version": 4,
+      "conv_id": 2262
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "5fd8ed02-e9eb-4e53-ae91-91de49b5fb63",
+      "state_version": 8,
+      "conv_id": 2262
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "借款合同约定的具体还款日期（2021年具体哪一天）"
+    },
+    {
+     "round": 2,
+     "prompt": "借款是否属于同一债务分期履行"
+    }
+   ],
+   "answered_fact_ids": [
+    "C07-r1-f1"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 2,
+     "prompt": "借款是否属于同一债务分期履行"
+    }
+   ],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2262,
+   "final_chars": 732,
+   "final_text": "①案情与争议焦点\n本案核心争议在于借款纠纷是否已超过诉讼时效。因您未保留相关证据（如催款记录、还款承诺等），无法直接认定时效状态，需依据法律规则进行推演判断。\n\n②法律依据\n1. 《民法典》第一百八十八条：普通诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害以及义务人之日起计算。\n2. 《民法典》第一百九十五条：存在权利人提出履行请求、义务人同意履行、提起诉讼或仲裁等情形时，诉讼时效中断，从中断事由终结时起重新计算。\n3. 《民法典》第六百七十五条：借款人应按约定期限返还；无约定或约定不明的，贷款人可催告在合理期限内返还。\n\n③逐项论证\n由于缺乏具体时间节点和催收证据，存在以下两种可能的情形：\n1. 若借款合同明确约定了还款日期：诉讼时效从还款期限届满之次日起算三年。若在三年内您未向借款人主张权利（如发函、起诉、对方未承诺还款），则可能已过诉讼时效。此时，根据《民法典》第一百九十二条，借款人有权提出不履行义务的抗辩。\n2. 若合同未约定还款日期：根据《民法典》第六百七十五条，您可以随时要求返还，但需给予合理期限。诉讼时效通常从您催告后合理期限届满之日起算三年。在此前您从未主张过权利的，时效尚未起算或刚起算，一般未过期。\n此外，如果您曾通过微信、短信、电话等方式催收，或借款人曾书面/口头承诺还款，根据《民法典》第一百九十五条，这将构成诉讼时效中断，时效将重新计算，从而避免过期风险。\n\n④结论与风险\n基于现有信息，无法直接断定是否过期。\n风险提示：若您有明确还款日且多年未催收，败诉风险较高（对方可主张时效抗辩）。\n建议：请回忆并查找是否有“催款”或“对方承诺还款”的证据。若有，时效可能未过期；若无且时间已久，需结合具体起算点进一步评估。",
+   "final_excerpt": "①案情与争议焦点\n本案核心争议在于借款纠纷是否已超过诉讼时效。因您未保留相关证据（如催款记录、还款承诺等），无法直接认定时效状态，需依据法律规则进行推演判断。\n\n②法律依据\n1. 《民法典》第一百八十八条：普通诉讼时效期间为三年，自权利人知",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 101.8
+  },
+  "C08": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "担保条款只写“承担保证责任”"
+     ],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "3df02342-dc88-4f3a-932b-f06b184d3ae9",
+      "state_version": 4,
+      "conv_id": 2263
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "担保合同中明确约定了保证方式为一般保证或连带责任保证"
+    }
+   ],
+   "answered_fact_ids": [
+    "C08-r1-f2"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2263,
+   "final_chars": 614,
+   "final_text": "针对您提出的两个核心争点，基于提供的法律条文分析如下：\n\n1. 担保合同约定的保证方式是一般保证还是连带责任保证？\n**结论：属于一般保证。**\n**依据：**根据《民法典》第六百八十六条规定：“当事人在保证合同中对保证方式没有约定或者约定不明确的，按照一般保证承担保证责任。”\n**论证：**在您的案情中，担保条款仅表述为“承担保证责任”，并未明确写明“连带”或“连带保证”。这种模糊的表述在法律上属于对保证方式“约定不明确”。因此，依法推定为一般保证。这意味着债权人必须先起诉债务人并强制执行无果后，才能要求保证人承担责任（除非存在法定例外情形）。\n\n2. 债权人主张权利时是否已超过法定保证期间？\n**结论：需结合具体主张时间判断，若未在保证期间内采取法定行动，则超过。**\n**依据：**根据《民法典》第六百九十二条规定：“没有约定或者约定不明确的……保证期间为主债务履行期限届满之日起六个月。”同时根据《民法典》第六百九十三条规定：“一般保证的债权人未在保证期间对债务人提起诉讼或者申请仲裁的，保证人不再承担保证责任。”\n**论证：**由于双方未约定保证期间，法定的保证期间为主债务到期后的6个月。因为被认定为一般保证，债权人必须在主债务到期后的6个月内，向法院对债务人提起诉讼或申请仲裁。如果债权人在这6个月内没有起诉或仲裁债务人，保证人的责任即行免除；反之，若已在此期限内起诉/仲裁，则未超过，保证人仍需承担责任。",
+   "final_excerpt": "针对您提出的两个核心争点，基于提供的法律条文分析如下：\n\n1. 担保合同约定的保证方式是一般保证还是连带责任保证？\n**结论：属于一般保证。**\n**依据：**根据《民法典》第六百八十六条规定：“当事人在保证合同中对保证方式没有约定或者约定",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 86.8
+  },
+  "C09": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "门店已关"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "fd228a52-470f-4433-9a09-50773a610438",
+      "state_version": 4,
+      "conv_id": 2264
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "签约时没人特别说明概不退款"
+     ],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "fd228a52-470f-4433-9a09-50773a610438",
+      "state_version": 8,
+      "conv_id": 2264
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "健身房关门的具体原因及是否具有继续提供服务的意愿和能力"
+    },
+    {
+     "round": 2,
+     "prompt": "健身房在签订合同时是否对该条款尽到提示说明义务，以及该条款是否不合理地免除或减轻健身房责任、加重消费者责任、限制消费者主要权利"
+    }
+   ],
+   "answered_fact_ids": [
+    "C09-r1-f1",
+    "C09-r2-f1"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2264,
+   "final_chars": 967,
+   "final_text": "1.案情与争议焦点\n本案涉及健身房突然关门导致的服务合同终止。核心争点在于：经营者单方停业是否构成根本违约从而赋予消费者解除权；合同中“概不退款”条款的性质及效力；以及剩余费用的返还依据。\n\n2.法律依据（引条文）\n根据《民法典》第五百六十三条规定，当事人一方迟延履行债务或者有其他违约行为致使不能实现合同目的的，当事人可以解除合同。根据《民法典》第四百九十六条，格式条款是当事人为了重复使用而预先拟定，并在订立合同时未与对方协商的条款。提供格式条款的一方应当遵循公平原则确定当事人之间的权利和义务，并采取合理的方式提示对方注意免除或者减轻其责任等与对方有重大利害关系的条款。根据《消费者权益保护法》第二十六条，经营者不得以格式条款、通知、声明、店堂告示等方式，作出排除或者限制消费者权利、减轻或者免除经营者责任、加重消费者责任等对消费者不公平、不合理的规定，格式条款含有前述内容的，其内容无效。\n\n3.逐项论证\n首先，关于合同解除与退费。健身房突然关门导致无法继续提供服务，致使消费者健身的合同目的落空，属于根本违约情形。依据《民法典》第五百六十三条，消费者有权主张解除合同。合同解除后，尚未履行的部分终止履行，已支付但未消费的费用应予以退还。\n其次，关于“概不退款”条款的效力。该条款系经营者为重复使用而预先拟定，且签约时无人特别说明，符合《民法典》第四百九十六条关于格式条款的定义。经营者未履行提示或说明义务，且该条款排除了消费者要求退还未消费款项的主要权利，减轻了经营者违约责任。依据《消费者权益保护法》第二十六条及《民法典》第四百九十七条，此类排除消费者主要权利的格式条款无效。因此，“概不退款”不能作为拒绝退费的依据。\n最后，关于具体金额。法律条文仅规定了退费的权利基础与规则，未提供具体的交易记录或合同明细。剩余未消费费用的具体金额需结合双方签订的合同、缴费凭证及已实际消费的天数进行核算，现有资料无法直接得出确切数字。\n\n4.结论与风险\n结论：健身房突然关门构成根本违约，消费者有权解除合同并要求退还剩余费用。“概不退款”条款因违反《消费者权益保护法》第二十六条及《民法典》相关规定而无效。\n风险提示：具体退费金额需消费者自行举证计算。若经营者失联，消费者可向市场监管部门投诉或提起诉讼，并保留好合同、转账记录等证据。",
+   "final_excerpt": "1.案情与争议焦点\n本案涉及健身房突然关门导致的服务合同终止。核心争点在于：经营者单方停业是否构成根本违约从而赋予消费者解除权；合同中“概不退款”条款的性质及效力；以及剩余费用的返还依据。\n\n2.法律依据（引条文）\n根据《民法典》第五百六十",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 1208.1
+  },
+  "C10": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "6175365c-c14e-4c7e-8274-e2266e45b323",
+      "state_version": 4,
+      "conv_id": 2265
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "6175365c-c14e-4c7e-8274-e2266e45b323",
+      "state_version": 8,
+      "conv_id": 2265
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "卖家是否具有非法占有目的"
+    },
+    {
+     "round": 2,
+     "prompt": "涉案金额是否达到刑事立案标准"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "卖家是否具有非法占有目的"
+    },
+    {
+     "round": 2,
+     "prompt": "涉案金额是否达到刑事立案标准"
+    }
+   ],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2265,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 1314.7
+  }
+ }
+}

@@ -1,4 +1,5 @@
 """复杂度分级路由（M1）测试：纯函数。"""
+
 import os
 import sys
 

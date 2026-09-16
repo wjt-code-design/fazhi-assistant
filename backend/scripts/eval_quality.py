@@ -93,7 +93,9 @@ def main():
                 "pipeline": "真实 chat API（_client.chat，与一致性/红队/相关性同口径）",
                 "rows": rows,
             },
-            f, ensure_ascii=False, indent=1,
+            f,
+            ensure_ascii=False,
+            indent=1,
         )
         f.write("\n")
     print(f"落盘：{out}")

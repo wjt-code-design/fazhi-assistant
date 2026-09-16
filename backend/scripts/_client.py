@@ -39,14 +39,18 @@ def _retry_429(fn):
 
 def login() -> str:
     """管理员登录，返回 JWT。"""
+
     def _do():
         req = urllib.request.Request(
             BASE + "/api/auth/login",
-            data=json.dumps({"username": os.getenv("ADMIN_USERNAME", "admin"), "password": os.getenv("ADMIN_PASSWORD", "")}).encode(),
+            data=json.dumps(
+                {"username": os.getenv("ADMIN_USERNAME", "admin"), "password": os.getenv("ADMIN_PASSWORD", "")}
+            ).encode(),
             headers={"Content-Type": "application/json"},
         )
         with urllib.request.urlopen(req, timeout=30) as r:
             return json.loads(r.read())["token"]
+
     return _retry_429(_do)
 
 

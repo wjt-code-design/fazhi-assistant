@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "债权人在保证期间内是否已对主债务人提起诉讼或仲裁（一般保证）或要求履行（连带保证）",
+  "issue_id": "issue_053c9ead4c7aef19f7d2d1b6"
+ }
+]

@@ -1,0 +1,66 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+______ test_coverage_gate_terminal_failure_logs_per_issue_binding_facts _______
+
+db = <sqlalchemy.orm.session.Session object at 0x0000012F1FB17090>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x0000012F1FAE8AD0>
+
+    def test_coverage_gate_terminal_failure_logs_per_issue_binding_facts(db, caplog):
+        """覆盖率闸门终态失败必须留下**可归因**的诊断：每争点的 claim 数与生效成文法绑定数。
+    
+        动机（2026-09-12 H3 C01 付费运行）：终态只落了 `VERIFIER:FAIL_SAFE` 与原因码，而
+        「该争点**没有 claim**」与「有 claim 但**未绑定生效成文法**」在归档里完全同形，
+        导致一次真实失败无法归因（见 dispatch-output/agent-quality-h3-20260912/
+        h3-diagnosis-coverage-gate.md）。此断言锁住两者的可区分性。
+        """
+        import logging as _logging
+    
+        from agent.service import execute_agent_request
+    
+        user, conversation = _owner_conversation(db)
+        # still_deficient 替身：首轮与回喂渲染都只绑第一个争点 → 第二个争点完全没有 claim。
+        transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="still_deficient")
+        with caplog.at_level(_logging.INFO, logger="legal.agent"):
+            result = execute_agent_request(
+                db=db,
+                user_id=user.id,
+                settings=_settings(),
+                bootstrap=_two_issue_bootstrap(conversation.id),
+                finalizer=_finalize,
+                llm=transport,
+                gateway=_TwoIssueLawGateway().as_gateway(),
+            )
+    
+        assert result.outcome != "completed"
+        assert result.reason_code == "EVIDENCE_COVERAGE_DEFICIENT"
+        records = [r for r in caplog.records if getattr(r, "agent_coverage_issues", None) is not None]
+>       assert records, "覆盖率终态失败必须留下 agent_coverage_issues 诊断，否则失败不可归因"
+E       AssertionError: 覆盖率终态失败必须留下 agent_coverage_issues 诊断，否则失败不可归因
+E       assert []
+
+tests\test_agent_chat_integration.py:954: AssertionError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+_____ test_coverage_gate_diagnostic_field_is_registered_in_log_whitelist ______
+
+    def test_coverage_gate_diagnostic_field_is_registered_in_log_whitelist():
+        """白名单回归：诊断字段未登记会被 JSON formatter 静默丢弃（同 V2-T8 的教训）。"""
+        from observability import _ACCOUNT_FIELDS
+    
+>       assert "agent_coverage_issues" in _ACCOUNT_FIELDS
+E       AssertionError: assert 'agent_coverage_issues' in ('method', 'path', 'status', 'ms', 'first_ms', 'model', ...)
+
+tests\test_agent_chat_integration.py:973: AssertionError
+============================== warnings summary ===============================
+tests/test_agent_chat_integration.py::test_coverage_gate_terminal_failure_logs_per_issue_binding_facts
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_chat_integration.py::test_coverage_gate_terminal_failure_logs_per_issue_binding_facts
+FAILED tests/test_agent_chat_integration.py::test_coverage_gate_diagnostic_field_is_registered_in_log_whitelist
+2 failed, 31 deselected, 1 warning in 19.56s

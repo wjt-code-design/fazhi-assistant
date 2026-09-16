@@ -1,0 +1,70 @@
+{
+ "run": "gate2-diag-1",
+ "results": {
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "clar_meta": {
+      "run_id": "1ca863c9-7539-417b-9fcd-0dbd10c9428d",
+      "state_version": 4,
+      "conv_id": 2097
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [],
+     "event_types": [],
+     "clar_meta": {
+      "run_id": "1ca863c9-7539-417b-9fcd-0dbd10c9428d",
+      "state_version": 8,
+      "conv_id": 2097
+     },
+     "raw_tail": "{\"detail\":\"Agent 任务已变化，无法恢复\"}"
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "买方是否因卖方违约遭受实际损失"
+    },
+    {
+     "round": 2,
+     "prompt": "买方是否采取合理措施防止损失扩大"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "买方是否因卖方违约遭受实际损失"
+    },
+    {
+     "round": 2,
+     "prompt": "买方是否采取合理措施防止损失扩大"
+    }
+   ],
+   "conv_id": 2097,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 41.2
+  }
+ }
+}

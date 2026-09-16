@@ -1,0 +1,14 @@
+{
+ "method": "retrieval.classify_answer_citations（归一化三态，2026-09-07 修复版）",
+ "total_answers": 60,
+ "article_missing_issue_answers": 1,
+ "article_missing_ids": [
+  "rag/criminal-civil-boundary-20"
+ ],
+ "source_missing_warn_answers": 1,
+ "source_missing_ids": [
+  "rag/law-date-conflict-15"
+ ],
+ "article_issue_before_fix": 3,
+ "article_issue_after_fix": 1
+}

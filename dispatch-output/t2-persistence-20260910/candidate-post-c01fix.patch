@@ -1,0 +1,2324 @@
+diff --git a/backend/agent/controller.py b/backend/agent/controller.py
+index d61f428..0a5dd83 100644
+--- a/backend/agent/controller.py
++++ b/backend/agent/controller.py
+@@ -700,6 +700,40 @@ class AgentController:
+                 return False
+         return bool(state.issues)
+ 
++    def _every_issue_retrieval_attempted(self, state: LegalAgentState) -> bool:
++        """每个尚无证据的 issue 是否**都已发起过** retrieve_laws（无论是否命中）。
++
++        2026-09-10 新增：这是补齐检索的**终止条件**。`_every_issue_has_evidence` 只回答
++        "有没有证据"，在检索器持续返回空命中的情况下永远为 False——若拿它当补检索的
++        循环条件会变成无界空转（边界实测：单轮 297 次 planner/评估，终态停在非终态
++        planning，靠 step 预算才被迫中断）。
++        本函数回答的是"是否已经试过了"：一旦每个缺证据的 issue 都留下过
++        retrieve_laws 动作指纹，重试必然命中 duplicate 守卫、不可能产生新证据，
++        补检索就走到尽头，必须 fall through 到原有确定性收敛路径（转 DRAFTING 条件化
++        分析 / fail-closed 失败），而不是继续回 PLANNING。
++        """
++        for issue in state.issues:
++            linked = any(
++                obs.issue_id == issue.issue_id
++                and obs.status == "succeeded"
++                and bool(obs.evidence_ids)
++                for obs in state.observations
++            )
++            if linked:
++                continue
++            attempted = any(
++                fingerprint
++                == action_fingerprint(
++                    issue.issue_id,
++                    "retrieve_laws",
++                    RetrieveLawsInput(query=issue.question, k=4),
++                )
++                for fingerprint in state.action_fingerprints
++            )
++            if not attempted:
++                return False
++        return True
++
+     def _seed_issue_retrievals(
+         self, run: ControllerRun
+     ) -> ControllerRun | ControllerResult:
+@@ -756,6 +790,36 @@ class AgentController:
+ 
+             if evaluation.outcome is EvaluationOutcome.MISSING_FACT:
+                 if run.state.clarifications >= run.state.budgets.max_clarifications:
++                    if not self._every_issue_retrieval_attempted(run.state):
++                        # 2026-09-10 修复：澄清预算已耗尽、且**仍有 issue 从未发起过检索** →
++                        # 绝不能转 DRAFTING（该 issue 在 drafting 时无证据绑定，verifier 会判
++                        # EVIDENCE_COVERAGE_DEFICIENT，而 writer 造不出未检索过的法条 → 回喂被拒
++                        # → 整轮失败、用户拿到空终稿）。
++                        # 正确去向：回 PLANNING 交扇出补齐检索（EVALUATING→PLANNING 合法，
++                        # 且这是确定性补齐而非重新规划，不消耗 replan 预算）。
++                        #
++                        # 终止条件（关键，勿改为 _every_issue_has_evidence）：
++                        # 用 `_every_issue_retrieval_attempted` 而非 `_every_issue_has_evidence`。
++                        # 后者在检索器持续空命中时恒为 False → 本分支会被无限重入，退化为
++                        # 无界空转（边界实测单轮 297 次 planner 调用、终态卡在非终态 planning）。
++                        # 前者一旦每个缺证据 issue 都试过检索即为 True → fall through 到下方
++                        # 原有的确定性收敛路径，run 必然抵达终态。
++                        #
++                        # 转移幂等保护：调用点可能来自 EVALUATING（扇出执行后）或已是 PLANNING，
++                        # 已是 PLANNING 时不再转移，避免 InvalidTransition(planning→planning)。
++                        state = (
++                            run.state
++                            if run.state.status is AgentStatus.PLANNING
++                            else transition(run.state, AgentStatus.PLANNING)
++                        )
++                        return self._save(
++                            run,
++                            state,
++                            CheckpointMetadata(
++                                decision="backfill_retrieval",
++                                reason_code="CLARIFY_BUDGET_EXHAUSTED_PENDING_RETRIEVAL",
++                            ),
++                        )
+                     # 澄清预算已耗尽但仍有缺失关键事实 → 确定性强制条件化（产品承诺"最多两轮追问，
+                     # 两轮后转入分情形分析"）。无论 Planner 输出 ask_user 还是 finish_research，
+                     # 评估器决定再问时轮数已满都不注册下轮澄清（原行为：register_clarification
+diff --git a/backend/agent/runtime.py b/backend/agent/runtime.py
+index 38f3772..0d270d6 100644
+--- a/backend/agent/runtime.py
++++ b/backend/agent/runtime.py
+@@ -9,8 +9,10 @@ from __future__ import annotations
+ 
+ import hashlib
+ import json
++import logging
+ import re
+-from collections.abc import Mapping, Sequence
++import time
++from collections.abc import Callable, Mapping, Sequence
+ from dataclasses import dataclass
+ from typing import Any, Protocol, cast
+ 
+@@ -186,6 +188,94 @@ def _invoke(transport: LLMTransport, messages: Sequence[object]) -> object:
+         return transport.invoke(messages)
+ 
+ 
++_SCHEMA_REJECTION_MARKERS = (
++    "response_format",
++    "response format",
++    "json_schema",
++    "json schema",
++    "structured output",
++    "structured_outputs",
++)
++_llm_adapter_logger = logging.getLogger("legal.agent")
++
++
++def is_schema_capability_rejection(exc: BaseException) -> bool:
++    """V2-T4（2026-09-09）F4：窄判定——仅"HTTP 400 且错误文本明确指向结构化输出能力"的拒绝。
++
++    原实现把绑定调用的全部异常（超时/鉴权/限流/网络/未知 400）都当 schema 不支持降级，
++    造成重复外呼与耗时膨胀、原始失败分类丢失。本判定只认"已证明"的形态（双条件）：
++    - 平台证据：status_code == 400（LongCat 对不支持的 response_format 实测返回 400，
++      见 dispatch-output/probe_longcat_response_format.py 与 agent/runtime.py 历史注释）；
++    - 内容证据：错误文本（str(exc) + body）包含 response_format / json_schema /
++      structured output 类关键词。
++    401/403/404/422/429/5xx/超时/连接错误、无 status_code 的本地异常、不含关键词的
++    未知 400 一律保守返回 False（调用方原样抛出，不降级、不重复外呼）。
++    """
++    if getattr(exc, "status_code", None) != 400:
++        return False
++    body = getattr(exc, "body", "")
++    text = f"{exc}{body}".lower()
++    return any(marker in text for marker in _SCHEMA_REJECTION_MARKERS)
++
++
++def _log_adapter_invoke(
++    stage: str, mode: str, attempt: int, exc: BaseException | None, duration_ms: int
++) -> None:
++    """F4 观测：stage / attempt / 调用模式 / 异常分类 / 状态码 / 耗时（不记录凭据与用户内容）。"""
++    _llm_adapter_logger.warning(
++        "llm_adapter_invoke_event",
++        extra={
++            "llm_adapter_stage": stage,
++            "llm_invoke_attempt": attempt,
++            "llm_invoke_mode": mode,
++            "llm_error_class": type(exc).__name__ if exc is not None else None,
++            "llm_error_status_code": getattr(exc, "status_code", None) if exc is not None else None,
++            "llm_invoke_duration_ms": duration_ms,
++        },
++    )
++
++
++def _invoke_with_schema_fallback(
++    transport: LLMTransport,
++    messages: Sequence[object],
++    *,
++    stage: str,
++    response_format_builder: Callable[[], dict[str, object]],
++) -> object:
++    """V2-T4（2026-09-09）F4：三个 adapter（issue/planner/draft）共用的绑定调用边界。
++
++    - 无 bind → 普通调用一次（行为不变）；
++    - 本地 schema/bind 构造失败 → 保留诊断日志后普通调用一次（原实现静默吞掉）；
++    - 绑定调用失败 → 仅"明确 schema 能力拒绝"（is_schema_capability_rejection）降级
++      普通调用一次；超时/鉴权/限流/网络/未知 400 原样抛出，不重复外呼；
++    - 降级后的普通调用再失败 → 原样抛出（不二次降级）；
++    - 每次模式切换/失败均写观测日志（stage/mode/异常分类/状态码/耗时，无凭据）。
++    客户端内置重试（llm_registry max_retries=3）位于本边界之内：本函数只约束 adapter
++    层调用次数，不宣称网络请求次数。
++    """
++    bound = getattr(transport, "bind", None)
++    if not callable(bound):
++        return _invoke(transport, messages)
++    started = time.monotonic()
++    try:
++        response_format = response_format_builder()
++        bound_transport = bound(response_format=response_format)
++    except Exception as exc:  # noqa: BLE001 本地构造失败：诊断保留后走普通调用
++        _log_adapter_invoke(
++            stage, "bind_construct_failed", 1, exc, int((time.monotonic() - started) * 1000)
++        )
++        return _invoke(transport, messages)
++    try:
++        return _invoke(bound_transport, messages)
++    except Exception as exc:  # noqa: BLE001 非 schema 拒绝原样抛出；schema 拒绝降级一次
++        duration_ms = int((time.monotonic() - started) * 1000)
++        if not is_schema_capability_rejection(exc):
++            _log_adapter_invoke(stage, "bound_invoke_failed_no_fallback", 1, exc, duration_ms)
++            raise
++        _log_adapter_invoke(stage, "schema_rejected_fallback_plain", 2, exc, duration_ms)
++        return _invoke(transport, messages)
++
++
+ def _planner_response_schema() -> dict:
+     """构建 planner 的 response_format=json_schema（含 args 具体字段注入）。
+ 
+@@ -232,6 +322,26 @@ def _planner_response_schema() -> dict:
+     return schema
+ 
+ 
++def _draft_response_schema() -> dict:
++    """V2-W2：writer 的 response_format schema（_GeneratedDraft：claims+missing_information）。
++
++    与 planner 同理用 TypeAdapter 取 schema（writer 侧严格校验仍在
++    writer._render_once 不变，response_format 只增强模型提示）。
++    """
++    from pydantic import TypeAdapter
++
++    from .writer import _GeneratedDraft
++
++    return TypeAdapter(_GeneratedDraft).json_schema()
++
++
++def _issue_response_schema() -> dict:
++    """V2-W3：decomposer 的 response_format schema（_IssueEnvelope：1-8 个 issues）。"""
++    from pydantic import TypeAdapter
++
++    return TypeAdapter(_IssueEnvelope).json_schema()
++
++
+ def _issue_id(question: str) -> str:
+     normalized = " ".join(question.split())
+     digest = hashlib.sha256(f"legal-agent-issue-v1\x00{normalized}".encode()).hexdigest()
+@@ -247,6 +357,23 @@ class LLMIssueDecomposer:
+     def __init__(self, transport: LLMTransport) -> None:
+         self._transport = transport
+ 
++    def _invoke_issue(self, messages: list) -> object:
++        """V2-W3（2026-09-09）：decomposer 尽量使用 response_format=json_schema 强制结构化输出。
++
++        V2-T4（2026-09-09）F4：收敛到共用绑定调用边界——仅明确的 schema 能力拒绝降级
++        普通调用一次；超时/鉴权/限流/未知 400 原样抛出不重复外呼；本地构造失败保留诊断。
++        下游 _IssueEnvelope 严格校验不变。
++        """
++        return _invoke_with_schema_fallback(
++            self._transport,
++            messages,
++            stage="issue_decomposition",
++            response_format_builder=lambda: {
++                "type": "json_schema",
++                "json_schema": {"name": "issue_envelope", "strict": False, "schema": _issue_response_schema()},
++            },
++        )
++
+     def decompose(self, bootstrap: RequestBootstrap) -> object:
+         query = bootstrap.raw_query.strip()
+         if not query or len(query) > _MAX_QUERY_CHARS:
+@@ -263,7 +390,7 @@ class LLMIssueDecomposer:
+             ),
+         ]
+         try:
+-            return _strict_json(_response_text(_invoke(self._transport, messages)))
++            return _strict_json(_response_text(self._invoke_issue(messages)))
+         except IssueDecompositionError:
+             raise
+         except Exception as exc:
+@@ -381,32 +508,27 @@ class LLMPlannerAdapter:
+     def _invoke_planner(self, messages: list) -> object:
+         """方案 A（V2-G6，2026-09-09）：planner 尽量使用 response_format=json_schema 强制结构化输出。
+ 
+-        - 只在 transport 支持 bind（LangChain ChatOpenAI）时启用；构造失败/调用失败一律静默回退
+-          普通 invoke ——fail-safe：新机制绝不比现有可靠性更差。
+-        - schema 用 _planner_response_schema()：TypeAdapter(PlanDecision).json_schema()（判别联合），
++        - 只在 transport 支持 bind（LangChain ChatOpenAI）时启用；schema 用
++          _planner_response_schema()：TypeAdapter(PlanDecision).json_schema()（判别联合），
+           并把 args 注入具体工具输入字段（否则 LongCat 只能输出 args:{}）。
+           PlanDecision 是 Annotated[Union, Field(discriminator)]，直接 .model_json_schema() 抛
+           AttributeError 被静默吞掉（2026-09-09 实测）——TypeAdapter 才是正确取法。
++        - V2-T4（2026-09-09）F4：收敛到共用绑定调用边界——仅明确的 schema 能力拒绝降级
++          普通调用一次；超时/鉴权/限流/未知 400 原样抛出不重复外呼；本地构造失败保留诊断。
+         """
+-        try:
+-            schema = _planner_response_schema()
+-            bound = getattr(self._transport, "bind", None)
+-            if callable(bound):
+-                response_format = {
+-                    "type": "json_schema",
+-                    "json_schema": {
+-                        "name": "plan_decision",
+-                        "strict": False,  # 复杂联合 schema 不强制 strict，避免被平台 400 拒绝
+-                        "schema": schema,
+-                    },
+-                }
+-                try:
+-                    return _invoke(bound(response_format=response_format), messages)
+-                except Exception:  # noqa: BLE001 平台拒绝 schema（400）→ 同一次调用内降级普通调用
+-                    pass
+-        except Exception:  # noqa: BLE001 bind/schema 构造失败 → 回退普通调用
+-            pass
+-        return _invoke(self._transport, messages)
++        return _invoke_with_schema_fallback(
++            self._transport,
++            messages,
++            stage="planner",
++            response_format_builder=lambda: {
++                "type": "json_schema",
++                "json_schema": {
++                    "name": "plan_decision",
++                    "strict": False,  # 复杂联合 schema 不强制 strict，避免被平台 400 拒绝
++                    "schema": _planner_response_schema(),
++                },
++            },
++        )
+ 
+     def decide(
+         self, *, state: LegalAgentState, bootstrap: RequestBootstrap, feedback: str | None = None
+@@ -429,7 +551,7 @@ class LLMPlannerAdapter:
+                 SystemMessage(
+                     content=(
+                         "你上一次的输出未通过结构校验。请阅读下列错误，严格按系统提示的字段名、"
+-                        "取值与格式重新输出，只输出一个 JSON：\n" + feedback[:800]
++                        "取值与格式重新输出，只输出一个 JSON：\n" + feedback[:2000]
+                     )
+                 )
+             )
+@@ -451,6 +573,24 @@ class LLMDraftGenerator:
+     def __init__(self, transport: LLMTransport) -> None:
+         self._transport = transport
+ 
++    def _invoke_draft(self, messages: list) -> object:
++        """V2-W2（2026-09-09）：writer 同样接 response_format=json_schema（方案 A 模板复用）。
++
++        schema 为 _GeneratedDraft（claims/missing_information），全部确定性校验
++        （绑定/数字/引用/claim_id）仍在 writer._render_once 不变。
++        V2-T4（2026-09-09）F4：收敛到共用绑定调用边界——仅明确的 schema 能力拒绝降级
++        普通调用一次；超时/鉴权/限流/未知 400 原样抛出不重复外呼；本地构造失败保留诊断。
++        """
++        return _invoke_with_schema_fallback(
++            self._transport,
++            messages,
++            stage="draft",
++            response_format_builder=lambda: {
++                "type": "json_schema",
++                "json_schema": {"name": "generated_draft", "strict": False, "schema": _draft_response_schema()},
++            },
++        )
++
+     def generate(
+         self, *, payload: WriterPayload, system_prompt: str, feedback: str | None = None
+     ) -> object:
+@@ -472,11 +612,11 @@ class LLMDraftGenerator:
+                     content=(
+                         "你上一次生成的 draft 未通过确定性校验。请阅读下列错误并修正后重新输出"
+                         "完整 JSON（issue_id/evidence_id/fact_id 必须严格使用输入中存在的标识，"
+-                        "数字只能来自输入事实与证据）：\n" + feedback[:800]
++                        "数字只能来自输入事实与证据）：\n" + feedback[:2000]
+                     )
+                 )
+             )
+-        raw = _strict_json(_response_text(_invoke(self._transport, messages)))
++        raw = _strict_json(_response_text(self._invoke_draft(messages)))
+         if _contains_key(raw, _SERVER_OWNED_DRAFT_FIELDS):
+             raise AdapterPolicyViolation("Draft output contains server-owned audit fields")
+         return raw
+diff --git a/backend/agent/service.py b/backend/agent/service.py
+index b8dc3fa..639b689 100644
+--- a/backend/agent/service.py
++++ b/backend/agent/service.py
+@@ -3,7 +3,7 @@
+ from __future__ import annotations
+ 
+ from collections.abc import Callable
+-from typing import Any, Protocol, cast
++from typing import Any, NamedTuple, Protocol, cast
+ 
+ from request_bootstrap import RequestBootstrap
+ from routing_metrics import is_technical_fallback_reason
+@@ -11,7 +11,13 @@ from tools.gateway import ToolGateway
+ 
+ from .chat_integration import AgentFinalizationConflict, AgentOutcome, AgentPublicResult, persist_agent_final_once
+ from .controller import ControllerResult
+-from .repository import create_run, load_owned_run
++from .repository import (
++    CheckpointMetadata,
++    RunVersionConflict,
++    compare_and_save,
++    create_run,
++    load_owned_run,
++)
+ from .runtime import (
+     AdapterPolicyViolation,
+     IssueDecompositionError,
+@@ -21,8 +27,9 @@ from .runtime import (
+     build_agent_runtime,
+ )
+ from .schemas import AgentStatus
+-from .verifier import VerificationVerdict
+-from .writer import WriterStatus
++from .state_machine import BudgetExceeded, register_verifier_research_return, transition
++from .verifier import VerificationResult, VerificationVerdict
++from .writer import WriterStatus, coverage_feedback_payload, is_effective_statute
+ 
+ 
+ class FinalizationResult(Protocol):
+@@ -102,6 +109,184 @@ def _saved_failure_reason(db: Any, *, run_id: str, user_id: int, conversation_id
+     return cast(str | None, record.last_error_code) or cast(str | None, record.degraded_reason) or "AGENT_FAILED"
+ 
+ 
++class _CoverageLoopOutcome(NamedTuple):
++    """Coverage 回喂循环的显式结果：state/version 必须显式传出，不靠修改调用者不可见的局部变量。"""
++
++    verification: VerificationResult
++    draft: Any
++    state: Any
++    state_version: int
++    failure_reason: str | None  # None=循环正常结束；否则为应返回的公开失败码
++
++
++def _deficient_issue_ids(state: Any, draft: Any) -> set[str]:
++    """与 verifier/coverage_feedback_payload 同口径的缺绑定判定（复刻计算，verifier 一行不改）。
++
++    issue 无 claim，或其 claims 均未绑定（STATUTE 且 EFFECTIVE）证据 → deficient。
++    """
++    claims = [*draft.conclusion, *draft.issue_analysis, *draft.risks]
++    evidence_by_id = {evidence.evidence_id: evidence for evidence in state.evidence}
++    deficient: set[str] = set()
++    for issue in state.issues:
++        issue_claims = [claim for claim in claims if claim.issue_id == issue.issue_id]
++        has_effective_statute = any(
++            is_effective_statute(evidence_by_id.get(evidence_id))
++            for claim in issue_claims
++            for evidence_id in claim.evidence_ids
++        )
++        if not issue_claims or not has_effective_statute:
++            deficient.add(issue.issue_id)
++    return deficient
++
++
++def _rewrite_worth_attempting(state: Any, draft: Any) -> bool:
++    """V2-T3（2026-09-09）修复分流（教学手册第四课）：writer 只能修"证据已齐但 claim 未绑定"。
++
++    - 存在未解决 critical conflict → writer 无法解除 conflict，重写必仍 deficient：不外呼；
++    - 任一缺绑定 issue 没有成功 observation 链接的生效成文法证据 → writer 创造不了法条：不外呼；
++    - 仅当全部缺绑定 issue 均有可用证据（纯 binding 缺口）才允许消耗重写预算。
++    与 verifier 的差异口径：本判定只做"可修复性"预判，不改变任何 verifier 裁决。
++    """
++    if any(conflict.critical and not conflict.resolved for conflict in state.conflicts):
++        return False
++    deficient = _deficient_issue_ids(state, draft)
++    if not deficient:
++        return False
++    evidence_by_id = {evidence.evidence_id: evidence for evidence in state.evidence}
++    linked_by_issue: dict[str, set[str]] = {}
++    for observation in state.observations:
++        if observation.status != "succeeded":
++            continue
++        linked_by_issue.setdefault(observation.issue_id, set()).update(observation.evidence_ids)
++    for issue_id in deficient:
++        has_usable = any(
++            is_effective_statute(evidence_by_id.get(evidence_id))
++            for evidence_id in linked_by_issue.get(issue_id, set())
++        )
++        if not has_usable:
++            return False
++    return True
++
++
++def _persist_drafting_failure(
++    db: Any,
++    *,
++    saved_record: Any,
++    state: Any,
++    state_version: int,
++    public_reason: str,
++    stage_reason: str,
++) -> int:
++    """V2-T3（2026-09-09）F3：终稿阶段业务失败持久化（DRAFTING → FAILED + failure step）。
++
++    仅用于已有、归属和版本已确认的 DRAFTING 业务失败；CLIENT_DISCONNECTED、CAS 冲突、
++    存储故障不套用（断连保留无 assistant 契约，冲突不覆盖新状态，存储故障不伪报已落盘）。
++    - steps 预算耗尽的防御沿用 controller._persist_failure 模式：直接置 FAILED，不再递增；
++    - 保存失败返回原 state_version（调用方按原失败码返回，不改变公开失败语义）。
++    返回应向公开结果报告的 state_version（保存成功为 v+1，否则原值）。
++    """
++    try:
++        try:
++            failed_state = transition(state, AgentStatus.FAILED)
++        except BudgetExceeded:
++            failed_state = state.model_copy(update={"status": AgentStatus.FAILED})
++        compare_and_save(
++            db,
++            run=saved_record,
++            expected_version=state_version,
++            state=failed_state,
++            status=AgentStatus.FAILED.value,
++            checkpoint=CheckpointMetadata(
++                decision="failure",
++                reason_code=public_reason,
++                result_code=stage_reason,
++                last_error_code=public_reason,
++            ),
++        )
++        return state_version + 1
++    except RunVersionConflict:
++        return state_version
++    except Exception:
++        return state_version
++
++
++def _coverage_research_loop(
++    runtime: Any,
++    db: Any,
++    saved_record: Any,
++    state: Any,
++    state_version: int,
++    verification: VerificationResult,
++    draft: Any,
++    cancelled: CancellationCheck | None = None,
++) -> _CoverageLoopOutcome:
++    """V2-T2（2026-09-09）：coverage 回喂循环——先 CAS 保存预算 attempt，再外呼重写。
++
++    修复 F1：原实现原地自增 state.verifier_research_returns 且不落盘；回喂成功后
++    persist_agent_final_once 的 durable equality guard 正确拒绝（数据库 DRAFTING 计数=0
++    vs 内存计数=1）→ AGENT_FINALIZATION_CONFLICT。现顺序：
++    register_verifier_research_return 构造 next_state（不原地改旧快照）
++    → compare_and_save（CAS：v→v+1，持久化 next_state 与 attempt checkpoint）
++    → 保存成功才外呼 render_for_coverage → verifier 验证同一 state 与新 draft；
++    后续终稿保存与公开返回值使用保存后的新版本。
++    - 保存失败（版本冲突 / 数据库故障）不外呼：返回现有冲突 / 存储失败语义；
++    - 保存与外呼前检查断连：按既有契约无 assistant 写入，不擅自重新生成；
++    - register 的 BudgetExceeded（并发超限防御路径）视为预算耗尽，停止回喂；
++    - 重渲染 FAIL_SAFE / 仍 deficient → 原样返回，外层按 verifier 原因码兜底；
++    - verifier 判定逻辑与 feedback 构造一行不改。
++    """
++    while (
++        verification.verdict is VerificationVerdict.RESEARCH_MORE
++        and state.verifier_research_returns < state.budgets.max_verifier_research_returns
++    ):
++        if cancelled is not None and cancelled():
++            return _CoverageLoopOutcome(verification, draft, state, state_version, "CLIENT_DISCONNECTED")
++        if not _rewrite_worth_attempting(state, draft):
++            # V2-T3 修复分流：conflict 驱动或缺有效证据的 deficient，writer 修不了 → 零无效外呼
++            break
++        feedback = coverage_feedback_payload(state, draft)
++        if feedback is None:
++            break
++        try:
++            next_state = register_verifier_research_return(state)
++        except BudgetExceeded:
++            break
++        try:
++            saved_record = compare_and_save(
++                db,
++                run=saved_record,
++                expected_version=state_version,
++                state=next_state,
++                status=next_state.status.value,
++                checkpoint=CheckpointMetadata(
++                    decision="coverage_rewrite_attempt",
++                    reason_code="EVIDENCE_COVERAGE_DEFICIENT",
++                    result_code="ATTEMPT_RESERVED",
++                ),
++            )
++        except RunVersionConflict:
++            # 输家不外呼、不重读新版本强行覆盖；按现有冲突语义返回。
++            return _CoverageLoopOutcome(verification, draft, state, state_version, "AGENT_FINALIZATION_CONFLICT")
++        except Exception:
++            # repository 已 rollback；不在坏事务上继续外呼。
++            return _CoverageLoopOutcome(verification, draft, state, state_version, "AGENT_STORAGE_FAILURE")
++        # CAS 成功 ⇒ 数据库版本必为 expected_version+1；显式计算，不依赖
++        # Session expire_on_commit 语义（refresh 后重读在部分配置下不可假设）。
++        state = next_state
++        state_version = state_version + 1
++        try:
++            rerendered = runtime.writer.render_for_coverage(state, feedback)
++            if rerendered.status is not WriterStatus.READY or rerendered.draft is None:
++                break
++            draft = rerendered.draft
++            verification = runtime.verifier.verify(state, draft)
++        except Exception:
++            # attempt 已保存：失败结果必须携带已保存的新版本（外层 catch 拿不到它），
++            # 不得让过时版本号逃逸到公开返回值。
++            return _CoverageLoopOutcome(verification, draft, state, state_version, "VERIFIER_TECHNICAL_FAILURE")
++    return _CoverageLoopOutcome(verification, draft, state, state_version, None)
++
++
+ def execute_agent_request(
+     *,
+     db: Any,
+@@ -219,28 +404,93 @@ def execute_agent_request(
+ 
+     writer_result = runtime.writer.render(state)
+     if writer_result.status is not WriterStatus.READY or writer_result.draft is None:
++        # V2-T3 F3：writer 失败落 FAILED 终态与原因（重载可见）；保存失败不影响公开失败码
++        failure_version = _persist_drafting_failure(
++            db,
++            saved_record=saved_record,
++            state=state,
++            state_version=state_version,
++            public_reason=writer_result.reason_code,
++            stage_reason=f"WRITER:{writer_result.reason_code}",
++        )
+         return _failure_or_fallback(
+             writer_result.reason_code,
+             run_id=active_run_id,
+             conversation_id=bootstrap.conv_id,
+-            state_version=state_version,
++            state_version=failure_version,
+         )
+     draft = writer_result.draft
+     try:
+         verification = runtime.verifier.verify(state, draft)
+     except Exception:
++        failure_version = _persist_drafting_failure(
++            db,
++            saved_record=saved_record,
++            state=state,
++            state_version=state_version,
++            public_reason="VERIFIER_TECHNICAL_FAILURE",
++            stage_reason="VERIFIER:EXCEPTION",
++        )
+         return _failure_or_fallback(
+             "VERIFIER_TECHNICAL_FAILURE",
+             run_id=active_run_id,
+             conversation_id=bootstrap.conv_id,
+-            state_version=state_version,
++            state_version=failure_version,
+         )
+     if verification.verdict is not VerificationVerdict.PASS:
++        # V2-T2：RESEARCH_MORE（EVIDENCE_COVERAGE_DEFICIENT 且 budget 未耗尽）→
++        # 先 CAS 保存预算 attempt，再定向回喂 writer 重渲染一轮；重渲染后 verify
++        # 异常按技术失败兜底；保存失败按冲突/存储失败兜底且不外呼。
++        try:
++            loop = _coverage_research_loop(
++                runtime, db, saved_record, state, state_version, verification, draft, cancelled
++            )
++        except Exception:
++            # 此处仅可能收到 attempt 保存之前的异常（断连检查/feedback 构造），
++            # state_version 未被保存推进，仍准确；保存后的异常在 helper 内携带新版本返回。
++            return _failure_or_fallback(
++                "VERIFIER_TECHNICAL_FAILURE",
++                run_id=active_run_id,
++                conversation_id=bootstrap.conv_id,
++                state_version=state_version,
++            )
++        if loop.failure_reason is not None:
++            failure_version = loop.state_version
++            if loop.failure_reason == "VERIFIER_TECHNICAL_FAILURE":
++                # V2-T3 F3：attempt 已落盘后的 verify 异常属业务技术失败 → FAILED 落盘。
++                # 断连/冲突/存储失败分支不套用失败保存（保留各自契约）。
++                failure_version = _persist_drafting_failure(
++                    db,
++                    saved_record=saved_record,
++                    state=loop.state,
++                    state_version=loop.state_version,
++                    public_reason=loop.failure_reason,
++                    stage_reason="VERIFIER:EXCEPTION_AFTER_ATTEMPT",
++                )
++            return _failure_or_fallback(
++                loop.failure_reason,
++                run_id=active_run_id,
++                conversation_id=bootstrap.conv_id,
++                state_version=failure_version,
++            )
++        verification, draft = loop.verification, loop.draft
++        state, state_version = loop.state, loop.state_version
++    if verification.verdict is not VerificationVerdict.PASS:
++        # V2-T3 F3：verifier 终态失败（RESEARCH_MORE 预算耗尽/FAIL_SAFE/REWRITE）落 FAILED。
++        # REWRITE 为未实现的修复能力：不增加循环，stage 明确记录 verdict 以便后续诊断。
++        failure_version = _persist_drafting_failure(
++            db,
++            saved_record=saved_record,
++            state=state,
++            state_version=state_version,
++            public_reason=verification.reason_code,
++            stage_reason=f"VERIFIER:{verification.verdict.value}",
++        )
+         return _failure_or_fallback(
+             verification.reason_code,
+             run_id=active_run_id,
+             conversation_id=bootstrap.conv_id,
+-            state_version=state_version,
++            state_version=failure_version,
+         )
+     if cancelled is not None and cancelled():
+         return _failure_or_fallback(
+@@ -252,11 +502,19 @@ def execute_agent_request(
+     try:
+         finalized = finalizer(state, draft, verification)
+     except Exception:
++        failure_version = _persist_drafting_failure(
++            db,
++            saved_record=saved_record,
++            state=state,
++            state_version=state_version,
++            public_reason="VERIFIER_TECHNICAL_FAILURE",
++            stage_reason="FINALIZER:EXCEPTION",
++        )
+         return _failure_or_fallback(
+             "VERIFIER_TECHNICAL_FAILURE",
+             run_id=active_run_id,
+             conversation_id=bootstrap.conv_id,
+-            state_version=state_version,
++            state_version=failure_version,
+         )
+     if finalized.answer is None:
+         reason_code = (
+@@ -264,11 +522,19 @@ def execute_agent_request(
+             if finalized.reason_code == "FINAL_GATE_TECHNICAL_FAILURE"
+             else finalized.reason_code
+         )
++        failure_version = _persist_drafting_failure(
++            db,
++            saved_record=saved_record,
++            state=state,
++            state_version=state_version,
++            public_reason=reason_code,
++            stage_reason=f"FINALIZER:{finalized.reason_code}",
++        )
+         return _failure_or_fallback(
+             reason_code,
+             run_id=active_run_id,
+             conversation_id=bootstrap.conv_id,
+-            state_version=state_version,
++            state_version=failure_version,
+         )
+     if cancelled is not None and cancelled():
+         return _failure_or_fallback(
+diff --git a/backend/agent/writer.py b/backend/agent/writer.py
+index 588275f..22b7a53 100644
+--- a/backend/agent/writer.py
++++ b/backend/agent/writer.py
+@@ -196,6 +196,32 @@ def derive_claim_id(
+     )
+ 
+ 
++def _evidence_payload_order(evidence) -> tuple:
++    """V2-W4（2026-09-09）：payload 证据确定性重排序——生效成文法优先。
++
++    原按 evidence_id（内容哈希）排序使有效法条证据随机沉底，模型倾向只绑前部
++    证据（run-11 C02 实证：金标法条在证据表中但 draft 未绑定）。排序只影响模型
++    输入分布，不影响任何校验：claim_id 绑定校验与顺序无关，同一次运行内
++    state_digest 保持一致。回退方式：build_writer_payload 排序 key 改回
++    lambda item: item.evidence_id 即可。
++    """
++    effective_statute = is_effective_statute(evidence)
++    return (0 if effective_statute else 1, evidence.source_ref, evidence.evidence_id)
++
++
++def is_effective_statute(evidence) -> bool:
++    """单一真源（T5 审查收敛）：该证据是否可作"生效成文法"绑定（STATUTE 且 EFFECTIVE）。
++
++    service 分流/回喂构造与本模块共享同一谓词；verifier.py 因冻结保留原实现（行为一致）。
++    None（证据表中无此 id）→ False。
++    """
++    return (
++        evidence is not None
++        and evidence.source_type is SourceType.STATUTE
++        and evidence.legal_validity is LegalValidity.EFFECTIVE
++    )
++
++
+ def build_writer_payload(state: LegalAgentState) -> WriterPayload:
+     issue_ids = [issue.issue_id for issue in state.issues]
+     if not issue_ids or len(issue_ids) != len(set(issue_ids)):
+@@ -263,7 +289,7 @@ def build_writer_payload(state: LegalAgentState) -> WriterPayload:
+             )
+             for evidence in sorted(
+                 (evidence_by_id[evidence_id] for evidence_id in linked_by_issue[issue.issue_id]),
+-                key=lambda item: item.evidence_id,
++                key=_evidence_payload_order,
+             )
+         )
+         issues.append(
+@@ -280,6 +306,49 @@ def build_writer_payload(state: LegalAgentState) -> WriterPayload:
+     return WriterPayload(issues=tuple(issues), resolved_conflict_ids=resolved_conflicts)
+ 
+ 
++def coverage_feedback_payload(state: LegalAgentState, draft: DraftAnswer) -> str | None:
++    """V2-W1：构造定向 coverage 回喂文本；无可修复缺陷时返回 None。
++
++    缺陷口径与 verifier 一致（verifier.py 判定逻辑一行不改，此处只做"可修复性"
++    复刻计算）：issue 无 claim，或其 claims 均未绑定（STATUTE 且 EFFECTIVE）证据。
++    critical 未 resolved 的 conflict 缺陷 writer 无法修复，不纳入，避免无效外呼
++    （LongCat 单请求实测最高 ~960s）。
++    """
++    try:
++        payload = build_writer_payload(state)
++    except _WriterFailure:
++        return None
++    claims = [*draft.conclusion, *draft.issue_analysis, *draft.risks]
++    deficient_issues: list[WriterIssue] = []
++    for issue in payload.issues:
++        evidence_by_id = {evidence.evidence_id: evidence for evidence in issue.evidence}
++        issue_claims = [claim for claim in claims if claim.issue_id == issue.issue_id]
++        has_effective_statute = any(
++            is_effective_statute(evidence_by_id.get(evidence_id))
++            for claim in issue_claims
++            for evidence_id in claim.evidence_ids
++        )
++        if not issue_claims or not has_effective_statute:
++            deficient_issues.append(issue)
++    if not deficient_issues:
++        return None
++    lines = [
++        "以下争点缺少绑定生效成文法证据（legal_validity=effective 的 STATUTE 证据）的 claim。"
++        "请为每个争点至少新增一个 claim，其 evidence_ids 必须引用该争点证据列表中标注"
++        "[生效成文法]的证据；issue_id/evidence_id/fact_id 必须逐字使用输入中的标识，"
++        "数字只能来自输入事实与证据片段："
++    ]
++    for issue in deficient_issues:
++        evidence_desc = "、".join(
++            f"{evidence.evidence_id}({evidence.source_ref})[生效成文法]"
++            if is_effective_statute(evidence)
++            else f"{evidence.evidence_id}({evidence.source_ref})"
++            for evidence in issue.evidence
++        ) or "（本争点当前无可用证据）"
++        lines.append(f"- {issue.issue_id}（{issue.question}）：可用证据：{evidence_desc}")
++    return "\n".join(lines)
++
++
+ _ARTICLE_CITATION_RE = re.compile(
+     r"《([^》]{1,24}?)》\s*(第[零〇○一二两三四五六七八九十百千万亿0-9０-９]+条"
+     r"(?:之[零〇○一二两三四五六七八九十百千万亿0-9０-９]+)?)"
+@@ -431,14 +500,26 @@ class EvidenceBoundedWriter:
+         except _WriterFailure as exc:
+             return self._fail(exc.reason_code)
+ 
+-        first = self._render_once(payload)
++        first = self._render_once(payload, state)
+         if first.status is WriterStatus.READY or first.reason_code is None:
+             return first
+         # 错误回喂重试一次（2026-09-08）：fail 码（coverage/绑定/数字逸出/格式）回给模型修正，
+         # 盲重试同 prompt 无效；仍失败才 fail-safe 拦截（不弱化任何校验）。
+-        return self._render_once(payload, feedback=first.reason_code)
++        return self._render_once(payload, state, feedback=first.reason_code)
++
++    def render_for_coverage(self, state: LegalAgentState, feedback: str) -> WriterResult:
++        """V2-W1：编排层 coverage 回喂入口——带定向 feedback 直接渲染一次。
++
++        与 render() 的通用错误回喂不同：调用方（service 编排层）在 verifier 判
++        RESEARCH_MORE 后自增预算并调用本方法，不做首轮无反馈渲染。
++        """
++        try:
++            payload = build_writer_payload(state)
++        except _WriterFailure as exc:
++            return self._fail(exc.reason_code)
++        return self._render_once(payload, state, feedback=feedback)
+ 
+-    def _render_once(self, payload: WriterPayload, feedback: str | None = None) -> WriterResult:
++    def _render_once(self, payload: WriterPayload, state: LegalAgentState, feedback: str | None = None) -> WriterResult:
+         try:
+             raw = self._generator.generate(
+                 payload=payload, system_prompt=AGENT_WRITER_SYSTEM, feedback=feedback
+diff --git a/backend/observability.py b/backend/observability.py
+index 32cdd92..00ac909 100644
+--- a/backend/observability.py
++++ b/backend/observability.py
+@@ -16,10 +16,14 @@ request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id
+ # token_est/tier/cache/escalated/verdict：log_account 实际传入的记账字段——此前遗漏被
+ # JSON formatter 静默丢弃（每问成本算不出、eval_latency_log 的 rule 剔除恒为 0），
+ # 2026-08-03 交付级验收修复。追加尾部，不动既有字段顺序。
++# llm_adapter_stage/llm_invoke_mode/llm_error_class/llm_error_status_code/llm_invoke_duration_ms：
++# T4（2026-09-09）adapter 降级观测字段，同规则追加尾部（否则被 formatter 静默丢弃）。
+ _ACCOUNT_FIELDS = (
+     "method", "path", "status", "ms", "first_ms", "model", "ok", "conv_id", "user_id", "q_len",
+     "token_est", "tier", "cache", "escalated", "verdict", "kind", "detail",
+     "agent_correlation_id", "agent_gate_mode", "agent_gate_reason_codes",
++    "llm_adapter_stage", "llm_invoke_attempt", "llm_invoke_mode", "llm_error_class",
++    "llm_error_status_code", "llm_invoke_duration_ms",
+ )
+ 
+ _TEST_REQUEST_ID_FALLBACK = "unit-test-no-middleware-request-id"
+diff --git a/backend/scripts/gate2_runner.py b/backend/scripts/gate2_runner.py
+index 7b768bf..6806307 100644
+--- a/backend/scripts/gate2_runner.py
++++ b/backend/scripts/gate2_runner.py
+@@ -8,17 +8,28 @@
+ 3. 达到 2 轮后若再次 clarification → 记为红线候选（超过两轮仍拒绝条件化）
+ 4. 输出：逐请求事件摘要、asked/answered/unknown fact_ids、六段式内容、失败保留
+ 
+-用法：python scripts/gate2_runner.py --run gate2-run-1 --case C01 [--all] [--out-dir <relative>]
++V2-T6（2026-09-09）长跑可靠性（F6）：
++- run 占用：启动时独占创建 gate2-run-{run}.claim.json（已存在 → 拒绝，续跑用 --resume）；
++- 逐题原子 checkpoint：每题完成写 gate2-run-{run}-checkpoint.json（tmp + fsync + os.replace），
++  崩溃/中断保留已完成题；
++- 最终产物 gate2-run-{run}-sessions.json 存在即拒绝覆盖（create 与 resume 都不覆盖旧 run）；
++- --resume：校验 claim 与案例清单一致后跳过已完成案例；带 unknown_server_state（CLIENT_TIMEOUT）
++  标记的题不得自动重跑，须人工确认后加 --retry-unknown；
++- 客户端超时 → 记录未知服务端状态并暂停队列（不自动继续下一题、不自动补发）；
++- 产物区分 final_chars（有文本）与 agent_completed（final 事件带 run_id=真实持久化成功），
++  不得用 final_chars>0 冒充 Agent 完成。
+ """
+ from __future__ import annotations
+ 
+ import argparse
+ import json
++import os
+ import re
+ import sys
+ import time
+ import urllib.error
+ import urllib.request
++from datetime import datetime, timezone
+ from pathlib import Path
+ 
+ REPO = Path(__file__).resolve().parents[2]
+@@ -113,13 +124,49 @@ def _match_facts_tracked(
+     return [m["text"] for m in res.matched_facts], res.answered_fact_ids, res
+ 
+ 
+-def main() -> int:
++def _atomic_write_json(path: Path, payload: dict) -> None:
++    """原子写（同目录 tmp + fsync + os.replace）：checkpoint 与最终产物共用。"""
++    tmp = path.with_name(path.name + ".tmp")
++    with open(tmp, "w", encoding="utf-8") as fh:
++        json.dump(payload, fh, ensure_ascii=False, indent=1)
++        fh.flush()
++        os.fsync(fh.fileno())
++    os.replace(tmp, path)
++
++
++def _exclusive_create_json(path: Path, payload: dict) -> bool:
++    """独占创建（O_CREAT|O_EXCL）：run 占用claim 的"先到先得"语义，失败=已被占用。"""
++    try:
++        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
++    except FileExistsError:
++        return False
++    with os.fdopen(fd, "w", encoding="utf-8") as fh:
++        json.dump(payload, fh, ensure_ascii=False, indent=1)
++        fh.flush()
++        os.fsync(fh.fileno())
++    return True
++
++
++def run(argv: list[str] | None = None) -> int:
+     ap = argparse.ArgumentParser()
+     ap.add_argument("--run", required=True, help="run 标识（如 gate2-run-1）")
+     ap.add_argument("--case", help="逗号分隔 case 列表，如 C01,C02（断点续跑）")
+     ap.add_argument("--all", action="store_true")
+     ap.add_argument("--base-url", default="http://127.0.0.1:8000")
+-    args = ap.parse_args()
++    ap.add_argument(
++        "--out-dir",
++        help="产物输出目录（claim/checkpoint/sessions；默认 release-evidence/legal-agent-v1-complex-v1-20260907）。"
++             "测试/演练用它隔离产物目录，避免写入真实 evidence 树",
++    )
++    ap.add_argument("--resume", action="store_true", help="续跑已启动的 run：要求 claim 存在且案例清单一致，跳过已完成案例")
++    ap.add_argument(
++        "--retry-unknown",
++        action="store_true",
++        help="仅 --resume 下有效：人工确认服务端状态后，允许重跑带 unknown_server_state（CLIENT_TIMEOUT）标记的题",
++    )
++    args = ap.parse_args(argv)
++    if args.retry_unknown and not args.resume:
++        raise SystemExit("--retry-unknown 仅在 --resume 下有效")
+     if args.all:
+         targets = sorted(BY_ID)
+     elif args.case:
+@@ -129,6 +176,62 @@ def main() -> int:
+     else:
+         raise SystemExit("需 --case 或 --all")
+ 
++    out_dir = Path(args.out_dir) if args.out_dir else EVID
++    out_dir.mkdir(parents=True, exist_ok=True)
++    claim_path = out_dir / f"gate2-run-{args.run}.claim.json"
++    checkpoint_path = out_dir / f"gate2-run-{args.run}-checkpoint.json"
++    out_path = out_dir / f"gate2-run-{args.run}-sessions.json"
++
++    # 最终产物覆盖保护在 pending 计算后统一处理（全部完成 → 幂等补写/无操作；仍有未完成 → 拒绝）。
++    results: dict[str, dict] = {}
++    if args.resume:
++        if not claim_path.exists():
++            print(f"REFUSE: --resume 需要已有 claim（{claim_path.name} 不存在，该 run 从未启动）")
++            return 4
++        saved_claim = json.loads(claim_path.read_text(encoding="utf-8"))
++        if saved_claim.get("targets") != targets:
++            print("REFUSE: 本次案例清单与原 run 的 claim 不一致（防错跑）")
++            return 4
++        if checkpoint_path.exists():
++            loaded = json.loads(checkpoint_path.read_text(encoding="utf-8"))
++            if loaded.get("run") != args.run:
++                print("REFUSE: checkpoint 的 run 标识不一致")
++                return 4
++            results = dict(loaded.get("results", {}))
++    else:
++        claim = {
++            "run": args.run,
++            "targets": targets,
++            "started_at": datetime.now(timezone.utc).isoformat(),
++            "pid": os.getpid(),
++            "protocol_version": PROTO.get("protocol_version", "v1"),
++        }
++        if not _exclusive_create_json(claim_path, claim):
++            print(f"REFUSE: run 已被占用（{claim_path.name}）；续跑请加 --resume")
++            return 4
++
++    # T6：unknown_server_state 的题 = 服务端状态未知（CLIENT_TIMEOUT）——不得自动重跑（重复计费风险）。
++    unknown_ids = [cid for cid, r in results.items() if r.get("unknown_server_state")]
++    if unknown_ids and not args.retry_unknown:
++        print(f"REFUSE: {unknown_ids} 存在未知服务端状态；人工确认后用 --resume --retry-unknown 重跑")
++        return 5
++    for cid in unknown_ids:
++        del results[cid]  # 显式确认后按未完成重跑
++
++    pending = [c for c in targets if c not in results]
++    if not pending:
++        # run 已全部完成：幂等补写缺失的最终产物（checkpoint → sessions 恢复一致性），不覆盖已有。
++        if not out_path.exists():
++            _atomic_write_json(out_path, {"run": args.run, "results": results})
++            print("all targets already recorded; final sessions backfilled from checkpoint")
++        else:
++            print("all targets already recorded; nothing to do")
++        return 0
++    if out_path.exists():
++        # 状态矛盾：存在未完成题但最终产物已在——异常状态，拒绝而不是覆盖。
++        print(f"REFUSE: {out_path.name} 已存在但仍有未完成案例（{pending}）；禁止部分覆盖旧 run")
++        return 4
++
+     env = REPO / "backend" / ".env"
+     user = pw = None
+     for line in env.read_text(encoding="utf-8", errors="replace").splitlines():
+@@ -152,7 +255,8 @@ def main() -> int:
+         except urllib.error.HTTPError as exc:
+             return exc.code, exc.read().decode("utf-8")
+         except (TimeoutError, OSError) as exc:
+-            # 采集侧超时：不作废整 run，返回 (0, "") 由上层记录 CLIENT_TIMEOUT 继续下一题。
++            # 采集侧超时：服务端状态未知（请求可能仍在执行）——返回 (0, "") 由上层
++            # 标记 unknown_server_state 并暂停队列（T6：不自动继续下一题/补发旧题）。
+             return 0, f"CLIENT_TIMEOUT:{type(exc).__name__}"
+ 
+     _, body = post("/api/auth/login", {"username": user, "password": pw})
+@@ -180,8 +284,7 @@ def main() -> int:
+             if e.get("type") in ("error", "restart") and (e.get("code") or e.get("reason_code"))
+         ]
+ 
+-    results = {}
+-    for case_id in targets:
++    for case_id in pending:
+         c = BY_ID[case_id]
+         asked, answered, unmatched = [], [], []
+         rounds = []
+@@ -249,6 +352,9 @@ def main() -> int:
+         all_error_codes = [code for r in rounds for code in r.get("error_codes", [])]
+         final_text = "".join(str(e.get("content", "")) for e in events if e.get("content"))
+         over_rounds = any(e.get("type") == "clarification" for e in events)  # 第3次澄清=红线候选
++        # T6：区分"有文本"与"Agent 真实完成"——final 事件带 run_id 才代表终稿已持久化（COMPLETED）。
++        agent_completed = any(e.get("type") == "final" and e.get("run_id") for e in events)
++        unknown_server_state = any(r.get("status") == 0 for r in rounds)
+         results[case_id] = {
+             "rounds": rounds,
+             "asked": asked,
+@@ -262,17 +368,36 @@ def main() -> int:
+             "final_chars": len(final_text),
+             "final_text": final_text,  # Gate 5 逐题判定需要完整输出（六段式/争点/依据/证据绑定）
+             "final_excerpt": final_text[:120],
++            "agent_completed": agent_completed,
+             "redline_candidate_over_2_rounds": over_rounds,
+             "elapsed_s": round(time.time() - t0, 1),
+         }
++        if unknown_server_state:
++            results[case_id]["unknown_server_state"] = True
++        # 逐题原子 checkpoint：崩溃/中断后已完成题不丢（tmp + fsync + os.replace）。
++        _atomic_write_json(checkpoint_path, {"run": args.run, "targets": targets, "results": results})
+         print(f"[{case_id}] rounds={len(rounds)} clar_rounds={len(asked)} answered={len(answered)} "
+-              f"unmatched={len(unmatched)} final_chars={len(final_text)} over2={over_rounds} errors={all_error_codes}")
+-
+-    out = EVID / f"gate2-run-{args.run}-sessions.json"
+-    out.write_text(json.dumps({"run": args.run, "results": results}, ensure_ascii=False, indent=1), encoding="utf-8")
+-    print("written:", out.relative_to(REPO))
++              f"unmatched={len(unmatched)} final_chars={len(final_text)} agent_completed={agent_completed} "
++              f"over2={over_rounds} errors={all_error_codes}")
++        if unknown_server_state:
++            print(
++                f"PAUSED: [{case_id}] 客户端超时，服务端状态未知——已暂停队列，不发下一题；"
++                "人工确认后用 --resume [--retry-unknown] 继续"
++            )
++            return 3
++
++    _atomic_write_json(out_path, {"run": args.run, "results": results})
++    try:
++        display = str(out_path.relative_to(REPO))
++    except ValueError:  # EVID 被测试重定向到 tmp 时不在 REPO 子树内
++        display = str(out_path)
++    print("written:", display)
+     return 0
+ 
+ 
++def main() -> int:
++    return run()
++
++
+ if __name__ == "__main__":
+     sys.exit(main())
+\ No newline at end of file
+diff --git a/backend/tests/test_agent_chat_integration.py b/backend/tests/test_agent_chat_integration.py
+index 155faa1..0d33762 100644
+--- a/backend/tests/test_agent_chat_integration.py
++++ b/backend/tests/test_agent_chat_integration.py
+@@ -731,3 +731,732 @@ def test_runtime_construction_only_falls_back_for_named_unavailability(
+     )
+ 
+     assert (result.outcome, result.reason_code) == (expected_outcome, expected_reason)
++
++
++# ---------------------------------------------------------------------------
++# T2（2026-09-09）：回喂预算持久化及版本传递——真实持久化路径集成测试。
++# 缺陷（F1）：_coverage_research_loop 原地自增 verifier_research_returns 未保存，
++# persist_agent_final_once 的 durable equality guard 正确拒绝 → AGENT_FINALIZATION_CONFLICT。
++# ---------------------------------------------------------------------------
++
++
++def _two_issue_payload() -> dict:
++    """两个争点，事实均确认（无 unknown_facts，不触发澄清）。
++
++    facts quote 必须是用户请求原文的逐字片段（build_initial_agent_state 校验），
++    因此配套 _two_issue_bootstrap 提供包含两个片段的 raw_query。
++    """
++    return {
++        "issues": [
++            {
++                "question": "借款到期后应当如何返还？",
++                "facts": [{"quote": "借款本金为一万元，约定到期返还"}],
++                "unknown_facts": [],
++            },
++            {
++                "question": "拖欠的工资应当如何支付？",
++                "facts": [{"quote": "公司拖欠工资"}],
++                "unknown_facts": [],
++            },
++        ]
++    }
++
++
++def _two_issue_bootstrap(conversation_id: int) -> RequestBootstrap:
++    query = "借款本金为一万元，约定到期返还，且公司拖欠工资，应当如何主张权利？"
++    return RequestBootstrap(
++        conv_id=conversation_id,
++        summary="",
++        recent=[],
++        recent_messages=[],
++        image=None,
++        user_text=query,
++        image_rel=None,
++        thumb_rel=None,
++        image_description="",
++        raw_query=query,
++        supplement_text=query,
++        intent="legal_query",
++        is_exam=False,
++        has_options=False,
++        contract_mode=False,
++        contract_text=None,
++        client_truncated=False,
++    )
++
++
++class _TwoIssueLawGateway:
++    """扇出检索替身：按 query 关键词返回各争点专属的生效成文法证据。"""
++
++    def __init__(self) -> None:
++        self.queries: list[str] = []
++
++    def retrieve(self, _context, args):
++        query = getattr(args, "query", "") or ""
++        self.queries.append(query)
++        if "借款" in query:
++            evidence = {
++                "source_id": "civil-code-675",
++                "source": "民法典",
++                "article": "第675条",
++                "snippet": "依据《民法典》第675条，借款人应当按照约定的期限返还借款。",
++                "legal_validity": "effective",
++            }
++        else:
++            evidence = {
++                "source_id": "labor-law-50",
++                "source": "劳动法",
++                "article": "第50条",
++                "snippet": "依据《劳动法》第50条，工资应当以货币形式按月支付给劳动者本人。",
++                "legal_validity": "effective",
++            }
++        return {
++            "kind": "retrieve_laws",
++            "statement": "已检索相关依据。",
++            "evidence": [evidence],
++            "retrieval": {"query": query, "requested_k": 4, "returned_count": 1},
++        }
++
++    def as_gateway(self) -> ToolGateway:
++        return ToolGateway(wrapper_overrides={"retrieve_laws": self.retrieve})
++
++
++class _CoverageLoopTransport:
++    """脚本替身：首轮 draft 只绑定第一个争点；coverage 回喂渲染按模式响应。
++
++    issue_id/evidence_id 均从实际输入 payload 提取（服务端生成，不猜测）；
++    coverage 渲染以 messages 是否携带 feedback 系统消息区分（结构判断，非调用序号）。
++    feedback_mode（负例注入）：
++    - "complete"：补齐全部争点（正常重写成功路径）；
++    - "invalid_evidence"：重写引用不存在的证据 ID → writer UNKNOWN_EVIDENCE_ID FAIL_SAFE；
++    - "still_deficient"：重写仍只绑第一个争点 → verifier 按预算耗尽 FAIL_SAFE；
++    - "overconfident_full"：首轮即全覆盖且含过度自信表述 → verifier REWRITE（OVERCONFIDENT_WORDING）。
++    """
++
++    def __init__(self, issue_payload: dict, *, feedback_mode: str = "complete") -> None:
++        self.issue_payload = issue_payload
++        self.feedback_mode = feedback_mode
++        self.calls: list[tuple[str, int]] = []
++
++    def invoke(self, messages):
++        system = messages[0].content
++        if "争点分解器" in system:
++            self.calls.append(("issue", len(messages)))
++            return SimpleNamespace(content=json.dumps(self.issue_payload, ensure_ascii=False))
++        if "Planner" in system:
++            self.calls.append(("planner", len(messages)))
++            return SimpleNamespace(
++                content=json.dumps(
++                    {"kind": "finish_research", "summary": "扇出检索已完成"}, ensure_ascii=False
++                )
++            )
++        payload = json.loads(messages[1].content)
++        has_feedback = len(messages) > 2
++        self.calls.append(("writer_with_feedback" if has_feedback else "writer", len(messages)))
++        if not has_feedback:
++            if self.feedback_mode == "overconfident_full":
++                targets = payload["issues"]  # 首轮即全覆盖：绕过 coverage 缺口，直击 REWRITE 裁决
++            else:
++                targets = payload["issues"][:1]  # 首轮：只绑第一个争点，制造 coverage 缺口
++        elif self.feedback_mode == "still_deficient":
++            targets = payload["issues"][:1]  # 顽固替身：回喂后仍只绑第一个
++        else:
++            targets = payload["issues"]  # complete / invalid_evidence：覆盖全部（后者引用非法 ID）
++        claims = []
++        for issue in targets:
++            evidence = issue["evidence"][0]
++            source, _, article = evidence["source_ref"].partition("#")
++            evidence_ids = [evidence["evidence_id"]]
++            text = f"依据《{source}》{article}，应当依法履行相应义务。"
++            if self.feedback_mode == "overconfident_full" and issue is targets[0]:
++                text = f"依据《{source}》{article}，一定应当依法履行相应义务。"
++            if has_feedback and self.feedback_mode == "invalid_evidence" and issue is targets[-1]:
++                # 负例注入：最后一个争点的重写引用不存在的证据 ID → UNKNOWN_EVIDENCE_ID
++                evidence_ids = ["ev-ghost-does-not-exist"]
++                text = "引用不存在的证据，应当被 writer 拒绝。"
++            claims.append(
++                {
++                    "local_id": f"claim-{issue['issue_id']}",
++                    "issue_id": issue["issue_id"],
++                    "text": text,
++                    "evidence_ids": evidence_ids,
++                    "fact_ids": [],
++                    "section": "conclusion",
++                }
++            )
++        return SimpleNamespace(
++            content=json.dumps({"claims": claims, "missing_information": []}, ensure_ascii=False)
++        )
++
++
++def test_coverage_rewrite_attempt_is_persisted_before_recall_and_completes(db):
++    """首稿缺一个绑定 → coverage 回喂前 CAS 保存预算 attempt → 重写 PASS → 真实终稿落盘。
++
++    验收：DB COMPLETED、assistant 恰一条、重载预算为 1、attempt 版本小于终稿版本、
++    外部返回版本与 DB 一致、writer 恰好两次（首轮 + 一次回喂）。
++    """
++    from agent.service import execute_agent_request
++
++    user, conversation = _owner_conversation(db)
++    transport = _CoverageLoopTransport(_two_issue_payload())
++    result = execute_agent_request(
++        db=db,
++        user_id=user.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(conversation.id),
++        finalizer=_finalize,
++        llm=transport,
++        gateway=_TwoIssueLawGateway().as_gateway(),
++    )
++
++    assert result.outcome == "completed", f"unexpected failure: {result.reason_code}"
++    assert result.run_id is not None
++    stored_run = db.get(AgentRun, result.run_id)
++    assert stored_run.status == "completed"
++    reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
++    assert reloaded.verifier_research_returns == 1
++    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 1
++    writer_calls = [kind for kind, _ in transport.calls if kind in ("writer", "writer_with_feedback")]
++    assert writer_calls == ["writer", "writer_with_feedback"]
++    attempts = (
++        db.query(AgentStep)
++        .filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt")
++        .all()
++    )
++    assert len(attempts) == 1
++    assert attempts[0].reason_code == "EVIDENCE_COVERAGE_DEFICIENT"
++    assert attempts[0].state_version < stored_run.state_version
++    assert result.state_version == stored_run.state_version
++
++
++def test_coverage_attempt_storage_failure_stops_without_recall(db, monkeypatch):
++    from agent.service import execute_agent_request
++
++    """attempt 保存失败（数据库故障）→ writer 不再被调用、不 completed、返回存储失败。"""
++    import agent.service as service
++
++    user, conversation = _owner_conversation(db)
++    transport = _CoverageLoopTransport(_two_issue_payload())
++
++    def broken_compare_and_save(*args, **kwargs):
++        raise OSError("simulated database failure during attempt save")
++
++    monkeypatch.setattr(service, "compare_and_save", broken_compare_and_save)
++    result = execute_agent_request(
++        db=db,
++        user_id=user.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(conversation.id),
++        finalizer=_finalize,
++        llm=transport,
++        gateway=_TwoIssueLawGateway().as_gateway(),
++    )
++
++    assert (result.outcome, result.reason_code) == ("failed", "AGENT_STORAGE_FAILURE")
++    # 保存失败发生在首次外呼之后：只有首轮 writer，没有回喂渲染
++    assert [kind for kind, _ in transport.calls if kind.startswith("writer")] == ["writer"]
++    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
++    assert db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").count() == 0
++    stored_run = db.get(AgentRun, result.run_id)
++    reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
++    assert reloaded.verifier_research_returns == 0  # 保存失败零落盘（repository 已 rollback）
++
++
++def test_coverage_rewrite_invalid_evidence_keeps_budget_and_writes_no_assistant(db):
++    from agent.service import execute_agent_request
++
++    """重写生成非法证据 ID → writer FAIL_SAFE → 无 assistant；已用预算经重载可见保留。"""
++    user, conversation = _owner_conversation(db)
++    transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="invalid_evidence")
++    result = execute_agent_request(
++        db=db,
++        user_id=user.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(conversation.id),
++        finalizer=_finalize,
++        llm=transport,
++        gateway=_TwoIssueLawGateway().as_gateway(),
++    )
++
++    assert (result.outcome, result.reason_code) == ("failed", "EVIDENCE_COVERAGE_DEFICIENT")
++    assert [kind for kind, _ in transport.calls if kind.startswith("writer")] == ["writer", "writer_with_feedback"]
++    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
++    stored_run = db.get(AgentRun, result.run_id)
++    # T3：writer FAIL_SAFE 后 verifier 终态失败 → FAILED 终态与原因落盘（重载可见）
++    assert stored_run.status == "failed"
++    assert stored_run.last_error_code == "EVIDENCE_COVERAGE_DEFICIENT"
++    failure_step = (
++        db.query(AgentStep)
++        .filter_by(agent_run_id=result.run_id, decision="failure")
++        .one_or_none()
++    )
++    assert failure_step is not None
++    assert failure_step.reason_code == "EVIDENCE_COVERAGE_DEFICIENT"
++    assert failure_step.result_summary == "VERIFIER:RESEARCH_MORE"
++    reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
++    assert reloaded.verifier_research_returns == 1  # 已用预算保留，不复活
++    assert reloaded.status is AgentStatus.FAILED
++    assert result.state_version == stored_run.state_version
++    attempts = db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").all()
++    assert len(attempts) == 1
++    assert attempts[0].state_version < stored_run.state_version
++
++
++def test_coverage_rewrite_verifier_crash_reports_saved_version_and_keeps_budget(db, monkeypatch):
++    """重写后 verifier 异常 → 技术失败，但公开版本必须是已保存的 attempt 版本（非过时旧值）。"""
++    from agent.service import execute_agent_request
++    from agent.verifier import DeterministicVerifier
++
++    real_verify = DeterministicVerifier.verify
++    verify_calls = [0]
++
++    def flaky_verify(self, state, draft):
++        verify_calls[0] += 1
++        if verify_calls[0] >= 2:  # 首轮正常（RESEARCH_MORE）；重写后崩溃
++            raise RuntimeError("simulated verifier crash after coverage rewrite")
++        return real_verify(self, state, draft)
++
++    monkeypatch.setattr(DeterministicVerifier, "verify", flaky_verify)
++    user, conversation = _owner_conversation(db)
++    transport = _CoverageLoopTransport(_two_issue_payload())
++    result = execute_agent_request(
++        db=db,
++        user_id=user.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(conversation.id),
++        finalizer=_finalize,
++        llm=transport,
++        gateway=_TwoIssueLawGateway().as_gateway(),
++    )
++
++    # VERIFIER_TECHNICAL_FAILURE 按既有 routing_metrics 分类为技术 fallback（与原实现同码同函数）
++    assert (result.outcome, result.reason_code) == ("fallback", "VERIFIER_TECHNICAL_FAILURE")
++    stored_run = db.get(AgentRun, result.run_id)
++    # T3：attempt 已落盘后的 verify 异常 → 先 attempt(v+1) 再 FAILED 终态(v+2)，公开版本跟随
++    assert stored_run.status == "failed"
++    assert stored_run.last_error_code == "VERIFIER_TECHNICAL_FAILURE"
++    assert result.state_version == stored_run.state_version
++    attempts = db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").all()
++    assert len(attempts) == 1
++    assert attempts[0].state_version < result.state_version
++    reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
++    assert reloaded.verifier_research_returns == 1  # 已用预算经重载可见保留
++    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
++
++
++def test_coverage_rewrite_still_deficient_fails_by_budget_without_loop(db):
++    from agent.service import execute_agent_request
++
++    """重写仍缺绑定 → verifier 按预算耗尽判 FAIL_SAFE；不无限循环（writer 恰两次）。"""
++    user, conversation = _owner_conversation(db)
++    transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="still_deficient")
++    result = execute_agent_request(
++        db=db,
++        user_id=user.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(conversation.id),
++        finalizer=_finalize,
++        llm=transport,
++        gateway=_TwoIssueLawGateway().as_gateway(),
++    )
++
++    assert (result.outcome, result.reason_code) == ("failed", "EVIDENCE_COVERAGE_DEFICIENT")
++    assert [kind for kind, _ in transport.calls if kind.startswith("writer")] == ["writer", "writer_with_feedback"]
++    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
++    reloaded = LegalAgentState.model_validate_json(db.get(AgentRun, result.run_id).state_json)
++    assert reloaded.verifier_research_returns == 1
++
++
++def test_disconnect_before_coverage_attempt_saves_nothing_and_writes_no_assistant(db):
++    from agent.service import execute_agent_request
++
++    """取消发生在重写保存/外呼前 → 按既有断连契约无 assistant；attempt 未落盘。"""
++    user, conversation = _owner_conversation(db)
++    transport = _CoverageLoopTransport(_two_issue_payload())
++    original_invoke = transport.invoke
++
++    def invoke_then_disconnect(messages):
++        response = original_invoke(messages)
++        if transport.calls[-1][0] == "writer":
++            disconnected[0] = True  # 首轮 writer 完成后断连（重写保存与外呼之前）
++        return response
++
++    disconnected = [False]
++    transport.invoke = invoke_then_disconnect
++    result = execute_agent_request(
++        db=db,
++        user_id=user.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(conversation.id),
++        finalizer=_finalize,
++        llm=transport,
++        gateway=_TwoIssueLawGateway().as_gateway(),
++        cancelled=lambda: disconnected[0],
++    )
++
++    assert (result.outcome, result.reason_code) == ("failed", "CLIENT_DISCONNECTED")
++    assert [kind for kind, _ in transport.calls if kind == "writer_with_feedback"] == []
++    assert db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").count() == 0
++    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
++    reloaded = LegalAgentState.model_validate_json(db.get(AgentRun, result.run_id).state_json)
++    assert reloaded.verifier_research_returns == 0
++
++
++def test_agent_request_rejects_foreign_run_without_state_writes(db):
++    """跨用户 run_id → OWNERSHIP_FAILURE 且零状态写入（所有权约束在 service 边界生效）。"""
++    from agent.service import execute_agent_request
++
++    owner, owner_conversation = _owner_conversation(db)
++    transport = _CoverageLoopTransport(_two_issue_payload())
++    first = execute_agent_request(
++        db=db,
++        user_id=owner.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(owner_conversation.id),
++        finalizer=_finalize,
++        llm=transport,
++        gateway=_TwoIssueLawGateway().as_gateway(),
++    )
++    assert first.outcome == "completed"
++    completed_run = db.get(AgentRun, first.run_id)
++    completed_state_json = completed_run.state_json
++    completed_version = completed_run.state_version
++
++    stranger, stranger_conversation = _owner_conversation(db)
++    replay = execute_agent_request(
++        db=db,
++        user_id=stranger.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(stranger_conversation.id),
++        finalizer=_finalize,
++        run_id=first.run_id,
++        llm=transport,
++        gateway=_TwoIssueLawGateway().as_gateway(),
++    )
++
++    assert (replay.outcome, replay.reason_code) == ("failed", "OWNERSHIP_FAILURE")
++    assert db.query(Message).filter_by(conversation_id=stranger_conversation.id, role="assistant").count() == 0
++    final_run = db.get(AgentRun, first.run_id)
++    assert (final_run.state_json, final_run.state_version) == (completed_state_json, completed_version)
++
++
++def test_overconfident_rewrite_verdict_persisted_as_unimplemented(db):
++    """verifier REWRITE（未实现的修复能力）→ 不增加循环，FAILED 终态与 verdict 阶段落盘。"""
++    from agent.service import execute_agent_request
++
++    user, conversation = _owner_conversation(db)
++    transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="overconfident_full")
++    result = execute_agent_request(
++        db=db,
++        user_id=user.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(conversation.id),
++        finalizer=_finalize,
++        llm=transport,
++        gateway=_TwoIssueLawGateway().as_gateway(),
++    )
++
++    assert (result.outcome, result.reason_code) == ("failed", "OVERCONFIDENT_WORDING")
++    # 首轮即全覆盖（无 coverage 缺口）：不进回喂循环，无 attempt checkpoint
++    assert [kind for kind, _ in transport.calls if kind.startswith("writer")] == ["writer"]
++    assert db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").count() == 0
++    stored_run = db.get(AgentRun, result.run_id)
++    assert stored_run.status == "failed"
++    assert stored_run.last_error_code == "OVERCONFIDENT_WORDING"
++    failure_step = db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="failure").one_or_none()
++    assert failure_step is not None
++    assert failure_step.reason_code == "OVERCONFIDENT_WORDING"
++    assert failure_step.result_summary == "VERIFIER:REWRITE"
++    reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
++    assert reloaded.status is AgentStatus.FAILED
++    assert reloaded.verifier_research_returns == 0  # 未消耗回喂预算
++    assert result.state_version == stored_run.state_version
++    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
++
++
++def test_failure_persistence_storage_error_keeps_original_reason(db, monkeypatch):
++    """FAILED 落盘时存储故障 → 不伪报（状态仍 drafting）、返回原失败码、attempt 保留。"""
++    import agent.service as service
++    from agent.service import execute_agent_request
++
++    real_compare_and_save = service.compare_and_save
++
++    def failing_on_failed_state(*args, **kwargs):
++        if kwargs.get("state") is not None and kwargs["state"].status is AgentStatus.FAILED:
++            raise OSError("simulated database failure during failure persistence")
++        return real_compare_and_save(*args, **kwargs)
++
++    monkeypatch.setattr(service, "compare_and_save", failing_on_failed_state)
++    user, conversation = _owner_conversation(db)
++    transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="invalid_evidence")
++    result = execute_agent_request(
++        db=db,
++        user_id=user.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(conversation.id),
++        finalizer=_finalize,
++        llm=transport,
++        gateway=_TwoIssueLawGateway().as_gateway(),
++    )
++
++    # attempt 保存成功（真实状态），FAILED 保存失败被吞 → 公开返回仍是原业务失败码
++    assert (result.outcome, result.reason_code) == ("failed", "EVIDENCE_COVERAGE_DEFICIENT")
++    stored_run = db.get(AgentRun, result.run_id)
++    assert stored_run.status == "drafting"  # FAILED 未落盘，不伪报已落盘
++    reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
++    assert reloaded.verifier_research_returns == 1  # attempt 预算保留
++    assert db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").count() == 1
++    assert db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="failure").count() == 0
++    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
++
++
++_MULTI_ISSUE_QUERY = "公司拖欠工资且未签合同，现在要解除劳动关系，能否主张补偿"
++_MULTI_ISSUE_QUOTES = ["公司拖欠工资", "未签合同", "解除劳动关系", "主张补偿"]
++
++
++def _multi_issue_bootstrap(conversation_id: int) -> RequestBootstrap:
++    return RequestBootstrap(
++        conv_id=conversation_id, summary="", recent=[], recent_messages=[], image=None,
++        user_text=_MULTI_ISSUE_QUERY, image_rel=None, thumb_rel=None, image_description="",
++        raw_query=_MULTI_ISSUE_QUERY, supplement_text=_MULTI_ISSUE_QUERY,
++        intent="legal_query", is_exam=False, has_options=False, contract_mode=False,
++        contract_text=None, client_truncated=False,
++    )
++
++
++def _multi_issue_payload(n_issues: int) -> dict:
++    """n 个 issue，每个都带 unknown_facts（fact.quote 必须是 raw_query 原文片段）。"""
++    return {
++        "issues": [
++            {
++                "question": f"争点{i}的法律依据是什么？",
++                "facts": [{"quote": _MULTI_ISSUE_QUOTES[i]}],
++                "unknown_facts": [
++                    {"statement": f"缺失事实{i}", "why_outcome_changes": f"影响争点{i}的结论"}
++                ],
++            }
++            for i in range(n_issues)
++        ]
++    }
++
++
++class _MultiIssueTransport:
++    """多 issue 假 transport：issue 分解返回 n 个 issue；planner 交确定性评估；draft 返回合法 claims。
++
++    `planner_call_limit`：**护栏**（2026-09-10 自审补）。补检索若退化为无界重入，
++    planner 会被反复调用——若不设上限，测试表现为**挂死**（实测 >300s 未返回、段错误），
++    在 CI 里既慢又难定位。设上限后，无界循环必然撞上护栏 → 抛出带计数的断言错误，
++    使测试**快速、带信息地变红**，而不是超时挂死。默认 50 远高于合法路径用量（实测 0）。
++    """
++
++    def __init__(self, n_issues: int, planner_call_limit: int = 50) -> None:
++        self.issue_payload = _multi_issue_payload(n_issues)
++        self.n_issues = n_issues
++        self.planner_calls = 0  # 供终止性断言用（不得空转）
++        self.planner_call_limit = planner_call_limit
++
++    def invoke(self, messages):
++        system = messages[0].content
++        if "争点分解器" in system:
++            return SimpleNamespace(content=json.dumps(self.issue_payload, ensure_ascii=False))
++        if "Planner" in system:
++            self.planner_calls += 1
++            assert self.planner_calls <= self.planner_call_limit, (
++                f"planner 被调用 {self.planner_calls} 次，超护栏 {self.planner_call_limit}"
++                " —— 补检索疑似无界重入（不是挂死在超时里，是护栏主动报错）"
++            )
++            return SimpleNamespace(
++                content=json.dumps({"kind": "finish_research", "summary": "交给确定性评估"})
++            )
++        # draft 渲染：为每个 issue 产出一条绑定其证据的 claim
++        payload = json.loads(messages[1].content)
++        claims = []
++        for issue in payload["issues"]:
++            evidence_ids = [e["evidence_id"] for e in issue.get("evidence", [])]
++            if not evidence_ids:
++                continue
++            claims.append(
++                {
++                    "local_id": f"claim-{issue['issue_id'][:8]}",
++                    "issue_id": issue["issue_id"],
++                    "text": "依据《民法典》第675条处理。",
++                    "evidence_ids": evidence_ids[:1],
++                    "fact_ids": [],
++                }
++            )
++        return SimpleNamespace(content=json.dumps({"claims": claims}, ensure_ascii=False))
++
++
++def test_clarify_budget_exhaustion_must_not_skip_unretrieved_issues(db):
++    """回归（2026-09-10 实测复现，对照线上 probe-15 C01 现场）：
++
++    缺陷：扇出每轮只推进一步、被澄清 return 打断；而 `_handle_evaluation` 的
++    CLARIFY_BUDGET_EXHAUSTED 分支无条件转 DRAFTING、**不检查是否还有 issue 从未检索**。
++    当 issue 数 > 澄清预算 + 1 时，尾部 issue 必然漏检 → 进 DRAFTING 时无证据绑定 →
++    verifier 判 EVIDENCE_COVERAGE_DEFICIENT → 回喂被拒 → agent 失败、用户拿到空终稿。
++
++    正确行为：转入 DRAFTING 之前必须保证每个 issue 都至少有过一次成功检索
++    （与 `_deterministic_finish_gate` 闸门 B 的 `_every_issue_has_evidence` 口径一致）。
++    """
++    from agent.controller import _DEFAULT_RUN_LOCKS, resume_with_user_fact
++    from agent.service import execute_agent_request
++
++    n_issues = 4          # > max_clarifications(2) + 1
++    user = User(username="skip-issue-owner", password_hash="x")
++    db.add(user)
++    db.commit()
++    conversation = Conversation(user_id=user.id, title="", summary="", message_count=1)
++    db.add(conversation)
++    db.commit()
++
++    transport = _MultiIssueTransport(n_issues)
++    gateway = _law_gateway()
++    settings = SimpleNamespace(
++        agent_max_steps=16, agent_max_tool_calls=10, agent_max_replans=3,
++        agent_max_clarifications=2, agent_max_verifier_research_returns=1,
++    )
++
++    run_id: str | None = None
++    version: int | None = None
++    for turn in range(1, 9):
++        if run_id is None:
++            result = execute_agent_request(
++                db=db, user_id=user.id, settings=settings,
++                bootstrap=_multi_issue_bootstrap(conversation.id),
++                finalizer=_finalize, llm=transport, gateway=gateway,
++            )
++        else:
++            resumed = resume_with_user_fact(
++                db=db, run_locks=_DEFAULT_RUN_LOCKS, run_id=run_id,
++                expected_version=version, user_id=user.id,
++                conversation_id=conversation.id, answer=f"事实补充：第{turn}轮",
++            )
++            version = resumed.new_state_version
++            result = execute_agent_request(
++                db=db, user_id=user.id, settings=settings,
++                bootstrap=_multi_issue_bootstrap(conversation.id),
++                finalizer=_finalize, llm=transport, gateway=gateway,
++                run_id=run_id,   # 必须复用同一 run（真实服务端由 chat 接口传入）
++            )
++        if result.run_id:
++            run_id = result.run_id
++        if result.state_version is not None:
++            version = result.state_version
++        if result.outcome != "clarification":
++            break
++
++    run = db.get(AgentRun, run_id)
++    state = LegalAgentState.model_validate_json(run.state_json)
++    retrieved = {
++        obs.issue_id for obs in state.observations
++        if obs.status == "succeeded" and obs.evidence_ids
++    }
++    missing = [issue.issue_id for issue in state.issues if issue.issue_id not in retrieved]
++    assert not missing, (
++        f"转入 {state.status} 时仍有 issue 从未被检索：{missing}；"
++        f"clarifications={state.clarifications}/{state.budgets.max_clarifications}"
++    )
++
++
++def _all_empty_gateway():
++    """所有检索一律返回空证据（含 planner 短查询）→ 每个 issue 永远拿不到证据。
++
++    用于验证补检索的**终止性**：补齐动作不能因"永远没有证据"而无界重试。
++    """
++    def retrieve(_context, args):
++        query = getattr(args, "query", None) or ""
++        return {
++            "kind": "retrieve_laws",
++            "statement": "检索无有效法条依据。",
++            "evidence": [],
++            "retrieval": {"query": query, "requested_k": 4, "returned_count": 0},
++        }
++
++    return ToolGateway(wrapper_overrides={"retrieve_laws": retrieve})
++
++
++def test_backfill_retrieval_terminates_when_retriever_returns_no_evidence(db):
++    """回归（2026-09-10 边界自审，锁死终止性）：
++
++    上一版补检索修复（以 `_every_issue_has_evidence` 为循环条件）在"检索器持续返回
++    空命中"时**不收敛**：该函数恒为 False → `_handle_evaluation` 的 backfill 分支被
++    无限重入 → 单轮实测 297 次 planner 调用、300 次评估，终态停在**非终态** planning，
++    仅靠 step 预算被迫中断（把"快速确定性失败"劣化成"长时间空转 + 非终态"）。
++
++    本测试锁死正确语义：每个缺证据 issue 都已**发起过**检索后，补检索必须让路，
++    run 必须抵达**终态**且 planner 调用次数有界（不得空转）。
++    """
++    from agent.controller import _DEFAULT_RUN_LOCKS, resume_with_user_fact
++    from agent.service import execute_agent_request
++
++    n_issues = 4
++    user = User(username="backfill-terminate-owner", password_hash="x")
++    db.add(user)
++    db.commit()
++    conversation = Conversation(user_id=user.id, title="", summary="", message_count=1)
++    db.add(conversation)
++    db.commit()
++
++    transport = _MultiIssueTransport(n_issues)
++    settings = SimpleNamespace(
++        agent_max_steps=16, agent_max_tool_calls=10, agent_max_replans=3,
++        agent_max_clarifications=2, agent_max_verifier_research_returns=1,
++    )
++
++    run_id: str | None = None
++    version: int | None = None
++    for turn in range(1, 9):
++        if run_id is None:
++            result = execute_agent_request(
++                db=db, user_id=user.id, settings=settings,
++                bootstrap=_multi_issue_bootstrap(conversation.id),
++                finalizer=_finalize, llm=transport, gateway=_all_empty_gateway(),
++            )
++        else:
++            resumed = resume_with_user_fact(
++                db=db, run_locks=_DEFAULT_RUN_LOCKS, run_id=run_id,
++                expected_version=version, user_id=user.id,
++                conversation_id=conversation.id, answer=f"事实补充：第{turn}轮",
++            )
++            version = resumed.new_state_version
++            result = execute_agent_request(
++                db=db, user_id=user.id, settings=settings,
++                bootstrap=_multi_issue_bootstrap(conversation.id),
++                finalizer=_finalize, llm=transport, gateway=_all_empty_gateway(),
++                run_id=run_id,
++            )
++        if result.run_id:
++            run_id = result.run_id
++        if result.state_version is not None:
++            version = result.state_version
++        if result.outcome != "clarification":
++            break
++
++    run = db.get(AgentRun, run_id)
++    state = LegalAgentState.model_validate_json(run.state_json)
++
++    # 1) 必须抵达终态（不得停在 planning 这类"仍在推进"的状态）
++    assert state.status in {
++        AgentStatus.FAILED, AgentStatus.DRAFTING, AgentStatus.COMPLETED,
++        AgentStatus.REFUSED, AgentStatus.STOPPED,
++    }, f"补检索未收敛：终态停在非终态 {state.status}"
++
++    # 2) planner 调用必须有界（每个 issue 至多补一次检索，不允许空转）
++    assert transport.planner_calls <= n_issues + 1, (
++        f"planner 被空转调用 {transport.planner_calls} 次（上限 {n_issues + 1}）—— "
++        "补检索存在无界重入"
++    )
++
++    # 3) 终止依据：每个 issue 都留下过 retrieve_laws 动作指纹（试过了，不是没试）
++    from agent.state_machine import action_fingerprint
++    from tools.contracts import RetrieveLawsInput
++
++    for issue in state.issues:
++        attempted = any(
++            fp == action_fingerprint(issue.issue_id, "retrieve_laws",
++                                     RetrieveLawsInput(query=issue.question, k=4))
++            for fp in state.action_fingerprints
++        )
++        assert attempted, (
++            f"issue {issue.issue_id} 从未发起过检索，补检索提前放弃"
++        )
+diff --git a/backend/tests/test_agent_controller.py b/backend/tests/test_agent_controller.py
+index 4107b4a..2cf4f08 100644
+--- a/backend/tests/test_agent_controller.py
++++ b/backend/tests/test_agent_controller.py
+@@ -967,3 +967,61 @@ def test_real_sqlite_controller_is_owner_scoped_and_persists_state_step_order_an
+     )
+     with pytest.raises(PermissionError):
+         foreign_agent.run(run.id, request)
++
++
++def _multi_issue_unknown_state(*, n_issues: int, max_clarifications: int) -> LegalAgentState:
++    """构造 n 个无证据 issue，每个都带 unknown_facts（评估器 MISSING_FACT 优先于证据检查）。
++
++    用于复现"扇出被澄清打断"缺陷：第 1 个 issue 检索到证据后立即评估 → MISSING_FACT
++    （澄清预算已耗尽）→ _handle_evaluation 强制 DRAFTING 并 return → 剩余 issue 不再扇出。
++    """
++    from agent.state_machine import transition
++
++    state = transition(
++        LegalAgentState(
++            budgets=AgentBudgets(max_clarifications=max_clarifications),
++            issues=[
++                LegalIssue(
++                    issue_id=f"issue-{i}",
++                    question=f"争点{i}的法律依据",
++                    unknown_facts=[
++                        UnknownFact(statement=f"事实{i}", why_outcome_changes="影响结论")
++                    ],
++                )
++                for i in range(n_issues)
++            ],
++        ),
++        AgentStatus.PLANNING,
++    )
++    return state
++
++
++def test_seed_retrievals_covers_every_issue_before_forcing_drafting():
++    """扇出内部不得因一次评估推进就 return —— 剩余 issue 必须继续补检索。
++
++    ⚠️ 定位说明（2026-09-10 修正）：本测试抓的是**次生行为**（扇出循环被
++    `_handle_evaluation` 的 ControllerResult 打断），**不是**线上 probe-15 C01 失败的
++    根因。根因的实证复现见
++    `tests/test_agent_chat_integration.py::test_clarify_budget_exhaustion_must_not_skip_unretrieved_issues`
++    （澄清预算耗尽时强制 DRAFTING 未校验"每 issue 已检索"）。
++
++    本测试仍有价值：它固定"扇出应尽可能在一轮内补齐所有 issue"这一语义，
++    与根因修复方向一致（减少对澄清轮次的依赖）。
++    """
++    budgets = AgentBudgets(max_clarifications=0)  # 澄清预算已耗尽 → 首个评估即强制 DRAFTING
++    state = _multi_issue_unknown_state(n_issues=4, max_clarifications=0)
++    repository = FakeRepository(state)
++    gateway = RecordingGateway()  # 每次检索都返回有效成文法证据
++
++    result = controller(repository, planner=SequencePlanner([]), gateway=gateway, budgets=budgets).run(
++        "run-a", bootstrap()
++    )
++
++    retrieved_issues = {call[1].issue_id for call in gateway.calls}
++    assert retrieved_issues == {"issue-0", "issue-1", "issue-2", "issue-3"}, (
++        f"扇出遗漏 issue：{sorted(retrieved_issues)}"
++    )
++    observed_issues = {obs.issue_id for obs in result.state.observations if obs.status == "succeeded"}
++    assert observed_issues == {"issue-0", "issue-1", "issue-2", "issue-3"}, (
++        f"successful observation 覆盖不足：{sorted(observed_issues)}"
++    )
+diff --git a/backend/tests/test_agent_gate.py b/backend/tests/test_agent_gate.py
+index 6de127b..e4b1ce1 100644
+--- a/backend/tests/test_agent_gate.py
++++ b/backend/tests/test_agent_gate.py
+@@ -240,13 +240,15 @@ def test_settings_default_safe_off_and_task_7_budget_snapshot_sources():
+         0,
+     )
+     # Task 7 must snapshot these runtime values into AgentBudgets; old schema defaults are not rollout sources.
++    # agent_max_steps=16 为 03a2f14（gate4 F1 根因修正）批准值：两轮澄清第二轮 checkpoint
++    # steps=8 已耗尽预算触发 BudgetExceeded→409，故 8→16；此处陈旧期待 8 同步修正（T5）。
+     assert (
+         settings.agent_max_steps,
+         settings.agent_max_tool_calls,
+         settings.agent_max_replans,
+         settings.agent_max_clarifications,
+         settings.agent_max_verifier_research_returns,
+-    ) == (8, 10, 3, 2, 1)
++    ) == (16, 10, 3, 2, 1)
+ 
+ 
+ @pytest.mark.parametrize(
+diff --git a/backend/tests/test_agent_resume.py b/backend/tests/test_agent_resume.py
+index 7bfd85a..c2b6b53 100644
+--- a/backend/tests/test_agent_resume.py
++++ b/backend/tests/test_agent_resume.py
+@@ -455,6 +455,13 @@ def test_http_resume_failures_bypass_pre_and_emit_no_sse(store, records, monkeyp
+     import main
+ 
+     monkeypatch.setattr(main.settings, "agent_enabled", True)
++    # T5（2026-09-09）固定"视觉能力不可用"前置：registry 单例构建时机依赖 import 顺序
++    # （rollout 等模块在 main.load_dotenv 之前 import settings 单例 → llm_models_json 为空
++    # → 回退 DEFAULT_ROLES 含 vision → has_modality 漂移为 True），本测试不依赖该漂移，
++    # 显式固定为 False 以锁定本契约：图片门禁 501 优先于 resume 的 content 空校验 400。
++    monkeypatch.setattr(
++        main, "registry", SimpleNamespace(has_modality=lambda modality: False)
++    )
+     client = _client(store, monkeypatch, records["owner"])
+     payload = {
+         "content": "回答",
+diff --git a/backend/tests/test_agent_runtime.py b/backend/tests/test_agent_runtime.py
+index 7820e4c..3fb8550 100644
+--- a/backend/tests/test_agent_runtime.py
++++ b/backend/tests/test_agent_runtime.py
+@@ -290,3 +290,308 @@ def test_runtime_factory_maps_only_registry_uninitialized_assertion_to_unavailab
+     monkeypatch.setattr(registry, "get", lambda: (_ for _ in ()).throw(AssertionError("programming defect")))
+     with pytest.raises(AssertionError, match="programming defect"):
+         build_agent_runtime(db=object(), user_id=9, settings=SettingsSnapshot())
++
++
++# ---------------------------------------------------------------------------
++# V2-W2/W3（2026-09-09）：writer/decomposer 接 response_format=json_schema（方案 A 模板复用）。
++# V2-T4（2026-09-09）F4：降级语义收紧——仅"明确 schema 能力拒绝"（status_code=400 且错误
++# 文本指向结构化输出）降级普通调用一次；超时/鉴权/限流/未知 400 原样抛出不重复外呼。
++# ---------------------------------------------------------------------------
++
++
++class _PlatformStatusError(Exception):
++    """模拟 openai SDK 形态的 HTTP 状态异常（status_code + 结构化 body），供 T4 判定测试。"""
++
++    def __init__(self, status_code: int, message: str) -> None:
++        super().__init__(message)
++        self.status_code = status_code
++        self.body = {"error": {"message": message}}
++
++
++class BindRecordingTransport:
++    """带 bind 的 transport：记录 response_format；bind_error 模拟 bound invoke 抛出异常。"""
++
++    def __init__(self, response: str, *, bind_error: Exception | None = None) -> None:
++        self.response = response
++        self.bind_error = bind_error
++        self.bound_response_formats: list[dict] = []
++        self.plain_calls = 0
++
++    def bind(self, **kwargs):
++        self.bound_response_formats.append(kwargs.get("response_format"))
++        if self.bind_error is not None:
++            transport = self
++
++            class _Rejected:
++                def invoke(self, messages):
++                    raise transport.bind_error
++
++            return _Rejected()
++
++        class _Bound:
++            def __init__(self, response):
++                self._response = response
++
++            def invoke(self, messages):
++                return Response(self._response)
++        return _Bound(self.response)
++
++    def invoke(self, messages):
++        self.plain_calls += 1
++        return Response(self.response)
++
++
++def _valid_draft_json() -> str:
++    return json.dumps(
++        {
++            "claims": [
++                {
++                    "local_id": "c1",
++                    "issue_id": "issue_1",
++                    "text": "示例主张",
++                    "evidence_ids": [],
++                    "fact_ids": [],
++                    "section": "conclusion",
++                }
++            ],
++            "missing_information": [],
++        },
++        ensure_ascii=False,
++    )
++
++
++def test_draft_generator_binds_json_schema_response_format():
++    transport = BindRecordingTransport(_valid_draft_json())
++
++    result = LLMDraftGenerator(transport).generate(payload=WriterPayload(issues=()), system_prompt="writer")
++
++    assert result["claims"][0]["local_id"] == "c1"
++    assert transport.plain_calls == 0  # bind 成功，未回退普通调用
++    response_format = transport.bound_response_formats[0]
++    assert response_format["type"] == "json_schema"
++    schema = response_format["json_schema"]["schema"]
++    assert "claims" in schema.get("properties", {})
++    assert "missing_information" in schema.get("properties", {})
++
++
++def test_draft_generator_falls_back_to_plain_invoke_when_platform_rejects_schema():
++    transport = BindRecordingTransport(
++        _valid_draft_json(),
++        bind_error=_PlatformStatusError(400, "This model does not support response_format with json_schema"),
++    )
++
++    result = LLMDraftGenerator(transport).generate(payload=WriterPayload(issues=()), system_prompt="writer")
++
++    assert result["claims"][0]["local_id"] == "c1"
++    assert transport.plain_calls == 1  # 同一次调用内降级普通 invoke，不 fail-closed
++
++
++def test_issue_decomposer_binds_json_schema_response_format():
++    transport = BindRecordingTransport(valid_issue_json())
++
++    raw = LLMIssueDecomposer(transport).decompose(bootstrap())
++
++    assert raw["issues"][0]["question"].startswith("公司拖欠")
++    assert transport.plain_calls == 0
++    response_format = transport.bound_response_formats[0]
++    assert response_format["type"] == "json_schema"
++    schema = response_format["json_schema"]["schema"]
++    assert "issues" in schema.get("properties", {})
++
++
++def test_issue_decomposer_falls_back_to_plain_invoke_when_platform_rejects_schema():
++    transport = BindRecordingTransport(
++        valid_issue_json(),
++        bind_error=_PlatformStatusError(400, "This model does not support response_format with json_schema"),
++    )
++
++    raw = LLMIssueDecomposer(transport).decompose(bootstrap())
++
++    assert raw["issues"][0]["question"].startswith("公司拖欠")
++    assert transport.plain_calls == 1
++
++
++# ---------------------------------------------------------------------------
++# V2-T4（2026-09-09）F4：adapter 降级收敛与调用观测——最低测试集。
++# 只断言 adapter 层调用次数；客户端内置重试（llm_registry max_retries=3）不在本层，
++# 这些数字不构成网络请求次数的证明。
++# ---------------------------------------------------------------------------
++
++
++def test_schema_capability_rejection_judges_narrowly():
++    from agent.runtime import is_schema_capability_rejection
++
++    schema_reject = _PlatformStatusError(400, "This model does not support response_format with json_schema")
++    assert is_schema_capability_rejection(schema_reject) is True
++    # body 中的关键词同样作为证据
++    assert is_schema_capability_rejection(_PlatformStatusError(400, "invalid request")) is False
++    # 未知 400（无结构化输出关键词）→ 保守不降级
++    assert is_schema_capability_rejection(_PlatformStatusError(400, "invalid max_tokens value")) is False
++    # 鉴权/限流/其他参数错误 → 不降级
++    assert is_schema_capability_rejection(_PlatformStatusError(401, "invalid api key")) is False
++    assert is_schema_capability_rejection(_PlatformStatusError(403, "permission denied")) is False
++    assert is_schema_capability_rejection(_PlatformStatusError(422, "response_format unsupported")) is False
++    assert is_schema_capability_rejection(_PlatformStatusError(429, "rate limit exceeded")) is False
++    assert is_schema_capability_rejection(_PlatformStatusError(500, "internal error")) is False
++    # 无 status_code 的本地/超时异常 → 不降级（不做字符串猜测）
++    assert is_schema_capability_rejection(RuntimeError("400 invalid schema")) is False
++    assert is_schema_capability_rejection(TimeoutError("request timed out")) is False
++    assert is_schema_capability_rejection(ConnectionError("connection reset")) is False
++
++
++class _BodyKeywordError(Exception):
++    status_code = 400
++
++    def __init__(self) -> None:
++        super().__init__("Bad Request")
++        self.body = {"error": {"message": "json_schema is not supported by this model"}}
++
++
++def test_schema_capability_rejection_reads_structured_body():
++    from agent.runtime import is_schema_capability_rejection
++
++    assert is_schema_capability_rejection(_BodyKeywordError()) is True
++    assert is_schema_capability_rejection(Exception("plain text only")) is False
++
++
++def _adapter_invoke_cases():
++    """三个 adapter 的 (名称, 绑定调用入口, 正常响应) 契约一致验证。"""
++    return [
++        (
++            "issue_decomposition",
++            lambda transport: LLMIssueDecomposer(transport)._invoke_issue([]),
++            valid_issue_json(),
++        ),
++        (
++            "planner",
++            lambda transport: LLMPlannerAdapter(transport)._invoke_planner([]),
++            json.dumps({"kind": "finish_research", "summary": "s"}, ensure_ascii=False),
++        ),
++        (
++            "draft",
++            lambda transport: LLMDraftGenerator(transport)._invoke_draft([]),
++            _valid_draft_json(),
++        ),
++    ]
++
++
++@pytest.mark.parametrize(("adapter_name", "invoke_entry", "valid_response"), _adapter_invoke_cases())
++def test_schema_rejection_falls_back_exactly_once_per_adapter(adapter_name, invoke_entry, valid_response):
++    """明确 schema 能力拒绝 → 三 adapter 契约一致：降级普通调用恰好一次。"""
++    transport = BindRecordingTransport(
++        valid_response,
++        bind_error=_PlatformStatusError(400, "This model does not support response_format with json_schema"),
++    )
++
++    response = invoke_entry(transport)
++
++    assert transport.plain_calls == 1
++    assert len(transport.bound_response_formats) == 1
++    assert json.loads(response.content) is not None
++
++
++@pytest.mark.parametrize(("adapter_name", "invoke_entry", "valid_response"), _adapter_invoke_cases())
++def test_auth_failure_on_bound_invoke_propagates_without_fallback_per_adapter(
++    adapter_name, invoke_entry, valid_response
++):
++    """401 鉴权失败 → 三 adapter 契约一致：原样抛出、零降级零重复外呼。"""
++    transport = BindRecordingTransport(valid_response, bind_error=_PlatformStatusError(401, "invalid api key"))
++
++    with pytest.raises(_PlatformStatusError, match="invalid api key"):
++        invoke_entry(transport)
++
++    assert transport.plain_calls == 0
++
++
++@pytest.mark.parametrize(
++    ("status_code", "message", "exc_factory"),
++    [
++        (429, "rate limit exceeded", None),
++        (400, "invalid max_tokens value", None),
++        (None, "request timed out", TimeoutError),
++    ],
++)
++def test_non_rejection_failures_never_fall_back(status_code, message, exc_factory):
++    """限流/未知 400/超时 → 绑定调用失败原样抛出，零降级。"""
++    if exc_factory is not None:
++        bound_error: Exception = exc_factory(message)
++    else:
++        bound_error = _PlatformStatusError(status_code, message)
++    transport = BindRecordingTransport(_valid_draft_json(), bind_error=bound_error)
++
++    with pytest.raises((TimeoutError, _PlatformStatusError)):
++        LLMDraftGenerator(transport)._invoke_draft([])
++
++    assert transport.plain_calls == 0
++
++
++def test_transport_without_bind_invokes_plain_exactly_once():
++    class _PlainOnlyTransport:
++        def __init__(self) -> None:
++            self.calls = 0
++
++        def invoke(self, messages):
++            self.calls += 1
++            return Response(_valid_draft_json())
++
++    transport = _PlainOnlyTransport()
++
++    response = LLMDraftGenerator(transport)._invoke_draft([])
++
++    assert transport.calls == 1
++    assert json.loads(response.content)["claims"][0]["local_id"] == "c1"
++
++
++def test_local_schema_build_failure_falls_back_with_diagnostic(caplog):
++    """本地 schema 构造失败 → 降级普通调用一次，且诊断事件保留（不再静默吞掉）。"""
++    import logging
++
++    from agent import runtime as runtime_module
++
++    transport = BindRecordingTransport(_valid_draft_json())
++
++    def broken_builder():
++        raise TypeError("schema builder bug")
++
++    with caplog.at_level(logging.WARNING, logger="legal.agent"):
++        runtime_module._invoke_with_schema_fallback(
++            transport,
++            [],
++            stage="draft",
++            response_format_builder=broken_builder,
++        )
++
++    assert transport.plain_calls == 1
++    assert transport.bound_response_formats == []  # bind 从未被调用
++    events = [record for record in caplog.records if record.getMessage() == "llm_adapter_invoke_event"]
++    assert any(
++        getattr(record, "llm_adapter_stage", None) == "draft"
++        and getattr(record, "llm_invoke_mode", None) == "bind_construct_failed"
++        and getattr(record, "llm_error_class", None) == "TypeError"
++        for record in events
++    )
++
++
++def test_plain_invoke_failure_after_schema_rejection_propagates():
++    """降级后的普通调用仍失败 → 异常原样抛出（不二次降级、不吞）。"""
++
++    class _AlwaysFailingTransport:
++        def bind(self, **kwargs):
++            class _Rejected:
++                def invoke(self, messages):
++                    raise _PlatformStatusError(400, "response_format with json_schema unsupported")
++
++            return _Rejected()
++
++        def invoke(self, messages):
++            raise ConnectionError("plain path also failed")
++
++    from agent import runtime as runtime_module
++
++    with pytest.raises(ConnectionError, match="plain path also failed"):
++        runtime_module._invoke_with_schema_fallback(
++            _AlwaysFailingTransport(),
++            [],
++            stage="draft",
++            response_format_builder=lambda: {"type": "json_schema", "json_schema": {"name": "x", "schema": {}}},
++        )
+diff --git a/backend/tests/test_agent_writer.py b/backend/tests/test_agent_writer.py
+index 82fabd4..2ad4ff3 100644
+--- a/backend/tests/test_agent_writer.py
++++ b/backend/tests/test_agent_writer.py
+@@ -22,7 +22,7 @@ class RecordingGenerator:
+         self.response = response
+         self.calls = []
+ 
+-    def generate(self, *, payload, system_prompt):
++    def generate(self, *, payload, system_prompt, feedback=None):
+         self.calls.append((payload, system_prompt))
+         return self.response
+ 
+@@ -435,3 +435,33 @@ def test_writer_rejects_unlinked_evidence_and_cross_issue_fact():
+     ).render(current)
+     assert result.status is WriterStatus.FAIL_SAFE
+     assert result.reason_code == "CROSS_ISSUE_FACT"
++
++
++def test_writer_payload_orders_effective_statute_evidence_first():
++    """V2-W4: payload 证据确定性重排序——生效成文法优先（一行可回退）。
++
++    原按 evidence_id（内容哈希）排序使有效法条证据随机沉底，模型倾向只绑前部
++    证据（run-11 C02 实证：金标法条在表中但 draft 未绑定）。排序只影响模型输入
++    分布，不影响任何校验与 claim_id/state_digest 的正确性。
++    """
++    mixed = LegalAgentState(
++        issues=[LegalIssue(issue_id="issue-a", question="加班费如何计算？")],
++        observations=[
++            Observation(
++                issue_id="issue-a",
++                statement="检索加班费依据",
++                evidence_ids=["ev-aaa", "ev-mmm", "ev-zzz"],
++                confidence=0.9,
++            )
++        ],
++        evidence=[
++            evidence("ev-aaa", source_type=SourceType.CASE, snippet="指导案例：某加班费劳动争议案。"),
++            evidence("ev-mmm", validity=LegalValidity.SUPERSEDED, snippet="已废止条例相关文本。"),
++            evidence("ev-zzz", snippet="《劳动法》第四十四条：休息日加班支付百分之二百工资报酬。"),
++        ],
++    )
++
++    payload = writer_module.build_writer_payload(mixed)
++
++    # 生效成文法证据排最前；其余按 (source_ref, evidence_id) 稳定排序
++    assert [item.evidence_id for item in payload.issues[0].evidence] == ["ev-zzz", "ev-aaa", "ev-mmm"]
+diff --git a/docs/v2-optimization-execution-taskbook-20260909.md b/docs/v2-optimization-execution-taskbook-20260909.md
+index f5a148a..99ec428 100644
+--- a/docs/v2-optimization-execution-taskbook-20260909.md
++++ b/docs/v2-optimization-execution-taskbook-20260909.md
+@@ -294,6 +294,35 @@ run-10 missing_required_statute_ids 总数 = 28（C01=4/C02=3/C03=2/C04=3/C05=2/
+ - G4（max_steps 16→24）：run-10 中多数会话死于 verifier coverage 而非预算，G4 不再是当务之急；若 run-11 扇出吃预算触发 BUDGET_EXCEEDED 再批。
+ - G5（金标 ≥75% 命中松绑）：run-10 的 missing 结构与 run-8 同构（多缺 1 条类），保持"先按原口径跑 run-11"。
+ 
++## 附录 B：run-11 判定（G2 生效，2026-09-09 15:47 落盘）
++
++（在附录 A run-10 判定的同一服务上跑；HEAD=ebe82e2，服务 14:06 启动于 65b000a 之后 → G2 代码生效；冻结物/评测器/prompt 未改）
++
++| 主轴 | run-8 | run-9(G1) | run-10(A) | run-11(G2) | 判定 |
++|---|---|---|---|---|---|
++| PLANNER_PARSE_ERROR | 7/10 | 4/10 | 0/10 | **0/10** | ✅ 维持（G1+方案A 无回退） |
++| EVIDENCE_COVERAGE_DEFICIENT | 2/10 | 3/10 | 8/10 | **6/10** | ⚠️ 略降但仍是主失败面；G2 未兑现"每 issue 有证据→coverage 下降"的预期 |
++| ISSUE_DECOMPOSITION_INVALID | - | - | 0 | **1/10**（C07） | ❌ **新失败面**（首次出现，见下） |
++| GENERATOR_FAILURE | - | 0 | 1/10 | **2/10**（C01/C10） | ⚠️ 上升 |
++| has_final（final_chars>0） | - | 5/10 | 1/10 | **1/10**（仅 C09） | ❌ 无改善 |
++| full_closure | 0/10 | 0/10 | 0/10 | **0/10** | ❌ 仍 0/10 |
++
++**实证**：G2 扇出**确实生效**（DB agent_steps 取证：C02 conv=2308 三个 issue 在 state_v2/v7/v11 各触发一次 `retrieve_laws`，全部 TOOL_SUCCEEDED，10 条证据物化）。
++且 C02 证据表**已含金标法条**（劳动法44、劳动争议调解仲裁法27）——**检索召回已覆盖金标**，但 final 仍被拒。
++
++**根因转移结论**：L2a（检索偏科）已基本打掉（扇出把金标法条召回了证据表）；
++但**新死亡点在"writer 生成 → verifier 判定"链路**：
++- verifier EVIDENCE_COVERAGE_DEFICIENT（verifier.py:298-304）要求每 issue 的 claim **绑定有效成文法证据**——检索到了≠writer 正确引用；
++- 6/10 会话 final 文本因 verifier 拒绝而**不落盘**（fail-safe 拦截 → final_chars=0）；
++- C07 分解阶段新死因：`IssueDecompositionError`（runtime.py:281-314 五类校验之一），elapsed 1081s 后 pre-run 失败（日志 `agent_pre_run_failure` @15:09:52），**与 L1/L2 均无关，是分解模型输出质量问题**；
++- C01/C10 GENERATOR_FAILURE 升至 2/10，指向 writer 侧生成本身失败。
++
++**对 G3/G4/G5 的影响**：
++- G3（文章级重排）：run-11 数据**不支持 L2b 为根因**（金标已召回证据表）→ **NOT_NEEDED**，附本附录证据。
++- G4（预算 16→24）：run-11 无 BUDGET_EXCEEDED 大面积触发 → **暂不批**。
++- G5（≥75% 松绑）：C09 仅缺 2 条（民法典496/577）→ 即使松绑 C09 因 mechanical_completed=R6 但缺法律域引用仍不达 full_closure；**维持原口径**。
++- **L1/L2 已基本闭环，需转向 writer-verifier 链路（新失败面）**，属超越本执行书范围的架构决策，需 Owner 批复形成下一个执行书。
++
+ ## 7. 执行者停止条件
+ 
+ - 必须改冻结物/评测器/prompt 才能让测试通过 → 停，上报

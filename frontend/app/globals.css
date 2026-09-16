@@ -28,9 +28,10 @@
   --sea: #3d9be9; /* 海盐蓝 · 法条引用 / 辅助点缀 */
 
   /* 语义标注对比色：蓝=法条权威 / 橙=时限 / 玉绿=金额 / 粉=关键数字 */
-  --law: #2f7bc4;
-  --time: #b9621a;
-  --money: #1f8a63;
+  /* 2026-09-15 T1.4：三对临界色微调约2%达 WCAG AA 4.5（--*-rgb 镜像同步） */
+  --law: #2e79c0;
+  --time: #b56019;
+  --money: #1e8660;
   --num: #e894ac;
 
   /* RGB 三元组（Tailwind 透明度类 bg-x/50 用 rgb(var(--x-rgb) / 0.5)，3.4 不支持变量色直接 /alpha） */
@@ -45,9 +46,9 @@
   --mist-rgb: 217 231 247;
   --error-rgb: 224 96 96;
   --sea-rgb: 61 155 233;
-  --law-rgb: 47 123 196;
-  --time-rgb: 185 98 26;
-  --money-rgb: 31 138 99;
+  --law-rgb: 46 121 192;
+  --time-rgb: 181 96 25;
+  --money-rgb: 30 134 96;
   --num-rgb: 232 148 172;
 
   /* 背景渐变：海盐蓝底 */
@@ -386,7 +387,7 @@
   /* 主按钮 = 填充型 → 青蓝渐变（透明边框，避免 border-image 破圆角） */
   .btn-primary {
     background: var(--grad);
-    color: #fff;
+    color: var(--ink);
     border: 1px solid transparent;
     box-shadow: 0 1px 2px rgba(255, 143, 169, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
   }
@@ -423,6 +424,24 @@
     background-color: rgba(255, 255, 255, 0.12);
     border-color: rgba(255, 255, 255, 0.3);
     color: #fff;
+  }
+  /* 浅色底 ghost / outline 变体（admin 后台在用：启用禁用、分页） */
+  .btn-ghost {
+    background-color: transparent;
+    color: var(--slate);
+    border: 1px solid transparent;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background-color: var(--mist);
+    color: var(--ink);
+  }
+  .btn-outline {
+    background-color: transparent;
+    color: var(--ink);
+    border: 1px solid var(--mist);
+  }
+  .btn-outline:hover:not(:disabled) {
+    background-color: var(--mist);
   }
 
   /* ===== 输入框 ===== */
@@ -800,7 +819,7 @@
     align-items: center;
     justify-content: center;
     background: var(--grad);
-    color: #fff;
+    color: var(--ink);
     border-radius: var(--radius);
     font-family: var(--font-serif);
     font-weight: 700;

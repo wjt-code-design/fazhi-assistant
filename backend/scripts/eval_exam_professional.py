@@ -7,6 +7,7 @@ judge 模型固定保趋势可比（JUDGE_MODEL=glm-5.1 走百炼 1M 配额，3s
 用法：cd backend && JUDGE_MODEL=glm-5.1 venv/Scripts/python.exe scripts/eval_exam_professional.py
 输出：落盘 docs/benchmark_results/exam_professional_<ts>.json + 追加 trend（与 eval_exam 同格式）。
 """
+
 import hashlib
 import json
 import os

@@ -27,6 +27,7 @@ from settings import settings  # noqa: E402
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
 # 1. Embeddings — 配置驱动（ADR-011，2026-08-04）：local=本地 BGE CPU（默认，零配置回退）；
 #    aliyun=阿里云 text-embedding-v4（OpenAI 兼容端点）。
 #    ⚠ 必须 check_embedding_ctx_length=False：langchain 默认本地 token 化长度检查会把文本
@@ -74,9 +75,7 @@ class QuotaTrackingEmbeddings(Embeddings):
         self._lock = threading.Lock()
 
     def _check(self) -> None:
-        if settings.embedding_provider == "aliyun" and quota_utils.utility_depleted(
-            quota_utils.embedding_model_key()
-        ):
+        if settings.embedding_provider == "aliyun" and quota_utils.utility_depleted(quota_utils.embedding_model_key()):
             raise quota_utils.UtilityQuotaExhausted(
                 "embedding 配额已耗尽，请切换备用模型重建库，或把 EMBEDDING_PROVIDER 切回 local 用本地 BGE"
             )
@@ -194,9 +193,15 @@ async def stream_with_retry(make_chain_fn, messages, configs, on_model_failure=N
     自动换模型（块 2.2，用户核心要求——没人盯梢也能切）：astream 抛**任何**异常
     （配额耗尽 / 模型名错误 / 瞬时失败）→ 调 on_model_failure(err)（调用方 mark_depleted
     当前 key）→ 下一次循环重新 make_chain_fn（内部重新 pick 落后备）→ 用下一模型重试。
-    只有最后一个 config 仍失败才上抛。这样即使某模型名配错或瞬时故障，队列也前进到
-    下一个可用模型而非硬失败；代价是瞬时错误也会暂时标记该模型耗尽（重启/校准恢复，
-    19 模型队列容忍个别误伤）。
+    只有最后一个 config 仍失败才上抛。
+
+    ⚠️ F7（2026-09-14）语义变更：调用方原先对**任何**异常都 `mark_depleted`，代价是
+    「瞬时错误也会暂时标记该模型耗尽（重启/校准恢复，19 模型队列容忍个别误伤）」。
+    但本项目 `.env` 的 `LLM_MODELS_JSON` 已把队列覆盖成 **1 主 + 6 回退**，该前提变弱；
+    且限速**是暂时性**故障（同 1k 修复口径）。现约定：调用方**仅对非瞬时错误**标记耗尽，
+    瞬时错误改用 `registry.pick(exclude=<已试过的 key>)` 推进到下一个模型 —— 既换模型、
+    又不把仍可用的模型标死，且避免 pick 选回同一模型造成死循环。
+    本函数只负责「调回调 + 换 config 重试」，不做异常分类（分类在调用方 main.py 两处）。
 
     并发门控：整个生成过程占一个全局 LLM 并发位（async 路径），超限排队超时抛
     LLMBusyError → 调用方降级「服务繁忙」。突增时不会无界并发打向供应商。

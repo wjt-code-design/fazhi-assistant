@@ -1,0 +1,865 @@
+import json
+from dataclasses import dataclass, replace
+
+import pytest
+
+from agent.planner import PlannerParseError, PlannerPolicyViolation, parse_plan_decision
+from agent.runtime import (
+    _FACT_REPAIR_ATTEMPTS,
+    AdapterPolicyViolation,
+    IssueDecompositionError,
+    IssueDecompositionUnavailable,
+    LLMDraftGenerator,
+    LLMIssueDecomposer,
+    LLMPlannerAdapter,
+    _fact_clauses,
+    _IssueEnvelope,
+    _uncovered_fact_clauses,
+    build_agent_runtime,
+    build_initial_agent_state,
+)
+from agent.schemas import AgentBudgets, AgentStatus, LegalAgentState, LegalIssue, SourceType
+from agent.writer import WriterPayload
+from request_bootstrap import RequestBootstrap
+from tools.gateway import ToolGateway
+
+
+@dataclass
+class Response:
+    content: str
+
+
+class RecordingTransport:
+    def __init__(self, *responses: str, error: Exception | None = None) -> None:
+        self.responses = list(responses)
+        self.error = error
+        self.calls = []
+
+    def invoke(self, messages):
+        self.calls.append(messages)
+        if self.error is not None:
+            raise self.error
+        return Response(self.responses.pop(0))
+
+
+def bootstrap(raw_query: str = "公司拖欠我两个月工资，并在昨天口头解除劳动合同") -> RequestBootstrap:
+    return RequestBootstrap(
+        conv_id=17,
+        summary="不应发送给 Issue 分解器的历史摘要",
+        recent=[{"role": "assistant", "content": "不应发送的历史回答"}],
+        recent_messages=[],
+        image=None,
+        user_text=raw_query,
+        image_rel=None,
+        thumb_rel=None,
+        image_description="",
+        raw_query=raw_query,
+        supplement_text="",
+        intent="legal_query",
+        is_exam=False,
+        has_options=False,
+        contract_mode=False,
+        contract_text=None,
+        client_truncated=False,
+    )
+
+
+def valid_issue_json() -> str:
+    return json.dumps(
+        {
+            "issues": [
+                {
+                    "question": "公司拖欠两个月工资时，劳动者可以主张哪些权利？",
+                    "facts": [{"quote": "公司拖欠我两个月工资"}],
+                    "unknown_facts": [
+                        {
+                            "statement": "劳动合同约定的工资支付日是什么？",
+                            "why_outcome_changes": "影响拖欠期间和金额的确定。",
+                        }
+                    ],
+                },
+                {
+                    "question": "口头解除劳动合同是否合法？",
+                    "facts": [{"quote": "在昨天口头解除劳动合同"}],
+                    "unknown_facts": [],
+                },
+            ]
+        },
+        ensure_ascii=False,
+    )
+
+
+def test_issue_decomposition_derives_stable_ids_and_only_accepts_verbatim_user_facts():
+    first = build_initial_agent_state(
+        bootstrap(), decomposer=LLMIssueDecomposer(RecordingTransport(valid_issue_json()))
+    )
+    second = build_initial_agent_state(
+        bootstrap(), decomposer=LLMIssueDecomposer(RecordingTransport(valid_issue_json()))
+    )
+
+    assert first == second
+    assert first.status is AgentStatus.BOOTSTRAPPING
+    assert len(first.issues) == 2
+    assert first.issues[0].issue_id.startswith("issue_")
+    assert first.issues[0].facts[0].source is SourceType.USER
+    assert first.issues[0].facts[0].statement == "公司拖欠我两个月工资"
+    assert first.issues[0].facts[0].source_ref.startswith("request:")
+    assert first.issues[0].facts[0].confidence == 1
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"issues": []},
+        {"issues": [{"question": "   ", "facts": [], "unknown_facts": []}]},
+        {
+            "issues": [
+                {
+                    "question": "争点",
+                    "facts": [],
+                    "unknown_facts": [{"statement": "  ", "why_outcome_changes": "必要事实"}],
+                }
+            ]
+        },
+        {"issues": [{"question": "同一争点", "facts": [], "unknown_facts": []}] * 2},
+        {
+            "issues": [
+                {
+                    "issue_id": "model-owned",
+                    "question": "争点",
+                    "facts": [],
+                    "unknown_facts": [],
+                }
+            ]
+        },
+        {
+            "issues": [
+                {
+                    "question": "争点",
+                    "facts": [{"quote": "用户从未说过这件事"}],
+                    "unknown_facts": [],
+                }
+            ]
+        },
+    ],
+)
+def test_issue_decomposition_fails_closed_for_empty_duplicate_owned_or_invented_data(payload):
+    transport = RecordingTransport(json.dumps(payload, ensure_ascii=False))
+
+    with pytest.raises((IssueDecompositionError, AdapterPolicyViolation)):
+        build_initial_agent_state(bootstrap(), decomposer=LLMIssueDecomposer(transport))
+
+
+def test_issue_decomposition_rejects_prose_wrapped_json():
+    transport = RecordingTransport("这是结果：" + valid_issue_json())
+
+    with pytest.raises(IssueDecompositionError):
+        build_initial_agent_state(bootstrap(), decomposer=LLMIssueDecomposer(transport))
+
+
+def test_issue_decomposition_reports_transport_failure_without_silent_single_issue_fallback():
+    transport = RecordingTransport(error=TimeoutError("provider detail must not escape"))
+
+    with pytest.raises(IssueDecompositionUnavailable, match="issue decomposition is unavailable"):
+        build_initial_agent_state(bootstrap(), decomposer=LLMIssueDecomposer(transport))
+
+
+def test_issue_decomposer_sends_only_current_query_as_data():
+    transport = RecordingTransport(valid_issue_json())
+
+    build_initial_agent_state(bootstrap(), decomposer=LLMIssueDecomposer(transport))
+
+    messages = transport.calls[0]
+    assert len(messages) == 2
+    user_payload = json.loads(messages[1].content)
+    assert user_payload == {"query": bootstrap().raw_query}
+    assert "不应发送" not in messages[0].content + messages[1].content
+
+
+def test_planner_adapter_returns_untrusted_json_for_existing_parser_and_omits_ownership():
+    raw = {"kind": "finish_research", "summary": "已有证据足够"}
+    transport = RecordingTransport(json.dumps(raw, ensure_ascii=False))
+    adapter = LLMPlannerAdapter(transport)
+    state = LegalAgentState(
+        status=AgentStatus.PLANNING,
+        issues=[LegalIssue(issue_id="issue_1", question="工资争议")],
+    )
+
+    proposed = adapter.decide(state=state, bootstrap=bootstrap())
+    parsed = parse_plan_decision(proposed, policies=ToolGateway().policies, issue_ids={"issue_1"})
+
+    assert parsed.kind == "finish_research"
+    prompt = transport.calls[0][1].content
+    assert "user_id" not in prompt
+    assert "conversation_id" not in prompt
+    assert "run_id" not in prompt
+    assert "不应发送的历史回答" not in prompt
+
+
+def test_planner_server_owned_injection_is_rejected_by_existing_trust_boundary():
+    transport = RecordingTransport(json.dumps({"kind": "stop", "reason": "done", "budgets": {"max_steps": 999}}))
+    adapter = LLMPlannerAdapter(transport)
+    state = LegalAgentState(issues=[LegalIssue(issue_id="issue_1", question="工资争议")])
+
+    proposed = adapter.decide(state=state, bootstrap=bootstrap())
+
+    with pytest.raises(PlannerPolicyViolation):
+        parse_plan_decision(proposed, policies=ToolGateway().policies, issue_ids={"issue_1"})
+
+
+def test_planner_adapter_retries_once_then_recovers_when_first_output_malformed():
+    """Gate 5：PLANNER_PARSE_ERROR 独立失败面——瞬时坏输出重试一次自愈。
+
+    首次返回坏 JSON（结构化输出波动）→ 相同状态/prompt 重调 → 第二次合法输出生效；
+    避免偶发 LLM 坏输出让整题 fail-closed 降级为 RAG。
+    """
+    state = LegalAgentState(
+        status=AgentStatus.PLANNING,
+        issues=[LegalIssue(issue_id="issue_1", question="工资争议")],
+    )
+    transport = RecordingTransport(
+        "这是结果：{not-json",
+        json.dumps({"kind": "finish_research", "summary": "证据足够"}, ensure_ascii=False),
+    )
+    adapter = LLMPlannerAdapter(transport)
+
+    proposed = adapter.decide(state=state, bootstrap=bootstrap())
+    parsed = parse_plan_decision(proposed, policies=ToolGateway().policies, issue_ids={"issue_1"})
+    assert parsed.kind == "finish_research"
+    assert len(transport.calls) == 2  # 确实重试了一次
+    assert transport.calls[0] == transport.calls[1]  # 两次调用同一 prompt（同一状态、无副作用）
+
+
+def test_planner_adapter_retry_exhausted_still_raises_parse_error():
+    """Gate 5 失败路径：重试耗尽仍坏 → 保持 PlannerParseError（fail-closed 不削弱）。"""
+    state = LegalAgentState(
+        status=AgentStatus.PLANNING,
+        issues=[LegalIssue(issue_id="issue_1", question="工资争议")],
+    )
+    transport = RecordingTransport("坏输出1", "坏输出2")
+    adapter = LLMPlannerAdapter(transport)
+
+    with pytest.raises(PlannerParseError):
+        adapter.decide(state=state, bootstrap=bootstrap())
+    assert len(transport.calls) == 2
+
+
+def test_draft_adapter_sends_exact_writer_payload_and_prompt():
+    transport = RecordingTransport('{"claims": [], "missing_information": []}')
+    adapter = LLMDraftGenerator(transport)
+    payload = WriterPayload(issues=())
+
+    result = adapter.generate(payload=payload, system_prompt="writer-system")
+
+    assert result == {"claims": [], "missing_information": []}
+    messages = transport.calls[0]
+    assert messages[0].content == "writer-system"
+    assert json.loads(messages[1].content) == payload.model_dump(mode="json")
+
+
+@pytest.mark.parametrize("field", ["claim_id", "claim_checks", "supported", "rationale"])
+def test_draft_adapter_cannot_issue_server_owned_claim_audit_fields(field):
+    transport = RecordingTransport(json.dumps({"claims": [], "missing_information": [], field: "forged"}))
+
+    with pytest.raises(AdapterPolicyViolation):
+        LLMDraftGenerator(transport).generate(payload=WriterPayload(issues=()), system_prompt="writer")
+
+
+class SettingsSnapshot:
+    agent_max_steps = 8
+    agent_max_tool_calls = 10
+    agent_max_replans = 3
+    agent_max_clarifications = 2
+    agent_max_verifier_research_returns = 1
+
+
+@pytest.mark.parametrize("max_steps,max_tools", [(3, 1), (16, 10), (32, 20)])
+def test_runtime_factory_builds_real_components_and_snapshots_budgets(max_steps, max_tools):
+    transport = RecordingTransport(valid_issue_json())
+    settings = SettingsSnapshot()
+    settings.agent_max_steps = max_steps
+    settings.agent_max_tool_calls = max_tools
+
+    runtime = build_agent_runtime(db=object(), user_id=9, settings=settings, llm=transport)
+    snapped = runtime.budgets.model_copy(deep=True)
+    settings.agent_max_steps = 31  # 冻结快照：此后改 settings 不得影响已构建的预算
+
+    # V2-T8：预算取自 settings，但**上限被抬到装得下契约允许的最大分解**（MAX_ISSUES=8）。
+    # 期望值用**独立手算的常数**，不引用实现函数/常量（原版用 _fit_budgets_to_max_decomposition(...)
+    # 算期望 ⇒ 与实现同源，改坏公式两端一起改，测试形同恒真；违反 CONTRIBUTING「期望值来自独立来源」）。
+    #   手算依据：契约允许 8 个争点；观测趋势 steps ≈ 8 + 2N ⇒ 8 争点约需 24–26 步，上限取 29；
+    #             工具预算 = 8 次检索 + 3 次查询余量 = 11。
+    assert runtime.budgets == AgentBudgets(
+        max_steps=max_steps,
+        max_tool_calls=max_tools,
+        max_replans=3,
+        max_clarifications=2,
+        max_duplicate_attempts_per_issue=2,
+        max_verifier_research_returns=1,
+    )
+    assert runtime.budgets == snapped, "改 settings 后不得影响已快照的预算"
+    assert runtime.controller._budgets == snapped
+    assert isinstance(runtime.gateway, ToolGateway)
+    assert runtime.build_initial_state(bootstrap()).issues
+
+
+def test_runtime_factory_maps_only_registry_uninitialized_assertion_to_unavailable(monkeypatch):
+    from agent.runtime import RuntimeUnavailable
+    from llm_registry import registry
+
+    monkeypatch.setattr(registry, "get", lambda: (_ for _ in ()).throw(AssertionError("LLM 未初始化")))
+    with pytest.raises(RuntimeUnavailable, match="No configured LLM"):
+        build_agent_runtime(db=object(), user_id=9, settings=SettingsSnapshot())
+
+    monkeypatch.setattr(registry, "get", lambda: (_ for _ in ()).throw(AssertionError("programming defect")))
+    with pytest.raises(AssertionError, match="programming defect"):
+        build_agent_runtime(db=object(), user_id=9, settings=SettingsSnapshot())
+
+
+# ---------------------------------------------------------------------------
+# V2-W2/W3（2026-09-09）：writer/decomposer 接 response_format=json_schema（方案 A 模板复用）。
+# V2-T4（2026-09-09）F4：降级语义收紧——仅"明确 schema 能力拒绝"（status_code=400 且错误
+# 文本指向结构化输出）降级普通调用一次；超时/鉴权/限流/未知 400 原样抛出不重复外呼。
+# ---------------------------------------------------------------------------
+
+
+class _PlatformStatusError(Exception):
+    """模拟 openai SDK 形态的 HTTP 状态异常（status_code + 结构化 body），供 T4 判定测试。"""
+
+    def __init__(self, status_code: int, message: str) -> None:
+        super().__init__(message)
+        self.status_code = status_code
+        self.body = {"error": {"message": message}}
+
+
+class BindRecordingTransport:
+    """带 bind 的 transport：记录 response_format；bind_error 模拟 bound invoke 抛出异常。"""
+
+    def __init__(self, response: str, *, bind_error: Exception | None = None) -> None:
+        self.response = response
+        self.bind_error = bind_error
+        self.bound_response_formats: list[dict] = []
+        self.plain_calls = 0
+
+    def bind(self, **kwargs):
+        self.bound_response_formats.append(kwargs.get("response_format"))
+        if self.bind_error is not None:
+            transport = self
+
+            class _Rejected:
+                def invoke(self, messages):
+                    raise transport.bind_error
+
+            return _Rejected()
+
+        class _Bound:
+            def __init__(self, response):
+                self._response = response
+
+            def invoke(self, messages):
+                return Response(self._response)
+
+        return _Bound(self.response)
+
+    def invoke(self, messages):
+        self.plain_calls += 1
+        return Response(self.response)
+
+
+def _valid_draft_json() -> str:
+    return json.dumps(
+        {
+            "claims": [
+                {
+                    "local_id": "c1",
+                    "issue_id": "issue_1",
+                    "text": "示例主张",
+                    "evidence_ids": [],
+                    "fact_ids": [],
+                    "section": "conclusion",
+                }
+            ],
+            "missing_information": [],
+        },
+        ensure_ascii=False,
+    )
+
+
+def test_draft_generator_binds_json_schema_response_format():
+    transport = BindRecordingTransport(_valid_draft_json())
+
+    result = LLMDraftGenerator(transport).generate(payload=WriterPayload(issues=()), system_prompt="writer")
+
+    assert result["claims"][0]["local_id"] == "c1"
+    assert transport.plain_calls == 0  # bind 成功，未回退普通调用
+    response_format = transport.bound_response_formats[0]
+    assert response_format["type"] == "json_schema"
+    schema = response_format["json_schema"]["schema"]
+    assert "claims" in schema.get("properties", {})
+    assert "missing_information" in schema.get("properties", {})
+
+
+def test_draft_generator_falls_back_to_plain_invoke_when_platform_rejects_schema():
+    transport = BindRecordingTransport(
+        _valid_draft_json(),
+        bind_error=_PlatformStatusError(400, "This model does not support response_format with json_schema"),
+    )
+
+    result = LLMDraftGenerator(transport).generate(payload=WriterPayload(issues=()), system_prompt="writer")
+
+    assert result["claims"][0]["local_id"] == "c1"
+    assert transport.plain_calls == 1  # 同一次调用内降级普通 invoke，不 fail-closed
+
+
+def test_issue_decomposer_binds_json_schema_response_format():
+    transport = BindRecordingTransport(valid_issue_json())
+
+    raw = LLMIssueDecomposer(transport).decompose(bootstrap())
+
+    assert raw["issues"][0]["question"].startswith("公司拖欠")
+    assert transport.plain_calls == 0
+    response_format = transport.bound_response_formats[0]
+    assert response_format["type"] == "json_schema"
+    schema = response_format["json_schema"]["schema"]
+    assert "issues" in schema.get("properties", {})
+
+
+def test_issue_decomposer_falls_back_to_plain_invoke_when_platform_rejects_schema():
+    transport = BindRecordingTransport(
+        valid_issue_json(),
+        bind_error=_PlatformStatusError(400, "This model does not support response_format with json_schema"),
+    )
+
+    raw = LLMIssueDecomposer(transport).decompose(bootstrap())
+
+    assert raw["issues"][0]["question"].startswith("公司拖欠")
+    assert transport.plain_calls == 1
+
+
+# ---------------------------------------------------------------------------
+# V2-T4（2026-09-09）F4：adapter 降级收敛与调用观测——最低测试集。
+# 只断言 adapter 层调用次数；客户端内置重试（llm_registry max_retries=3）不在本层，
+# 这些数字不构成网络请求次数的证明。
+# ---------------------------------------------------------------------------
+
+
+def test_schema_capability_rejection_judges_narrowly():
+    from agent.runtime import is_schema_capability_rejection
+
+    schema_reject = _PlatformStatusError(400, "This model does not support response_format with json_schema")
+    assert is_schema_capability_rejection(schema_reject) is True
+    # body 中的关键词同样作为证据
+    assert is_schema_capability_rejection(_PlatformStatusError(400, "invalid request")) is False
+    # 未知 400（无结构化输出关键词）→ 保守不降级
+    assert is_schema_capability_rejection(_PlatformStatusError(400, "invalid max_tokens value")) is False
+    # 鉴权/限流/其他参数错误 → 不降级
+    assert is_schema_capability_rejection(_PlatformStatusError(401, "invalid api key")) is False
+    assert is_schema_capability_rejection(_PlatformStatusError(403, "permission denied")) is False
+    assert is_schema_capability_rejection(_PlatformStatusError(422, "response_format unsupported")) is False
+    assert is_schema_capability_rejection(_PlatformStatusError(429, "rate limit exceeded")) is False
+    assert is_schema_capability_rejection(_PlatformStatusError(500, "internal error")) is False
+    # 无 status_code 的本地/超时异常 → 不降级（不做字符串猜测）
+    assert is_schema_capability_rejection(RuntimeError("400 invalid schema")) is False
+    assert is_schema_capability_rejection(TimeoutError("request timed out")) is False
+    assert is_schema_capability_rejection(ConnectionError("connection reset")) is False
+
+
+class _BodyKeywordError(Exception):
+    status_code = 400
+
+    def __init__(self) -> None:
+        super().__init__("Bad Request")
+        self.body = {"error": {"message": "json_schema is not supported by this model"}}
+
+
+def test_schema_capability_rejection_reads_structured_body():
+    from agent.runtime import is_schema_capability_rejection
+
+    assert is_schema_capability_rejection(_BodyKeywordError()) is True
+    assert is_schema_capability_rejection(Exception("plain text only")) is False
+
+
+def _adapter_invoke_cases():
+    """三个 adapter 的 (名称, 绑定调用入口, 正常响应) 契约一致验证。"""
+    return [
+        (
+            "issue_decomposition",
+            lambda transport: LLMIssueDecomposer(transport)._invoke_issue([]),
+            valid_issue_json(),
+        ),
+        (
+            "planner",
+            lambda transport: LLMPlannerAdapter(transport)._invoke_planner([]),
+            json.dumps({"kind": "finish_research", "summary": "s"}, ensure_ascii=False),
+        ),
+        (
+            "draft",
+            lambda transport: LLMDraftGenerator(transport)._invoke_draft([]),
+            _valid_draft_json(),
+        ),
+    ]
+
+
+@pytest.mark.parametrize(("adapter_name", "invoke_entry", "valid_response"), _adapter_invoke_cases())
+def test_schema_rejection_falls_back_exactly_once_per_adapter(adapter_name, invoke_entry, valid_response):
+    """明确 schema 能力拒绝 → 三 adapter 契约一致：降级普通调用恰好一次。"""
+    transport = BindRecordingTransport(
+        valid_response,
+        bind_error=_PlatformStatusError(400, "This model does not support response_format with json_schema"),
+    )
+
+    response = invoke_entry(transport)
+
+    assert transport.plain_calls == 1
+    assert len(transport.bound_response_formats) == 1
+    assert json.loads(response.content) is not None
+
+
+@pytest.mark.parametrize(("adapter_name", "invoke_entry", "valid_response"), _adapter_invoke_cases())
+def test_auth_failure_on_bound_invoke_propagates_without_fallback_per_adapter(
+    adapter_name, invoke_entry, valid_response
+):
+    """401 鉴权失败 → 三 adapter 契约一致：原样抛出、零降级零重复外呼。"""
+    transport = BindRecordingTransport(valid_response, bind_error=_PlatformStatusError(401, "invalid api key"))
+
+    with pytest.raises(_PlatformStatusError, match="invalid api key"):
+        invoke_entry(transport)
+
+    assert transport.plain_calls == 0
+
+
+@pytest.mark.parametrize(
+    ("status_code", "message", "exc_factory"),
+    [
+        (429, "rate limit exceeded", None),
+        (400, "invalid max_tokens value", None),
+        (None, "request timed out", TimeoutError),
+    ],
+)
+def test_non_rejection_failures_never_fall_back(status_code, message, exc_factory):
+    """限流/未知 400/超时 → 绑定调用失败原样抛出，零降级。"""
+    if exc_factory is not None:
+        bound_error: Exception = exc_factory(message)
+    else:
+        bound_error = _PlatformStatusError(status_code, message)
+    transport = BindRecordingTransport(_valid_draft_json(), bind_error=bound_error)
+
+    with pytest.raises((TimeoutError, _PlatformStatusError)):
+        LLMDraftGenerator(transport)._invoke_draft([])
+
+    assert transport.plain_calls == 0
+
+
+def test_transport_without_bind_invokes_plain_exactly_once():
+    class _PlainOnlyTransport:
+        def __init__(self) -> None:
+            self.calls = 0
+
+        def invoke(self, messages):
+            self.calls += 1
+            return Response(_valid_draft_json())
+
+    transport = _PlainOnlyTransport()
+
+    response = LLMDraftGenerator(transport)._invoke_draft([])
+
+    assert transport.calls == 1
+    assert json.loads(response.content)["claims"][0]["local_id"] == "c1"
+
+
+def test_local_schema_build_failure_falls_back_with_diagnostic(caplog):
+    """本地 schema 构造失败 → 降级普通调用一次，且诊断事件保留（不再静默吞掉）。"""
+    import logging
+
+    from agent import runtime as runtime_module
+
+    transport = BindRecordingTransport(_valid_draft_json())
+
+    def broken_builder():
+        raise TypeError("schema builder bug")
+
+    with caplog.at_level(logging.WARNING, logger="legal.agent"):
+        runtime_module._invoke_with_schema_fallback(
+            transport,
+            [],
+            stage="draft",
+            response_format_builder=broken_builder,
+        )
+
+    assert transport.plain_calls == 1
+    assert transport.bound_response_formats == []  # bind 从未被调用
+    events = [record for record in caplog.records if record.getMessage() == "llm_adapter_invoke_event"]
+    assert any(
+        getattr(record, "llm_adapter_stage", None) == "draft"
+        and getattr(record, "llm_invoke_mode", None) == "bind_construct_failed"
+        and getattr(record, "llm_error_class", None) == "TypeError"
+        for record in events
+    )
+
+
+def test_plain_invoke_failure_after_schema_rejection_propagates():
+    """降级后的普通调用仍失败 → 异常原样抛出（不二次降级、不吞）。"""
+
+    class _AlwaysFailingTransport:
+        def bind(self, **kwargs):
+            class _Rejected:
+                def invoke(self, messages):
+                    raise _PlatformStatusError(400, "response_format with json_schema unsupported")
+
+            return _Rejected()
+
+        def invoke(self, messages):
+            raise ConnectionError("plain path also failed")
+
+    from agent import runtime as runtime_module
+
+    with pytest.raises(ConnectionError, match="plain path also failed"):
+        runtime_module._invoke_with_schema_fallback(
+            _AlwaysFailingTransport(),
+            [],
+            stage="draft",
+            response_format_builder=lambda: {"type": "json_schema", "json_schema": {"name": "x", "schema": {}}},
+        )
+
+
+def _issue_json(*quotes: str) -> str:
+    """每个 quote 一个 issue 的最小合法载荷（用于覆盖度修复环测试）。"""
+    return json.dumps(
+        {
+            "issues": [
+                {"question": f"争点{idx}是否成立？", "facts": [{"quote": q}], "unknown_facts": []}
+                for idx, q in enumerate(quotes, start=1)
+            ]
+        },
+        ensure_ascii=False,
+    )
+
+
+_QUERY = "公司拖欠我两个月工资，并在昨天口头解除劳动合同"
+
+
+def test_fact_clauses_excludes_interrogative_and_short_fragments():
+    """事实性分句切分：疑问句是诉求不是待引用事实，过短片段不作要求。"""
+    clauses = _fact_clauses("公司拖欠我两个月工资，并在昨天口头解除劳动合同。我能要求赔偿吗？我")
+    assert clauses == ["公司拖欠我两个月工资", "并在昨天口头解除劳动合同"]
+
+
+def test_uncovered_fact_clauses_reports_only_missing_declarative_clause():
+    envelope = _IssueEnvelope.model_validate(json.loads(_issue_json("公司拖欠我两个月工资")))
+    gap = _uncovered_fact_clauses(_QUERY + "。我能要求赔偿吗？", envelope)
+    assert gap == ["并在昨天口头解除劳动合同"]
+
+
+def test_issue_decomposer_repairs_once_when_user_facts_are_uncovered():
+    """覆盖缺口 → 回喂修复一次 → 采纳缺口严格变小的结果。
+
+    watch-it-fail：对"无修复环"的旧实现，本用例 issues 恒为 1 个、calls 恒为 1 次，断言会红。
+    """
+    first = _issue_json("公司拖欠我两个月工资")
+    repaired = _issue_json("公司拖欠我两个月工资", "在昨天口头解除劳动合同")
+    transport = RecordingTransport(first, repaired)
+
+    state = build_initial_agent_state(bootstrap(_QUERY), decomposer=LLMIssueDecomposer(transport))
+
+    assert len(transport.calls) == 2, "应恰好修复一次，不得多于一次"
+    assert [issue.question for issue in state.issues] == ["争点1是否成立？", "争点2是否成立？"]
+
+
+@pytest.mark.parametrize("defect", ["duplicate_question", "untrusted_source", "blank_question", "blank_unknown"])
+def test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble(defect):
+    request = bootstrap(_QUERY)
+    candidate = json.loads(_issue_json("公司拖欠我两个月工资", "在昨天口头解除劳动合同"))
+    if defect == "duplicate_question":
+        candidate["issues"][1]["question"] = "  " + candidate["issues"][0]["question"] + "  "
+    elif defect == "untrusted_source":
+        # raw_query can include framing that belongs to neither trusted input source.
+        request = replace(request, user_text="公司拖欠我两个月工资")
+    elif defect == "blank_question":
+        candidate["issues"][1]["question"] = "   "
+    else:
+        candidate["issues"][1]["unknown_facts"] = [{"statement": "  ", "why_outcome_changes": "必要事实"}]
+    transport = RecordingTransport(_issue_json("公司拖欠我两个月工资"), json.dumps(candidate))
+
+    state = build_initial_agent_state(request, decomposer=LLMIssueDecomposer(transport))
+
+    assert len(transport.calls) == 2
+    assert [issue.question for issue in state.issues] == ["争点1是否成立？"]
+
+
+def test_issue_decomposer_keeps_original_when_repair_does_not_reduce_gap():
+    """修复无效（缺口未变小）→ 保留**原**结果，不采纳更差输出（零回归保证）。"""
+    same = _issue_json("公司拖欠我两个月工资")
+    transport = RecordingTransport(same, same)
+
+    state = build_initial_agent_state(bootstrap(_QUERY), decomposer=LLMIssueDecomposer(transport))
+
+    assert len(transport.calls) == 2
+    assert len(state.issues) == 1
+
+
+def test_fact_repair_does_not_loop_when_gap_never_improves():
+    """终止性回归：缺口持续不改善时必须有界收敛（不得空转）——本项目的核心教训。"""
+    same = _issue_json("公司拖欠我两个月工资")
+    transport = RecordingTransport(same, same, same, same, same)
+
+    state = build_initial_agent_state(bootstrap(_QUERY), decomposer=LLMIssueDecomposer(transport))
+
+    assert len(transport.calls) <= _FACT_REPAIR_ATTEMPTS + 1, "修复环必须严格有界"
+    assert len(state.issues) == 1
+
+
+def test_issue_decomposer_repair_failure_keeps_original_result():
+    """修复尝试抛错（如传输异常）不得丢掉首次调用的成功结果。"""
+    transport = RecordingTransport(_issue_json("公司拖欠我两个月工资"))
+
+    state = build_initial_agent_state(bootstrap(_QUERY), decomposer=LLMIssueDecomposer(transport))
+
+    assert len(state.issues) == 1
+
+
+def test_issue_decomposer_without_coverage_gap_makes_exactly_one_call():
+    """无缺口时不得产生任何额外外呼（成本不得因加固而膨胀）。"""
+    transport = RecordingTransport(valid_issue_json())
+
+    build_initial_agent_state(bootstrap(), decomposer=LLMIssueDecomposer(transport))
+
+    assert len(transport.calls) == 1
+
+
+def test_issue_decomposer_fact_repair_can_be_disabled():
+    """显式关闭时行为与加固前一致（供对照实验/回退用）。"""
+    transport = RecordingTransport(_issue_json("公司拖欠我两个月工资"))
+
+    build_initial_agent_state(
+        bootstrap(_QUERY),
+        decomposer=LLMIssueDecomposer(transport, fact_repair=False),
+    )
+
+    assert len(transport.calls) == 1
+
+
+def test_fact_repair_fixes_non_verbatim_quote():
+    """第三处修复环（V2-T8 自审补齐）：**非逐字引用**也必须可修复。
+
+    真实死因实例（验证轮 C06）：`IssueDecompositionError: Issue fact is not a verbatim request fragment`。
+    watch-it-fail：加固前该路径**不经过修复环**（校验在 build_initial_agent_state，晚于 decompose）
+    ⇒ calls 恒为 1 且直接抛错。
+    """
+    bad = json.dumps(
+        {
+            "issues": [
+                {"question": "争点1是否成立？", "facts": [{"quote": "公司拖欠我三个月工资"}], "unknown_facts": []}
+            ]
+        },
+        ensure_ascii=False,
+    )
+    good = _issue_json("公司拖欠我两个月工资", "在昨天口头解除劳动合同")
+    transport = RecordingTransport(bad, good)
+
+    state = build_initial_agent_state(bootstrap(_QUERY), decomposer=LLMIssueDecomposer(transport))
+
+    assert len(transport.calls) == 2, "非逐字引用必须触发一次修复"
+    assert [issue.question for issue in state.issues] == ["争点1是否成立？", "争点2是否成立？"]
+
+
+def test_fact_repair_rejects_candidate_that_still_has_non_verbatim(caplog):
+    """深潜审查修正（2026-09-11）：**残留非逐字引用的候选不得采纳**。
+
+    非逐字引用是下游致命项（`build_initial_agent_state` 的 verbatim 校验必抛），
+    旧准则只比"缺陷总数严格变小"，会采纳 {nv:1,unc:1}→{nv:1,unc:0} 这类"仍必死"的候选
+    并打出误导性的 repaired 日志。新准则先看可存活（nv 必须清零），再看改进。
+
+    **判别点在日志 stage**：新旧准则下组装期都会抛同样的 verbatim 错（表象相同），
+    唯一可判别的是 stage——旧准则打 `repaired`（假象），新准则打 `repair_ineffective`。
+    """
+    import logging as _logging
+
+    first = json.dumps(
+        {
+            "issues": [
+                {"question": "争点1是否成立？", "facts": [{"quote": "公司拖欠我三个月工资"}], "unknown_facts": []}
+            ]
+        },  # nv=1（三个月≠两个月），unc=1（第二条分句未覆盖）
+        ensure_ascii=False,
+    )
+    still_bad = json.dumps(
+        {
+            "issues": [
+                {"question": "争点1是否成立？", "facts": [{"quote": "公司拖欠我三个月工资"}], "unknown_facts": []},
+                {"question": "争点2是否成立？", "facts": [{"quote": "在昨天口头解除劳动合同"}], "unknown_facts": []},
+            ]
+        },  # 覆盖修好了，但 nv=1 仍在 ⇒ 下游必死
+        ensure_ascii=False,
+    )
+    transport = RecordingTransport(first, still_bad)
+
+    with caplog.at_level(_logging.INFO, logger="legal.agent"):
+        with pytest.raises(IssueDecompositionError):
+            build_initial_agent_state(bootstrap(_QUERY), decomposer=LLMIssueDecomposer(transport))
+    assert len(transport.calls) == 2, "修复环必须恰好触发一次"
+    stages = [getattr(r, "agent_repair_stage", "") for r in caplog.records]
+    assert "repaired" not in stages, f"残留非逐字引用的候选不得打 repaired（假象）；实际 stages={stages}"
+    assert "repair_ineffective" in stages
+
+
+def test_fact_repair_is_not_adopted_when_it_trades_one_defect_for_another():
+    """Pareto 采纳规则（自审补齐）：修复若"补上覆盖缺口但**新增**非逐字引用"，**不得采纳**。
+
+    watch-it-fail：只按覆盖缺口比较的旧实现会采纳它 ⇒ 把一个本可成功的分解变成必失败
+    （`build_initial_agent_state` 随后会因非逐字引用抛错）。
+    """
+    first = _issue_json("公司拖欠我两个月工资")  # 缺口 1 项、非逐字 0 项 ⇒ 总缺陷 1
+    traded = json.dumps(  # 缺口 0 项、非逐字 1 项 ⇒ 总缺陷仍为 1（未变好）
+        {
+            "issues": [
+                {"question": "争点1是否成立？", "facts": [{"quote": "公司拖欠我两个月工资"}], "unknown_facts": []},
+                {
+                    "question": "争点2是否成立？",
+                    "facts": [{"quote": "在昨天口头解除劳动合同"}, {"quote": "在昨天解除劳动合同"}],
+                    "unknown_facts": [],
+                },
+            ]
+        },
+        ensure_ascii=False,
+    )
+    transport = RecordingTransport(first, traded)
+
+    state = build_initial_agent_state(bootstrap(_QUERY), decomposer=LLMIssueDecomposer(transport))
+
+    assert len(transport.calls) == 2
+    assert len(state.issues) == 1, "条件更差的修复结果不得被采纳（否则会把成功改成失败）"
+
+
+def test_decomposition_repair_diagnostic_is_emitted(caplog):
+    """诊断可见性：缺陷必须真的落进结构化日志（防再次被白名单静默丢弃）。"""
+    import logging as _logging
+
+    transport = RecordingTransport(_issue_json("公司拖欠我两个月工资"), _issue_json("公司拖欠我两个月工资"))
+
+    with caplog.at_level(_logging.INFO, logger="legal.agent"):
+        build_initial_agent_state(bootstrap(_QUERY), decomposer=LLMIssueDecomposer(transport))
+
+    assert any(record.getMessage() == "issue_decomposition_repair" for record in caplog.records)
+    assert any(getattr(r, "agent_coverage_gap_count", None) == 1 for r in caplog.records), (
+        "缺陷计数必须真的落进日志记录字段（而非只出现在 msg 里）"
+    )
+
+
+def test_repair_and_pre_run_fields_are_registered_in_log_whitelist():
+    """白名单回归：修复环与预运行失败的诊断字段必须登记，否则被 JSON formatter 静默丢弃。"""
+    from observability import _ACCOUNT_FIELDS
+
+    for field in (
+        "agent_repair_stage",
+        "agent_issue_count",
+        "agent_coverage_gap_count",
+        "agent_non_verbatim_count",
+        "agent_pre_run_reason",
+        "agent_conversation_id",
+        "agent_failure_detail",
+        "agent_run_id",
+        "agent_planner_raw_tail",
+        "agent_actual_route",
+        "agent_fallback_reason",
+    ):
+        assert field in _ACCOUNT_FIELDS, f"{field} 未登记 ⇒ 会被静默丢弃"

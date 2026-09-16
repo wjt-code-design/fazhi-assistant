@@ -14,11 +14,15 @@ os.environ.setdefault("RERANK_ENABLED", "false")
 # 配额总金额度固定 0（未启用）——防本地跑 pytest 时包装对象把扣减写进真实 quota_used.sqlite
 os.environ.setdefault("EMBEDDING_QUOTA_TOTAL", "0")
 os.environ.setdefault("RERANK_QUOTA_TOTAL", "0")
+# 集成测试会创建普通用户；显式开启注册，避免依赖被忽略的本地 .env。
+os.environ.setdefault("FEATURE_SELF_REGISTER", "true")
 
 # 让 tests 能 import backend 顶层模块
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 import pytest  # noqa: E402
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -29,3 +33,25 @@ def _disable_rate_limit(monkeypatch):
     import main  # noqa: PLC0415
 
     monkeypatch.setattr(main.limiter, "enabled", False)
+
+
+@pytest.fixture
+def db(tmp_path, monkeypatch):
+    """A fresh migrated SQLite database for persistence boundary tests."""
+    import database
+    import migrations
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'agent-repository.db'}")
+    session_factory = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    monkeypatch.setattr(database, "engine", engine)
+    monkeypatch.setattr(migrations, "engine", engine)
+    monkeypatch.setattr(database, "SessionLocal", session_factory)
+
+    migrations.run_migrations()
+    migrations.run_migrations()
+    session = session_factory()
+    try:
+        yield session
+    finally:
+        session.close()
+        engine.dispose()

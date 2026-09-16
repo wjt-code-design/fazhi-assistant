@@ -1,0 +1,4 @@
+registered_in_whitelist=True
+rendered={"ts": "2026-09-12T14:08:40", "level": "WARNING", "logger": "legal.agent", "req": "probe", "msg": "coverage_gate_terminal_failure", "verdict": "FAIL_SAFE", "agent_issue_count": 2, "agent_coverage_gap_count": 1, "agent_coverage_issues": [{"issue_id": "issue_a", "claims": 1, "claims_bound_effective_statute": 1, "deficient": false}, {"issue_id": "issue_b", "claims": 0, "claims_bound_effective_statute": 0, "deficient": true}]}
+field_present_in_json=True
+deficient_row=[{'issue_id': 'issue_b', 'claims': 0, 'claims_bound_effective_statute': 0, 'deficient': True}]

@@ -1,0 +1,80 @@
+{
+ "run": "schema-probe",
+ "results": {
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "4f21612e-5fa3-4f92-a2b9-49aa300abf49",
+      "state_version": 4,
+      "conv_id": 2237
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "4f21612e-5fa3-4f92-a2b9-49aa300abf49",
+      "state_version": 8,
+      "conv_id": 2237
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "加班是否属于用人单位单方强制安排还是劳动者自愿延长工作时间"
+    },
+    {
+     "round": 2,
+     "prompt": "加班是否经过工会或职工代表大会协商程序"
+    }
+   ],
+   "answered_fact_ids": [
+    "C02-r1-f2",
+    "C02-r1-f2"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2237,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 40.0
+  }
+ }
+}

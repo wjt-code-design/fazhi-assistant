@@ -2,6 +2,7 @@
 每法一次生成 10 题（题干+选项+答案+法条依据），解析 basis → 检查 [检索 top10 ∪ 补充] 命中。
 用法：停后端，venv 运行：python scripts/gen_qwen_cases.py
 """
+
 import json
 import os
 import re
@@ -10,10 +11,11 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
+
 load_dotenv()
 
-from settings import settings  # noqa: E402
 from retrieval import retrieve, scenario_supplement_docs  # noqa: E402
+from settings import settings  # noqa: E402
 
 LAWS = ["著作权法", "商标法", "专利法", "消费者权益保护法", "合伙企业法"]
 
@@ -25,7 +27,6 @@ PROMPT = """你是法考出题专家。为《{law}》生成 10 道法考高频�
 
 
 def gen(law, client):
-    import openai
     resp = client.chat.completions.create(
         model="qwen3.5-flash-2026-02-23",
         messages=[{"role": "user", "content": PROMPT.format(law=law)}],
@@ -39,12 +40,14 @@ def gen(law, client):
         if len(parts) < 7:
             continue
         scenario, oa, ob, oc, od, ans, basis = parts[:7]
-        qs.append({
-            "scenario": scenario.strip(),
-            "options": {"A": oa.strip(), "B": ob.strip(), "C": oc.strip(), "D": od.strip()},
-            "answer": ans.strip(),
-            "basis": basis.strip(),
-        })
+        qs.append(
+            {
+                "scenario": scenario.strip(),
+                "options": {"A": oa.strip(), "B": ob.strip(), "C": oc.strip(), "D": od.strip()},
+                "answer": ans.strip(),
+                "basis": basis.strip(),
+            }
+        )
     return qs
 
 
@@ -64,6 +67,7 @@ CACHE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "qwen_cases_cac
 
 def main():
     import openai
+
     base = settings.llm_base_url or settings.zhipu_base_url
     key = settings.llm_api_key or settings.zhipuai_api_key
     client = openai.OpenAI(base_url=base, api_key=key)
@@ -102,7 +106,7 @@ def main():
                 print(f"  [MISS] 目标 {src} {art} | {q['scenario'][:34]}... 依据: {basis}")
         print()
     allq = total_hit + total_miss
-    print(f"=== 召回: {total_hit}/{allq} ({total_hit/allq*100:.0f}%) | 依据不可解析 {total_unknown} ===")
+    print(f"=== 召回: {total_hit}/{allq} ({total_hit / allq * 100:.0f}%) | 依据不可解析 {total_unknown} ===")
 
 
 if __name__ == "__main__":

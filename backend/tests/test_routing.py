@@ -1,4 +1,5 @@
 """llm_registry 多模型路由 + 配额测试（隔离 quota_store，不碰真实文件）。"""
+
 import json
 import os
 import sys
@@ -38,10 +39,42 @@ def _make_registry(monkeypatch, roles, used=None):
 
 
 ROLES = [
-    {"key": "t_light", "model": "m-light", "modality": "text", "tier": "light", "capabilities": ["text"], "quota_total": 1000, "initial_used": 0},
-    {"key": "t_flag", "model": "m-flag", "modality": "text", "tier": "flag", "capabilities": ["text"], "quota_total": 1000, "initial_used": 0},
-    {"key": "v_light", "model": "v-light", "modality": "vision", "tier": "light", "capabilities": ["text", "vision"], "quota_total": 1000, "initial_used": 0},
-    {"key": "v_flag", "model": "v-flag", "modality": "vision", "tier": "flag", "capabilities": ["text", "vision"], "quota_total": 1000, "initial_used": 0},
+    {
+        "key": "t_light",
+        "model": "m-light",
+        "modality": "text",
+        "tier": "light",
+        "capabilities": ["text"],
+        "quota_total": 1000,
+        "initial_used": 0,
+    },
+    {
+        "key": "t_flag",
+        "model": "m-flag",
+        "modality": "text",
+        "tier": "flag",
+        "capabilities": ["text"],
+        "quota_total": 1000,
+        "initial_used": 0,
+    },
+    {
+        "key": "v_light",
+        "model": "v-light",
+        "modality": "vision",
+        "tier": "light",
+        "capabilities": ["text", "vision"],
+        "quota_total": 1000,
+        "initial_used": 0,
+    },
+    {
+        "key": "v_flag",
+        "model": "v-flag",
+        "modality": "vision",
+        "tier": "flag",
+        "capabilities": ["text", "vision"],
+        "quota_total": 1000,
+        "initial_used": 0,
+    },
 ]
 
 
@@ -54,16 +87,52 @@ def test_pick_returns_requested_tier(monkeypatch):
 def test_pick_same_tier_by_priority_then_quota(monkeypatch):
     # priority 主导：b 配额少但 priority 低（能力强）→ 先选 b
     roles = [
-        {"key": "a", "model": "x", "modality": "text", "tier": "light", "priority": 1, "capabilities": ["text"], "quota_total": 1000, "initial_used": 0},
-        {"key": "b", "model": "x", "modality": "text", "tier": "light", "priority": 0, "capabilities": ["text"], "quota_total": 1000, "initial_used": 800},
+        {
+            "key": "a",
+            "model": "x",
+            "modality": "text",
+            "tier": "light",
+            "priority": 1,
+            "capabilities": ["text"],
+            "quota_total": 1000,
+            "initial_used": 0,
+        },
+        {
+            "key": "b",
+            "model": "x",
+            "modality": "text",
+            "tier": "light",
+            "priority": 0,
+            "capabilities": ["text"],
+            "quota_total": 1000,
+            "initial_used": 800,
+        },
     ]
     reg, _ = _make_registry(monkeypatch, roles)
     key, _ = reg.pick("text", "light")
     assert key == "b"
     # priority 相同 → 比剩余配额（tie-break）
     roles2 = [
-        {"key": "a", "model": "x", "modality": "text", "tier": "light", "priority": 0, "capabilities": ["text"], "quota_total": 1000, "initial_used": 800},
-        {"key": "b", "model": "x", "modality": "text", "tier": "light", "priority": 0, "capabilities": ["text"], "quota_total": 1000, "initial_used": 100},
+        {
+            "key": "a",
+            "model": "x",
+            "modality": "text",
+            "tier": "light",
+            "priority": 0,
+            "capabilities": ["text"],
+            "quota_total": 1000,
+            "initial_used": 800,
+        },
+        {
+            "key": "b",
+            "model": "x",
+            "modality": "text",
+            "tier": "light",
+            "priority": 0,
+            "capabilities": ["text"],
+            "quota_total": 1000,
+            "initial_used": 100,
+        },
     ]
     reg2, _ = _make_registry(monkeypatch, roles2)
     key2, _ = reg2.pick("text", "light")
@@ -88,8 +157,24 @@ def test_pick_skips_depleted(monkeypatch):
 
 def test_pick_exhausted_raises(monkeypatch):
     roles = [
-        {"key": "a", "model": "x", "modality": "text", "tier": "light", "capabilities": ["text"], "quota_total": 100, "initial_used": 100},
-        {"key": "b", "model": "x", "modality": "text", "tier": "flag", "capabilities": ["text"], "quota_total": 100, "initial_used": 100},
+        {
+            "key": "a",
+            "model": "x",
+            "modality": "text",
+            "tier": "light",
+            "capabilities": ["text"],
+            "quota_total": 100,
+            "initial_used": 100,
+        },
+        {
+            "key": "b",
+            "model": "x",
+            "modality": "text",
+            "tier": "flag",
+            "capabilities": ["text"],
+            "quota_total": 100,
+            "initial_used": 100,
+        },
     ]
     reg, _ = _make_registry(monkeypatch, roles)
     with pytest.raises(lr.QuotaExhausted):

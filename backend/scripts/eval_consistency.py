@@ -40,7 +40,7 @@ OUT_DIR = os.path.join(os.path.dirname(__file__), "..", "..", "docs", "benchmark
 
 def _src_ids(q: str) -> set[str]:
     """本地检索该问法命中的条文 id 集合（source|article），用于旁路审计。"""
-    return {f"{d.metadata.get('source','')}|{d.metadata.get('article','')}" for d in retrieve(q, k=6)}
+    return {f"{d.metadata.get('source', '')}|{d.metadata.get('article', '')}" for d in retrieve(q, k=6)}
 
 
 def _overlap(a: set[str], b: set[str]) -> float:

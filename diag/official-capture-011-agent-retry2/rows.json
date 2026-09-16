@@ -1,0 +1,38 @@
+[
+ {
+  "id": "loan-limitations-01",
+  "status": "ok",
+  "failure_reasons": [],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": true,
+  "retry_attempts": 0,
+  "latency_ms": 37841.9,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": "原告是否与本案有直接利害关系",
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 1,
+  "budget_exceeded": false,
+  "trace_ref": "trace://eval011-agent-retry2-20260907/loan-limitations-01"
+ },
+ {
+  "id": "law-date-conflict-15",
+  "status": "ok",
+  "failure_reasons": [],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": true,
+  "retry_attempts": 0,
+  "latency_ms": 23317.5,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": "合同签订时有效的法律是《合同法》而非《民法典》",
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 1,
+  "budget_exceeded": false,
+  "trace_ref": "trace://eval011-agent-retry2-20260907/law-date-conflict-15"
+ }
+]

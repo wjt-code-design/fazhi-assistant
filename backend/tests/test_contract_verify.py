@@ -1,4 +1,5 @@
 """合同 eval verifier 单测（纯逻辑，零 LLM，秒级不停后端）。"""
+
 import os
 import sys
 
@@ -100,10 +101,7 @@ def test_structure_partial():
 
 def test_structure_full_label_hits_low_pipe():
     """2 个 | 头 + 换行标签正文：五要素全命中应满，不因 pipe 少提前返回 0.5。"""
-    entry = (
-        "R_1 | 严重度：极高 | 条款位置：四\n"
-        "* 原文摘录：免责。\n* 法条依据：民法典506。\n* 修改建议：删除。"
-    )
+    entry = "R_1 | 严重度：极高 | 条款位置：四\n* 原文摘录：免责。\n* 法条依据：民法典506。\n* 修改建议：删除。"
     assert structure_score(entry) == 1.0
 
 

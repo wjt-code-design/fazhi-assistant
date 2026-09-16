@@ -5,6 +5,7 @@
 
 纯 stdlib sqlite3；写频低（每次回答一次），每次操作短连接 + WAL，简单线程安全。
 """
+
 import os
 import sqlite3
 import threading

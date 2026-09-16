@@ -1,4 +1,5 @@
 """块 2.2：配额耗尽自动换模型测试（用户核心要求：真实 API 错误即时切换，不靠估算）。"""
+
 import asyncio
 import os
 import sys
@@ -16,6 +17,7 @@ from rag_chain import stream_with_retry
 
 class QuotaChain:
     """首个调用抛配额错误（模拟真实 API 配额耗尽）。astream 须为 async generator（含 yield）。"""
+
     async def astream(self, messages):
         if False:
             yield None
@@ -45,7 +47,9 @@ def test_stream_switches_model_on_quota_error():
     async def run():
         out = []
         async for piece in stream_with_retry(
-            make_chain_fn, [], [(False, 0.0), (False, 0.0)],
+            make_chain_fn,
+            [],
+            [(False, 0.0), (False, 0.0)],
             on_model_failure=on_fail,
         ):
             out.append(piece)
@@ -77,7 +81,9 @@ def test_stream_switches_on_any_error_not_just_quota():
     async def run():
         out = []
         async for piece in stream_with_retry(
-            make_chain_fn, [], [(False, 0.0), (False, 0.0), (False, 0.0)],
+            make_chain_fn,
+            [],
+            [(False, 0.0), (False, 0.0), (False, 0.0)],
             on_model_failure=on_fail,
         ):
             out.append(piece)
@@ -104,20 +110,47 @@ def test_stream_all_models_fail_propagates():
 
     async def run():
         async for _ in stream_with_retry(
-            make_chain_fn, [], [(False, 0.0), (False, 0.0)],
+            make_chain_fn,
+            [],
+            [(False, 0.0), (False, 0.0)],
             on_model_failure=on_fail,
         ):
             pass
 
     try:
         asyncio.run(run())
-        assert False, "应上抛"
+        raise AssertionError("应上抛")
     except RuntimeError as e:
         assert "InsufficientBalance" in str(e)
 
 
-def test_mark_depleted_makes_model_unavailable():
+def test_mark_depleted_makes_model_unavailable(monkeypatch):
     """mark_depleted 后该模型 remaining=0 → 立即 unavailable（下一请求自动落后备）。"""
+    import json
+
+    import settings as _s
+
+    # 无依赖单测：显式注入角色表，不依赖部署 .env 的 LLM_MODELS_JSON 是否覆盖默认表
+    # （7655265 起部署可整体替换角色表，text_ds_flash 只存在于 DEFAULT_ROLES）。
+    roles = [
+        {
+            "key": "text_ds_flash",
+            "model": "m-a",
+            "modality": "text",
+            "tier": "flag",
+            "priority": 0,
+            "capabilities": ["text"],
+        },
+        {
+            "key": "text_backup",
+            "model": "m-b",
+            "modality": "text",
+            "tier": "flag",
+            "priority": 1,
+            "capabilities": ["text"],
+        },
+    ]
+    monkeypatch.setattr(_s.settings, "llm_models_json", json.dumps(roles))
     reg = R.LLMRegistry()  # 独立实例，不污染全局 registry
     key = "text_ds_flash"
     e = reg._entries[key]

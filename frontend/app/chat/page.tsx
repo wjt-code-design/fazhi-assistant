@@ -1,283 +1,93 @@
 "use client";
-import { memo, useEffect, useRef, useState, FormEvent, ClipboardEvent, DragEvent } from "react";
+// T2.2 拆分（区块渲染在 @/components/chat/*）+ T2.3 状态收敛（流式/会话/反馈/语音在 lib/hooks/*）。
+// page 仅保留：页面级 UI 态、数据编排回调、effects 与组装 JSX。行为零变更。
+import { useEffect, useRef, useState, FormEvent, ClipboardEvent, DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
-import { streamChat, convApi, loadMediaSrc, chatFile, ChatMeta, AnalysisStep, feedbackApi, lawApi, LawDetail, LawItem, transcribeApi } from "@/lib/api";
-import { Logo, Spinner } from "@/components/ui";
-import { renderAnswer } from "@/lib/annotate";
-import { startWavRecorder } from "@/lib/recorder";
-import { LawCard } from "@/components/LawCard";
+import { chatFile, API_URL } from "@/lib/api";
 import { usePointerGlow } from "@/lib/usePointerGlow";
-
-interface Msg {
-  role: "user" | "assistant";
-  content: string;
-  imageDataURL?: string; // 本轮刚发送的本地预览
-  imgRef?: string; // 历史：原图相对路径
-  thumbRef?: string; // 历史：缩略图相对路径
-  sources?: { source: string; article: string }[]; // 参考条文（ADR-012 阶段2C：回答下方折叠展示）
-  steps?: AnalysisStep[]; // 合同评估分析进度（SSE step 事件）
-}
-
-interface ConvItem {
-  id: number;
-  title: string;
-  preview: string;
-  message_count: number;
-  has_image: boolean;
-  last_active_at?: string;
-  created_at: string;
-}
-
-// 配额预警（B 更优版，grilling）：/api/utility/quota 公开接口的响应
-interface QuotaWarn {
-  embedding_warn?: boolean;
-  embedding_depleted?: boolean;
-  embedding_pct?: number;
-  embedding_model?: string;
-  rerank_degraded?: boolean;
-}
-
-const MAX_IMAGE_MB = 5;
-const ACCEPT_IMAGE = ["image/jpeg", "image/png"];
-const MAX_FILE_MB = 10; // 与后端 _MAX_UPLOAD_BYTES 一致
-const ACCEPT_FILE = [".txt", ".md", ".pdf", ".docx"];
-
-interface FileInfo {
-  name: string;
-  chars: number;
-  truncated: boolean;
-}
-
-// 空状态：场景直达卡
-const SCENES = [
-  { icon: "📄", title: "审合同", desc: "贴 / 传 / 拍合同", q: "请帮我审查这份合同的风险点" },
-  { icon: "📚", title: "法考答题", desc: "刷题对答案", q: "帮我解答一道法考选择题" },
-  { icon: "💰", title: "被拖欠工资", desc: "劳动维权", q: "公司拖欠我三个月工资，该怎么维权？" },
-  { icon: "⚖️", title: "离婚财产分割", desc: "婚姻家事", q: "离婚时财产分割有哪些规定？" },
-];
-// 空状态：每日法条（前端硬编码高频常识，按日期轮换；点击提问走正常管线）
-const RAW_DAILY_LAWS = [
-  { src: "劳动合同法", art: "第十九条", text: "试用期最长不得超过六个月", q: "劳动合同试用期最长是多久？" },
-  { src: "民法典", art: "第五百八十五条", text: "违约金过分高于损失可请求法院调减", q: "违约金太高可以要求降低吗？" },
-  { src: "民法典", art: "第一百八十八条", text: "普通诉讼时效为三年", q: "普通诉讼时效是几年？" },
-  { src: "劳动法", art: "第四十四条", text: "安排延长工作时间应支付加班费", q: "加班费怎么计算？" },
-  { src: "民法典", art: "第一百四十八条", text: "受欺诈方有权请求撤销违背真实意思的法律行为", q: "被欺诈签订的合同可以撤销吗？" },
-  { src: "民法典", art: "第一千零七十九条", text: "感情确已破裂且调解无效的应准予离婚", q: "什么情况下法院会判决离婚？" },
-  { src: "消费者权益保护法", art: "第二十四条", text: "商品不符合质量要求的消费者可要求退货", q: "网购商品质量不好可以退货吗？" },
-  { src: "刑法", art: "第二十条", text: "正当防卫不负刑事责任", q: "什么是正当防卫？" },
-  { src: "道路交通安全法", art: "第七十六条", text: "交强险限额内先行赔偿交通事故损失", q: "交通事故赔偿顺序是怎样的？" },
-  { src: "民法典", art: "第一千一百六十五条", text: "因过错侵害他人民事权益应承担侵权责任", q: "侵权责任的构成要件是什么？" },
-  // 刑事诉讼法（5）
-  { src: "刑事诉讼法", art: "第十二条", text: "未经人民法院依法判决，对任何人都不得确定有罪", q: "未经法院判决能否认定某人有罪？" },
-  { src: "刑事诉讼法", art: "第三十四条", text: "犯罪嫌疑人自被侦查机关第一次讯问或采取强制措施之日起，有权委托辩护人", q: "犯罪嫌疑人在什么时间有权委托辩护人？" },
-  { src: "刑事诉讼法", art: "第五十五条", text: "对一切案件的判处都要重证据、重调查研究，不轻信口供", q: "仅有口供没有其他证据，能否定罪？" },
-  { src: "刑事诉讼法", art: "第八十一条", text: "对有证据证明有犯罪事实、可能判处徒刑以上刑罚的嫌疑人可以逮捕", q: "逮捕的条件是什么？" },
-  { src: "刑事诉讼法", art: "第二百三十七条", text: "第二审人民法院审理上诉案件不得加重被告人的刑罚", q: "二审上诉会加重刑罚吗？" },
-  // 民事诉讼法（3）
-  { src: "民事诉讼法", art: "第六十七条", text: "当事人对自己提出的主张，有责任提供证据", q: "民事诉讼中谁承担举证责任？" },
-  { src: "民事诉讼法", art: "第一百零三条", text: "可能使判决难以执行的案件，人民法院可以裁定采取保全措施", q: "什么情况下可以申请财产保全？" },
-  { src: "民事诉讼法", art: "第一百四十四条", text: "被告经传票传唤无正当理由拒不到庭的，可以缺席判决", q: "被告不出庭会怎样？" },
-  // 宪法（3）
-  { src: "宪法（1982年）", art: "第三十三条", text: "中华人民共和国公民在法律面前一律平等", q: "宪法规定公民享有什么平等权利？" },
-  { src: "宪法（1982年）", art: "第三十八条", text: "中华人民共和国公民的人格尊严不受侵犯", q: "人格尊严受宪法保护吗？" },
-  { src: "宪法（1982年）", art: "第四十二条", text: "中华人民共和国公民有劳动的权利和义务", q: "劳动是公民的权利还是义务？" },
-  // 行政法（3）
-  { src: "行政处罚法", art: "第二十九条", text: "对当事人的同一个违法行为，不得给予两次以上罚款的行政处罚", q: "同一个违法行为能被罚两次吗？" },
-  { src: "行政处罚法", art: "第五十九条", text: "行政处罚决定书应当载明申请行政复议、提起行政诉讼的途径和期限", q: "处罚决定书必须告知哪些内容？" },
-  { src: "行政处罚法", art: "第六十三条", text: "较大数额罚款、吊销许可证等处罚，行政机关应当告知当事人有要求听证的权利", q: "哪些处罚必须告知听证权利？" },
-  // 商法（3）
-  { src: "公司法", art: "第二十三条", text: "股东滥用公司法人独立地位和股东有限责任逃避债务，应当对公司债务承担连带责任", q: "股东什么情况下要对公司债务承担连带责任？" },
-  { src: "公司法", art: "第十六条", text: "公司向其他企业投资或为他人提供担保，依照公司章程规定由董事会或股东会决议", q: "公司对外担保需要什么程序？" },
-  { src: "保险法", art: "第十六条", text: "订立保险合同时，投保人对保险人询问的事项应当如实告知", q: "投保人有哪些如实告知义务？" },
-  // 代理（3，民法典）
-  { src: "民法典", art: "第一百六十二条", text: "代理人在代理权限内，以被代理人名义实施的民事法律行为，对被代理人发生效力", q: "什么是代理？代理行为对谁生效？" },
-  { src: "民法典", art: "第一百七十一条", text: "行为人没有代理权、超越代理权或代理权终止后实施代理行为，未经追认不发生效力", q: "无权代理的合同有效吗？" },
-  { src: "民法典", art: "第一百七十二条", text: "行为人无权代理但相对人有理由相信其有代理权的，代理行为有效（表见代理）", q: "什么是表见代理？" },
-  // 物权变动（3，民法典）
-  { src: "民法典", art: "第二百零九条", text: "不动产物权的设立、变更、转让和消灭，经依法登记发生效力", q: "不动产买卖何时发生物权变动？" },
-  { src: "民法典", art: "第二百二十四条", text: "动产物权的设立和转让，自交付时发生效力", q: "动产买卖何时转移所有权？" },
-  { src: "民法典", art: "第三百一十一条", text: "无处分权人转让财产，受让人善意取得且价格合理、已登记的，取得所有权", q: "什么是善意取得？" },
-  // 犯罪形态（3，刑法总则）
-  { src: "刑法", art: "第二十二条", text: "为了犯罪准备工具、制造条件的，是犯罪预备", q: "什么是犯罪预备？" },
-  { src: "刑法", art: "第二十三条", text: "已经着手实行犯罪，由于意志以外的原因而未得逞的，是犯罪未遂", q: "什么是犯罪未遂？" },
-  { src: "刑法", art: "第二十四条", text: "在犯罪过程中自动放弃犯罪或自动有效防止结果发生的，是犯罪中止", q: "什么是犯罪中止？" },
-];
-type DailyLaw = { src: string; art: string; text: string; q: string };
-// 每日法条随机轮播：以当天日期为种子确定性洗牌（每天牌面不同），
-// 初始索引与每次 5 秒切换均为真随机，避免同一天内固定递增循环的规律感
-function _dailySeed() {
-  const d = new Date();
-  return d.getFullYear() * 10000 + (d.getMonth() + 1) * 100 + d.getDate();
-}
-function _shuffleBySeed(arr: DailyLaw[], seed: number): DailyLaw[] {
-  const a = [...arr];
-  let s = seed;
-  for (let i = a.length - 1; i > 0; i--) {
-    s = (s * 9301 + 49297) % 233280;
-    const j = s % (i + 1);
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-const DAILY_LAWS = _shuffleBySeed(RAW_DAILY_LAWS, _dailySeed());
-function dailyLawIndex() {
-  return Math.floor(Math.random() * DAILY_LAWS.length);
-}
-// 流式三态：法典速查字符（检索期轮换）
-const CODEX = ["§", "¶", "†", "‡"];
-
-// 法条卡缓存：同「书名+条号」只请求一次后端（防 hover 重复请求 / 乱序覆盖）
-const lawCache = new Map<string, Promise<LawDetail | null>>();
-
-function ChatImage({ dataURL, imgRef, thumbRef }: { dataURL?: string; imgRef?: string; thumbRef?: string }) {
-  const [src, setSrc] = useState<string | undefined>(dataURL);
-  useEffect(() => {
-    if (dataURL) {
-      setSrc(dataURL);
-      return;
-    }
-    const ref = thumbRef || imgRef;
-    if (!ref) return;
-    let alive = true;
-    loadMediaSrc(ref).then((u) => {
-      if (alive && u) setSrc(u);
-    });
-    return () => {
-      alive = false;
-    };
-  }, [dataURL, imgRef, thumbRef]);
-  if (!src) return null;
-  return <img src={src} alt="附图" className="mt-1 max-h-56 rounded-lg border border-mist object-contain" />;
-}
-
-// ---- 法条内联卡（纯函数，模块级：供 MessageHtml memo 使用，避免组件内重建失效） ----
-function escapeHtmlText(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
-function buildLawCardHtml(exp: {
-  source: string;
-  article: string;
-  content: string;
-  status?: string;
-  found: boolean;
-}): string {
-  const title = `<p class="law-title font-serif text-sm">《${escapeHtmlText(exp.source)}》${escapeHtmlText(exp.article)}</p>`;
-  if (!exp.found) {
-    // 知识库未收录（如司法解释）：仍弹卡，给出可操作提示
-    return (
-      `<div class="law-glass law-inline-card rounded-xl px-4 py-4">` +
-      title +
-      `<p class="mt-2 text-[0.85rem] leading-relaxed text-slate/85">知识库暂未收录该条文原文。</p>` +
-      `</div>`
-    );
-  }
-  const content = escapeHtmlText(exp.content).replace(/\n/g, "<br/>");
-  const status = exp.status ? `<p class="mt-2 text-xs text-slate">状态：${escapeHtmlText(exp.status)}</p>` : "";
-  return (
-    `<div class="law-glass law-inline-card rounded-xl px-4 py-4">` +
-    title +
-    `<p class="mt-2 whitespace-pre-wrap text-[0.85rem] leading-relaxed text-ink/90 font-normal">${content}</p>` +
-    `${status}</div>`
-  );
-}
-
-/** 在回答 HTML 中定位「对应 data-source + 条号」的法条引用，在其第 occurrence 次出现后追加卡片 */
-function injectLawCardHtml(html: string, exp: {
-  source: string;
-  article: string;
-  content: string;
-  status?: string;
-  found: boolean;
-}, occurrence = 0): string {
-  const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const src = esc(exp.source);
-  const art = esc(exp.article.replace(/^第|条$/g, ""));
-  const re = new RegExp(`(<span class="law-ref" data-source="${src}"[^>]*>[^<]*${art}[^<]*<\\/span>)`, "g");
-  const card = buildLawCardHtml(exp);
-  let count = 0;
-  let injected = false;
-  const out = html.replace(re, (full) => {
-    const isTarget = count === occurrence;
-    count++;
-    if (isTarget) {
-      injected = true;
-      return full + card;
-    }
-    return full;
-  });
-  return injected ? out : out + card; // 兜底：计数越界则追加到末尾
-}
-
-interface ExpandedLaw {
-  msgIndex: number;
-  source: string;
-  article: string;
-  content: string;
-  status?: string;
-  found: boolean;
-  occurrence: number;
-}
-
-/** 消息 HTML 渲染（React.memo）：流式时只有 content 变化的最后一条会重排 renderAnswer，
- * 已完成消息不重复跑语义标注正则（F1 性能优化，2026-08-07）。
- * 自定义比较（对抗审计 v2 #10）：expanded 是对象，浅比较会被引用击穿（点法条卡→全量重标注）。
- * 改为按内容字段比较：仅当 content 变、或卡片注入状态变、或卡片内容字段（source/article/occurrence）
- * 变时才重渲染；点任意法条卡不再触发全部历史消息重跑 renderAnswer。 */
-const MessageHtml = memo(function MessageHtml({ content, expanded, i }: {
-  content: string;
-  expanded: ExpandedLaw | null;
-  i: number;
-}) {
-  let html = renderAnswer(content);
-  if (expanded && expanded.msgIndex === i) {
-    html = injectLawCardHtml(html, expanded, expanded.occurrence);
-  }
-  return <div className="whitespace-normal" dangerouslySetInnerHTML={{ __html: html }} />;
-}, (prev, next) => {
-  const prevHit = prev.expanded?.msgIndex === prev.i;
-  const nextHit = next.expanded?.msgIndex === next.i;
-  if (prevHit !== nextHit) return false; // 卡片注入状态变化（注入/收起）→ 重渲染
-  if (prevHit && nextHit) {
-    const pe = prev.expanded!, ne = next.expanded!;
-    return (
-      prev.content === next.content &&
-      prev.i === next.i &&
-      pe.source === ne.source &&
-      pe.article === ne.article &&
-      pe.occurrence === ne.occurrence &&
-      pe.found === ne.found
-    );
-  }
-  return prev.content === next.content && prev.i === next.i;
-});
+import { buildScopeAnswer, SCOPE_MAX_SELECTION } from "@/lib/scope";
+import type { QuotaWarn, FileInfo } from "@/lib/types";
+import { useChatStream } from "@/lib/hooks/useChatStream";
+import { useConversations } from "@/lib/hooks/useConversations";
+import { useFeedback } from "@/lib/hooks/useFeedback";
+import { useVoice } from "@/lib/hooks/useVoice";
+import { useLawCards } from "@/lib/hooks/useLawCards";
+import {
+  MAX_IMAGE_MB,
+  ACCEPT_IMAGE,
+  MAX_FILE_MB,
+  ACCEPT_FILE,
+  DAILY_LAWS,
+  dailyLawIndex,
+  CODEX,
+} from "@/lib/constants";
+import { Sidebar } from "@/components/chat/Sidebar";
+import { QuotaBanner } from "@/components/chat/QuotaBanner";
+import { MessageList } from "@/components/chat/MessageList";
+import { InputBar } from "@/components/chat/InputBar";
+import { LawPanel } from "@/components/chat/LawPanel";
 
 export default function ChatPage() {
   const router = useRouter();
   const { user, loading, logout } = useAuth();
-  const [history, setHistory] = useState<ConvItem[]>([]);
-  const [messages, setMessages] = useState<Msg[]>([]);
-  const [conversationId, setConversationId] = useState<number | null>(null);
-  const [activeId, setActiveId] = useState<number | null>(null);
+  // 能力发现（阶段B 诚实停用）：后端 /api/health 返回所配模型是否具备视觉/语音能力，
+  // 缺失则隐藏对应入口（而非展示必然 501 的按钮）。加载失败/未加载时保持展示（fail-open，
+  // 提交时仍有后端 501 兜底提示）。
+  const [caps, setCaps] = useState<{ image_chat: boolean; voice_transcribe: boolean } | null>(null);
+  // B1 方案 A：点选卡片 → 编号列表填入输入框（可手改），仍走现有发送按钮
+  const [selectedScope, setSelectedScope] = useState<number[]>([]);
   const [input, setInput] = useState("");
   const [pendingImage, setPendingImage] = useState<string | null>(null);
-  const [streaming, setStreaming] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const bottomRef = useRef<HTMLDivElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isNearBottom, setIsNearBottom] = useState(true);
-  const imageInputRef = useRef<HTMLInputElement>(null); // 图片选择
-  const fileInputRef = useRef<HTMLInputElement>(null); // 文件（txt/pdf/docx）选择
   const [fileInfo, setFileInfo] = useState<FileInfo | null>(null);
   const [fileContent, setFileContent] = useState<string | null>(null);
-  const [listening, setListening] = useState(false); // 语音输入（Web Speech API）录音中
-  const recRef = useRef<{ stop: () => void } | null>(null);
-  const [corrFor, setCorrFor] = useState<number | null>(null);
-  const [corrText, setCorrText] = useState("");
-  const [fbDone, setFbDone] = useState<Record<number, "up" | "down">>({});
   const [quotaWarn, setQuotaWarn] = useState<QuotaWarn | null>(null);
   const [codexIdx, setCodexIdx] = useState(0); // 流式三态：法典速查字符轮换
   const [dailyIdx, setDailyIdx] = useState(dailyLawIndex()); // 每日法条轮播索引
+
+  // ---------- T2.3 状态收敛 hooks ----------
+  const { expandedLaw, toggleInlineLaw, clearExpandedLaw } = useLawCards();
+  // useChatStream 需要会话切片的 setActiveId/loadHistory（原 doSend 内联调用）。
+  // hooks 间不能相互引用未创建的值 → 以 ref 桥接、每渲染 effect 绑定；
+  // doSend 仅在挂载后的用户动作中触发，绑定时序与原实现一致。
+  const lateRef = useRef<{ sync: (id: number) => void; refresh: () => void } | null>(null);
+  const stream = useChatStream({
+    onConversationId: (id) => lateRef.current?.sync(id),
+    onStreamEnd: () => lateRef.current?.refresh(),
+  });
+  const { messages, setMessages, streaming } = stream;
+  const feedback = useFeedback({ messages, conversationId: stream.conversationId });
+  const { fbDone, corrFor, corrText, setCorrFor, setCorrText, sendFeedback } = feedback;
+  const conversations = useConversations({
+    user,
+    streaming,
+    setMessages,
+    setConversationId: stream.setConversationId,
+    setPendingAgentRun: stream.setPendingAgentRun,
+    setClarifyRounds: stream.setClarifyRounds,
+    setSelectedScope,
+    setInput,
+    setPendingImage,
+    setSidebarOpen,
+    setIsNearBottom,
+    clearExpandedLaw,
+    resetFeedback: feedback.reset,
+  });
+  const { history, activeId, loadHistory, newChat, selectConv, deleteConv } = conversations;
+  const { listening, transcribing, toggleVoice } = useVoice({ setInput });
+  useEffect(() => {
+    lateRef.current = { sync: conversations.setActiveId, refresh: loadHistory };
+  });
+  useEffect(() => {
+    // 能力发现：一次性拉取后端能力位（失败静默——fail-open，提交时后端 501 兜底）
+    fetch(`${API_URL}/api/health`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => (d?.capabilities ? setCaps(d.capabilities) : null))
+      .catch(() => {});
+  }, []);
   useEffect(() => {
     if (messages.length !== 0) return; // 只在空状态轮播；开始对话后停止，避免全局重渲染导致法条卡抖动
     // 真随机切换：从 [0, len-1] 中抽一条，且避开当前索引（n>=i 时 +1），避免连续重复
@@ -292,28 +102,9 @@ export default function ChatPage() {
     );
     return () => clearInterval(t);
   }, [messages.length]);
-  const dailyLaw = DAILY_LAWS[dailyIdx];
-  // 法条速查面板 + 法条内联展开卡（P1）
+  // 法条速查面板开合（面板内部状态在 LawPanel 组件里）
   const [lawPanel, setLawPanel] = useState(false);
-  const [lawQ, setLawQ] = useState("");
-  const [lawResults, setLawResults] = useState<LawItem[]>([]);
-  const [lawDetail, setLawDetail] = useState<LawDetail | null>(null);
-  // 点击法条 → 卡片在该法条下一行内联展开（再点收起）
-  const [expandedLaw, setExpandedLaw] = useState<{
-    msgIndex: number;
-    source: string;
-    article: string;
-    content: string;
-    status?: string;
-    found: boolean; // 知识库是否收录了原文（未收录也弹卡提示）
-    occurrence: number; // 同「书名+条号」在该消息内第几次出现（0 起），用于卡片精确落到点击的那一条
-  } | null>(null);
   usePointerGlow(scrollRef); // 指针光晕（仅 hover:hover）
-
-  // 语音（M2）：Qwen livetranslate 后端转写，Web Speech 兜底
-  const [transcribing, setTranscribing] = useState(false);
-  const wavRecRef = useRef<{ stop: () => Promise<Blob> } | null>(null);
-  const voiceTimeoutRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (!loading) {
@@ -322,19 +113,13 @@ export default function ChatPage() {
   }, [loading, user, router]);
 
   // 配额预警（B 更优版）：embedding 快用完/耗尽 + rerank 降级 → 顶部横幅（提前量）
+  // 与能力发现一致用 API_URL 前缀（dev 直连 backend；相对路径在 next dev 会 404 → 横幅永不显示，P2-1）
   useEffect(() => {
-    fetch("/api/utility/quota")
+    fetch(`${API_URL}/api/utility/quota`)
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => setQuotaWarn(d))
       .catch(() => {});
   }, []);
-
-  const loadHistory = () => {
-    convApi.list().then(setHistory).catch(() => {});
-  };
-  useEffect(() => {
-    if (user) loadHistory();
-  }, [user]);
 
   // 流式三态·检索期：法典速查字符轮换（streaming 且尚未输出时）
   useEffect(() => {
@@ -342,19 +127,6 @@ export default function ChatPage() {
     const t = setInterval(() => setCodexIdx((i) => (i + 1) % CODEX.length), 260);
     return () => clearInterval(t);
   }, [streaming]);
-
-  // 卸载清理：语音超时 + 停止正在录音的麦克风（对抗审计 v2 #11：离开页面不 stop，
-  // 麦克风权限/轨道持续占用；静默丢弃录音，只释放轨道）
-  useEffect(() => {
-    return () => {
-      if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
-      if (wavRecRef.current) {
-        const w = wavRecRef.current;
-        wavRecRef.current = null;
-        void w.stop().catch(() => {});
-      }
-    };
-  }, []);
 
   // 自动滚动到底部：只在用户贴近底部时跟随（不打断向上阅读）；
   // 流式输出期间用即时滚动（避免 smooth 平滑动画"追着文字跑"的卡顿）
@@ -367,59 +139,6 @@ export default function ChatPage() {
   }, [messages, isNearBottom, streaming]);
 
   if (loading || !user) return null;
-
-  function newChat() {
-    if (streaming) return; // 流式期间禁止切会话，防消息污染/conversationId 错位（对抗审计 2026-08-07）
-    setMessages([]);
-    setConversationId(null);
-    setActiveId(null);
-    setInput("");
-    setPendingImage(null);
-    setSidebarOpen(false);
-    setIsNearBottom(true);
-    setExpandedLaw(null);
-  }
-
-  async function selectConv(item: ConvItem) {
-    if (streaming) return; // 流式期间禁止切换会话，防消息污染/conversationId 错位（对抗审计 2026-08-07）
-    setActiveId(item.id);
-    setConversationId(item.id);
-    setPendingImage(null);
-    setSidebarOpen(false);
-    setExpandedLaw(null);
-    try {
-      const det = await convApi.detail(item.id);
-      setMessages(
-        (det.messages || []).map((m: any) => ({
-          role: m.role === "user" ? "user" : "assistant",
-          content: m.content || "",
-          imgRef: m.image_ref || undefined,
-          thumbRef: m.thumb_ref || undefined,
-        }))
-      );
-      setIsNearBottom(true);
-    } catch {
-      setMessages([]);
-    }
-  }
-
-  // 删除历史对话（M5）：后端 DELETE /api/conversations/{id} 已就绪，前端接线
-  async function deleteConv(id: number) {
-    if (streaming) return; // 流式期间禁止删除会话，防消息污染/conversationId 错位（对抗审计 2026-08-07）
-    if (!window.confirm("确定删除这个对话吗？删除后不可恢复。")) return;
-    try {
-      await convApi.remove(id);
-      if (activeId === id) {
-        setMessages([]);
-        setConversationId(null);
-        setActiveId(null);
-        setExpandedLaw(null);
-      }
-      loadHistory();
-    } catch {
-      alert("删除失败，请重试");
-    }
-  }
 
   function acceptImageFile(file: File) {
     if (!ACCEPT_IMAGE.includes(file.type)) {
@@ -455,88 +174,6 @@ export default function ChatPage() {
     }
   }
 
-  async function toggleVoice() {
-    // 语音转文字（M2）：优先后端 Qwen livetranslate 语音模型转写（麦克风录音→WAV→上传，
-    // 识别质量优于浏览器 Web Speech）；失败/无麦克风权限 → 回退浏览器 Web Speech。
-    if (listening) {
-      const w = wavRecRef.current;
-      wavRecRef.current = null;
-      if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
-      setListening(false);
-      if (w) {
-        const blob = await w.stop();
-        void transcribeAndFill(blob);
-      }
-      return;
-    }
-    if (window.AudioContext) {
-      try {
-        // getUserMedia 缺失会在此抛错，被 catch 兜底回退 Web Speech
-        wavRecRef.current = await startWavRecorder();
-        // 60s 自动停止并转写
-        voiceTimeoutRef.current = window.setTimeout(() => {
-          const w = wavRecRef.current;
-          if (w) {
-            wavRecRef.current = null;
-            setListening(false);
-            void w.stop().then(transcribeAndFill).catch(() => {});
-          }
-        }, 60000);
-        setListening(true);
-        return;
-      } catch {
-        // 麦克风权限拒绝等 → 回退 Web Speech
-      }
-    }
-    legacyWebSpeech();
-  }
-
-  async function transcribeAndFill(blob: Blob) {
-    setTranscribing(true);
-    try {
-      const r = await transcribeApi.post(blob);
-      setInput((prev) => (prev ? prev + r.text : r.text));
-    } catch (err) {
-      alert(`语音转写失败（${err instanceof Error ? err.message : err}），已回退浏览器识别`);
-      legacyWebSpeech();
-    } finally {
-      setTranscribing(false);
-    }
-  }
-
-  function legacyWebSpeech() {
-    // 兜底：浏览器 Web Speech API（zh-CN 连续识别）
-    const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    if (!SR) {
-      alert("当前浏览器不支持语音输入，请用 Chrome 或 Edge");
-      return;
-    }
-    if (listening) {
-      recRef.current?.stop();
-      setListening(false);
-      return;
-    }
-    const rec = new SR();
-    rec.lang = "zh-CN";
-    rec.continuous = true;
-    rec.interimResults = true;
-    recRef.current = rec;
-    rec.onresult = (e: any) => {
-      let text = "";
-      for (let i = e.resultIndex; i < e.results.length; i++) {
-        text += e.results[i][0].transcript;
-      }
-      setInput((prev) => (prev ? prev + text : text));
-    };
-    rec.onend = () => setListening(false);
-    rec.onerror = () => {
-      setListening(false);
-      alert("语音识别失败，请检查麦克风权限后重试");
-    };
-    rec.start();
-    setListening(true);
-  }
-
   function onPaste(e: ClipboardEvent) {
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -558,90 +195,7 @@ export default function ChatPage() {
     if (f && ACCEPT_IMAGE.includes(f.type)) acceptImageFile(f);
   }
 
-  // 核心发送：普通 send 与空状态快捷提问共用（streamChat 回调原样，零逻辑改动）
-  async function doSend(contentText: string, image?: string | null, display?: string, truncated?: boolean) {
-    if ((!contentText && !image) || streaming) return;
-    const userMsg: Msg = {
-      role: "user",
-      content: display || contentText || "[图片]",
-      imageDataURL: image || undefined,
-    };
-    const aiMsg: Msg = { role: "assistant", content: "" };
-    setMessages((m) => [...m, userMsg, aiMsg]);
-    setStreaming(true);
-
-    let acc = "";
-    try {
-      await streamChat(
-        {
-          conversationId,
-          content: contentText,
-          image: image || undefined,
-          truncated,
-        },
-        (chunk) => {
-          acc += chunk;
-          setMessages((m) => {
-            const copy = [...m];
-            copy[copy.length - 1] = { ...copy[copy.length - 1], content: acc };
-            return copy;
-          });
-        },
-        (meta: ChatMeta) => {
-          setMessages((m) => {
-            const copy = [...m];
-            const last = copy[copy.length - 1];
-            if (last && meta.sources?.length) {
-              copy[copy.length - 1] = { ...last, sources: meta.sources };
-            }
-            return copy;
-          });
-          if (meta.conversation_id != null) {
-            setConversationId(meta.conversation_id);
-            setActiveId(meta.conversation_id);
-          }
-        },
-        (err) => {
-          setMessages((m) => {
-            const copy = [...m];
-            copy[copy.length - 1] = { ...copy[copy.length - 1], content: `出错了：${err}` };
-            return copy;
-          });
-        },
-        (steps) => {
-          // 合同评估分析进度（SSE step 事件）：更新最后一条 AI 消息的步骤区
-          setMessages((m) => {
-            const copy = [...m];
-            const last = copy[copy.length - 1];
-            if (last && last.role === "assistant") {
-              copy[copy.length - 1] = { ...last, steps };
-            }
-            return copy;
-          });
-        },
-        () => {
-          // 后端重试将零重答：清空已发的半截内容重新累积，防拼接乱码（对抗审计 2026-08-07）
-          acc = "";
-          setMessages((m) => {
-            const copy = [...m];
-            copy[copy.length - 1] = { ...copy[copy.length - 1], content: "" };
-            return copy;
-          });
-        }
-      );
-    } catch (e) {
-      // 网络错误/流中断会让 streamChat reject——必须恢复 streaming 状态并提示，
-      // 否则 UI 永久卡在"正在生成"（对抗审计 2026-08-07）
-      setMessages((m) => {
-        const copy = [...m];
-        copy[copy.length - 1] = { ...copy[copy.length - 1], content: `出错了：${e instanceof Error ? e.message : String(e)}` };
-        return copy;
-      });
-    } finally {
-      setStreaming(false);
-    }
-    loadHistory();
-  }
+  // 核心发送逻辑已收敛至 lib/hooks/useChatStream（T2.3，逐行等价搬移）
 
   function send(e?: FormEvent) {
     e?.preventDefault();
@@ -657,220 +211,67 @@ export default function ChatPage() {
     setPendingImage(null);
     setFileContent(null);
     setFileInfo(null);
-    doSend(contentToSend, imageToSend, display, truncated);
+    stream.doSend(contentToSend, imageToSend, display, truncated);
   }
 
   // 空状态快捷提问（场景直达 / 每日法条）：直接发，不走输入框
   function quickSend(q: string) {
     if (streaming) return;
     setSidebarOpen(false);
-    doSend(q);
+    stream.doSend(q);
   }
 
-  // ---------- 法条卡：点击 → 内联展开（卡片出现在法条下一行，再点收起） ----------
-  // 从 .law-ref 的 data-source（书名，含省略书名号的独立条号）+ 文本条号 → 后端查原文。
-  // 带模块级缓存：同条文只发一次请求；失败返回 null（前端降级纯文本）。
-  function fetchLawRefCached(el: Element): Promise<LawDetail | null> {
-    const src = el.getAttribute("data-source");
-    const m = (el.textContent || "").match(
-      /第\s*([零〇○一二三四五六七八九十百千万0-9０-９]+)\s*条(之[一二三四五六七八九十百千万0-9０-９]+)?/
-    );
-    if (!src || !m) return Promise.resolve(null);
-    const article = `第${m[1]}条${m[2] || ""}`;
-    const key = `${src}\u0000${article}`;
-    let p = lawCache.get(key);
-    if (!p) {
-      // 库内 article 存完整「第X条」中文条号（精确匹配），必须拼回完整形式，否则数字/缺字 404
-      // B3（2026-08-07）：后端 /api/law 已 _normalize_article 归一（〇零/阿拉伯/之条），直接传原文条号
-      p = lawApi.detail(src, article).catch(() => null);
-      lawCache.set(key, p);
-    }
-    return p;
+  // B1 方案 A：点选卡片 → 编号列表填入输入框（可手改），仍走现有发送按钮。
+  // 边界：达上限 5 个后拒绝切换（输入框不动）；清空选择 → 重置 selectedScope + 输入框。
+  // 用组件作用域的 selectedScope 直接计算 next（避免 updater 内 setState，审查偏差修正）。
+  function toggleScope(n: number) {
+    const has = selectedScope.includes(n);
+    if (!has && selectedScope.length >= SCOPE_MAX_SELECTION) return;
+    const next = has ? selectedScope.filter((x) => x !== n) : [...selectedScope, n];
+    setSelectedScope(next);
+    setInput(next.length ? buildScopeAnswer(next) : "");
   }
 
-  // 法条内联卡纯函数（escapeHtmlText/buildLawCardHtml/injectLawCardHtml）已上移模块级，
-  // 供 MessageHtml memo 使用；removeUnprovidedHint 已删（B1 后端保证库内不产矛盾句）。
+  // ---------- 法条卡逻辑已收敛至 lib/hooks/useLawCards（T2.3，逐行等价搬移） ----------
+  // 法条内联卡纯函数（escapeHtmlText/buildLawCardHtml/injectLawCardHtml）已迁至
+  // components/chat/lawCardHtml.ts，供 MessageHtml memo 使用；removeUnprovidedHint 已删
+  // （B1 后端保证库内不产矛盾句）。
 
-  async function toggleInlineLaw(ref: Element, msgIndex: number) {
-    // 未收录的条文（如司法解释）也弹卡提示，而不是点了没反应
-    const src = ref.getAttribute("data-source") || "";
-    const m = (ref.textContent || "").match(/第\s*([零〇○一二三四五六七八九十百千万0-9０-９]+)\s*条(之[一二三四五六七八九十百千万0-9０-９]+)?/);
-    const article = m ? `第${m[1]}条${m[2] || ""}` : "";
-
-    // 计算被点击法条在「同书名+条号」集合中的序号（文档顺序），
-    // 使卡片精确落到点击的那一条，而非第一条（多次出现时）。
-    let occurrence = 0;
-    const msgEl = ref.closest("[data-msg-index]");
-    if (msgEl) {
-      const refs = msgEl.querySelectorAll(".law-ref");
-      for (const r of Array.from(refs)) {
-        if (r === ref) break;
-        const rSrc = r.getAttribute("data-source") || "";
-        const rm = (r.textContent || "").match(/第\s*([零〇○一二三四五六七八九十百千万0-9０-９]+)\s*条(之[一二三四五六七八九十百千万0-9０-９]+)?/);
-        const rArt = rm ? `第${rm[1]}条${rm[2] || ""}` : "";
-        if (rSrc === src && rArt === article) occurrence++;
-      }
-    }
-
-    const law = await fetchLawRefCached(ref);
-    setExpandedLaw((prev) =>
-      prev && prev.msgIndex === msgIndex && prev.source === src && prev.article === article && prev.occurrence === occurrence
-        ? null // 再点同一条 → 收起
-        : {
-            msgIndex,
-            source: src,
-            article,
-            content: law ? law.content : "",
-            status: law?.status,
-            found: !!law,
-            occurrence,
-          }
-    );
-  }
-
-  async function doLawSearch() {
-    const q = lawQ.trim();
-    if (!q) return;
-    try {
-      setLawResults(await lawApi.search(q));
-      setLawDetail(null);
-    } catch {
-      setLawResults([]);
-    }
-  }
-
-  async function openLawDetail(item: LawItem) {
-    try {
-      setLawDetail(await lawApi.detail(item.source, item.article));
-    } catch {
-      setLawDetail(null);
-    }
-  }
-
-  async function sendFeedback(i: number, rating: "up" | "down", correction?: string) {
-    const ai = messages[i];
-    const prev = messages[i - 1];
-    const question = prev && prev.role === "user" ? (prev.content === "[图片]" ? "[图片]" : prev.content) : "";
-    try {
-      await feedbackApi.post({
-        conversation_id: conversationId,
-        question: question || "(无)",
-        answer: ai.content,
-        rating,
-        correction: correction || undefined,
-      });
-      setFbDone((s) => ({ ...s, [i]: rating }));
-      setCorrFor(null);
-      setCorrText("");
-    } catch {
-      /* ignore */
-    }
-  }
+  // sendFeedback 已收敛至 lib/hooks/useFeedback（T2.3，逐行等价搬移），经 feedback 解构使用
 
   return (
     <div className="app-shell flex overflow-hidden">
-      {sidebarOpen && (
-        <div className="fade-in fixed inset-0 z-20 bg-ink/50 backdrop-blur-[2px] md:hidden" onClick={() => setSidebarOpen(false)} />
-      )}
-
-      {/* 侧栏：历史会话（樱花海主题色玻璃卡） */}
-      <aside
-        className={`sidebar-glow sidebar-glass fixed inset-y-0 left-0 z-30 flex w-[280px] max-w-[85vw] flex-col text-ink transition-transform duration-300 ease-out md:relative md:translate-x-0 ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        }`}
-      >
-        <div className="flex items-center justify-between px-3 py-5">
-          <Logo size="sm" />
-          <button className="rounded-md p-1 text-ink/50 transition-colors hover:bg-accent/10 hover:text-accent md:hidden" onClick={() => setSidebarOpen(false)} aria-label="关闭菜单">
-            ✕
-          </button>
-        </div>
-        <div className="px-3">
-          <button onClick={newChat} className="btn btn-primary w-full shadow-md shadow-accent/20">
-            <span className="text-base leading-none">＋</span> 新对话
-          </button>
-        </div>
-        <div className="mt-6 flex-1 overflow-y-auto px-3 pb-4">
-          <p className="px-2 pb-2 text-xs tracking-wide text-slate">历史会话</p>
-          {history.length === 0 && <p className="px-2 text-sm text-slate/70">暂无记录</p>}
-          {history.map((h) => (
-            <div
-              key={h.id}
-              className={`chat-item group relative ${activeId === h.id ? "active" : ""}`}
-              onClick={() => selectConv(h)}
-            >
-              <p className="flex items-center gap-1.5 truncate pr-5 text-sm text-ink/90">
-                {h.has_image && <span className="text-slate">🖼</span>}
-                <span className="truncate">{h.title || h.preview || "新对话"}</span>
-              </p>
-              <p className="mt-0.5 truncate text-xs text-slate">{h.preview}</p>
-              <button
-                type="button"
-                aria-label={`删除会话 ${h.title || h.preview || "新对话"}`}
-                title="删除会话"
-                className="absolute right-1.5 top-1/2 flex h-5 w-5 -translate-y-1/2 items-center justify-center rounded-full text-xs text-slate opacity-100 transition-opacity hover:bg-mist hover:text-ink md:opacity-0 md:group-hover:opacity-100"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void deleteConv(h.id);
-                }}
-              >
-                ✕
-              </button>
-            </div>
-          ))}
-        </div>
-        <div className="border-t border-mist px-3 py-4">
-          {user.role === "admin" && (
-            <button onClick={() => router.push("/admin")} className="mb-2 w-full text-left text-sm text-accent-deep transition-colors hover:text-accent">
-              管理后台 →
-            </button>
-          )}
-          <div className="flex items-center justify-between gap-2">
-            <span className="flex min-w-0 items-center gap-2 text-sm text-ink/70">
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent/90 text-xs font-semibold text-white">
-                {user.username.slice(0, 1).toUpperCase()}
-              </span>
-              <span className="truncate">{user.username}</span>
-            </span>
-            <button
-              onClick={() => {
-                logout();
-                router.replace("/login");
-              }}
-              className="shrink-0 rounded-md px-2 py-1 text-xs text-slate transition-colors hover:bg-mist hover:text-ink"
-            >
-              退出
-            </button>
-          </div>
-        </div>
-      </aside>
+      <Sidebar
+        open={sidebarOpen}
+        history={history}
+        activeId={activeId}
+        streaming={streaming}
+        user={user}
+        onClose={() => setSidebarOpen(false)}
+        onNewChat={newChat}
+        onSelectConv={selectConv}
+        onDeleteConv={(id) => void deleteConv(id)}
+        onLogout={() => {
+          logout();
+          router.replace("/login");
+        }}
+        router={router}
+      />
 
       {/* 主区域 */}
       <div className="relative flex min-w-0 flex-1 flex-col">
         <header className="header-blur sticky top-0 z-10 flex items-center gap-3 border-b border-mist px-5 py-3.5">
-          <button className="rounded-md p-1 text-xl leading-none text-ink transition-colors hover:bg-mist md:hidden" onClick={() => setSidebarOpen(true)} aria-label="打开菜单">
+          <button
+            className="rounded-md p-1 text-xl leading-none text-ink transition-colors hover:bg-mist md:hidden"
+            onClick={() => setSidebarOpen(true)}
+            aria-label="打开菜单"
+          >
             ☰
           </button>
           <h1 className="font-serif text-lg font-semibold tracking-tight">法律咨询</h1>
         </header>
 
-        {/* 配额预警横幅（B 更优版）：embedding 快用完/耗尽 或 rerank 已降级 */}
-        {quotaWarn && (quotaWarn.embedding_depleted || quotaWarn.embedding_warn || quotaWarn.rerank_degraded) && (
-          <div
-            className="border-b px-5 py-2 text-xs"
-            style={
-              quotaWarn.embedding_depleted
-                ? { background: "#ef444422", color: "#b91c1c", borderColor: "#ef444455" }
-                : { background: "#f59e0b22", color: "#92400e", borderColor: "#f59e0b55" }
-            }
-          >
-            {quotaWarn.embedding_depleted
-              ? "⚠ embedding 配额已耗尽，问答暂时不可用——请联系管理员换班（docs/换班手册.md）。"
-              : quotaWarn.embedding_warn
-                ? `⚠ embedding 配额接近耗尽（剩 ${quotaWarn.embedding_pct}%），建议尽快换班（docs/换班手册.md）。`
-                : "⚠ rerank 模型已全部耗尽，自动降级本地精排（排序准度略降）。"}
-          </div>
-        )}
+        <QuotaBanner quotaWarn={quotaWarn} />
 
         {/* 消息流 */}
         <div
@@ -894,168 +295,31 @@ export default function ChatPage() {
             void toggleInlineLaw(ref, msgIndex);
           }}
         >
-          <div className="mx-auto max-w-[44rem]">
-            {messages.length === 0 && (
-              <div className="fade-in pt-6">
-                {/* 欢迎语 */}
-                <p className="mb-6 text-center font-serif text-lg font-semibold tracking-tight text-ink md:mb-7 md:text-[1.4rem]">
-                  你好，{user.username}，今天想咨询什么？
-                </p>
-                {/* 场景直达卡：移动端 2 列，避免单列堆得太高 */}
-                <div className="mb-6 grid grid-cols-2 gap-3 md:grid-cols-4">
-                  {SCENES.map((s) => (
-                    <button
-                      key={s.title}
-                      type="button"
-                      onClick={() => quickSend(s.q)}
-                      className="glass-card group rounded-xl border border-transparent px-3 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-accent/40 md:px-4 md:py-4"
-                    >
-                      <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-accent/10 text-xl transition-colors group-hover:bg-accent/20 md:h-11 md:w-11 md:text-2xl">{s.icon}</span>
-                      <p className="mt-1.5 text-sm font-medium text-ink md:mt-2">{s.title}</p>
-                      <p className="mt-0.5 text-[11px] leading-snug text-slate md:text-xs">{s.desc}</p>
-                    </button>
-                  ))}
-                </div>
-                {/* 每日法条：轮播展示（5 秒切换），标题与内容居中，卡片高度固定 */}
-                <div className="glass-card relative mb-6 overflow-hidden rounded-xl border-l-[3px] border-l-accent px-5 py-4">
-                  <span className="section-mark absolute -right-1 -top-3 text-6xl text-accent opacity-20">§</span>
-                  <p className="text-center text-xs tracking-wide text-accent-deep">每日法条</p>
-                    <button
-                    key={dailyIdx}
-                    type="button"
-                    onClick={() => quickSend(dailyLaw.q)}
-                    className="fade-in mt-1.5 flex h-[3.5rem] w-full flex-col items-center justify-center overflow-hidden text-center text-sm leading-relaxed text-ink transition-colors hover:text-accent"
-                  >
-                    <span className="line-clamp-2">
-                      <span className="law-ref" data-source={dailyLaw.src}>
-                        《{dailyLaw.src}》{dailyLaw.art}
-                      </span>
-                      <span className="mx-1">—</span>
-                      {dailyLaw.text}
-                    </span>
-                  </button>
-                </div>
-                {/* 用法引导 */}
-                <p className="mb-6 text-center text-xs tracking-wide text-slate/80">
-                  ① 贴文字 / 传文件 / 拍照　→　② 逐条追问　→　③ 查看参考条文
-                </p>
-                {/* 最近会话 */}
-                {history.length > 0 && (
-                  <div className="mb-6">
-                    <p className="mb-2 text-center text-xs text-slate">最近会话</p>
-                    <div className="flex flex-wrap justify-center gap-2">
-                      {history.slice(0, 3).map((h) => (
-                        <button
-                          key={h.id}
-                          type="button"
-                          onClick={() => selectConv(h)}
-                          className="max-w-[220px] truncate rounded-full border border-mist bg-white/60 px-3 py-1.5 text-xs text-ink transition-colors hover:border-accent hover:text-accent"
-                        >
-                          {h.title || h.preview || "新对话"}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {/* 法条速查（P1 搜索面板） */}
-                <div className="text-center">
-                  <button
-                    type="button"
-                    onClick={() => setLawPanel(true)}
-                    className="rounded-full border border-mist bg-white/60 px-4 py-2 text-xs text-slate transition-colors hover:border-accent hover:text-accent"
-                  >
-                    § 法条速查
-                  </button>
-                </div>
-              </div>
-            )}
-            {messages.map((m, i) =>
-              m.role === "user" ? (
-                <div key={i} className="page-enter mb-6 flex items-end justify-end gap-2.5">
-                  <div className="bubble-user max-w-[85%] px-4 py-3 text-sm leading-[1.7] md:max-w-[70%]">
-                    {m.content && m.content !== "[图片]" && <span className="whitespace-pre-wrap">{m.content}</span>}
-                    <ChatImage dataURL={m.imageDataURL} imgRef={m.imgRef} thumbRef={m.thumbRef} />
-                  </div>
-                  <span className="mb-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-semibold text-white shadow-sm">
-                    {user.username.slice(0, 1).toUpperCase()}
-                  </span>
-                </div>
-              ) : (
-                <div key={i} data-msg-index={i} className="page-enter mb-6 flex items-start justify-start gap-2.5">
-                  <span className="logo-seal mt-0.5 h-8 w-8 shrink-0 text-sm">§</span>
-                  <div className="max-w-[85%] md:max-w-[80%]">
-                    {m.steps && m.steps.length > 0 && (
-                      <div className="mb-2 flex flex-wrap gap-1.5">
-                        {m.steps.map((s, si) => (
-                          <span
-                            key={si}
-                            className="inline-flex items-center gap-1 rounded-full border border-mist bg-parchment px-2.5 py-1 text-xs text-slate"
-                          >
-                            <span className="text-emerald-600">✓</span>
-                            <span className="font-medium text-ink">{s.label}</span>
-                            <span>{s.detail}</span>
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                    <div
-                      className={`bubble-ai whitespace-pre-wrap px-5 py-4 text-sm leading-[1.75] text-ink [overflow-wrap:anywhere] ${
-                        streaming && i === messages.length - 1 && m.content ? "streaming-cursor" : ""
-                      } ${streaming && i === messages.length - 1 && m.content ? "streaming-aura" : ""} ${
-                        streaming && i === messages.length - 1 && !m.content ? "overflow-hidden" : ""
-                      }`}
-                    >
-                      {m.content ? (
-                        // 流式期与完成期统一：实时语义标注（法条/时效/金额）+ Markdown 排版
-                        // （标题/表格/列表/加粗）；每帧基于当前累积内容重新生成完整 HTML，
-                        // 无半截标签累积，输出过程即规范格式。
-                        <MessageHtml content={m.content} expanded={expandedLaw} i={i} />
-                      ) : streaming && i === messages.length - 1 ? (
-                        // 检索期三态：合同模式=分析中（step 胶囊已是进度）；普通问答=法典速查+扫描光
-                        m.steps && m.steps.length > 0 ? (
-                          <span className="flex items-center gap-2 text-slate">
-                            正在生成风险评估报告
-                            <span className="typing-dots">
-                              <i />
-                              <i />
-                              <i />
-                            </span>
-                          </span>
-                        ) : (
-                          <span className="flex items-center gap-2 text-slate">
-                            <span className="codex-char text-accent">{CODEX[codexIdx]}</span>
-                            正在检索法律条文
-                            <span className="scan-beam" />
-                          </span>
-                        )
-                      ) : (
-                        ""
-                      )}
-                    </div>
-                    {!streaming && m.content && (
-                      <div className="mt-2">
-                        <div className="flex items-center gap-2 text-slate">
-                          <button type="button" onClick={() => sendFeedback(i, "up")} disabled={!!fbDone[i]} className={`rounded px-1.5 text-sm transition-colors ${fbDone[i] === "up" ? "text-jade" : "hover:text-ink"}`} aria-label="有帮助" title="有帮助">👍</button>
-                          <button type="button" onClick={() => setCorrFor(corrFor === i ? null : i)} disabled={!!fbDone[i]} className={`rounded px-1.5 text-sm transition-colors ${fbDone[i] === "down" ? "text-error" : "hover:text-ink"}`} aria-label="不准确" title="不准确 / 纠错">👎</button>
-                          {fbDone[i] && <span className="text-xs text-jade">已记录，谢谢反馈</span>}
-                        </div>
-                        {corrFor === i && (
-                          <div className="mt-2 space-y-2">
-                            <textarea className="input min-h-[64px]" placeholder="可选：写出你认为正确的答案或指出错误…" value={corrText} onChange={(e) => setCorrText(e.target.value)} />
-                            <div className="flex gap-2">
-                              <button type="button" onClick={() => sendFeedback(i, "down", corrText)} className="btn btn-primary !px-3 !py-1 text-xs">提交纠错</button>
-                              <button type="button" onClick={() => sendFeedback(i, "down", "")} className="btn btn-secondary !px-3 !py-1 text-xs">仅标记不准</button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )
-            )}
-            <div ref={bottomRef} />
-          </div>
+          <MessageList
+            messages={messages}
+            username={user.username}
+            streaming={streaming}
+            expandedLaw={expandedLaw}
+            fbDone={fbDone}
+            corrFor={corrFor}
+            corrText={corrText}
+            codexIdx={codexIdx}
+            selectedScope={selectedScope}
+            history={history}
+            dailyIdx={dailyIdx}
+            onToggleScope={toggleScope}
+            onClearScope={() => {
+              setSelectedScope([]);
+              setInput("");
+            }}
+            onFeedbackUp={(i) => void sendFeedback(i, "up")}
+            onFeedbackDown={(i, correction) => void sendFeedback(i, "down", correction)}
+            onCorrForChange={setCorrFor}
+            onCorrTextChange={setCorrText}
+            onQuickSend={quickSend}
+            onSelectConv={selectConv}
+            onOpenLawPanel={() => setLawPanel(true)}
+          />
         </div>
 
         {/* 回到最新消息：向上翻阅历史时出现，一键平滑滚到底部 */}
@@ -1070,7 +334,15 @@ export default function ChatPage() {
             className="absolute bottom-28 right-5 z-20 flex items-center gap-1.5 rounded-full border border-white/70 bg-white/85 px-3.5 py-2 text-xs font-medium text-ink shadow-lg backdrop-blur-md transition-all duration-200 hover:-translate-y-0.5 hover:bg-white md:right-8"
             aria-label="回到最新消息"
           >
-            <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              className="h-3.5 w-3.5"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <line x1="12" y1="5" x2="12" y2="19" />
               <polyline points="19 12 12 19 5 12" />
             </svg>
@@ -1078,168 +350,29 @@ export default function ChatPage() {
           </button>
         )}
 
-        {/* 输入区 */}
-        <form onSubmit={send} className="border-t border-white/40 bg-white/45 px-4 py-4 backdrop-blur-md md:px-8 pb-safe">
-          <div className="mx-auto max-w-[44rem]">
-            {pendingImage && (
-              <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-mist bg-parchment p-1.5">
-                <img src={pendingImage} alt="待发送" className="h-12 w-12 rounded object-cover" />
-                <button type="button" onClick={() => setPendingImage(null)} className="rounded px-1.5 text-slate hover:text-error" aria-label="移除图片">
-                  ✕
-                </button>
-              </div>
-            )}
-            {fileInfo && (
-              <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-mist bg-parchment px-2.5 py-1.5 text-sm text-ink">
-                <span className="text-slate">📄</span>
-                <span className="max-w-[220px] truncate">{fileInfo.name}</span>
-                <span className="text-slate/70">已解析 {fileInfo.chars} 字{fileInfo.truncated ? "（超长已截断）" : ""}</span>
-                <button type="button" onClick={() => { setFileInfo(null); setFileContent(null); }} className="rounded px-1 text-slate hover:text-error" aria-label="移除文件">
-                  ✕
-                </button>
-              </div>
-            )}
-            <div className="flex items-center gap-1.5 md:gap-2">
-              <input ref={imageInputRef} type="file" accept="image/jpeg,image/png" capture="environment" className="hidden" onChange={(e) => e.target.files?.[0] && acceptImageFile(e.target.files[0])} />
-              <button
-                type="button"
-                onClick={() => imageInputRef.current?.click()}
-                disabled={streaming}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-mist text-slate transition-colors hover:bg-mist hover:text-ink disabled:opacity-50 md:h-10 md:w-10"
-                aria-label="上传图片"
-                title="上传图片（JPEG/PNG，≤5MB）"
-              >
-                <svg className="h-[17px] w-[17px] md:h-[18px] md:w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
-                  <circle cx="8.5" cy="8.5" r="1.5" />
-                  <polyline points="21 15 16 10 5 21" />
-                </svg>
-              </button>
-              <input ref={fileInputRef} type="file" accept=".txt,.md,.pdf,.docx" className="hidden" onChange={(e) => e.target.files?.[0] && handleFileUpload(e.target.files[0])} />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                disabled={streaming}
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-mist text-slate transition-colors hover:bg-mist hover:text-ink disabled:opacity-50 md:h-10 md:w-10"
-                aria-label="上传文件"
-                title="上传文件（txt/md/pdf/docx，≤10MB）"
-              >
-                <svg className="h-[17px] w-[17px] md:h-[18px] md:w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M13 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" />
-                  <polyline points="13 2 13 9 20 9" />
-                </svg>
-              </button>
-              <button
-                type="button"
-                onClick={toggleVoice}
-                disabled={streaming || transcribing}
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full border transition-colors disabled:opacity-50 md:h-10 md:w-10 ${
-                  listening
-                    ? "border-error bg-error/10 text-error"
-                    : transcribing
-                      ? "border-accent bg-accent/10 text-accent"
-                      : "border-mist text-slate hover:bg-mist hover:text-ink"
-                }`}
-                aria-label={listening ? "停止录音" : transcribing ? "语音转写中" : "语音输入"}
-                title={listening ? "停止录音" : transcribing ? "正在转写…" : "语音输入（按住说话，松手转写）"}
-              >
-                {transcribing ? (
-                  <Spinner />
-                ) : listening ? (
-                  <span className="h-3.5 w-3.5 animate-pulse rounded-full bg-error" />
-                ) : (
-                  <svg className="h-[17px] w-[17px] md:h-[18px] md:w-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                    <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                    <line x1="12" y1="19" x2="12" y2="23" />
-                    <line x1="8" y1="23" x2="16" y2="23" />
-                  </svg>
-                )}
-              </button>
-              <textarea
-                className="input min-w-0 flex-1 !rounded-[6px] !py-2 !text-[15px] resize-none max-h-[120px] md:!text-base"
-                rows={2}
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && e.ctrlKey) send();  // Enter 换行，Ctrl+Enter 发送
-                }}
-                onPaste={onPaste}
-                placeholder="请输入法律问题…"
-                disabled={streaming}
-              />
-              <button
-                type="submit"
-                disabled={streaming || (!input.trim() && !pendingImage && !fileContent)}
-                className="btn btn-primary h-9 w-9 shrink-0 !rounded-[6px] !p-0 shadow-md shadow-accent/25 md:h-10 md:w-10"
-                aria-label="发送"
-              >
-                {streaming ? (
-                  <Spinner />
-                ) : (
-                  <svg className="h-4 w-4 md:h-[17px] md:w-[17px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="7" y1="17" x2="17" y2="7" />
-                    <polyline points="7 7 17 7 17 17" />
-                  </svg>
-                )}
-              </button>
-            </div>
-            <p className="mt-2 text-center text-xs text-slate/70">
-              回答仅供参考，不构成正式法律意见；法律可能修订，请以最新规定为准
-            </p>
-          </div>
-        </form>
+        <InputBar
+          input={input}
+          onInputChange={setInput}
+          streaming={streaming}
+          pendingImage={pendingImage}
+          onRemoveImage={() => setPendingImage(null)}
+          fileInfo={fileInfo}
+          fileContent={fileContent}
+          onRemoveFile={() => {
+            setFileInfo(null);
+            setFileContent(null);
+          }}
+          caps={caps}
+          listening={listening}
+          transcribing={transcribing}
+          onToggleVoice={() => void toggleVoice()}
+          onPickImageFile={acceptImageFile}
+          onPickFile={(f) => void handleFileUpload(f)}
+          onPaste={onPaste}
+          onSubmit={send}
+        />
 
-        {/* 法条速查面板（P1） */}
-        {lawPanel && (
-          <div
-            className="fixed inset-0 z-40 flex items-center justify-center bg-ink/30 p-4 backdrop-blur-sm"
-            onClick={() => setLawPanel(false)}
-          >
-            <div className="glass-card w-full max-w-xl rounded-2xl p-5" onClick={(e) => e.stopPropagation()}>
-              <div className="flex items-center justify-between">
-                <h3 className="font-serif text-lg font-semibold text-ink">法条速查</h3>
-                <button type="button" onClick={() => setLawPanel(false)} className="rounded px-2 text-slate transition-colors hover:text-ink" aria-label="关闭">
-                  ✕
-                </button>
-              </div>
-              <div className="mt-3 flex gap-2">
-                <input
-                  className="input flex-1"
-                  value={lawQ}
-                  onChange={(e) => setLawQ(e.target.value)}
-                  onKeyDown={(e) => e.key === "Enter" && doLawSearch()}
-                  placeholder="输入关键词或法条号，如「试用期」「民法典 585」"
-                />
-                <button type="button" onClick={doLawSearch} className="btn btn-primary shrink-0">
-                  搜索
-                </button>
-              </div>
-              {lawResults.length > 0 && (
-                <div className="mt-3 max-h-64 space-y-2 overflow-y-auto">
-                  {lawResults.map((r, i) => (
-                    <button
-                      key={`${r.source}-${r.article}-${i}`}
-                      type="button"
-                      onClick={() => openLawDetail(r)}
-                      className="block w-full rounded-lg border border-mist bg-white/70 px-3 py-2 text-left transition-colors hover:border-accent"
-                    >
-                      <p className="text-sm font-medium text-ink">
-                        《{r.source}》{r.article}
-                      </p>
-                      <p className="mt-0.5 line-clamp-2 text-xs text-slate">{r.preview}</p>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {lawDetail && (
-                <div className="mt-3">
-                  <LawCard law={lawDetail} />
-                </div>
-              )}
-            </div>
-          </div>
-        )}
+        <LawPanel open={lawPanel} onClose={() => setLawPanel(false)} />
       </div>
     </div>
   );

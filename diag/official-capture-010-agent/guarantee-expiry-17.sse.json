@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "是否存在欺诈、胁迫等导致保证合同无效的情形",
+  "issue_id": "issue_1bc288f64ab968e628b4cfca"
+ }
+]

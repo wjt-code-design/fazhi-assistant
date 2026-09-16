@@ -25,7 +25,9 @@ _LOWER_BETTER_KEYS = ("first_ms", "total_ms", "ms", "elapsed_s", "n_429")
 
 # 兼容紧凑（20260803-210152）与 ISO（2026-08-03T13-18-07-697Z）两种时间戳：
 # y/m/d 间分隔符可选（[-:]?），y/m/d 与 H 之间为 [-T]。
-_TS_RE = re.compile(r"^(?P<y>\d{4})[-:]?(?P<m>\d{2})[-:]?(?P<d>\d{2})[-T](?P<H>\d{2})[-:]?(?P<M>\d{2})[-:]?(?P<S>\d{2})")
+_TS_RE = re.compile(
+    r"^(?P<y>\d{4})[-:]?(?P<m>\d{2})[-:]?(?P<d>\d{2})[-T](?P<H>\d{2})[-:]?(?P<M>\d{2})[-:]?(?P<S>\d{2})"
+)
 
 
 def _normalize_ts(s: str) -> str:
@@ -63,7 +65,7 @@ def _type_and_ts(fname: str) -> tuple[str, str]:
     if not typ:
         parts = base.split("_", 1)
         typ = parts[0]
-    ts = base[len(typ) + 1:] if len(base) > len(typ) + 1 else ""
+    ts = base[len(typ) + 1 :] if len(base) > len(typ) + 1 else ""
     return typ, _normalize_ts(ts)
 
 

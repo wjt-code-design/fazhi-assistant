@@ -1,0 +1,27 @@
+{
+  "calibration_meta": {
+    "date": "2026-09-07",
+    "human_reviewer": "执行者（用户改派，豁免披露延续）",
+    "judge_model": "dashscope qwen3.5-plus-2026-02-15 (temperature=0)",
+    "sample": "7 题 = 被旗标(rag2+agent2) + 干净(rag1+agent2) 分层抽样",
+    "agreement": "28 维度中 27 完全一致（96%）；1 维差 1 分（rag/contract-14 的 safety，judge 偏宽）；±1 分内一致率 100%"
+  },
+  "human_scores": [
+    {"mode": "rag", "id": "contract-comparison-14", "human": {"accuracy": 4, "completeness": 4, "relevance": 5, "safety": 3}, "judge": {"accuracy": 4, "completeness": 4, "relevance": 5, "safety": 4}, "notes": "回答准确但无咨询律师提示（judge 偏宽）；对低于损失情形'另行索赔'表述略粗"},
+    {"mode": "rag", "id": "criminal-civil-boundary-20", "human": {"accuracy": 4, "completeness": 5, "relevance": 5, "safety": 5}, "judge": {"accuracy": 4, "completeness": 5, "relevance": 5, "safety": 5}, "notes": "一致。judge 对民诉法123 的质疑无法确证（引用来自知识库现行文本，judge 自身法律知识可能滞后——记为 judge 不确定项）"},
+    {"mode": "agent", "id": "construction-payment-16", "human": {"accuracy": 4, "completeness": 4, "relevance": 5, "safety": 5}, "judge": {"accuracy": 4, "completeness": 4, "relevance": 5, "safety": 5}, "notes": "一致。805 条（勘察设计）引用于装修合同确有适用偏差（judge 发现属实）；回答自身已觉察'第801条体现的法理'有所补救"},
+    {"mode": "agent", "id": "criminal-civil-boundary-20", "human": {"accuracy": 3, "completeness": 5, "relevance": 4, "safety": 5}, "judge": {"accuracy": 3, "completeness": 5, "relevance": 4, "safety": 5}, "notes": "一致。刑诉法180/282 明知不适用仍列入引用总结——诚实但属冗余不当引用"},
+    {"mode": "rag", "id": "company-equity-06", "human": {"accuracy": 5, "completeness": 4, "relevance": 5, "safety": 4}, "judge": {"accuracy": 5, "completeness": 4, "relevance": 5, "safety": 4}, "notes": "一致。合伙企业法定性纠正准确，缺明确咨询律师语"},
+    {"mode": "agent", "id": "company-equity-06", "human": {"accuracy": 5, "completeness": 5, "relevance": 5, "safety": 5}, "judge": {"accuracy": 5, "completeness": 5, "relevance": 5, "safety": 5}, "notes": "一致。Agent 版本较 RAG 版本结构化与深入程度明显更高（劳务出资16条/转让22条/974条三层论证）"},
+    {"mode": "agent", "id": "company-liability-answer-a5", "human": {"accuracy": 5, "completeness": 5, "relevance": 5, "safety": 5}, "judge": {"accuracy": 5, "completeness": 5, "relevance": 5, "safety": 5}, "notes": "一致。2023 新公司法 54 条加速到期引用准确，400万推导合法（层1 数值旗标人工确认为合法推导）"}
+  ],
+  "major_issues_human_verdict": [
+    {"id": "house-sale-deposit-03", "issue": "结论'20元'应为'20万元'", "verdict": "真（笔误，层1 数值检查同题旗标吻合）"},
+    {"id": "data-privacy-13", "issue": "网络安全法45 错引（报告义务≠删除权）", "verdict": "真（删除权依据应为网安法43/个保法47）"},
+    {"id": "lease-termination-10", "issue": "电子商务法21 错配房屋租赁", "verdict": "真（电商法21 是居住/经营 Internet 用户规则）"},
+    {"id": "construction-payment-16", "issue": "民法典805（勘察设计）适用偏差", "verdict": "部分成立（装修合同适用有争议，直接引用勘察设计条款不精准）"},
+    {"id": "criminal-civil-boundary-20", "issue": "刑诉法180 冗余引用", "verdict": "成立（冗余但已自述不适用，诚实）"},
+    {"id": "inheritance-debt-05", "issue": "民诉法条号引用错误（应为261）", "verdict": "成立（条号精度问题）"},
+    {"id": "criminal-civil-boundary-20(rag)", "issue": "民诉法123 与现行法不符（judge 质疑）", "verdict": "不确定（judge 法律知识可能滞后于知识库 2026-08-01 入库文本——judge 不确定项）"}
+  ]
+}

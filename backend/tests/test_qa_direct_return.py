@@ -2,6 +2,7 @@
 
 三护栏：score≥0.92 + 选项指纹一致（审查 C4）+ evidence 时效有效。任一不过 → None。
 """
+
 import os
 import sys
 
@@ -26,7 +27,10 @@ def test_direct_return_low_score_misses():
 def test_direct_return_non_option_hits(monkeypatch):
     """非选项题 + 高余弦 + evidence 有效 → 直返（零 LLM）。"""
     monkeypatch.setattr(main, "exact_article_lookup", lambda src, art: ["doc"])
-    pre = _pre(qa_hit={"score": 0.95, "answer": "试用期最长六个月", "fingerprint": "", "evidence": "劳动合同法|第十九条"}, rewritten="试用期最长多久")
+    pre = _pre(
+        qa_hit={"score": 0.95, "answer": "试用期最长六个月", "fingerprint": "", "evidence": "劳动合同法|第十九条"},
+        rewritten="试用期最长多久",
+    )
     assert main._qa_direct_return(pre) == "试用期最长六个月"
 
 
@@ -34,7 +38,12 @@ def test_direct_return_fingerprint_mismatch_misses(monkeypatch):
     """审查 C4：选项题同题干换选项内容，指纹不同 → 必须 miss（防"选B"错位）。"""
     monkeypatch.setattr(main, "exact_article_lookup", lambda src, art: ["doc"])
     pre = _pre(
-        qa_hit={"score": 0.99, "answer": "选B", "fingerprint": "甲\x1f乙\x1f丙\x1f丁", "evidence": "刑法|第二百六十四条"},
+        qa_hit={
+            "score": 0.99,
+            "answer": "选B",
+            "fingerprint": "甲\x1f乙\x1f丙\x1f丁",
+            "evidence": "刑法|第二百六十四条",
+        },
         rewritten="下列说法正确的是？A.甲 B.是 C.丙 D.丁",
     )
     # 输入指纹（甲/是/丙/丁）≠ 存储指纹（甲/乙/丙/丁）→ miss
@@ -45,7 +54,12 @@ def test_direct_return_fingerprint_match_hits(monkeypatch):
     """同题换标号分隔符（指纹一致）→ 命中直返。"""
     monkeypatch.setattr(main, "exact_article_lookup", lambda src, art: ["doc"])
     pre = _pre(
-        qa_hit={"score": 0.99, "answer": "选B", "fingerprint": "甲\x1f乙\x1f丙\x1f丁", "evidence": "刑法|第二百六十四条"},
+        qa_hit={
+            "score": 0.99,
+            "answer": "选B",
+            "fingerprint": "甲\x1f乙\x1f丙\x1f丁",
+            "evidence": "刑法|第二百六十四条",
+        },
         rewritten="下列说法正确的是？A.甲 B.乙 C.丙 D.丁",
     )
     assert main._qa_direct_return(pre) == "选B"

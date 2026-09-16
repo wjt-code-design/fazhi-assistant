@@ -17,9 +17,7 @@ import re
 # ==================== 报告解析 ====================
 
 _R_ENTRY_RE = re.compile(r"(?:R\s*[_\-\s]*|风险\s*[_\-\s]*|【R)\s*(\d+)")
-_QUOTE_RE = re.compile(
-    r"[「『]([^」』]{3,})[」』]|“([^”]{3,})”|\"([^\"]{3,})\"|‘([^’]{3,})’|'([^']{3,})'"
-)
+_QUOTE_RE = re.compile(r"[「『]([^」』]{3,})[」』]|“([^”]{3,})”|\"([^\"]{3,})\"|‘([^’]{3,})’|'([^']{3,})'")
 _STRUCTURE_KEYS = ("位置", "严重度", "原文", "法条", "建议")
 # 报告等级提取：兼容「总体风险等级：高」「风险等级为较高」等写法
 # 2026-08-06 修复：容忍 markdown 加粗（**高**）/引号干扰等级词提取
@@ -65,6 +63,7 @@ def extract_quoted_fragments(text: str) -> list[str]:
 
 # ==================== 覆盖（漏条款） ====================
 
+
 def _segment_keys(label: str, seg_text: str) -> list[str]:
     """条款段 → 识别锚点集：条号（第X条）+ 归一化段首 12 字。报告含任一锚点视为覆盖。
 
@@ -105,6 +104,7 @@ def coverage(answer: str, clauses: list[tuple[str, str]]) -> tuple[float, list[i
 
 # ==================== 编造（引号摘录对位） ====================
 
+
 def fabricated_fragments(answer: str, contract: str) -> list[str]:
     """报告引号摘录不在合同原文的片段（归一化比对）。LLM 改写摘录会误报，需人工复核。"""
     c_n = _norm(contract or "")
@@ -112,6 +112,7 @@ def fabricated_fragments(answer: str, contract: str) -> list[str]:
 
 
 # ==================== 结构完整度 / 等级 ====================
+
 
 def structure_score(entry: str) -> float:
     """R_n 条目五要素完整度 0-1：标签词命中或 | 字段分段计分。

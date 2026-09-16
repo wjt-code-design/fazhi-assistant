@@ -2,6 +2,7 @@
 
 护栏三件套（确定性纯函数）：极性（防否定词盲区）/选项数/标号体系（防"选B"错位展示给 ①-④ 题）。
 """
+
 import os
 import sys
 
@@ -13,7 +14,6 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 
 import answer_cache
-import retrieval_core as rc
 from query_understand import _label_system, _options_fingerprint, _polarity, option_count
 
 
@@ -67,9 +67,15 @@ def test_options_fingerprint_non_option_is_empty():
 # ---------------- get_similar ----------------
 def _put(key, text_vec, pol="", cnt=0, lab="", fp="", answer="缓存答案"):
     answer_cache.put(
-        key, answer, [{"source": "民法典", "article": "第一千一百六十五条"}],
-        embedding=text_vec, polarity=pol, option_count=cnt, label_system=lab,
-        options_fingerprint=fp, model="qwen3.7-plus",
+        key,
+        answer,
+        [{"source": "民法典", "article": "第一千一百六十五条"}],
+        embedding=text_vec,
+        polarity=pol,
+        option_count=cnt,
+        label_system=lab,
+        options_fingerprint=fp,
+        model="qwen3.7-plus",
     )
 
 
@@ -77,7 +83,10 @@ def test_get_similar_hits_when_guards_match():
     answer_cache.clear()
     _put("k1", _v(1, 0, 0), pol="true", cnt=4, lab="A-D")
     hit = answer_cache.get_similar(
-        _v(0.99, 0.1, 0), polarity="true", option_count=4, label_system="A-D",
+        _v(0.99, 0.1, 0),
+        polarity="true",
+        option_count=4,
+        label_system="A-D",
     )
     assert hit is not None and hit["answer"] == "缓存答案"
 
@@ -86,35 +95,59 @@ def test_get_similar_polarity_mismatch_misses():
     answer_cache.clear()
     _put("k1", _v(1, 0, 0), pol="true", cnt=4, lab="A-D")
     # 同嵌入但极性不同（"正确的是" vs "不正确的是"）→ 必须 miss（防否定词盲区）
-    assert answer_cache.get_similar(
-        _v(0.99, 0.1, 0), polarity="false", option_count=4, label_system="A-D",
-    ) is None
+    assert (
+        answer_cache.get_similar(
+            _v(0.99, 0.1, 0),
+            polarity="false",
+            option_count=4,
+            label_system="A-D",
+        )
+        is None
+    )
 
 
 def test_get_similar_option_count_mismatch_misses():
     answer_cache.clear()
     _put("k1", _v(1, 0, 0), pol="true", cnt=4, lab="A-D")
-    assert answer_cache.get_similar(
-        _v(0.99, 0.1, 0), polarity="true", option_count=5, label_system="A-D",
-    ) is None
+    assert (
+        answer_cache.get_similar(
+            _v(0.99, 0.1, 0),
+            polarity="true",
+            option_count=5,
+            label_system="A-D",
+        )
+        is None
+    )
 
 
 def test_get_similar_label_system_mismatch_misses():
     answer_cache.clear()
     _put("k1", _v(1, 0, 0), pol="true", cnt=4, lab="A-D")
-    assert answer_cache.get_similar(
-        _v(0.99, 0.1, 0), polarity="true", option_count=4, label_system="circ",
-    ) is None
+    assert (
+        answer_cache.get_similar(
+            _v(0.99, 0.1, 0),
+            polarity="true",
+            option_count=4,
+            label_system="circ",
+        )
+        is None
+    )
 
 
 def test_get_similar_option_content_mismatch_misses():
     """审查 C4 修复：同题干换选项内容，余弦虽高但指纹不同 → 必须 miss（防"选B"错位）。"""
     answer_cache.clear()
     _put("k1", _v(1, 0, 0), pol="true", cnt=4, lab="A-D", fp="甲\x1f乙\x1f丙\x1f丁")
-    assert answer_cache.get_similar(
-        _v(0.99, 0.1, 0), polarity="true", option_count=4, label_system="A-D",
-        options_fingerprint="甲\x1f乙\x1f是\x1f否",
-    ) is None
+    assert (
+        answer_cache.get_similar(
+            _v(0.99, 0.1, 0),
+            polarity="true",
+            option_count=4,
+            label_system="A-D",
+            options_fingerprint="甲\x1f乙\x1f是\x1f否",
+        )
+        is None
+    )
 
 
 def test_get_similar_option_fingerprint_match_hits():
@@ -122,7 +155,10 @@ def test_get_similar_option_fingerprint_match_hits():
     answer_cache.clear()
     _put("k1", _v(1, 0, 0), pol="true", cnt=4, lab="A-D", fp="甲\x1f乙\x1f丙\x1f丁")
     hit = answer_cache.get_similar(
-        _v(0.99, 0.1, 0), polarity="true", option_count=4, label_system="A-D",
+        _v(0.99, 0.1, 0),
+        polarity="true",
+        option_count=4,
+        label_system="A-D",
         options_fingerprint="甲\x1f乙\x1f丙\x1f丁",
     )
     assert hit is not None and hit["answer"] == "缓存答案"
@@ -132,14 +168,26 @@ def test_get_similar_below_threshold_misses():
     answer_cache.clear()
     _put("k1", _v(1, 0, 0), pol="true", cnt=4, lab="A-D")
     # 余弦 ≈ 0.63 < 0.95 → miss
-    assert answer_cache.get_similar(
-        _v(0.8, 1, 0), polarity="true", option_count=4, label_system="A-D",
-    ) is None
+    assert (
+        answer_cache.get_similar(
+            _v(0.8, 1, 0),
+            polarity="true",
+            option_count=4,
+            label_system="A-D",
+        )
+        is None
+    )
 
 
 def test_get_similar_no_embedding_entry_skipped():
     answer_cache.clear()
     answer_cache.put("k_legacy", "旧答案", [{"source": "民法典", "article": "第一千一百六十五条"}])  # 无 embedding
-    assert answer_cache.get_similar(
-        _v(1, 0, 0), polarity="", option_count=0, label_system="none",
-    ) is None
+    assert (
+        answer_cache.get_similar(
+            _v(1, 0, 0),
+            polarity="",
+            option_count=0,
+            label_system="none",
+        )
+        is None
+    )

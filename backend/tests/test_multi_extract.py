@@ -1,4 +1,5 @@
 """multi_extract 纯函数单测（零 BGE——multi_extract 只依赖 re，pytest 秒级跑，不停后端）。"""
+
 import os
 import sys
 
@@ -60,12 +61,7 @@ def test_multi_ok_id10_all_four_signal():
 def test_multi_ok_full_select_suppressed_when_explicit_wrong():
     """答案'全选'但显式判定 C 错误（自相矛盾）→ 全选信号抑制，不因结论'全选'判全对。"""
     ov = {"A": True, "B": True, "C": True, "D": True}
-    ans = (
-        "**A项判断：正确。**\n"
-        "**B项判断：正确。**\n"
-        "**C项判断：错误。**\n"
-        "结论：本题全选。"
-    )
+    ans = "**A项判断：正确。**\n**B项判断：正确。**\n**C项判断：错误。**\n结论：本题全选。"
     assert multi_ok(ans, ov) is False
 
 

@@ -1,0 +1,119 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+______ test_planner_transport_error_is_not_retried_as_bad_output[False] _______
+
+db = <sqlalchemy.orm.session.Session object at 0x000002C9C40D6E10>
+feedback_first = False
+
+    @pytest.mark.parametrize("feedback_first", [False, True])
+    def test_planner_transport_error_is_not_retried_as_bad_output(db, feedback_first):
+        from agent.service import execute_agent_request
+    
+        class UnavailablePlanner(_CoverageLoopTransport):
+            def invoke(self, messages):
+                if "Planner" in messages[0].content:
+                    self.calls.append(("planner", len(messages)))
+                    if feedback_first and sum(kind == "planner" for kind, _ in self.calls) == 1:
+                        return SimpleNamespace(content='{"kind":"invalid-decision"}')
+                    raise TimeoutError("secret-provider-details")
+                return super().invoke(messages)
+    
+        user, conversation = _owner_conversation(db)
+        transport = UnavailablePlanner(_two_issue_payload())
+        result = execute_agent_request(
+            db=db, user_id=user.id, settings=_settings(),
+            bootstrap=_two_issue_bootstrap(conversation.id), finalizer=_finalize,
+            llm=transport, gateway=_TwoIssueLawGateway().as_gateway(),
+        )
+>       assert result.reason_code == "AGENT_EXECUTION_FAILURE"
+E       AssertionError: assert 'READY' == 'AGENT_EXECUTION_FAILURE'
+E         
+E         - AGENT_EXECUTION_FAILURE
+E         + READY
+
+tests\test_agent_chat_integration.py:1242: AssertionError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+_______ test_planner_transport_error_is_not_retried_as_bad_output[True] _______
+
+db = <sqlalchemy.orm.session.Session object at 0x000002C9C43CC5D0>
+feedback_first = True
+
+    @pytest.mark.parametrize("feedback_first", [False, True])
+    def test_planner_transport_error_is_not_retried_as_bad_output(db, feedback_first):
+        from agent.service import execute_agent_request
+    
+        class UnavailablePlanner(_CoverageLoopTransport):
+            def invoke(self, messages):
+                if "Planner" in messages[0].content:
+                    self.calls.append(("planner", len(messages)))
+                    if feedback_first and sum(kind == "planner" for kind, _ in self.calls) == 1:
+                        return SimpleNamespace(content='{"kind":"invalid-decision"}')
+                    raise TimeoutError("secret-provider-details")
+                return super().invoke(messages)
+    
+        user, conversation = _owner_conversation(db)
+        transport = UnavailablePlanner(_two_issue_payload())
+        result = execute_agent_request(
+            db=db, user_id=user.id, settings=_settings(),
+            bootstrap=_two_issue_bootstrap(conversation.id), finalizer=_finalize,
+            llm=transport, gateway=_TwoIssueLawGateway().as_gateway(),
+        )
+>       assert result.reason_code == "AGENT_EXECUTION_FAILURE"
+E       AssertionError: assert 'READY' == 'AGENT_EXECUTION_FAILURE'
+E         
+E         - AGENT_EXECUTION_FAILURE
+E         + READY
+
+tests\test_agent_chat_integration.py:1242: AssertionError
+_______ test_service_rejects_controller_snapshot_replaced_before_reload _______
+
+db = <sqlalchemy.orm.session.Session object at 0x000002C9C44852D0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002C9C4487310>
+
+    def test_service_rejects_controller_snapshot_replaced_before_reload(db, monkeypatch):
+        from agent.controller import AgentController
+        from agent.repository import compare_and_save, load_owned_run
+        from agent.service import execute_agent_request
+    
+        real_run = AgentController.run
+        winner_json = []
+    
+        def run_then_advance(self, run_id, bootstrap):
+            original = real_run(self, run_id, bootstrap)
+            saved = load_owned_run(db, run_id=run_id, user_id=user.id, conversation_id=conversation.id)
+            winner = original.state.model_copy(update={"verifier_research_returns": 1})
+            compare_and_save(db, run=saved, expected_version=saved.state_version,
+                             state=winner, status=winner.status.value)
+            winner_json.append(winner.model_dump_json())
+            return original
+    
+        monkeypatch.setattr(AgentController, "run", run_then_advance)
+        user, conversation = _owner_conversation(db)
+        transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="invalid_evidence")
+        result = execute_agent_request(
+            db=db, user_id=user.id, settings=_settings(),
+            bootstrap=_two_issue_bootstrap(conversation.id), finalizer=_finalize,
+            llm=transport, gateway=_TwoIssueLawGateway().as_gateway(),
+        )
+>       assert result.reason_code == "AGENT_FINALIZATION_CONFLICT"
+E       AssertionError: assert 'EVIDENCE_COVERAGE_DEFICIENT' == 'AGENT_FINALIZATION_CONFLICT'
+E         
+E         - AGENT_FINALIZATION_CONFLICT
+E         + EVIDENCE_COVERAGE_DEFICIENT
+
+tests\test_agent_chat_integration.py:1276: AssertionError
+============================== warnings summary ===============================
+tests/test_agent_chat_integration.py::test_planner_transport_error_is_not_retried_as_bad_output[False]
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_chat_integration.py::test_planner_transport_error_is_not_retried_as_bad_output[False]
+FAILED tests/test_agent_chat_integration.py::test_planner_transport_error_is_not_retried_as_bad_output[True]
+FAILED tests/test_agent_chat_integration.py::test_service_rejects_controller_snapshot_replaced_before_reload
+3 failed, 28 deselected, 1 warning in 24.07s

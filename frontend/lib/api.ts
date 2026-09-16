@@ -1,5 +1,23 @@
 // 同源部署（2026-08-08，手机端上线）：生产走相对路径 /api/*，由 Caddy 反代到 backend:8000
 // （免跨域、免 CORS、免注入 NEXT_PUBLIC_API_URL）；开发（next dev）仍直连 localhost:8000。
+import { parseSSEFrames } from "./sse";
+import { coverageFromFinalEvent } from "./coverage";
+import type {
+  ConversationItem,
+  ConversationDetail,
+  Stats,
+  UserRow,
+  ConvRow,
+  QaCandidate,
+  KnowledgeHit,
+  AuditRow,
+  ChunkPreviewResult,
+  QaDecisionResult,
+  LlmSwitchResult,
+  LlmStatusResult,
+  KnowledgeAddResult,
+} from "./types";
+
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL ||
   (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
@@ -84,10 +102,20 @@ export interface ChatPayload {
   content?: string;
   image?: string; // data URL
   truncated?: boolean; // 客户端已截断（文件上传超长）——穿透给合同评估/analysis_runs
+  agentRunId?: string;
+  agentStateVersion?: number;
 }
 export interface ChatMeta {
   conversation_id?: number;
   sources?: { source: string; article: string }[];
+  agent_run_id?: string;
+  agent_state_version?: number;
+  agent_event?: "clarification" | "final" | "error";
+  error_code?: string; // 后端 `{type:"error", code}` 的 reason_code（B3 映射用）
+  prompt?: string; // clarification 的完整提示文本（B1 争点候选解析源；仅当是 string 才带）
+  // T1（2026-09-16）：final 事件的结构化覆盖（partial 顶部提示；full → 无提示）
+  coverage_status?: "full" | "partial";
+  uncovered_issues?: { issue_id: string; reason_code: string }[];
 }
 
 // 文件→文本（合同评估/普通问答输入，二期）：复用后端 knowledge_service 解析
@@ -124,11 +152,15 @@ export async function streamChat(
   if (payload.conversationId != null) body.conversation_id = payload.conversationId;
   if (payload.image) body.image = payload.image;
   if (payload.truncated) body.truncated = payload.truncated;
+  if (payload.agentRunId) body.agent_run_id = payload.agentRunId;
+  if (payload.agentStateVersion !== undefined) body.agent_state_version = payload.agentStateVersion;
 
   // 无数据看门狗（对抗审计 v2 #2）：SSE 挂起（pending reader.read / fetch）时 UI 永久卡死。
-  // 60s 无任何数据帧 → abort，走提前退出路径，让调用方 finally 必然执行、UI 恢复。
+  // 180s 无任何数据帧 → abort，走提前退出路径，让调用方 finally 必然执行、UI 恢复。
+  // 2026-09-13 从 60s 放宽：Agent 长任务（8 争点分解+修复实测 62-63s，分解期不发帧）在
+  // 60s 窗口内被误杀，澄清事件被拦截。180s = 普通 RAG（约 20-30s）的 6 倍余量，仍能防挂死。
   const controller = new AbortController();
-  const IDLE_TIMEOUT = 60_000;
+  const IDLE_TIMEOUT = 180_000;
   let idle: ReturnType<typeof setTimeout> | null = null;
   const kick = () => {
     if (idle) clearTimeout(idle);
@@ -191,14 +223,41 @@ export async function streamChat(
     if (r.done) break;
     kick(); // 收到数据帧，重置无数据看门狗
     buffer += decoder.decode(r.value, { stream: true });
-    const parts = buffer.split("\n\n");
-    buffer = parts.pop() ?? "";
-    for (const part of parts) {
-      const line = part.trim();
-      if (!line.startsWith("data: ") || line.includes("[DONE]")) continue;
+    // 帧切分与过滤逻辑抽为纯函数 lib/sse.ts（T0.3 单测锁定，行为零变更）
+    const { frames, rest } = parseSSEFrames(buffer);
+    buffer = rest;
+    for (const raw of frames) {
       try {
-        const p = JSON.parse(line.slice(6));
+        const p = JSON.parse(raw);
         if (p.error) onError(p.error);
+        else if (p.type === "error") {
+          onError(p.message || "Agent 无法安全完成本次请求");
+          onMeta({
+            conversation_id: p.conversation_id,
+            sources: p.sources,
+            agent_event: "error",
+            error_code: typeof p.code === "string" ? p.code : undefined,
+          });
+        }
+        else if (p.type === "clarification" && typeof p.prompt === "string") {
+          onChunk(p.prompt);
+          onMeta({
+            conversation_id: p.conversation_id,
+            agent_run_id: p.run_id,
+            agent_state_version: p.state_version,
+            agent_event: "clarification",
+            prompt: p.prompt, // B1：候选解析源（纯透传，前端 scope.ts 决定是否用）
+          });
+        }
+        else if (p.type === "final") {
+          onMeta({
+            conversation_id: p.conversation_id,
+            agent_event: "final",
+            // T1：结构化覆盖（full/partial + 未覆盖列表），随 token 一起驱动顶部提示；
+            // 未知形态归 undefined 的判定收口在 coverage.coverageFromFinalEvent（纯函数可测）
+            ...coverageFromFinalEvent(p),
+          });
+        }
         else if (typeof p.content === "string") onChunk(p.content);
         else if (p.type === "step" && Array.isArray(p.steps) && onSteps) onSteps(p.steps);
         else if (p.type === "restart" && onRestart) onRestart();
@@ -215,12 +274,12 @@ export async function streamChat(
 
 // ==================== 会话 ====================
 export const convApi = {
-  list: () => api.get<any[]>("/api/conversations"),
-  detail: (id: number) => api.get<any>(`/api/conversations/${id}`),
+  list: () => api.get<ConversationItem[]>("/api/conversations"),
+  detail: (id: number) => api.get<ConversationDetail>(`/api/conversations/${id}`),
   create: () => api.post<{ id: number }>("/api/conversations"),
   rename: (id: number, title: string) =>
-    api.patch<any>(`/api/conversations/${id}?title=${encodeURIComponent(title)}`),
-  remove: (id: number) => api.delete<any>(`/api/conversations/${id}`),
+    api.patch<ConversationItem>(`/api/conversations/${id}?title=${encodeURIComponent(title)}`),
+  remove: (id: number) => api.delete<{ ok?: boolean }>(`/api/conversations/${id}`),
 };
 
 // ==================== 语音转写（WAV，来自 lib/recorder.ts） ====================
@@ -234,7 +293,8 @@ export const transcribeApi = {
 
 // ==================== 管理员扩展 ====================
 export const adminApi = {
-  stats: () => api.get<any>("/api/admin/stats"),
+  stats: () => api.get<Stats>("/api/admin/stats"),
+  users: () => api.get<UserRow[]>("/api/admin/users"),
   addKnowledge: (b: {
     title: string;
     article: string;
@@ -242,18 +302,21 @@ export const adminApi = {
     effective_from?: string;
     effective_to?: string;
     status?: string;
-  }) => api.post<any>("/api/admin/knowledge", b),
-  knowledgeTest: (query: string) => api.post<any[]>("/api/admin/knowledge/test", { query }),
-  previewChunk: (text: string) => api.post<any>("/api/admin/knowledge/preview-chunk", { text }),
+  }) => api.post<KnowledgeAddResult>("/api/admin/knowledge", b),
+  knowledgeTest: (query: string) => api.post<KnowledgeHit[]>("/api/admin/knowledge/test", { query }),
+  previewChunk: (text: string) =>
+    api.post<ChunkPreviewResult>("/api/admin/knowledge/preview-chunk", { text }),
   qaCandidates: (status?: string) =>
-    api.get<any[]>(`/api/admin/qa/candidates${status ? `?status=${status}` : ""}`),
+    api.get<QaCandidate[]>(
+      `/api/admin/qa/candidates${status ? `?status=${encodeURIComponent(status)}` : ""}`
+    ),
   qaDecision: (id: number, decision: "approved" | "rejected") =>
-    api.post<any>(`/api/admin/qa/${id}/decision`, { decision }),
+    api.post<QaDecisionResult>(`/api/admin/qa/${id}/decision`, { decision }),
   llmSwitch: (b: { model?: string }) =>
-    api.post<any>("/api/admin/llm", b),
-  llmStatus: () => api.get<any>("/api/admin/llm-status"),
+    api.post<LlmSwitchResult>("/api/admin/llm", b),
+  llmStatus: () => api.get<LlmStatusResult>("/api/admin/llm-status"),
   audit: (limit?: number) =>
-    api.get<any[]>(`/api/admin/audit${limit ? `?limit=${limit}` : ""}`),
+    api.get<AuditRow[]>(`/api/admin/audit${limit ? `?limit=${encodeURIComponent(String(limit))}` : ""}`),
 };
 
 export const feedbackApi = {

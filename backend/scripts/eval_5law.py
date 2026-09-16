@@ -2,8 +2,10 @@
 程序化构造法考高频重难点情景题 + 目标条文，检查 [检索 top10 ∪ 补充] 命中。
 用法：python scripts/eval_5law.py   （停后端，venv 运行）
 """
+
 import os
 import sys
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from retrieval import retrieve, scenario_supplement_docs
@@ -28,7 +30,10 @@ CASES = {
         ("未经许可在同一种商品上使用与他人注册商标相同商标，是否构成侵权？", [("商标法", "第五十七条")]),
         ("描述性使用他人注册商标中含有的地名，是否构成商标侵权？", [("商标法", "第五十九条")]),
         ("注册商标有效期为十年，期满需要继续使用的，如何续展？", [("商标法", "第四十条")]),
-        ("恶意抢注他人已经使用并有一定影响的商标，利害关系人如何救济？", [("商标法", "第三十二条"), ("商标法", "第四十五条")]),
+        (
+            "恶意抢注他人已经使用并有一定影响的商标，利害关系人如何救济？",
+            [("商标法", "第三十二条"), ("商标法", "第四十五条")],
+        ),
         ("注册商标连续三年不使用的，可能面临什么后果？", [("商标法", "第四十九条")]),
         ("注册商标专用权的保护期从何时起算？", [("商标法", "第三十九条")]),
         ("将他人注册商标作为商品包装装潢使用，容易导致混淆的，是否侵权？", [("商标法", "第五十七条")]),
@@ -44,7 +49,10 @@ CASES = {
         ("发明专利申请经实质审查没有发现驳回理由的，如何处理？", [("专利法", "第三十九条")]),
         ("外观设计专利权的保护期限是多少年？", [("专利法", "第四十二条")]),
         ("国家出现紧急状态时，对专利能否实行强制许可？", [("专利法", "第四十八条")]),
-        ("申请人自发明在中国首次提出专利申请之日起，多少个月内可以就相同主题提出国际申请？", [("专利法", "第二十九条")]),
+        (
+            "申请人自发明在中国首次提出专利申请之日起，多少个月内可以就相同主题提出国际申请？",
+            [("专利法", "第二十九条")],
+        ),
     ],
     "消费者权益保护法": [
         ("网购商品七天内是否都可以无理由退货？", [("消费者权益保护法", "第二十五条")]),
@@ -68,9 +76,13 @@ CASES = {
         ("合伙人向合伙人以外的人转让财产份额，是否须经全体合伙人同意？", [("合伙企业法", "第二十二条")]),
         ("合伙人有下列哪种情形可以被除名？", [("合伙企业法", "第四十九条")]),
         ("合伙企业清算前，合伙人能否请求分割合伙企业财产？", [("合伙企业法", "第二十一条")]),
-        ("以专业知识和专门技能为客户提供有偿服务的特殊普通合伙企业，合伙人对执业中故意造成的债务如何担责？", [("合伙企业法", "第五十七条")]),
+        (
+            "以专业知识和专门技能为客户提供有偿服务的特殊普通合伙企业，合伙人对执业中故意造成的债务如何担责？",
+            [("合伙企业法", "第五十七条")],
+        ),
     ],
 }
+
 
 def main():
     total_hit = total_all = 0
@@ -81,7 +93,6 @@ def main():
         for q, wants in cases:
             docs = retrieve(q, k=10) + scenario_supplement_docs(q)
             got = set((d.metadata.get("source", ""), d.metadata.get("article", "")) for d in docs)
-            hit_wants = [w for w in wants if w in got]
             miss_wants = [w for w in wants if w not in got]
             ok = not miss_wants
             if ok:
@@ -91,14 +102,15 @@ def main():
         total_all += len(cases)
         per_law.append((law, hit, len(cases), detail))
         print(f"[{law}] {hit}/{len(cases)}")
-    print(f"\n=== 总召回率: {total_hit}/{total_all} = {total_hit/total_all*100:.0f}% ===")
+    print(f"\n=== 总召回率: {total_hit}/{total_all} = {total_hit / total_all * 100:.0f}% ===")
     print("\n=== 缺失明细 ===")
     for law, _, _, detail in per_law:
         bad = [d for d in detail if not d[0]]
         if bad:
             print(f"--- {law} ---")
-            for ok, q, miss in bad:
+            for _ok, q, miss in bad:
                 print(f"  MISS {q}... 缺: {'、'.join(miss)}")
+
 
 if __name__ == "__main__":
     main()

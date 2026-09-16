@@ -115,17 +115,33 @@ def test_is_meta_study_negative():
 # ---------------- _split_by_choice：多格式选项切分（阶段1） ----------------
 def test_split_by_choice_formats():
     # A：格式（选项内容 >4 字，不被 len>=4 过滤）
-    parts = query_understand._split_by_choice("以下说法正确的是A：死刑由最高法核准 B：中级法院复核 C：最高法应讯问 D：最高检可提意见")
+    parts = query_understand._split_by_choice(
+        "以下说法正确的是A：死刑由最高法核准 B：中级法院复核 C：最高法应讯问 D：最高检可提意见"
+    )
     assert len(parts) == 5 and parts[1].startswith("A：")
     # A. 格式
     parts = query_understand._split_by_choice("以下说法正确的是A.选项一正确 B.选项二正确 C.选项三正确 D.选项四正确")
     assert len(parts) == 5 and parts[1].startswith("A.")
     # A、格式
-    assert len(query_understand._split_by_choice("以下说法正确的是A、选项一正确 B、选项二正确 C、选项三正确 D、选项四正确")) == 5
+    assert (
+        len(
+            query_understand._split_by_choice("以下说法正确的是A、选项一正确 B、选项二正确 C、选项三正确 D、选项四正确")
+        )
+        == 5
+    )
     # 圈号 ①②
-    assert len(query_understand._split_by_choice("以下说法正确的是①选项一正确 ②选项二正确 ③选项三正确 ④选项四正确")) == 5
+    assert (
+        len(query_understand._split_by_choice("以下说法正确的是①选项一正确 ②选项二正确 ③选项三正确 ④选项四正确")) == 5
+    )
     # 数字 1.
-    assert len(query_understand._split_by_choice("以下关于借款合同的表述1.甲出借十万元 2.乙借入十万元 3.双方约定利息 4.乙方按期归还")) == 5
+    assert (
+        len(
+            query_understand._split_by_choice(
+                "以下关于借款合同的表述1.甲出借十万元 2.乙借入十万元 3.双方约定利息 4.乙方按期归还"
+            )
+        )
+        == 5
+    )
     # 无选项 → fallback 整题
     assert query_understand._split_by_choice("正当防卫的构成要件是什么") == ["正当防卫的构成要件是什么"]
 

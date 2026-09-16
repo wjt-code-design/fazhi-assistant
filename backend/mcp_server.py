@@ -7,6 +7,7 @@
 复用 backend/.env 的 LLM_API_KEY / LLM_BASE_URL / LLM_MODEL（百炼兼容 OpenAI 端点）。
 运行：python mcp_server.py（stdio 传输，由项目根 .mcp.json 拉起）。绝不打印 API key。
 """
+
 import base64
 import json
 import os

@@ -1,0 +1,11 @@
+[
+  {
+    "id": "synthetic-loan-limitations-01",
+    "query": "[SYNTHETIC] 借款到期后多年未还，是否仍可起诉？",
+    "issues": ["诉讼时效"],
+    "critical_facts": ["还款日期"],
+    "expected_laws": ["民法典:188"],
+    "expected_clarification": "是否约定还款日期",
+    "important_claims": ["可否起诉"]
+  }
+]

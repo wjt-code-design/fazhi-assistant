@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "双方合同地位和谈判能力",
+  "issue_id": "issue_3869c00de2ceaf850388ff57"
+ }
+]

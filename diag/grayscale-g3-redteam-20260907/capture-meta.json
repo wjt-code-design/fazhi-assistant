@@ -1,0 +1,15 @@
+{
+ "mode": "agent",
+ "execution_id": "grayscale-g3-redteam-20260907",
+ "case_set_sha256": "cb674f796c3d1122c6d0b8242b9f687aa6be07ecc620fd90b816e59102b1336e",
+ "allow_case_set_mismatch": true,
+ "controls": {
+  "timeout_seconds": 90,
+  "total_timeout_seconds": 3600,
+  "max_retries": 1,
+  "concurrency": 1,
+  "cache_policy": "disabled",
+  "max_output_tokens": 4096,
+  "max_tool_calls": 8
+ }
+}

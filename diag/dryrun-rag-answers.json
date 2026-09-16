@@ -1,0 +1,342 @@
+{
+ "schema_version": "legal-agent-eval-answers/v1",
+ "cases": [
+  {
+   "id": "loan-limitations-01",
+   "answer": {
+    "claims": [
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "本案属于借款合同纠纷。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "借款发生于2020年，约定2021年还款，至今未还。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "争议焦点在于：2026年才提起诉讼，是否已超过诉讼时效，是否还能起诉以及能否获得法院支持。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "②法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "1. 《民法典》第六百七十五条：借款人应当按照约定的期限返还借款。",
+      "evidence_ids": [
+       "民法典:675"
+      ],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "2. 《民法典》第一百九十二条：诉讼时效期间届满的，义务人可以提出不履行义务的抗辩。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "诉讼时效期间届满后，义务人同意履行的，不得以诉讼时效期间届满为由抗辩；",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "义务人已经自愿履行的，不得请求返还。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "3. 《民事诉讼法》第二百五十条：申请执行的期间为二年。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "申请执行时效的中止、中断，适用法律有关诉讼时效中止、中断的规定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "第一，关于起诉权。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "2026年依然有权向法院提起诉讼。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "起诉是当事人的基本权利，只要符合法定起诉条件，法院就应当受理，不会因为超过诉讼时效而拒绝受理。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "第二，关于诉讼时效的计算。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "根据《民法典》第六百七十五条，借款人应按约定期限返还借款。",
+      "evidence_ids": [
+       "民法典:675"
+      ],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "本案约定2021年还款，则诉讼时效应从2021年还款期限届满之次日起开始计算。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "普通诉讼时效期间为三年，即至2024年届满。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "2026年才提起诉讼，表面上看已经超过了三年的诉讼时效期间。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "第三，关于诉讼时效届满的法律后果。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "根据《民法典》第一百九十二条的规定，诉讼时效期间届满的，义务人可以提出不履行义务的抗辩。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "这意味着，2026年起诉时，如果被告到庭应诉并明确提出诉讼时效已经届满的抗辩，且法院经审查认定抗辩成立，那么原告将丧失胜诉权，法院将判决驳回原告的诉讼请求。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "反之，如果被告未提出诉讼时效抗辩，法院不得主动释明或适用诉讼时效规定，原告仍可能获得胜诉判决。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "第四，关于诉讼时效的中断与中止。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "根据《民事诉讼法》第二百五十条的规定，申请执行时效的中止、中断，适用法律有关诉讼时效中止、中断的规定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "这侧面印证了诉讼时效存在中断、中止制度。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "如果在2021年还款期限届满后至2026年起诉前，存在权利人向义务人提出履行请求、义务人同意履行义务、提起诉讼或仲裁等法定中断诉讼时效的事由，诉讼时效将重新计算；",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "或者存在不可抗力等中止事由，诉讼时效将暂停计算。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "因此，需结合具体案情审查是否存在上述中断、中止情形。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "结论：2026年仍然可以起诉。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "风险提示：本案存在较大的败诉风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "由于距离2021年还款期限届满已逾三年，若在此期间不存在诉讼时效中断、中止的法定事由，且被告在诉讼中提出诉讼时效抗辩，法院将可能驳回原告的诉讼请求。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     },
+     {
+      "text": "建议梳理2021年至2026年间是否存在催款记录、对方承诺还款等能导致诉讼时效中断的证据，以争取有利结果。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01"
+     }
+    ],
+    "detected_issues": [
+     "借款合同",
+     "诉讼时效"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://dryrun-rag-20260905/loan-limitations-01",
+    "latency_ms": 52338.5,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "labor-probation-02",
+   "answer": {
+    "claims": [
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "您的情况是：三年期劳动合同，公司先约定6个月试用期，后又延长2个月。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "核心争议焦点在于：公司延长试用期的行为是否合法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "②法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "根据《劳动合同法》第十九条，三年以上固定期限和无固定期限的劳动合同，试用期不得超过六个月；",
+      "evidence_ids": [
+       "劳动合同法:19"
+      ],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "同一用人单位与同一劳动者只能约定一次试用期。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "根据《劳动合同法》第八十三条，用人单位违反本法规定与劳动者约定试用期的，由劳动行政部门责令改正；",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "违法约定的试用期已经履行的，由用人单位以劳动者试用期满月工资为标准，按已经履行的超过法定试用期的期间向劳动者支付赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "首先，三年期劳动合同约定6个月试用期本身符合法律规定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "根据《劳动合同法》第十九条，三年以上固定期限劳动合同的试用期上限为6个月，公司初始约定未超标。",
+      "evidence_ids": [
+       "劳动合同法:19"
+      ],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "其次，公司延长2个月试用期的行为违法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "根据《劳动合同法》第十九条，同一用人单位与同一劳动者只能约定一次试用期。",
+      "evidence_ids": [
+       "劳动合同法:19"
+      ],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "延长试用期实质上是再次约定试用期，违反了该禁止性规定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "再次，延长后总试用期达到8个月，超过了法定6个月上限。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "即使不考虑\"一次试用期\"的限制，仅从期限角度看也构成违法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "最后，违法延长试用期的法律后果明确。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "根据《劳动合同法》第八十三条，违法约定的试用期已经履行的，公司需按试用期满月工资标准，就超过法定试用期的期间向您支付赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "结论：公司延长试用期的行为违法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "风险提示：若违法延长的2个月试用期已经履行，您有权要求公司支付赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "赔偿金计算方式为：试用期满月工资 × 违法履行期间（2个月）。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "若尚未履行或正在履行中，您可向劳动行政部门投诉，要求责令改正。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     },
+     {
+      "text": "本答复仅供参考，不构成正式法律意见。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02"
+     }
+    ],
+    "detected_issues": [
+     "劳动合同",
+     "试用期"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://dryrun-rag-20260905/labor-probation-02",
+    "latency_ms": 22605.0,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  }
+ ]
+}

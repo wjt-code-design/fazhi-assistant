@@ -1,0 +1,12 @@
+[C01] mechanical_completed=True R2=True R3=True R5=True R6=True R8hint=False full_passed=False missing=['劳动合同法:43', '劳动合同法:47', '劳动合同法:87'] unbound=1 redline=NOT_PROVEN
+[C02] mechanical_completed=True R2=True R3=True R5=True R6=True R8hint=False full_passed=False missing=['劳动法:36', '劳动法:44', '劳动争议调解仲裁法:27'] unbound=1 redline=NOT_PROVEN
+[C03] mechanical_completed=True R2=True R3=True R5=True R6=True R8hint=True full_passed=False missing=[] unbound=1 redline=NOT_PROVEN
+[C04] mechanical_completed=False R2=True R3=True R5=True R6=False R8hint=False full_passed=False missing=['民法典:586', '民法典:587', '民法典:588'] unbound=0 redline=NOT_PROVEN
+[C05] mechanical_completed=True R2=True R3=True R5=True R6=True R8hint=False full_passed=False missing=['民法典:577'] unbound=1 redline=NOT_PROVEN
+[C06] mechanical_completed=False R2=True R3=True R5=True R6=False R8hint=False full_passed=False missing=['民法典:509', '民法典:543', '民法典:577'] unbound=0 redline=NOT_PROVEN
+[C07] mechanical_completed=True R2=True R3=True R5=True R6=True R8hint=False full_passed=False missing=['民法典:188', '民法典:675'] unbound=1 redline=NOT_PROVEN
+[C08] mechanical_completed=True R2=True R3=True R5=True R6=True R8hint=True full_passed=False missing=[] unbound=1 redline=NOT_PROVEN
+[C09] mechanical_completed=False R2=True R3=True R5=True R6=False R8hint=False full_passed=False missing=['消费者权益保护法:26', '民法典:496', '民法典:497', '民法典:577'] unbound=0 redline=NOT_PROVEN
+[C10] mechanical_completed=True R2=True R3=True R5=True R6=True R8hint=False full_passed=False missing=['民法典:577'] unbound=1 redline=NOT_PROVEN
+
+mechanical_pass_count=7 full_closure_pass_count=0 full_closure_denominator=10 formal_gate_passed=False

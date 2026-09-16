@@ -34,9 +34,7 @@ def test_underspecified_boundaries():
     # 库外硬信号 → 不算模糊（走拒答路径）
     assert not clarify.detect_underspecified("民间借贷司法解释对利率上限怎么规定？")
     # 长问 → 默认有信息量
-    assert not clarify.detect_underspecified(
-        "我朋友开公司欠我货款不还，我已经起诉到法院了，他还转移财产，我该怎么办？"
-    )
+    assert not clarify.detect_underspecified("我朋友开公司欠我货款不还，我已经起诉到法院了，他还转移财产，我该怎么办？")
 
 
 # ---------------- extract_source_names：法名抽取 ----------------

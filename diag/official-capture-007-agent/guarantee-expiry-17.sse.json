@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "保证合同是否明确约定保证方式为一般保证或连带责任保证",
+  "issue_id": "issue_15d18612a33815e174bfda1a"
+ }
+]

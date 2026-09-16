@@ -1,0 +1,36 @@
+Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event CollectionGetEvent: capture() takes 1 positional argument but 3 were given
+Building prefix dict from the default dictionary ...
+Loading model from cache C:\Users\33393\AppData\Local\Temp\jieba.cache
+Loading model cost 0.469 seconds.
+Prefix dict has been built successfully.
+Failed to send telemetry event CollectionQueryEvent: capture() takes 1 positional argument but 3 were given
+目标法条正文长度: {'劳动合同法第四十条': 230, '劳动合同法第四十三条': 111, '劳动合同法第四十七条': 231, '劳动合同法第八十七条': 70}
+
+=== q1 事实性问题 ===
+query: 公司主张的连续两次绩效不合格事实是否成立？
+anchors(来自 query 自身, cap8): ['连续', '两次', '绩效', '合格']
+Q-A 字面桥(anchor 出现在该法条正文): {'劳动合同法第四十条': [], '劳动合同法第四十三条': [], '劳动合同法第四十七条': [], '劳动合同法第八十七条': []}
+Q-B 锚点保底上限 required 命中: 0/4 []
+    (并集大小 21 条)
+Q-C 法定术语锚点上限 required 命中: 1/4 ['劳动合同法第四十条']
+    anchors=['不能胜任工作'] (并集 6 条)
+
+=== q2 程序问题 ===
+query: 即使绩效不合格，公司直接解除合同而未进行培训或调岗是否合法？
+anchors(来自 query 自身, cap8): ['绩效', '合格', '解除合同', '进行', '培训', '调岗']
+Q-A 字面桥(anchor 出现在该法条正文): {'劳动合同法第四十条': ['培训'], '劳动合同法第四十三条': [], '劳动合同法第四十七条': [], '劳动合同法第八十七条': []}
+Q-B 锚点保底上限 required 命中: 0/4 []
+    (并集大小 34 条)
+Q-C 法定术语锚点上限 required 命中: 0/4 []
+    anchors=['培训', '调整工作岗位'] (并集 12 条)
+
+=== q3 赔偿问题 ===
+query: 公司未支付任何经济补偿即解除合同，劳动者能否要求赔偿金？
+anchors(来自 query 自身, cap8): ['支付', '任何', '经济', '补偿', '解除合同', '赔偿金']
+Q-A 字面桥(anchor 出现在该法条正文): {'劳动合同法第四十条': ['支付'], '劳动合同法第四十三条': [], '劳动合同法第四十七条': ['支付', '经济', '补偿'], '劳动合同法第八十七条': ['支付', '经济', '补偿', '赔偿金']}
+Q-B 锚点保底上限 required 命中: 0/4 []
+    (并集大小 33 条)
+Q-C 法定术语锚点上限 required 命中: 1/4 ['劳动合同法第四十七条']
+    anchors=['经济补偿', '赔偿金', '违法解除'] (并集 15 条)

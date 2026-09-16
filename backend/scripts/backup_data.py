@@ -8,6 +8,7 @@
 用法：
   python scripts/backup_data.py                          # 默认备份到 ../backups/<时间戳>/
   python scripts/backup_data.py --out D:/backup_manual   # 指定目录
+  python scripts/backup_data.py --skip-chroma            # 明确只备份 SQLite
   python scripts/backup_data.py --skip-chroma-export     # 跳过 JSON 导出（大库省时）
 
 注意：备份前建议先停后端（manage.py stop），避免备份与运行写竞争（SQLite backup API
@@ -27,7 +28,9 @@ BACKEND = os.path.dirname(HERE)
 sys.path.insert(0, BACKEND)
 os.chdir(BACKEND)
 
-DEFAULT_BACKUP_ROOT = os.path.join(BACKEND, "backups")  # 对抗审计 v2 #22：与 compose 卷 ./backend/backups:/app/backups 一致
+DEFAULT_BACKUP_ROOT = os.path.join(
+    BACKEND, "backups"
+)  # 对抗审计 v2 #22：与 compose 卷 ./backend/backups:/app/backups 一致
 CHROMA_DIR = os.path.join(BACKEND, "chroma_db")
 # database.py 支持 DATABASE_URL；这里解析出 sqlite 文件路径，默认 backend/app.db
 DB_URL = os.getenv("DATABASE_URL", "")
@@ -93,44 +96,69 @@ def export_chroma_json(dest_dir: str) -> str:
     return out
 
 
-def main():
+def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="数据备份 + 恢复验证")
     ap.add_argument("--out", default=None, help="备份目标目录（默认 ../backups/<时间戳>/）")
+    ap.add_argument("--skip-chroma", action="store_true", help="明确跳过 Chroma 目录备份和导出")
     ap.add_argument("--skip-chroma-export", action="store_true", help="跳过 Chroma JSON 导出")
-    args = ap.parse_args()
+    args = ap.parse_args(argv)
 
     ts = _timestamp()
     out = args.out or os.path.join(DEFAULT_BACKUP_ROOT, ts)
-    os.makedirs(out, exist_ok=True)
+    try:
+        os.makedirs(out, exist_ok=False)
+    except FileExistsError:
+        print(f"ERROR 备份目录已存在，拒绝覆盖：{out}")
+        return 2
     print(f"备份目录：{out}")
 
     # ---- SQLite ----
     if os.path.exists(DB_PATH):
-        db_backup = backup_sqlite(DB_PATH, out)
-        ok, msg = verify_sqlite(db_backup)
+        try:
+            db_backup = backup_sqlite(DB_PATH, out)
+        except (OSError, sqlite3.Error) as exc:
+            print(f"[SQLite] ERROR 备份失败：{exc}")
+            return 1
+        try:
+            ok, msg = verify_sqlite(db_backup)
+        except (OSError, sqlite3.Error) as exc:
+            print(f"[SQLite] ERROR 恢复验证执行失败：{exc}")
+            return 1
         mark = "PASS" if ok else f"FAIL（{msg}）"
         print(f"[SQLite] {db_backup}  integrity_check={mark}")
         if not ok:
-            print("  ⚠ 备份文件损坏！请检查磁盘/原库，勿使用此备份。")
+            print("  ERROR 备份文件损坏！请检查磁盘/原库，勿使用此备份。")
+            return 1
     else:
-        print("[SQLite] 未找到数据库文件，跳过")
+        print(f"[SQLite] ERROR 未找到数据库文件：{DB_PATH}")
+        return 1
 
     # ---- Chroma ----
-    if os.path.isdir(CHROMA_DIR):
-        shutil.copytree(CHROMA_DIR, os.path.join(out, "chroma_db"))
-        print(f"[Chroma] 目录复制完成：{os.path.join(out, 'chroma_db')}")
+    if args.skip_chroma:
+        print("[Chroma] 已按显式 --skip-chroma 跳过")
+    elif os.path.isdir(CHROMA_DIR):
+        chroma_backup = os.path.join(out, "chroma_db")
+        try:
+            shutil.copytree(CHROMA_DIR, chroma_backup)
+        except OSError as exc:
+            print(f"[Chroma] ERROR 目录复制失败：{exc}")
+            return 1
+        print(f"[Chroma] 目录复制完成：{chroma_backup}")
         if not args.skip_chroma_export:
             try:
                 idx = export_chroma_json(out)
                 print(f"[Chroma] 元数据导出：{idx}")
-            except Exception as e:
-                print(f"[Chroma] JSON 导出失败（可加 --skip-chroma-export 跳过）：{e}")
+            except Exception as exc:
+                print(f"[Chroma] ERROR JSON 导出失败（仅显式 --skip-chroma-export 可跳过）：{exc}")
+                return 1
     else:
-        print("[Chroma] 未找到 chroma_db 目录，跳过")
+        print(f"[Chroma] ERROR 未找到 chroma_db 目录：{CHROMA_DIR}")
+        return 1
 
     print("备份完成。恢复：停后端 → 将备份文件放回对应位置 → 启动后验证检索。")
     print("提示：备份前建议先 manage.py stop，避免运行中复制 Chroma 目录不一致。")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

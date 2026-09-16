@@ -1,0 +1,60 @@
+{
+ "run": "gate2-1",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "制度在内网，但我不记得是否培训过",
+      "公司没有培训或调岗"
+     ],
+     "event_types": []
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "两次绩效不合格是否有客观、合理的考核标准和证据"
+    },
+    {
+     "round": 2,
+     "prompt": "公司是否在第一次绩效不合格后进行了培训或调岗"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r1-f1",
+    "C01-r2-f1"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "两次绩效不合格是否有客观、合理的考核标准和证据"
+    }
+   ],
+   "conv_id": 2086,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 31.4
+  }
+ }
+}

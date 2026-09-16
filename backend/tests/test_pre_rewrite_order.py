@@ -7,8 +7,10 @@ Fixture 隔离（M8）：内嵌 SQLite + 逐用例 monkeypatch——检索/QA/�
 向量库/QA 库/法条；classify_intent/_is_exam_question/has_exam_options/question_type
 用真实纯函数。
 """
+
 import os
 import sys
+from datetime import datetime, timedelta
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -43,8 +45,25 @@ def env(monkeypatch):
     conv = Conversation(user_id=u.id, title="", summary="", message_count=2, question="")
     db.add(conv)
     db.flush()
-    db.add(Message(conversation_id=conv.id, role="user", content="试用期最长多久", image_desc=None))
-    db.add(Message(conversation_id=conv.id, role="assistant", content="依据《劳动合同法》第十九条，试用期最长六个月。", image_desc=None))
+    history_started_at = datetime(2026, 1, 1)
+    db.add(
+        Message(
+            conversation_id=conv.id,
+            role="user",
+            content="试用期最长多久",
+            image_desc=None,
+            created_at=history_started_at,
+        )
+    )
+    db.add(
+        Message(
+            conversation_id=conv.id,
+            role="assistant",
+            content="依据《劳动合同法》第十九条，试用期最长六个月。",
+            image_desc=None,
+            created_at=history_started_at + timedelta(seconds=1),
+        )
+    )
     db.commit()
     conv_id = conv.id
     db.close()
@@ -121,6 +140,39 @@ def test_bare_judge_mark_with_history_still_rewrites(env):
     pre = _pre(main, conv_id, "正确的是")
     assert calls == ["正确的是"]
     assert pre["rewritten"] == "REWRITTEN"
+
+
+def test_chitchat_wrapper_matches_frozen_legacy_golden(env):
+    """Independent golden for the legacy wrapper contract; not derived from fast-path implementation."""
+    main, conv_id, calls = env
+
+    pre = main._pre(1, conv_id, "好的，谢谢", None)
+
+    assert calls == []
+    assert pre == {
+        "conv_id": conv_id,
+        "summary": "",
+        "recent": [
+            {"role": "user", "content": "试用期最长多久", "image_desc": ""},
+            {
+                "role": "assistant",
+                "content": "依据《劳动合同法》第十九条，试用期最长六个月。",
+                "image_desc": "",
+            },
+        ],
+        "context": "",
+        "qa_hit": None,
+        "sources": [],
+        "image": None,
+        "user_text": "好的，谢谢",
+        "image_rel": None,
+        "thumb_rel": None,
+        "rewritten": "好的，谢谢",
+        "intent": "chitchat",
+        "is_exam": False,
+        "has_options": False,
+        "contract_data": None,
+    }
 
 
 # ---------------- 沉淀闸：只收 legal_query ----------------

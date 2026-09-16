@@ -77,7 +77,12 @@ def _write_new(emb, col, docs: list[str], metas: list[dict], batch: int, name: s
                 time.sleep(delay)
                 delay *= 2
         # 用 Chroma 直接 add(embeddings=...)（避免再次走 embeddings 重嵌）
-        col.add(ids=[f"re-{start + i}" for i in range(len(chunk_docs))], embeddings=vecs, documents=chunk_docs, metadatas=chunk_metas)
+        col.add(
+            ids=[f"re-{start + i}" for i in range(len(chunk_docs))],
+            embeddings=vecs,
+            documents=chunk_docs,
+            metadatas=chunk_metas,
+        )
         if (start // batch + 1) % 10 == 0 or start + batch >= n:
             print(f"  写入 {min(start + batch, n)}/{n} 条到 [{name}]", flush=True)
     print(f"  [{name}] 完成 {n} 条")
@@ -166,7 +171,9 @@ def main() -> None:
     # dimension 校验
     sample = new_main.get(limit=1, include=["embeddings"])
     dim = len(sample["embeddings"][0]) if sample.get("embeddings") else "?"
-    print(f"新库维度: {dim}（配置 {settings.embedding_dimensions}）{'✅' if str(dim) == str(settings.embedding_dimensions) else '❌ 不匹配'}")
+    print(
+        f"新库维度: {dim}（配置 {settings.embedding_dimensions}）{'✅' if str(dim) == str(settings.embedding_dimensions) else '❌ 不匹配'}"
+    )
     # eval_set 抽样召回校验（阶段7 补，ADR-011）：验证新模型语义空间下检索仍命中期望条文。
     # 用 chroma **原生** query 查新库（B5 修复：不能 from retrieval import retrieve——langchain
     # Chroma 对象缓存了 delete 前的旧 collection UUID，_ensure_new_collection 重建后它已失效）。
@@ -194,7 +201,9 @@ def main() -> None:
             if any(m.get("article") in exp_arts or m.get("source") in exp_srcs for m in metas):
                 hit += 1
         ok = hit == len(sample_cases)
-        print(f"eval_set 抽样召回: {hit}/{len(sample_cases)}{'✅' if ok else '⚠ 部分未命中（新模型语义空间不同属正常，以完整 eval_retrieval 为准）'}")
+        print(
+            f"eval_set 抽样召回: {hit}/{len(sample_cases)}{'✅' if ok else '⚠ 部分未命中（新模型语义空间不同属正常，以完整 eval_retrieval 为准）'}"
+        )
     except Exception as e:
         print(f"  eval_set 召回校验跳过：{e}")
     print("\n重建完成。旧库未改动（回退=EMBEDDING_PROVIDER 切回 local）。")

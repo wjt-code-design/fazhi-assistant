@@ -4,6 +4,7 @@
 - strip_unprovided_notes：库内删句 / 库外保句 / 无书名删
 - citation_grounding：三分法分类（注入 in_kb，不查 Chroma）
 """
+
 import os
 import sys
 
@@ -13,8 +14,8 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
-from output_normalize import expand_citations, money_normalize, strip_unprovided_notes  # noqa: E402
 import retrieval as R  # noqa: E402
+from output_normalize import expand_citations, money_normalize, strip_unprovided_notes  # noqa: E402
 
 
 # ---------------- money_normalize ----------------
@@ -65,27 +66,36 @@ def test_expand_no_book_untouched():
 
 # ---------------- strip_unprovided_notes ----------------
 def test_strip_in_kb_drops_contradiction():
-    in_kb = lambda s: s == "民法典"
+    def in_kb(s):
+        return s == "民法典"
+
     out = strip_unprovided_notes("《民法典》相关条文未在本次检索中提供，建议核对原文。其余正常。", in_kb)
     assert "建议核对" not in out
     assert "其余正常" in out
 
 
 def test_strip_out_of_kb_keeps_honest_note():
-    in_kb = lambda s: s == "民法典"
+    def in_kb(s):
+        return s == "民法典"
+
     out = strip_unprovided_notes("《某司法解释》相关条文未收录，建议核对原文。", in_kb)
     assert "某司法解释" in out  # 真未收录 → 保留诚实说明
 
 
 def test_strip_bare_noise_deleted():
-    in_kb = lambda s: True
+    def in_kb(s):
+        return True
+
     assert strip_unprovided_notes("建议核对原文。", in_kb) == ""
 
 
 # ---------------- citation_grounding（三分法） ----------------
 def test_grounding_three_buckets():
     stats = {}
-    in_kb = lambda src, art: src in ("民法典", "劳动法")
+
+    def in_kb(src, art):
+        return src in ("民法典", "劳动法")
+
     answer = "根据《民法典》第一百八十二条和《劳动法》第五十条，以及《某法》第九条。"
     sources = [{"source": "民法典", "article": "第一百八十二条"}]
     in_ctx, rm, hal = R.citation_grounding(answer, sources, stats, in_kb=in_kb)

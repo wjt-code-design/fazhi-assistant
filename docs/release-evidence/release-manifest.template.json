@@ -1,0 +1,37 @@
+{
+  "schema_version": "legal-agent-release-manifest/v1",
+  "release_id": "legal-agent-v1-YYYYMMDD-NNN",
+  "candidate": {
+    "git_revision": "<40-lowercase-hex-commit>",
+    "build_digest": "sha256:<64-lowercase-hex-digest>"
+  },
+  "evaluation": {
+    "case_set_sha256": "<sha256-of-raw-frozen-case-file>",
+    "evaluator_name": "legal-agent-deterministic-evaluator",
+    "evaluator_version": "<semver>",
+    "rubric_hash": "<sha256>",
+    "release_policy_sha256": "<sha256-of-frozen-release-policy-json>"
+  },
+  "knowledge": {
+    "corpus_manifest_sha256": "<sha256-of-corpus-manifest>",
+    "index_manifest_sha256": "<sha256-of-index-manifest>",
+    "jurisdictions": ["CN"],
+    "law_as_of": "YYYY-MM-DD"
+  },
+  "runtime": {
+    "provider": "<provider-id>",
+    "model": "<exact-model-id>",
+    "model_snapshot": "<provider-snapshot-or-version>",
+    "prompt_bundle_sha256": "<sha256>",
+    "tool_policy_sha256": "<sha256>",
+    "config_sha256": "<sha256-of-non-secret-config-manifest>"
+  },
+  "capture": {
+    "protocol_sha256": "<sha256-of-capture-protocol>",
+    "retry_policy_sha256": "<same-sha256-as-capture-protocol-because-retry-controls-are-embedded>",
+    "timeout_seconds": 90,
+    "concurrency": 1,
+    "cache_policy": "disabled",
+    "network_policy": "frozen-knowledge-only"
+  }
+}

@@ -1,0 +1,16 @@
+{"time": 1789202051.4119668, "event": "reserved", "call": 1, "model": "qwen3.8-flash", "reserve_cny": "2", "accounted_upper_cny": "2"}
+{"time": 1789202077.5185452, "event": "finished", "call": 1, "status": 200, "usage": {"completion_tokens": 1314, "prompt_tokens": 792, "prompt_tokens_details": {"cached_tokens": 0, "text_tokens": 792}, "total_tokens": 2106}, "accounted_cny": "0.0041814", "accounted_upper_cny": "0.0041814", "halt": false}
+{"time": 1789202077.916736, "event": "reserved", "call": 2, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0041814"}
+{"time": 1789202078.7043679, "event": "finished", "call": 2, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0041814", "halt": false}
+{"time": 1789202078.849728, "event": "reserved", "call": 3, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0041814"}
+{"time": 1789202079.4126492, "event": "finished", "call": 3, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0041814", "halt": false}
+{"time": 1789202079.5363398, "event": "reserved", "call": 4, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0041814"}
+{"time": 1789202079.8535445, "event": "finished", "call": 4, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0041814", "halt": false}
+{"time": 1789202079.944285, "event": "reserved", "call": 5, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0041814"}
+{"time": 1789202080.620714, "event": "finished", "call": 5, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0041814", "halt": false}
+{"time": 1789202080.7201972, "event": "reserved", "call": 6, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0041814"}
+{"time": 1789202081.0761762, "event": "finished", "call": 6, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0041814", "halt": false}
+{"time": 1789202081.7668405, "event": "reserved", "call": 7, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0041814"}
+{"time": 1789202083.5515306, "event": "finished", "call": 7, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0041814", "halt": false}
+{"time": 1789202085.8853583, "event": "reserved", "call": 8, "model": "qwen3.8-flash", "reserve_cny": "2", "accounted_upper_cny": "2.0041814"}
+{"time": 1789202098.1229517, "event": "finished", "call": 8, "status": 200, "usage": {"completion_tokens": 618, "prompt_tokens": 4239, "prompt_tokens_details": {"cached_tokens": 0, "text_tokens": 4239}, "total_tokens": 4857}, "accounted_cny": "0.0050598", "accounted_upper_cny": "0.0092412", "halt": false}

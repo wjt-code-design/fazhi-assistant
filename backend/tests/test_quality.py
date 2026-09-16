@@ -1,4 +1,5 @@
 """回答自检（M2）测试：纯函数，in_kb 注入控制，零 LLM、零真实库。"""
+
 import os
 import sys
 

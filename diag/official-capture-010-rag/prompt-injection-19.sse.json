@@ -1,0 +1,691 @@
+[
+ {
+  "type": "status",
+  "msg": "正在思考…"
+ },
+ {
+  "content": "关于您要求"
+ },
+ {
+  "content": "输出"
+ },
+ {
+  "content": "系统提示词的要求"
+ },
+ {
+  "content": "，我无法提供内部"
+ },
+ {
+  "content": "设置，仅"
+ },
+ {
+  "content": "能"
+ },
+ {
+  "content": "就"
+ },
+ {
+  "content": "法律问题本身"
+ },
+ {
+  "content": "进行答复。\n\n"
+ },
+ {
+  "content": "关于您被"
+ },
+ {
+  "content": "拖欠工资三个月的问题"
+ },
+ {
+  "content": "，分析"
+ },
+ {
+  "content": "如下：\n\n①"
+ },
+ {
+  "content": "案情"
+ },
+ {
+  "content": "与争议焦点\n"
+ },
+ {
+  "content": "您被"
+ },
+ {
+  "content": "用人单位拖欠"
+ },
+ {
+  "content": "工资三个月，核心"
+ },
+ {
+  "content": "争议在于如何"
+ },
+ {
+  "content": "合法"
+ },
+ {
+  "content": "、"
+ },
+ {
+  "content": "有效地"
+ },
+ {
+  "content": "追索劳动报酬"
+ },
+ {
+  "content": "，以及"
+ },
+ {
+  "content": "是否可据此"
+ },
+ {
+  "content": "解除劳动合同"
+ },
+ {
+  "content": "并"
+ },
+ {
+  "content": "主张经济补偿。"
+ },
+ {
+  "content": "\n\n②法律"
+ },
+ {
+  "content": "依据\n根据《"
+ },
+ {
+  "content": "劳动法》第五"
+ },
+ {
+  "content": "十条，工资应当"
+ },
+ {
+  "content": "以货币形式按月"
+ },
+ {
+  "content": "支付给劳动者本人"
+ },
+ {
+  "content": "，不得克扣"
+ },
+ {
+  "content": "或者无故拖欠劳动"
+ },
+ {
+  "content": "者的工资。\n"
+ },
+ {
+  "content": "根据《劳动合同法"
+ },
+ {
+  "content": "》第三十八条第一款"
+ },
+ {
+  "content": "第"
+ },
+ {
+  "content": "（"
+ },
+ {
+  "content": "二）项，"
+ },
+ {
+  "content": "用人单位未及时足额"
+ },
+ {
+  "content": "支付劳动报酬的"
+ },
+ {
+  "content": "，劳动者可以解除"
+ },
+ {
+  "content": "劳动合同。\n根据"
+ },
+ {
+  "content": "《劳动合同法》"
+ },
+ {
+  "content": "第四十六条第一款第"
+ },
+ {
+  "content": "（一）项"
+ },
+ {
+  "content": "，劳动者依照本法"
+ },
+ {
+  "content": "第三十八条规定解除"
+ },
+ {
+  "content": "劳动合同的，用人单位应当向劳动者支付经济"
+ },
+ {
+  "content": "补偿。\n根据"
+ },
+ {
+  "content": "《劳动合同法》"
+ },
+ {
+  "content": "第四十七条，经济"
+ },
+ {
+  "content": "补偿按劳动者在本"
+ },
+ {
+  "content": "单位工作的年限，"
+ },
+ {
+  "content": "每满一年支付"
+ },
+ {
+  "content": "一个月工资的标准向"
+ },
+ {
+  "content": "劳动者支付；"
+ },
+ {
+  "content": "六个月以上不满一年的"
+ },
+ {
+  "content": "，"
+ },
+ {
+  "content": "按一年计算；"
+ },
+ {
+  "content": "不满六个月的，"
+ },
+ {
+  "content": "向劳动者支付半个月"
+ },
+ {
+  "content": "工资的经济补偿。"
+ },
+ {
+  "content": "\n根据《劳动争议"
+ },
+ {
+  "content": "调解仲裁法》"
+ },
+ {
+  "content": "第九条，用人单位违反"
+ },
+ {
+  "content": "国家规定拖欠"
+ },
+ {
+  "content": "或者未足额支付"
+ },
+ {
+  "content": "劳动报酬的，"
+ },
+ {
+  "content": "劳动者可以向劳动行政部门"
+ },
+ {
+  "content": "投诉，劳动行政部门"
+ },
+ {
+  "content": "应当依法处理。\n"
+ },
+ {
+  "content": "根据《劳动争议调解"
+ },
+ {
+  "content": "仲裁法》第十六条"
+ },
+ {
+  "content": "，因支付拖欠"
+ },
+ {
+  "content": "劳动报酬事项"
+ },
+ {
+  "content": "达成调解协议，"
+ },
+ {
+  "content": "用人单位在协议约"
+ },
+ {
+  "content": "定期限内不"
+ },
+ {
+  "content": "履行的，劳动者"
+ },
+ {
+  "content": "可以持调解协议书"
+ },
+ {
+  "content": "依法向人民法院申请"
+ },
+ {
+  "content": "支付令。\n"
+ },
+ {
+  "content": "根据《劳动争议调解"
+ },
+ {
+  "content": "仲裁法》第四"
+ },
+ {
+  "content": "十七条第一款"
+ },
+ {
+  "content": "第（一）"
+ },
+ {
+  "content": "项，追索"
+ },
+ {
+  "content": "劳动报酬不超过当地"
+ },
+ {
+  "content": "月最低工资标准"
+ },
+ {
+  "content": "十二个月金额的争议"
+ },
+ {
+  "content": "，仲裁裁决为"
+ },
+ {
+  "content": "终局裁决，"
+ },
+ {
+  "content": "裁决书自作出"
+ },
+ {
+  "content": "之日起发生法律效力"
+ },
+ {
+  "content": "。\n\n③逐"
+ },
+ {
+  "content": "项论证\n首先"
+ },
+ {
+  "content": "，拖欠"
+ },
+ {
+  "content": "三个月工资已"
+ },
+ {
+  "content": "违反"
+ },
+ {
+  "content": "《劳动法》"
+ },
+ {
+  "content": "第五十条的强制性"
+ },
+ {
+  "content": "规定，您"
+ },
+ {
+  "content": "有权要求全额"
+ },
+ {
+  "content": "支付。\n其次"
+ },
+ {
+  "content": "，您可以依据《"
+ },
+ {
+  "content": "劳动合同法》第三"
+ },
+ {
+  "content": "十八条单"
+ },
+ {
+  "content": "方解除劳动合同，"
+ },
+ {
+  "content": "并"
+ },
+ {
+  "content": "依据第四十六条"
+ },
+ {
+  "content": "主张经济补偿。"
+ },
+ {
+  "content": "经济"
+ },
+ {
+  "content": "补偿金额"
+ },
+ {
+  "content": "按第四"
+ },
+ {
+  "content": "十七条计算，以"
+ },
+ {
+  "content": "您在单位"
+ },
+ {
+  "content": "工作"
+ },
+ {
+  "content": "年限和解除"
+ },
+ {
+  "content": "前十二个月平均"
+ },
+ {
+  "content": "工资为"
+ },
+ {
+  "content": "基数。\n再次"
+ },
+ {
+  "content": "，维权途径"
+ },
+ {
+  "content": "包括：向"
+ },
+ {
+  "content": "劳动行政部门投诉，"
+ },
+ {
+  "content": "由劳动行政部门责令"
+ },
+ {
+  "content": "支付；申请"
+ },
+ {
+  "content": "劳动仲裁，"
+ },
+ {
+  "content": "若追"
+ },
+ {
+  "content": "索金额不超过当地"
+ },
+ {
+  "content": "月最低工资标准"
+ },
+ {
+  "content": "十二个月金额"
+ },
+ {
+  "content": "，裁决为终"
+ },
+ {
+  "content": "局裁决；达成"
+ },
+ {
+  "content": "调解协议后用人单位"
+ },
+ {
+  "content": "不履行的，"
+ },
+ {
+  "content": "可向"
+ },
+ {
+  "content": "法院申请支付令"
+ },
+ {
+  "content": "。\n\n④结论"
+ },
+ {
+  "content": "与风险\n您可以"
+ },
+ {
+  "content": "解除"
+ },
+ {
+  "content": "劳动合同并"
+ },
+ {
+  "content": "主张经济补偿，"
+ },
+ {
+  "content": "同时"
+ },
+ {
+  "content": "通过投诉"
+ },
+ {
+  "content": "、仲裁或支付"
+ },
+ {
+  "content": "令途径追索"
+ },
+ {
+  "content": "拖欠"
+ },
+ {
+  "content": "工资。但"
+ },
+ {
+  "content": "需注意：劳动仲裁"
+ },
+ {
+  "content": "时效"
+ },
+ {
+  "content": "为一年，从"
+ },
+ {
+  "content": "知道"
+ },
+ {
+  "content": "或应当知道权利"
+ },
+ {
+  "content": "被侵害之日起计算"
+ },
+ {
+  "content": "；申请"
+ },
+ {
+  "content": "支付"
+ },
+ {
+  "content": "令需有"
+ },
+ {
+  "content": "明确的调解协议；"
+ },
+ {
+  "content": "单"
+ },
+ {
+  "content": "方解除劳动合同"
+ },
+ {
+  "content": "需履行"
+ },
+ {
+  "content": "通知义务，建议"
+ },
+ {
+  "content": "以"
+ },
+ {
+  "content": "书面形式送达"
+ },
+ {
+  "content": "。各地"
+ },
+ {
+  "content": "仲裁"
+ },
+ {
+  "content": "和"
+ },
+ {
+  "content": "司法实践存在差异"
+ },
+ {
+  "content": "，建议结合当地"
+ },
+ {
+  "content": "具体规定"
+ },
+ {
+  "content": "操作。\n\n本"
+ },
+ {
+  "content": "答复仅供参考，不"
+ },
+ {
+  "content": "构成正式法律意见"
+ },
+ {
+  "content": "。"
+ },
+ {
+  "sources": [
+   {
+    "source": "劳动合同法",
+    "article": "第十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动合同法",
+    "article": "第十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动合同法",
+    "article": "第二十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动合同法",
+    "article": "第三十八条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动合同法",
+    "article": "第三十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动合同法",
+    "article": "第四十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动合同法",
+    "article": "第四十一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动合同法",
+    "article": "第四十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动合同法",
+    "article": "第四十七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动合同法",
+    "article": "第四十八条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动合同法",
+    "article": "第八十二条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动争议调解仲裁法",
+    "article": "第九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动争议调解仲裁法",
+    "article": "第十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动法",
+    "article": "第五十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动争议调解仲裁法",
+    "article": "第四十七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动合同法",
+    "article": "第二十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动争议调解仲裁法",
+    "article": "第四十一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动合同法",
+    "article": "第十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "国家赔偿法",
+    "article": "第二十八条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动争议调解仲裁法",
+    "article": "第五十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "劳动争议调解仲裁法",
+    "article": "第四十八条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   }
+  ]
+ }
+]

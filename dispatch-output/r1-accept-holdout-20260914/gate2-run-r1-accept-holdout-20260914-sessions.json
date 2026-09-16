@@ -1,0 +1,403 @@
+{
+ "run": "r1-accept-holdout-20260914",
+ "results": {
+  "H01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "3f7f37fc-f0b9-441d-a2f3-88320492c161",
+      "state_version": 4,
+      "conv_id": 1
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "UNSUPPORTED_CITATION"
+     ],
+     "clar_meta": {
+      "run_id": "3f7f37fc-f0b9-441d-a2f3-88320492c161",
+      "state_version": 6,
+      "conv_id": 1
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "患者自身是否有其他可能引发过敏的基础疾病或接触史"
+    },
+    {
+     "round": 2,
+     "prompt": "是否有医学鉴定意见支持因果关系成立"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "患者自身是否有其他可能引发过敏的基础疾病或接触史",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "是否有医学鉴定意见支持因果关系成立",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "UNSUPPORTED_CITATION"
+   ],
+   "conv_id": 1,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 33.2
+  },
+  "H02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "f24a9d8d-dec9-4a41-9a9f-1128c93b4fb1",
+      "state_version": 2,
+      "conv_id": 2
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "f24a9d8d-dec9-4a41-9a9f-1128c93b4fb1",
+      "state_version": 6,
+      "conv_id": 2
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "本次请求分解出 6 个法律争点，超过单次可处理上限 5 个。请从中选择最多 5 个争点（输入编号，用逗号分隔，例如：1,3,5）：\n1. 双方是否构成法律认可的合伙关系？\n2. 合伙期间是否存在被合伙人主张的亏损事实？\n3. 对方将营业额转移的行为是否构成侵占合伙财产或违反忠实义务？\n4. 合伙解散时应当如何依法进行账目清算？\n5. 用户能否通过司法途径强制查阅账簿或申请法院指定清算人？\n6. 若查实对方恶意转移资产导致无法清算，用户可主张何种法律责任？"
+    },
+    {
+     "round": 2,
+     "prompt": "对方是否拒绝配合提供账目或阻碍清算"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "对方是否拒绝配合提供账目或阻碍清算",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": true,
+   "elapsed_s": 21.7
+  },
+  "H03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "8d165e65-44ed-4eba-b6a9-e0fcec4e944c",
+      "state_version": 4,
+      "conv_id": 3
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "原来的物业服务合同2023年底到期后没有再签，物业继续收费，涨价通知是物业单方面贴在电梯里的。"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "ISSUE_CLAIMS_MISSING"
+     ],
+     "clar_meta": {
+      "run_id": "8d165e65-44ed-4eba-b6a9-e0fcec4e944c",
+      "state_version": 6,
+      "conv_id": 3
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "当地法院对于物业服务瑕疵与物业费减免比例的裁量惯例"
+    },
+    {
+     "round": 2,
+     "prompt": "违规涨价部分的金额占比及计算方式"
+    }
+   ],
+   "answered_fact_ids": [
+    "H03-r1-f1"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "当地法院对于物业服务瑕疵与物业费减免比例的裁量惯例",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "ISSUE_CLAIMS_MISSING"
+   ],
+   "conv_id": 3,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 46.2
+  },
+  "H04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "图片授权协议写明期限一年，授权范围是官网和公众号宣传使用，现在距离到期已经两个月。"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "8f6ae4fa-e861-427f-8ef3-689dd84eef11",
+      "state_version": 4,
+      "conv_id": 4
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "我发过要求下架的书面通知，对方口头说在整理，但新投放的广告里又用了同一组照片。"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "8f6ae4fa-e861-427f-8ef3-689dd84eef11",
+      "state_version": 6,
+      "conv_id": 4
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "权利人是否希望维持合作关系并重新授权，还是彻底终止使用"
+    },
+    {
+     "round": 2,
+     "prompt": "照片是否已被嵌入不可分割的宣传物料（如印刷品、视频背景）"
+    }
+   ],
+   "answered_fact_ids": [
+    "H04-r1-f1",
+    "H04-r2-f1"
+   ],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 4,
+   "final_chars": 1173,
+   "final_text": "已确认事实：\n- 我授权一家公司使用我拍的照片做宣传\n- 合同到期后他们还在用\n- 我能主张什么？\n- 合同到期后他们还在用\n- 图片授权协议写明期限一年，授权范围是官网和公众号宣传使用，现在距离到期已经两个月。\n- 我发过要求下架的书面通知，对方口头说在整理，但新投放的广告里又用了同一组照片。\n\n尚不确定的事实：\n- 合同中是否约定了到期后的自动续展条款或宽限期\n- 公司继续使用照片的具体方式和范围（如是否修改、用于何种渠道）\n- 合同中是否约定了违约金或损害赔偿计算方式\n- 权利人能否证明因对方继续使用所遭受的实际经济损失或对方的不当得利\n\n核心法律争点：\n- 合同到期后继续使用照片是否构成违约或侵权？\n- 权利人可主张哪些法律后果（如停止侵害、赔偿损失、违约金等）？\n- 权利人是否有权要求继续履行合同或恢复原状？\n\n法律依据：\n- 《著作权法》第六十六条\n- 《民法典》第八百七十三条\n- 《民法典》第七百三十四条\n- 《民法典》第一千零二十二条\n- 《民法典》第二百三十八条\n- 《民法典》第一千一百六十七条\n- 《民法典》第一百七十九条\n- 《消费者权益保护法》第五十条\n- 《民法典》第二百三十七条\n- 《企业破产法》第十八条\n- 《民法典》第五百七十七条\n- 《企业破产法》第七十六条\n\n分情形分析：\n参照《著作权法》第六十六条关于保护期的规定,权利人在法定或约定期限内享有专有权利。若照片作为作品受著作权保护,且许可合同已到期,未经许可的持续使用可能侵犯著作权人的复制权、信息网络传播权等财产权利。\n\n可执行建议与风险提示：\n根据《民法典》第一千零二十二条,当事人对肖像许可使用期限有明确约定的,合同到期后肖像权人有权解除或不再续期。若被授权方在合同到期后继续使用照片且未获得新的授权,可能构成对肖像权的侵害或违约行为。\n依据《民法典》第一千一百六十七条,若侵权行为危及他人人身、财产安全,权利人有权请求侵权人承担停止侵害、排除妨碍、消除危险等侵权责任。\n依据《消费者权益保护法》第五十条,经营者侵害消费者人格尊严、人身自由或个人信息权的,应当停止侵害、恢复名誉、消除影响、赔礼道歉,并赔偿损失。\n在重整期间,债务人合法占有的他人财产,该财产的权利人要求取回的,应当符合事先约定的条件。\n人民法院受理破产申请后,管理人对破产申请受理前成立而债务人和对方当事人均未履行完毕的合同有权决定解除或者继续履行,并通知对方当事人。管理人自破产申请受理之日起二个月内未通知对方当事人,或者自收到对方当事人催告之日起三十日内未答复的,视为解除合同。\n造成不动产或者动产毁损的,权利人可以依法请求修理、重作、更换或者恢复原状。\n当事人一方不履行合同义务或者履行合同义务不符合约定的,应当承担继续履行、采取补救措施或者赔偿损失等违约责任。",
+   "final_excerpt": "已确认事实：\n- 我授权一家公司使用我拍的照片做宣传\n- 合同到期后他们还在用\n- 我能主张什么？\n- 合同到期后他们还在用\n- 图片授权协议写明期限一年，授权范围是官网和公众号宣传使用，现在距离到期已经两个月。\n- 我发过要求下架的书面通",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 38.5
+  },
+  "H05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "家庭财产险保单条款只写了保险事故发生后应当及时通知保险公司，我在第二天就电话报案了。"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "7252e76c-4039-4cd6-8eaf-7bd050a0fbd0",
+      "state_version": 4,
+      "conv_id": 5
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "NON_CANONICAL_CITATION"
+     ],
+     "clar_meta": {
+      "run_id": "7252e76c-4039-4cd6-8eaf-7bd050a0fbd0",
+      "state_version": 8,
+      "conv_id": 5
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "保险合同条款中关于“及时通知”的具体定义、时限要求及违反后果的约定。"
+    },
+    {
+     "round": 2,
+     "prompt": "用户实际通知保险公司的具体时间以及距离事故发生的时间间隔。"
+    }
+   ],
+   "answered_fact_ids": [
+    "H05-r1-f1"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "用户实际通知保险公司的具体时间以及距离事故发生的时间间隔。",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "NON_CANONICAL_CITATION"
+   ],
+   "conv_id": 5,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 20.1
+  }
+ }
+}

@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "工资支付形式（银行转账/现金）",
+  "issue_id": "issue_f03b47b6dc2834c9f1aad1ff"
+ }
+]

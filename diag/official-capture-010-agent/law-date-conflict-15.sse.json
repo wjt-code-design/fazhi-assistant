@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "对方所引用的具体民法典条款内容",
+  "issue_id": "issue_40e24f90b75474b07b1f6751"
+ }
+]

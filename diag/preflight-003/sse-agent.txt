@@ -1,0 +1,6 @@
+data: {"type": "agent_status", "status": "waiting_user"}
+
+data: {"type": "clarification", "run_id": "a5edbf59-aa0c-48b5-b7ec-3c14e579e605", "state_version": 4, "prompt": "是否存在诉讼时效中断、中止的法定事由", "issue_id": "issue_29e49e8570c72c05a6633afb", "conversation_id": 1}
+
+data: [DONE]
+

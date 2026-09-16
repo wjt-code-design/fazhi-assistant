@@ -1,0 +1,95 @@
+{
+ "schema_version": "phase0-baseline-snapshot/v1",
+ "phase": "Phase 0 Baseline Snapshot + Test/Protocol Preregistration",
+ "generated_at": "2026-09-07",
+ "final_candidate_anchor": {
+  "release_id": "legal-agent-v1-20260907-011",
+  "git_revision": "cd86512e646706fd146aeb2a801011096f10693d",
+  "behavior_code_unchanged_since_anchor": true,
+  "evid_working_tree_dirty_is_crlf_only": true
+ },
+ "evaluator_frozen": {
+  "version": "1.2.0",
+  "rubric_sha256": "089e1a646f13fa49eb24426d940569f0377800730a3cc8e3fa7c3ccb772dcb06"
+ },
+ "policy_v2_frozen": {
+  "policy_v2_sha256": "788d538f25bf066b24277f0d8fcaa7e15527daaf1b59c8e6abeca85b15d6ccda",
+  "gate": "Existing Release Gate (L1)"
+ },
+ "case_set": {
+  "frozen_eval_cases_sha256": "86066616d7bba2c7f3699523e8ae3766d7e6c52231136e22f5b9822833f07469"
+ },
+ "behavioral_dimensions": {
+  "agent_code": {
+   "anchor_sha256": "fbdd153ab7fce43a2d7a880501fb4bc8f1d03ea4910ec9752253e0ba7c58e237",
+   "head_git_sha256": "fbdd153ab7fce43a2d7a880501fb4bc8f1d03ea4910ec9752253e0ba7c58e237",
+   "verdict": "MATCH",
+   "file_count": 13,
+   "files": [
+    "backend/agent/__init__.py",
+    "backend/agent/chat_integration.py",
+    "backend/agent/controller.py",
+    "backend/agent/evaluator.py",
+    "backend/agent/gate.py",
+    "backend/agent/planner.py",
+    "backend/agent/repository.py",
+    "backend/agent/runtime.py",
+    "backend/agent/schemas.py",
+    "backend/agent/service.py",
+    "backend/agent/state_machine.py",
+    "backend/agent/verifier.py",
+    "backend/agent/writer.py"
+   ]
+  },
+  "gate": {
+   "anchor_sha256": "17615c8331c218496cba273e975ea70f10664a90f0181c1a1f7981302c937b04",
+   "head_git_sha256": "17615c8331c218496cba273e975ea70f10664a90f0181c1a1f7981302c937b04",
+   "verdict": "MATCH",
+   "files": [
+    "backend/agent/gate.py"
+   ]
+  },
+  "prompt": {
+   "anchor_sha256": "bad76599d4328aa642d1dbaf695adb9c2812f622993a1504c788bc9d59f57ed2",
+   "head_git_sha256": "bad76599d4328aa642d1dbaf695adb9c2812f622993a1504c788bc9d59f57ed2",
+   "verdict": "MATCH",
+   "files": [
+    "backend/prompts.py"
+   ]
+  },
+  "tool": {
+   "anchor_sha256": "f4e3e93215c0c2fbbaab02cafcfb857e852224f9230f0758f57a8a105e5e9fb9",
+   "current_disk_sha256": "f4e3e93215c0c2fbbaab02cafcfb857e852224f9230f0758f57a8a105e5e9fb9",
+   "verdict": "MATCH"
+  },
+  "model": {
+   "anchor_sha256": "LongCat-2.0",
+   "verdict": "ANCHOR-FIXED"
+  },
+  "kb": {
+   "anchor_sha256": "d76220e7460789382d5bf40ce45a559b1cf017b2b43842d6056a0117d42e9474",
+   "current_disk_sha256": "d76220e7460789382d5bf40ce45a559b1cf017b2b43842d6056a0117d42e9474",
+   "verdict": "MATCH"
+  },
+  "index": {
+   "anchor_sha256": "5092468deefed7e74c81520cc913ec90b0d867eabacc96c1e8fd0bf55920824d",
+   "current_disk_sha256": "f48285e8b43c08cc127d4bd0afb21cd4762ae4fbca7c992fc38d84cd09a368cc",
+   "verdict": "DIFFER"
+  },
+  "runtime": {
+   "anchor_sha256": "215b2058e636f385bea7e569bf15cf6b23b2dc601694cf01200cb3564e646c14",
+   "current_disk_sha256": "215b2058e636f385bea7e569bf15cf6b23b2dc601694cf01200cb3564e646c14",
+   "verdict": "MATCH"
+  }
+ },
+ "reuse_verdicts": {
+  "agent_code": "MATCH",
+  "gate": "MATCH",
+  "prompt": "MATCH",
+  "tool": "MATCH",
+  "model": "ANCHOR-FIXED",
+  "kb": "MATCH",
+  "index": "DIFFER",
+  "runtime": "MATCH"
+ }
+}

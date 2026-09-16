@@ -1,0 +1,715 @@
+{
+ "run": "gate2-baseline-1",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "error"
+     ]
+    }
+   ],
+   "asked": [],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [],
+   "conv_id": null,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 11.5
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "error"
+     ]
+    }
+   ],
+   "asked": [],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [],
+   "conv_id": null,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 16.8
+  },
+  "C03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "我昨天提交了离职通知"
+     ],
+     "event_types": []
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "用人单位是否已经支付了部分月份的双倍工资或存在其他抵扣情形"
+    },
+    {
+     "round": 2,
+     "prompt": "劳动者申请劳动仲裁的时间距离其离职或权利被侵害之日是否超过一年"
+    }
+   ],
+   "answered_fact_ids": [
+    "C03-r1-f3"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "用人单位是否已经支付了部分月份的双倍工资或存在其他抵扣情形"
+    }
+   ],
+   "conv_id": 2089,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 52.2
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "房屋总价 200 万元"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [],
+     "event_types": []
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "十万元定金是否超过房屋总价款的百分之二十"
+    },
+    {
+     "round": 2,
+     "prompt": "双方是否签订书面房屋买卖合同，合同中是否明确将该十万元约定为'定金'而非'订金'或'预付款'"
+    }
+   ],
+   "answered_fact_ids": [
+    "C04-r2-f3"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 2,
+     "prompt": "双方是否签订书面房屋买卖合同，合同中是否明确将该十万元约定为'定金'而非'订金'或'预付款'"
+    }
+   ],
+   "conv_id": 2090,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 66.1
+  },
+  "C05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "合同写每月5日前付款，没有写晚两天就解除"
+     ],
+     "event_types": []
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "当地法律对租金支付逾期的具体规定及司法实践"
+    },
+    {
+     "round": 2,
+     "prompt": "租赁合同中是否约定了租金支付的宽限期"
+    }
+   ],
+   "answered_fact_ids": [
+    "C05-r1-f1"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "当地法律对租金支付逾期的具体规定及司法实践"
+    }
+   ],
+   "conv_id": 2091,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 67.4
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ]
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "停工是否导致工程无法继续或造成用户重大损失"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "停工是否导致工程无法继续或造成用户重大损失"
+    }
+   ],
+   "conv_id": 2092,
+   "final_chars": 1387,
+   "final_excerpt": "根据您提供的法律条文，针对装修合同纠纷中的五个争点，现逐一分析如下：\n\n**一、装修公司延期两个月是否构成违约及违约金主张**\n\n装修公司延期两个月已构成违约。根据《民法典》第五百七十七条，当事人一方不履行合同义务或者履行合同义务不符合约定",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 79.2
+  },
+  "C07": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "2021年6月30日到期"
+     ],
+     "event_types": []
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "借款合同是否约定分期履行或特殊还款期限"
+    },
+    {
+     "round": 2,
+     "prompt": "借款合同约定的具体到期日（年/月/日）"
+    }
+   ],
+   "answered_fact_ids": [
+    "C07-r1-f1"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "借款合同是否约定分期履行或特殊还款期限"
+    }
+   ],
+   "conv_id": 2093,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 22.6
+  },
+  "C08": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "债权人2024年1月微信找过我"
+     ],
+     "event_types": []
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "担保合同是否违反法律强制性规定或存在可撤销事由"
+    },
+    {
+     "round": 2,
+     "prompt": "债权人是否在保证期间内主张权利以及此后是否存在诉讼时效中断、中止等事实"
+    }
+   ],
+   "answered_fact_ids": [
+    "C08-r1-f3"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "担保合同是否违反法律强制性规定或存在可撤销事由"
+    }
+   ],
+   "conv_id": 2094,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 75.8
+  },
+  "C09": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "门店已关"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "用了约四分之一"
+     ],
+     "event_types": []
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "健身房关门的具体原因"
+    },
+    {
+     "round": 2,
+     "prompt": "剩余费用的具体数额"
+    }
+   ],
+   "answered_fact_ids": [
+    "C09-r1-f1",
+    "C09-r1-f5"
+   ],
+   "unknown_fact_ids": [],
+   "conv_id": 2095,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 27.7
+  },
+  "C10": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "支付30,000元到个人账户",
+      "我找到另外三名买家有相同经历"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ]
+    },
+    {
+     "request": "round2",
+     "status": 409,
+     "answered_facts": [
+      "知道对方姓名和手机号"
+     ],
+     "event_types": []
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "买家是否已实际支付货款"
+    },
+    {
+     "round": 2,
+     "prompt": "卖家身份信息是否明确，能否被有效送达"
+    }
+   ],
+   "answered_fact_ids": [
+    "C10-r1-f1",
+    "C10-r2-f1",
+    "C10-r2-f3"
+   ],
+   "unknown_fact_ids": [],
+   "conv_id": 2096,
+   "final_chars": 0,
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 29.9
+  }
+ }
+}

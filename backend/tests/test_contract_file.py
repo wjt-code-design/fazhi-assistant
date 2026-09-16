@@ -1,4 +1,5 @@
 """chat/file 文件→文本端点测试（纯解析，内存 DB 隔离，零 LLM 零 BGE）。"""
+
 import pytest
 
 
@@ -74,9 +75,10 @@ def test_upload_requires_auth(client):
 
 # ---------------- analysis_runs 审计记录 ----------------
 def test_record_analysis_writes_row(client):
+    from langchain_core.documents import Document
+
     import main
     from database import SessionLocal
-    from langchain_core.documents import Document
     from models import AnalysisRun
 
     cd = {
@@ -107,14 +109,18 @@ def test_analysis_runs_admin_endpoint(client):
     db.add(User(username="adminrun", password_hash=hash_password("password123"), role="admin"))
     db.commit()
     db.close()
-    tok = client.post(
-        "/api/auth/login", json={"username": "adminrun", "password": "password123"}
-    ).json()["token"]
+    tok = client.post("/api/auth/login", json={"username": "adminrun", "password": "password123"}).json()["token"]
     db = SessionLocal()
     db.add(
         AnalysisRun(
-            user_id=None, conversation_id=None, source_type="image",
-            clause_count=5, article_count=13, risk_level="中", truncated=False, duration_ms=1234,
+            user_id=None,
+            conversation_id=None,
+            source_type="image",
+            clause_count=5,
+            article_count=13,
+            risk_level="中",
+            truncated=False,
+            duration_ms=1234,
         )
     )
     db.commit()

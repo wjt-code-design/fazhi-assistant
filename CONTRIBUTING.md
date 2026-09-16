@@ -27,6 +27,20 @@
 - 前端：Next.js 自带 ESLint + tsc（`npm run build` 会检查）。
 - 新硬编码的条文映射放进 `backend/domain_rules.py`（单一来源），不要散落。
 
+## 流程纪律（2026-09-07 入档，源自 009 采集多次环境污染复盘）
+
+- 所有启动容器、执行 Python、读 env 文件、读 chroma 索引的命令**必须用绝对路径**
+  （避免后台任务 cwd 漂移读到 backend/.env 或空索引）。
+- 后台任务优先用 `nohup ... > log 2>&1 &` 模式而非 run_in_background（后者跨平台行为不一致）。
+- 涉及跨平台路径时，始终用 `MSYS_NO_PATHCONV=1` 包裹 docker cp/mount 命令。
+- 索引播种优先辅助容器直写卷（`docker run --rm -v vol:/target -v /abs/src:/src:ro python:3.11-slim sh -c "cp -r /src/. /target/"`），
+  播种后容器内 chromadb `count()` 预验证，避免运行到一半才发现空索引。
+- 多个并行候选/worktree：每个 worktree 命名带 commit prefix（如 `-009`），避免混淆。
+- **Release ID 命名（CONTRACT_ID 标准化，2026-09-07）**：候选 ID 一律
+  `legal-agent-v1-YYYYMMDD-NNN`，能力状态变化（含新评测口径/能力位切换）时后续候选
+  追加语义后缀（如 `-v2`、`-omni`），禁止同 ID 复用——一眼分辨能力状态，避免历史
+  候选被误当同代复用。
+
 ## 测试
 
 - 纯逻辑（切分/检索/引用校验/意图）写无依赖单测；编排路径用 mock（`FakeChain` / monkeypatch）。

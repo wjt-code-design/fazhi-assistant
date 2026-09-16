@@ -10,6 +10,7 @@
 
 自检不保证「引对题」（引在库≠引对条文），那是语义层，靠 full 门禁 + QA 人工沉淀兜底。
 """
+
 from dataclasses import dataclass
 
 import query_understand
@@ -19,7 +20,12 @@ from multi_extract import _answer_declared_correct  # 纯逻辑模块（不拉 B
 
 # 诚实拒答信号（无命中场景的合理回答，不算失败）
 _HONEST_REFUSE_MARKS = (
-    "无法完整回答", "未覆盖", "未收录", "未提供相关", "没有提供相关", "未包含",
+    "无法完整回答",
+    "未覆盖",
+    "未收录",
+    "未提供相关",
+    "没有提供相关",
+    "未包含",
     "根据现有资料无法完整回答",
 )
 
@@ -60,7 +66,7 @@ def self_check(answer: str, context_present: bool, in_kb=None) -> Verdict:
 
     cites = R.extract_citations(a)
     # 含糊填充话检测提前：无引用 + 含糊词 → 无论命中与否都判含糊
-    #（必须在前，否则会被 no_citation_while_hit / no_ground 分支吞掉而不可达）
+    # （必须在前，否则会被 no_citation_while_hit / no_ground 分支吞掉而不可达）
     if not cites and detect_vague(a):
         return Verdict(False, "vague")
 

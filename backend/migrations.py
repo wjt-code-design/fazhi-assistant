@@ -20,6 +20,8 @@ _COLUMN_MIGRATIONS = [
     ("conversations", "summary_upto", "INTEGER", "0"),
     ("conversations", "last_active_at", "DATETIME", None),
     ("messages", "image_desc", "TEXT", None),
+    # T1（2026-09-16）：Agent 终稿消息关联 run（历史会话覆盖投影用）；无默认（NULL）
+    ("messages", "agent_run_id", "VARCHAR(36)", None),
 ]
 
 

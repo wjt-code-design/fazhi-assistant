@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "合同是否约定争议解决适用的法律",
+  "issue_id": "issue_151d9d553603c048b2fb2ace"
+ }
+]

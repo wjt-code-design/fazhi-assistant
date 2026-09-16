@@ -1,0 +1,12 @@
+{
+  "allowed": false,
+  "reasons": [
+    "SOURCE_ARTIFACT_REPORT_GIT_REVISION_MISMATCH"
+  ],
+  "details": [],
+  "freeze_hash": "f8ca2f2e71250f18a3741132d1024e3865eb21c1fb997a4d4d26c12391f1588d",
+  "existing_report_sha256": "03f44dc24bd17dd396f7333095a4bb5835921ef5b186e4cf0f2a7ef07d01fb37",
+  "agent_report_sha256": "145629efe2fe2447528cafac2d4a351bde3be00b29928cb9217a479d75088395",
+  "existing_git_revision": "932ac0c6880f5cf14a2ba199320485a8d65e8616",
+  "agent_git_revision": "932ac0c6880f5cf14a2ba199320485a8d65e8616"
+}

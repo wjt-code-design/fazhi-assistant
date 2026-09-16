@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "债务人是否在时效期间内作出同意履行义务的意思表示",
+  "issue_id": "issue_692f1f344723121b3d241bab"
+ }
+]

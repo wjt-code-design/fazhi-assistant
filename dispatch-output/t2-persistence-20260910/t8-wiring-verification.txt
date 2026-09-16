@@ -1,0 +1,13 @@
+[场景1 覆盖缺口] 外呼=2（期望 2）  issues=2（期望 2）  err=None
+  => 守卫在生产装配路径上已接线并生效：✅
+
+[场景2 非逐字引用] 加固前(代理 fact_repair=False)：外呼=1 issues=None err=Issue fact is not a verbatim request fragment
+                    加固后(生产装配)        ：外呼=2 issues=2 err=None
+  => 第三处修复环补齐有效（加固前必失败、加固后可修复）：✅
+
+[场景3 Pareto 采纳] 首轮缺陷={'non_verbatim': [], 'uncovered': ['并在昨天口头解除劳动合同']}（总 1）
+                    候选缺陷={'non_verbatim': ['在昨天解除劳动合同'], 'uncovered': []}（总 1）
+  旧规则(只比覆盖缺口)会采纳=True  ← 会把成功改成失败
+  新规则(Pareto)会采纳   =False
+  实测：外呼=2 最终 issues=1（期望 1 = 保留原结果）err=None
+  => Pareto 规则按预期拒绝劣化型修复：✅

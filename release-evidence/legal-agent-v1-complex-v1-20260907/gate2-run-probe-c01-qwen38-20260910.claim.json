@@ -1,0 +1,9 @@
+{
+ "run": "probe-c01-qwen38-20260910",
+ "targets": [
+  "C01"
+ ],
+ "started_at": "2026-09-10T07:20:13.921803+00:00",
+ "pid": 24980,
+ "protocol_version": "v1"
+}

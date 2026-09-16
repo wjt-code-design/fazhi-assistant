@@ -1,0 +1,43 @@
+{
+  "round": "agent-writer-observability-20260912",
+  "purpose": "make writer outcomes attributable (zero-claim vs dropped-claim vs _fail reason/issue)",
+  "changed_files": [
+    {
+      "path": "backend/agent/writer.py",
+      "before_lines": 649,
+      "after_lines": 729,
+      "before_sha256": "dd0b4f0f0a6a2d24bfd3eb87e13933c1ac7f6cf4e886b11baa2d9ad2d41e7ccd",
+      "after_sha256": "ad354123ec25d5c2bb5568bc9a05f1cdfa2a5ce7a142c0324f68b2a5d572e985",
+      "snapshot_before": "backend__agent__writer.py.before",
+      "snapshot_after": "backend__agent__writer.py.after"
+    },
+    {
+      "path": "backend/observability.py",
+      "before_lines": 178,
+      "after_lines": 183,
+      "before_sha256": "2836c37c87c7ef1c95b3c0b1923abbcd6352a2aff8694f8a381eb8d96cf6d01c",
+      "after_sha256": "a43c85c68c906bdf8bd5098bd3352f6ec4821867ed6d3558554a92c04252cadb",
+      "snapshot_before": "backend__observability.py.before",
+      "snapshot_after": "backend__observability.py.after"
+    },
+    {
+      "path": "backend/tests/test_agent_writer.py",
+      "before_lines": 467,
+      "after_lines": 537,
+      "before_sha256": "1c389bfd4c9962ee3ec8ed55309b4132e6e6e6a2d02432a135da465acc57ff41",
+      "after_sha256": "de5a89db859e885f5927784cf69accf67ab8fed14718cc43c8642fba084b2f3c",
+      "snapshot_before": "backend__tests__test_agent_writer.py.before",
+      "snapshot_after": "backend__tests__test_agent_writer.py.after"
+    }
+  ],
+  "untouched_snapshot_files": [
+    {
+      "path": "backend/agent/service.py",
+      "sha_unchanged_by_this_round": true
+    },
+    {
+      "path": "backend/tests/test_agent_chat_integration.py",
+      "sha_unchanged_by_this_round": true
+    }
+  ]
+}

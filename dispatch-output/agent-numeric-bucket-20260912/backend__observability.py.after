@@ -1,0 +1,183 @@
+"""可观测：request_id（contextvar + 响应头）+ 结构化 JSON 日志 + 问答调用记账。
+
+注意：中间件用纯 ASGI 实现（只包装 send，不缓冲 body），以免破坏 SSE 流式响应
+（BaseHTTPMiddleware 会缓冲 StreamingResponse，导致流式失效/内存暴涨）。
+"""
+
+import contextvars
+import hashlib
+import json
+import logging
+import time
+import uuid
+
+request_id_var: contextvars.ContextVar[str] = contextvars.ContextVar("request_id", default="-")
+
+# token_est/tier/cache/escalated/verdict：log_account 实际传入的记账字段——此前遗漏被
+# JSON formatter 静默丢弃（每问成本算不出、eval_latency_log 的 rule 剔除恒为 0），
+# 2026-08-03 交付级验收修复。追加尾部，不动既有字段顺序。
+# llm_adapter_stage/llm_invoke_mode/llm_error_class/llm_error_status_code/llm_invoke_duration_ms：
+# T4（2026-09-09）adapter 降级观测字段，同规则追加尾部（否则被 formatter 静默丢弃）。
+# agent_repair_stage/agent_issue_count/agent_coverage_gap_count/agent_non_verbatim_count：
+#   V2-T8（2026-09-10）分解「事实缺陷修复环」观测字段。
+# agent_pre_run_reason/agent_conversation_id/agent_failure_detail：V2-T8（2026-09-10）修复——
+#   `_log_pre_run_failure`（agent/service.py）一直在传这三个字段，但从未登记在此，
+#   导致**预运行失败的唯一诊断点整体失明**：ISSUE_DECOMPOSITION_INVALID 的 7 种抛错文案
+#   （runtime.py 的 IssueDecompositionError）在日志里坍缩成一个"未知"。
+#   实测代价见 handoff §12.3；修复后已于 §12.11 验证轮拿到确切死因。
+# agent_run_id/agent_planner_raw_tail/agent_actual_route/agent_fallback_reason：V2-T8 **自审**用
+#   AST 哨兵（`tests/test_log_field_whitelist.py`）扫出的**同族**静默丢弃，一并登记：
+#     - agent_run_id（service.py 崩溃诊断）：**连哪个 run 崩了都记不到**，且该行未传 request_id ⇒ 零标识；
+#     - agent_planner_raw_tail（controller.py）：PLANNER_PARSE_ERROR 事后复盘丢掉原始输出；
+#     - agent_actual_route / agent_fallback_reason（main.py）：无法审计"是否真的走了 agent 路径"
+#       —— 而 §6.2 警告的"漏设 AGENT_ENABLED 会静默走 RAG"正靠这两个字段发现。
+_ACCOUNT_FIELDS = (
+    "method",
+    "path",
+    "status",
+    "ms",
+    "first_ms",
+    "model",
+    "ok",
+    "conv_id",
+    "user_id",
+    "q_len",
+    "token_est",
+    "tier",
+    "cache",
+    "escalated",
+    "verdict",
+    "kind",
+    "detail",
+    "agent_correlation_id",
+    "agent_gate_mode",
+    "agent_gate_reason_codes",
+    "llm_adapter_stage",
+    "llm_invoke_attempt",
+    "llm_invoke_mode",
+    "llm_error_class",
+    "llm_error_status_code",
+    "llm_invoke_duration_ms",
+    "agent_repair_stage",
+    "agent_issue_count",
+    "agent_coverage_gap_count",
+    "agent_non_verbatim_count",
+    "agent_pre_run_reason",
+    "agent_conversation_id",
+    "agent_failure_detail",
+    "agent_run_id",
+    "agent_planner_raw_tail",
+    "agent_actual_route",
+    "agent_fallback_reason",
+    # agent_coverage_issues：2026-09-12 覆盖率闸门终态失败的逐争点归因字段
+    # （claim 数 / 绑定生效成文法的 claim 数 / 是否判缺绑定）。只含 issue_id 与计数，
+    # 不含任何用户文本。未登记会被 JSON formatter 静默丢弃 → 失败重新变得不可归因。
+    "agent_coverage_issues",
+    # agent_writer_summary：2026-09-12 writer 侧归因字段（每次渲染的 reason /
+    # 是否回喂 / 提出·接受·丢弃的 claim 计数 / 逐争点明细 / 失败的争点）。
+    # 用于区分「模型没产出 claim」与「产出后因 evidence_ids 为空被静默丢弃」。
+    # 同样只含标识与计数，不含草稿文本。
+    "agent_writer_summary",
+)
+
+_TEST_REQUEST_ID_FALLBACK = "unit-test-no-middleware-request-id"
+
+
+class _JsonFormatter(logging.Formatter):
+    def format(self, record: logging.LogRecord) -> str:
+        rec = {
+            "ts": time.strftime("%Y-%m-%dT%H:%M:%S", time.localtime(record.created)),
+            "level": record.levelname,
+            "logger": record.name,
+            "req": getattr(record, "request_id", "-"),
+            "msg": record.getMessage(),
+        }
+        for k in _ACCOUNT_FIELDS:
+            v = getattr(record, k, None)
+            if v is not None:
+                rec[k] = v
+        if record.exc_info and record.exc_info[1] is not None:
+            rec["exc"] = self.formatException(record.exc_info)
+        return json.dumps(rec, ensure_ascii=False)
+
+
+def setup_logging(level: str) -> None:
+    """配置应用结构化日志；用我们的结构化访问日志替代 uvicorn 的明文 access 日志。"""
+    handler = logging.StreamHandler()
+    handler.setFormatter(_JsonFormatter())
+    for name in ("legal", "legal.access", "legal.chat"):
+        lg = logging.getLogger(name)
+        lg.handlers = [handler]
+        lg.propagate = False
+        lg.setLevel(level or "INFO")
+    # 关闭 uvicorn 自带的明文 access 日志，避免与结构化访问日志重复
+    logging.getLogger("uvicorn.access").disabled = True
+
+
+class RequestIdMiddleware:
+    """纯 ASGI 中间件：注入 request_id、记录结构化访问日志、回写响应头。不缓冲流式 body。"""
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+
+        rid = None
+        for k, v in scope.get("headers", []):
+            if k.lower() == b"x-request-id":
+                rid = v.decode("latin-1")
+                break
+        if not rid:
+            rid = uuid.uuid4().hex[:12]
+
+        token = request_id_var.set(rid)
+        t0 = time.perf_counter()
+        status = {"code": 0}
+
+        async def send_wrapper(message):
+            if message["type"] == "http.response.start":
+                status["code"] = message.get("status", 0)
+                headers = list(message.get("headers", []))
+                headers.append((b"x-request-id", rid.encode("latin-1")))
+                message = {**message, "headers": headers}
+            await send(message)
+
+        try:
+            await self.app(scope, receive, send_wrapper)
+        finally:
+            ms = round((time.perf_counter() - t0) * 1000, 1)
+            logging.getLogger("legal.access").info(
+                "req",
+                extra={
+                    "request_id": rid,
+                    "method": scope.get("method", ""),
+                    "path": scope.get("path", ""),
+                    "status": status["code"],
+                    "ms": ms,
+                },
+            )
+            request_id_var.reset(token)
+
+
+def log_account(**kw) -> None:
+    """记录一次问答的调用记账（模型/耗时/成功/会话/用户/问句长度）。"""
+    extra = {"request_id": request_id_var.get()}
+    extra.update(kw)
+    logging.getLogger("legal.chat").info("chat", extra=extra)
+
+
+def make_agent_correlation_id(conversation_id: int | str | None, request_id: str | None = None) -> str:
+    """Return a privacy-safe correlation id for one Shadow Gate observation.
+
+    Production uses the middleware request id from ``request_id_var``. Direct unit
+    calls have no middleware context, so ``-`` maps to a documented deterministic
+    fallback. Only the hash is exposed to logs and metric calls.
+    """
+    current_request_id = request_id if request_id is not None else request_id_var.get()
+    if not current_request_id or current_request_id == "-":
+        current_request_id = _TEST_REQUEST_ID_FALLBACK
+    material = f"agent-gate-v1\x00{current_request_id}\x00{conversation_id if conversation_id is not None else '-'}"
+    return hashlib.sha256(material.encode("utf-8")).hexdigest()[:24]

@@ -1,0 +1,49 @@
+{
+ "run_id": "gate5-dev-run-14-qwen38-t8",
+ "kind": "T8 改动集的验证轮（预登记）— 判据在付费前冻结",
+ "preregistered_at_utc": "2026-09-10T09:39:00+00:00",
+ "purpose": "验证 T8 改动集（分解契约加固 + 预算上限修正）在真实链路上是否生效，并闭合两处未证明项。",
+ "not_purpose": [
+  "**不是** LongCat 域的 T7 矩阵（LongCat 已被 Owner 暂停使用）",
+  "**不是**宣称质量提升——full_closure 预期仍为 0/10，理由见 judgement.expectation"
+ ],
+ "controls": {
+  "model": "qwen3.8-flash（与 T7 的 run-13-qwen38 完全一致，可直接对照）",
+  "case_list": ["C01","C02","C03","C04","C05","C06","C07","C08","C09","C10"],
+  "runner": "scripts/gate2_runner.py --run gate5-dev-run-14-qwen38-t8 --all",
+  "candidate": "dispatch-output/t2-persistence-20260910/candidate-manifest-t8-20260910.json",
+  "service": "127.0.0.1:8001，AGENT_ENABLED=true，NO_PROXY=127.0.0.1,localhost"
+ },
+ "comparison_validity": {
+  "baseline": "gate5-dev-run-13-qwen38（T7 轮，改动前候选；同模型、同题集、同 runner）",
+  "unique_variable": "候选（T8 改动集）",
+  "confounder_addressed": "T8 同时改了**预算上限**（16→生效26）。预算**不能**改变争点数：它只经 `state_machine._limit` 生效，不参与分解器调用链（`decompose_with_coverage_repair` 在 `create_run` 之前、不读 budgets）。故**争点数变化可归因于契约改动**；而"5 争点能否跑完"才是预算改动的判据。"
+ },
+ "judgement": {
+  "note": "**刻意不设任意成功阈值**——硬阈值会变成代理目标（vet-plan 教训）。判据是**可证伪的方向性命题**。",
+  "main_falsifiable": [
+   {"claim": "契约加固提高了争点覆盖", "falsified_if": "争点总数 ≤ 18（T7 基线），即相对应有 47 个争点仍缺 ≥62%"},
+   {"claim": "预算修正使 5 争点题能跑完", "falsified_if": "无任何一题 issue 数 ≥5 且以 completed 收尾（即仍全部 BudgetExceeded）"},
+   {"claim": "新的覆盖度守卫在真实链路上工作", "falsified_if": "日志中 `issue_decomposition_coverage` 触发 0 次，或触发后 `repaired` 0 次"}
+  ],
+  "measured_axes": [
+   "逐题 issue 数与总数（对照 T7：18/47，逐题 [1,1,1,1,1,1,2,3,3,4]）",
+   "逐题实测 steps 与 `agent_steps.budget_snapshot`（闭合“17 步是拟合”这一缺口）",
+   "逐题 error_codes 分布（对照 T7：无码7 / UNSUPPORTED_NUMERIC_TOKEN×2 / EVIDENCE_COVERAGE_DEFICIENT×1）",
+   "覆盖度诊断触发/有效/无效次数",
+   "两层 judge：mechanical_pass_count 与 full_closure"
+  ],
+  "expectation": "**full_closure 预期仍为 0/10**：T7 报告的因果链显示终稿缺要件法条是 10/10 全中，属 writer 引用轴（执行书 F5/T8 之外的另一堵墙）。**本轮不把 full_closure 当成败判据**，只看它是否异常恶化。"
+ },
+ "red_lines": [
+  "不 commit / 不 stash / 不 checkout / 不 reset",
+  "不修改冻结物",
+  "不跑 gate2-run-12",
+  "共享数据库 / 端口 / 付费账户禁止并发；unknown_server_state 未经人工确认不得重跑",
+  "不得把本轮与 LongCat 基线并列；不得声称质量提升或统计显著"
+ ],
+ "artifacts_expected": [
+  "release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-14-qwen38-t8-sessions.json",
+  "逐题证据（app.db agent_runs/agent_steps + judge）"
+ ]
+}

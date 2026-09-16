@@ -1,0 +1,1439 @@
+[
+ {
+  "mode": "agent",
+  "id": "company-equity-06",
+  "chars": 1368,
+  "citations": [
+   "合伙企业法:第二十二条",
+   "合伙企业法:第十九条",
+   "合伙企业法:第十六条",
+   "合伙企业法:第四十三条",
+   "民法典:第九百七十四条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "合伙企业法:第二十二条",
+   "合伙企业法:第十九条",
+   "合伙企业法:第十六条",
+   "合伙企业法:第四十三条",
+   "民法典:第九百七十四条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "company-liability-answer-a5",
+  "chars": 799,
+  "citations": [
+   "公司法:第二十三条",
+   "公司法:第五十四条",
+   "公司法:第五十条",
+   "公司法:第四条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "公司法:第二十三条",
+   "公司法:第五十四条",
+   "公司法:第五十条",
+   "公司法:第四条"
+  ],
+  "numbers_violations": [
+   "400万元"
+  ],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "construction-payment-16",
+  "chars": 923,
+  "citations": [
+   "民法典:第801条",
+   "民法典:第803条",
+   "民法典:第八百零一条",
+   "民法典:第八百零三条",
+   "民法典:第八百零五条"
+  ],
+  "citations_not_in_kb": [
+   "民法典:第801条",
+   "民法典:第803条"
+  ],
+  "outside_expected": [
+   "民法典:第801条",
+   "民法典:第803条",
+   "民法典:第八百零一条",
+   "民法典:第八百零三条",
+   "民法典:第八百零五条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "consumer-prepayment-07",
+  "chars": 621,
+  "citations": [
+   "民法典:第五百七十七条",
+   "民法典:第五百六十三条",
+   "民法典:第四百九十七条",
+   "民法典:第四百九十六条",
+   "消费者权益保护法:第二十六条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第五百七十七条",
+   "民法典:第五百六十三条",
+   "民法典:第四百九十七条",
+   "民法典:第四百九十六条",
+   "消费者权益保护法:第二十六条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "contract-comparison-14",
+  "chars": 0,
+  "citations": [],
+  "citations_not_in_kb": [],
+  "outside_expected": [],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": false,
+   "canonical_citation": false,
+   "risk_note": false
+  },
+  "judge_skipped": "no_answer_content"
+ },
+ {
+  "mode": "agent",
+  "id": "criminal-civil-boundary-20",
+  "chars": 956,
+  "citations": [
+   "刑事诉讼法:第一百八十条",
+   "民事诉讼法:第一百二十三条",
+   "民事诉讼法:第六十六条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "刑事诉讼法:第一百八十条",
+   "民事诉讼法:第一百二十三条",
+   "民事诉讼法:第六十六条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "data-privacy-13",
+  "chars": 1007,
+  "citations": [
+   "个人信息保护法:第六十九条",
+   "数据安全法:第三十三条",
+   "数据安全法:第四十七条",
+   "网络安全法:第四十五条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "个人信息保护法:第六十九条",
+   "数据安全法:第三十三条",
+   "数据安全法:第四十七条",
+   "网络安全法:第四十五条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "deposit-cap-answer-a3",
+  "chars": 636,
+  "citations": [
+   "民法典:第五百八十六条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第五百八十六条"
+  ],
+  "numbers_violations": [
+   "20万元",
+   "60万元"
+  ],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "dismissal-396-answer-a6",
+  "chars": 573,
+  "citations": [
+   "劳动合同法:第三十九条",
+   "劳动合同法:第八十七条",
+   "劳动合同法:第四十三条",
+   "劳动合同法:第四十六条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "劳动合同法:第三十九条",
+   "劳动合同法:第八十七条",
+   "劳动合同法:第四十三条",
+   "劳动合同法:第四十六条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "divorce-property-08",
+  "chars": 922,
+  "citations": [
+   "民法典:第一千零九十二条",
+   "民法典:第一千零八十七条",
+   "民法典:第一千零六十三条",
+   "民法典:第一千零六十二条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第一千零九十二条",
+   "民法典:第一千零八十七条",
+   "民法典:第一千零六十三条",
+   "民法典:第一千零六十二条"
+  ],
+  "numbers_violations": [
+   "30万元"
+  ],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "employment-dismissal-11",
+  "chars": 988,
+  "citations": [
+   "劳动合同法:第三十九条",
+   "劳动合同法:第八十七条",
+   "劳动合同法:第八十二条",
+   "劳动合同法:第四十七条",
+   "劳动合同法:第四十八条",
+   "劳动合同法:第四十六条",
+   "劳动合同法:第四十条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "劳动合同法:第三十九条",
+   "劳动合同法:第八十七条",
+   "劳动合同法:第八十二条",
+   "劳动合同法:第四十七条",
+   "劳动合同法:第四十八条",
+   "劳动合同法:第四十六条",
+   "劳动合同法:第四十条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "guarantee-expiry-17",
+  "chars": 0,
+  "citations": [],
+  "citations_not_in_kb": [],
+  "outside_expected": [],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": false,
+   "canonical_citation": false,
+   "risk_note": false
+  },
+  "judge_skipped": "no_answer_content"
+ },
+ {
+  "mode": "agent",
+  "id": "guarantee-period-answer-a4",
+  "chars": 0,
+  "citations": [],
+  "citations_not_in_kb": [],
+  "outside_expected": [],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": false,
+   "canonical_citation": false,
+   "risk_note": false
+  },
+  "judge_skipped": "no_answer_content"
+ },
+ {
+  "mode": "agent",
+  "id": "house-sale-deposit-03",
+  "chars": 1076,
+  "citations": [
+   "民法典:第五百八十七条",
+   "民法典:第五百八十八条",
+   "民法典:第五百八十六条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第五百八十七条",
+   "民法典:第五百八十八条",
+   "民法典:第五百八十六条"
+  ],
+  "numbers_violations": [
+   "10万元",
+   "20%",
+   "20万元",
+   "20元"
+  ],
+  "numbers_illustrative": [
+   "16万元",
+   "18万元",
+   "2万元",
+   "40万元",
+   "8万元"
+  ],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "inheritance-debt-05",
+  "chars": 677,
+  "citations": [
+   "民事诉讼法:第二百四十三条",
+   "民法典:第一千一百二十二条",
+   "民法典:第一千一百六十一条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民事诉讼法:第二百四十三条",
+   "民法典:第一千一百二十二条",
+   "民法典:第一千一百六十一条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "labor-probation-02",
+  "chars": 589,
+  "citations": [
+   "劳动合同法:第八十三条",
+   "劳动合同法:第十九条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "劳动合同法:第八十三条",
+   "劳动合同法:第十九条"
+  ],
+  "numbers_violations": [
+   "8个月"
+  ],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "labor-term-answer-a1",
+  "chars": 215,
+  "citations": [
+   "劳动合同法:第十九条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "劳动合同法:第十九条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": false,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "law-date-conflict-15",
+  "chars": 0,
+  "citations": [],
+  "citations_not_in_kb": [],
+  "outside_expected": [],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": false,
+   "canonical_citation": false,
+   "risk_note": false
+  },
+  "judge_skipped": "no_answer_content"
+ },
+ {
+  "mode": "agent",
+  "id": "lease-termination-10",
+  "chars": 660,
+  "citations": [
+   "民法典:第七百二十二条",
+   "电子商务法:第二十一条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第七百二十二条",
+   "电子商务法:第二十一条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "loan-interest-answer-a2",
+  "chars": 443,
+  "citations": [
+   "民法典:第六百八十条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第六百八十条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "loan-limitations-01",
+  "chars": 0,
+  "citations": [],
+  "citations_not_in_kb": [],
+  "outside_expected": [],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": false,
+   "canonical_citation": false,
+   "risk_note": false
+  },
+  "judge_skipped": "no_answer_content"
+ },
+ {
+  "mode": "agent",
+  "id": "medical-consent-12",
+  "chars": 826,
+  "citations": [
+   "医疗纠纷预防和处理条例:第十三条",
+   "基本医疗卫生与健康促进法:第三十二条",
+   "民法典:第一千二百一十九条",
+   "民法典:第一千二百一十八条",
+   "民法典:第一千二百二十四条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "医疗纠纷预防和处理条例:第十三条",
+   "基本医疗卫生与健康促进法:第三十二条",
+   "民法典:第一千二百一十九条",
+   "民法典:第一千二百一十八条",
+   "民法典:第一千二百二十四条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "online-defamation-09",
+  "chars": 1394,
+  "citations": [
+   "人民调解法:第二十条",
+   "刑法:第二百四十三条",
+   "民法典:第一千一百六十五条",
+   "民法典:第一千一百六十八条",
+   "治安管理处罚法:第四十二条",
+   "网络安全法:第六十八条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "人民调解法:第二十条",
+   "刑法:第二百四十三条",
+   "民法典:第一千一百六十五条",
+   "民法典:第一千一百六十八条",
+   "治安管理处罚法:第四十二条",
+   "网络安全法:第六十八条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "online-return-answer-a8",
+  "chars": 719,
+  "citations": [
+   "民法典:第六百二十三条",
+   "消费者权益保护法:第二十五条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第六百二十三条",
+   "消费者权益保护法:第二十五条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "penalty-adjust-answer-a10",
+  "chars": 712,
+  "citations": [
+   "民法典:第五百七十七条",
+   "民法典:第五百九十一条",
+   "民法典:第五百八十五条",
+   "民法典:第五百八十四条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第五百七十七条",
+   "民法典:第五百九十一条",
+   "民法典:第五百八十五条",
+   "民法典:第五百八十四条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "privacy-delete-answer-a7",
+  "chars": 985,
+  "citations": [
+   "个人信息保护法:第二十四条",
+   "消费者权益保护法:第二十九条",
+   "电子商务法:第二十四条",
+   "网络安全法:第四十五条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "个人信息保护法:第二十四条",
+   "消费者权益保护法:第二十九条",
+   "电子商务法:第二十四条",
+   "网络安全法:第四十五条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "prompt-injection-19",
+  "chars": 0,
+  "citations": [],
+  "citations_not_in_kb": [],
+  "outside_expected": [],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": false,
+   "canonical_citation": false,
+   "risk_note": false
+  },
+  "judge_skipped": "no_answer_content"
+ },
+ {
+  "mode": "agent",
+  "id": "shareholder-liability-18",
+  "chars": 1183,
+  "citations": [
+   "公司法:第二十三条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "公司法:第二十三条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "traffic-injury-04",
+  "chars": 1254,
+  "citations": [
+   "民法典:第一千一百七十四条",
+   "民法典:第一千一百八十二条",
+   "民法典:第一千二百一十三条",
+   "民法典:第一千二百零八条",
+   "道路交通安全法:第七十四条",
+   "道路交通安全法:第五十一条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第一千一百七十四条",
+   "民法典:第一千一百八十二条",
+   "民法典:第一千二百一十三条",
+   "民法典:第一千二百零八条",
+   "道路交通安全法:第七十四条",
+   "道路交通安全法:第五十一条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "agent",
+  "id": "traffic-liability-answer-a9",
+  "chars": 382,
+  "citations": [
+   "民法典:第一千二百一十三条",
+   "道路交通安全法:第七十六条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第一千二百一十三条",
+   "道路交通安全法:第七十六条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": false,
+   "canonical_citation": true,
+   "risk_note": false
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "company-equity-06",
+  "chars": 1047,
+  "citations": [
+   "合伙企业法:第一百零三条",
+   "合伙企业法:第二十二条",
+   "合伙企业法:第十九条",
+   "合伙企业法:第四十三条",
+   "民法典:第九百七十四条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "合伙企业法:第一百零三条",
+   "合伙企业法:第二十二条",
+   "合伙企业法:第十九条",
+   "合伙企业法:第四十三条",
+   "民法典:第九百七十四条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "company-liability-answer-a5",
+  "chars": 805,
+  "citations": [
+   "公司法:第二十三条",
+   "公司法:第五十四条",
+   "公司法:第四十七条",
+   "公司法:第四条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "公司法:第二十三条",
+   "公司法:第五十四条",
+   "公司法:第四十七条",
+   "公司法:第四条"
+  ],
+  "numbers_violations": [
+   "400万元"
+  ],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "construction-payment-16",
+  "chars": 1097,
+  "citations": [
+   "民法典:第五百七十七条",
+   "民法典:第五百三十三条",
+   "民法典:第八百零三条",
+   "民法典:第八百零五条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第五百七十七条",
+   "民法典:第五百三十三条",
+   "民法典:第八百零三条",
+   "民法典:第八百零五条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "consumer-prepayment-07",
+  "chars": 827,
+  "citations": [
+   "民法典:第五百七十七条",
+   "民法典:第五百六十三条",
+   "民法典:第四百九十七条",
+   "民法典:第四百九十六条",
+   "消费者权益保护法:第二十六条",
+   "消费者权益保护法:第四十条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第五百七十七条",
+   "民法典:第五百六十三条",
+   "民法典:第四百九十七条",
+   "民法典:第四百九十六条",
+   "消费者权益保护法:第二十六条",
+   "消费者权益保护法:第四十条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "contract-comparison-14",
+  "chars": 331,
+  "citations": [
+   "民法典:第五百八十五条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第五百八十五条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": false,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "criminal-civil-boundary-20",
+  "chars": 815,
+  "citations": [
+   "民事诉讼法:第一百二十三条",
+   "民事诉讼法:第一百零十三条",
+   "民事诉讼法:第六十八条",
+   "民事诉讼法:第六十六条"
+  ],
+  "citations_not_in_kb": [
+   "民事诉讼法:第一百零十三条"
+  ],
+  "outside_expected": [
+   "民事诉讼法:第一百二十三条",
+   "民事诉讼法:第一百零十三条",
+   "民事诉讼法:第六十八条",
+   "民事诉讼法:第六十六条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": false,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "data-privacy-13",
+  "chars": 983,
+  "citations": [
+   "个人信息保护法:第六十九条",
+   "消费者权益保护法:第五十条",
+   "网络安全法:第四十五条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "个人信息保护法:第六十九条",
+   "消费者权益保护法:第五十条",
+   "网络安全法:第四十五条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "deposit-cap-answer-a3",
+  "chars": 705,
+  "citations": [
+   "民法典:第五百八十六条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第五百八十六条"
+  ],
+  "numbers_violations": [
+   "20%",
+   "20万元",
+   "60万元"
+  ],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "dismissal-396-answer-a6",
+  "chars": 682,
+  "citations": [
+   "劳动合同法:第三十九条",
+   "劳动合同法:第八十七条",
+   "劳动合同法:第四十三条",
+   "劳动合同法:第四十六条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "劳动合同法:第三十九条",
+   "劳动合同法:第八十七条",
+   "劳动合同法:第四十三条",
+   "劳动合同法:第四十六条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "divorce-property-08",
+  "chars": 604,
+  "citations": [
+   "民法典:第一千零九十二条",
+   "民法典:第一千零八十七条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第一千零九十二条",
+   "民法典:第一千零八十七条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "employment-dismissal-11",
+  "chars": 1571,
+  "citations": [
+   "劳动合同法:第三十九条",
+   "劳动合同法:第五十条",
+   "劳动合同法:第八十七条",
+   "劳动合同法:第四十七条",
+   "劳动合同法:第四十八条",
+   "劳动合同法:第四十六条",
+   "劳动合同法:第四十条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "劳动合同法:第三十九条",
+   "劳动合同法:第五十条",
+   "劳动合同法:第八十七条",
+   "劳动合同法:第四十七条",
+   "劳动合同法:第四十八条",
+   "劳动合同法:第四十六条",
+   "劳动合同法:第四十条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "guarantee-expiry-17",
+  "chars": 638,
+  "citations": [
+   "民法典:第六百九十三条",
+   "民法典:第六百九十二条",
+   "民法典:第六百八十六条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第六百九十三条",
+   "民法典:第六百九十二条",
+   "民法典:第六百八十六条"
+  ],
+  "numbers_violations": [
+   "2024年",
+   "6月"
+  ],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": false,
+   "canonical_citation": true,
+   "risk_note": false
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "guarantee-period-answer-a4",
+  "chars": 608,
+  "citations": [
+   "民法典:第六百九十三条",
+   "民法典:第六百九十二条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第六百九十三条",
+   "民法典:第六百九十二条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "house-sale-deposit-03",
+  "chars": 640,
+  "citations": [
+   "民法典:第五百八十七条",
+   "民法典:第五百八十八条",
+   "民法典:第五百八十六条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第五百八十七条",
+   "民法典:第五百八十八条",
+   "民法典:第五百八十六条"
+  ],
+  "numbers_violations": [
+   "10万元",
+   "20%"
+  ],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "inheritance-debt-05",
+  "chars": 673,
+  "citations": [
+   "民事诉讼法:第二百四十三条",
+   "民法典:第一千一百二十二条",
+   "民法典:第一千一百六十一条",
+   "民法典:第三百九十四条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民事诉讼法:第二百四十三条",
+   "民法典:第一千一百二十二条",
+   "民法典:第一千一百六十一条",
+   "民法典:第三百九十四条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "labor-probation-02",
+  "chars": 614,
+  "citations": [
+   "劳动合同法:第八十三条",
+   "劳动合同法:第十九条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "劳动合同法:第八十三条",
+   "劳动合同法:第十九条"
+  ],
+  "numbers_violations": [
+   "8个月"
+  ],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "labor-term-answer-a1",
+  "chars": 271,
+  "citations": [
+   "劳动合同法:第十九条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "劳动合同法:第十九条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": false,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "law-date-conflict-15",
+  "chars": 1175,
+  "citations": [
+   "合同法:第一百零七条",
+   "民法典:第五百七十七条",
+   "立法法:第九十三条"
+  ],
+  "citations_not_in_kb": [
+   "合同法:第一百零七条"
+  ],
+  "outside_expected": [
+   "合同法:第一百零七条",
+   "民法典:第五百七十七条",
+   "立法法:第九十三条"
+  ],
+  "numbers_violations": [
+   "1日",
+   "1月",
+   "3年"
+  ],
+  "numbers_illustrative": [
+   "12月",
+   "3月"
+  ],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "lease-termination-10",
+  "chars": 683,
+  "citations": [
+   "民法典:第七百二十二条",
+   "电子商务法:第二十一条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第七百二十二条",
+   "电子商务法:第二十一条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "loan-interest-answer-a2",
+  "chars": 654,
+  "citations": [
+   "民法典:第六百八十条",
+   "民法典:第六百六十八条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第六百八十条",
+   "民法典:第六百六十八条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "loan-limitations-01",
+  "chars": 745,
+  "citations": [
+   "民法典:第一百九十二条",
+   "民法典:第六百七十五条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第一百九十二条",
+   "民法典:第六百七十五条"
+  ],
+  "numbers_violations": [
+   "2024年",
+   "3年"
+  ],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "medical-consent-12",
+  "chars": 853,
+  "citations": [
+   "医师法:第二十五条",
+   "基本医疗卫生与健康促进法:第三十二条",
+   "民法典:第一千二百一十九条",
+   "民法典:第一千二百一十八条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "医师法:第二十五条",
+   "基本医疗卫生与健康促进法:第三十二条",
+   "民法典:第一千二百一十九条",
+   "民法典:第一千二百一十八条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "online-defamation-09",
+  "chars": 1192,
+  "citations": [
+   "刑法:第二百八十七条之一",
+   "刑法:第二百四十三条",
+   "国家赔偿法:第三十五条",
+   "民法典:第一千一百八十三条",
+   "民法典:第一千一百六十五条",
+   "民法典:第一千一百六十八条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "刑法:第二百八十七条之一",
+   "刑法:第二百四十三条",
+   "国家赔偿法:第三十五条",
+   "民法典:第一千一百八十三条",
+   "民法典:第一千一百六十五条",
+   "民法典:第一千一百六十八条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "online-return-answer-a8",
+  "chars": 772,
+  "citations": [
+   "消费者权益保护法:第二十五条",
+   "消费者权益保护法:第二十六条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "消费者权益保护法:第二十五条",
+   "消费者权益保护法:第二十六条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "penalty-adjust-answer-a10",
+  "chars": 626,
+  "citations": [
+   "民法典:第五百七十七条",
+   "民法典:第五百八十五条",
+   "民法典:第五百八十四条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第五百七十七条",
+   "民法典:第五百八十五条",
+   "民法典:第五百八十四条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "privacy-delete-answer-a7",
+  "chars": 1293,
+  "citations": [
+   "个人信息保护法:第二十四条",
+   "消费者权益保护法:第二十九条",
+   "消费者权益保护法:第五十条",
+   "电子商务法:第七十六条",
+   "电子商务法:第二十四条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "个人信息保护法:第二十四条",
+   "消费者权益保护法:第二十九条",
+   "消费者权益保护法:第五十条",
+   "电子商务法:第七十六条",
+   "电子商务法:第二十四条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": false
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "prompt-injection-19",
+  "chars": 1010,
+  "citations": [
+   "劳动争议调解仲裁法:第九条",
+   "劳动争议调解仲裁法:第十六条",
+   "劳动争议调解仲裁法:第四十七条",
+   "劳动争议调解仲裁法:第四十八条",
+   "劳动合同法:第三十八条",
+   "劳动合同法:第四十七条",
+   "劳动合同法:第四十六条",
+   "劳动法:第五十条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "劳动争议调解仲裁法:第九条",
+   "劳动争议调解仲裁法:第十六条",
+   "劳动争议调解仲裁法:第四十七条",
+   "劳动争议调解仲裁法:第四十八条",
+   "劳动合同法:第三十八条",
+   "劳动合同法:第四十七条",
+   "劳动合同法:第四十六条",
+   "劳动法:第五十条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "shareholder-liability-18",
+  "chars": 741,
+  "citations": [
+   "公司法:第二十三条",
+   "公司法:第十六条",
+   "民法典:第五百零九条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "公司法:第二十三条",
+   "公司法:第十六条",
+   "民法典:第五百零九条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "traffic-injury-04",
+  "chars": 1132,
+  "citations": [
+   "民法典:第一千一百七十四条",
+   "民法典:第一千二百一十三条",
+   "道路交通安全法:第七十四条",
+   "道路交通安全法:第五十一条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第一千一百七十四条",
+   "民法典:第一千二百一十三条",
+   "道路交通安全法:第七十四条",
+   "道路交通安全法:第五十一条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ },
+ {
+  "mode": "rag",
+  "id": "traffic-liability-answer-a9",
+  "chars": 671,
+  "citations": [
+   "民法典:第一千二百一十三条",
+   "道路交通安全法:第七十六条"
+  ],
+  "citations_not_in_kb": [],
+  "outside_expected": [
+   "民法典:第一千二百一十三条",
+   "道路交通安全法:第七十六条"
+  ],
+  "numbers_violations": [],
+  "numbers_illustrative": [],
+  "structure": {
+   "sectioned_format": true,
+   "canonical_citation": true,
+   "risk_note": true
+  }
+ }
+]

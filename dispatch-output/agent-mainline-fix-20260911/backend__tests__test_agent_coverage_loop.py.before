@@ -1,0 +1,431 @@
+"""V2-W1/T2: 编排层 coverage 回喂循环（verifier RESEARCH_MORE → writer 定向重渲染）。
+
+T2 更新（2026-09-09）：helper 改为先 CAS 保存预算 attempt 再外呼（修复 F1：
+原实现原地自增 verifier_research_returns 不落盘 → 终稿 durable equality guard 拒绝）。
+本文件验证 helper 行为与持久化编排；完整 execute_agent_request → 真实 final storage
+路径由 test_agent_chat_integration.py 的集成测试覆盖。纪律：
+- verifier 判定逻辑一行不改（端到端用例全部经由真实 DeterministicVerifier）；
+- budget 耗尽不重渲染；重渲染失败/仍 deficient → reason_code 不变；
+- deficient 仅源于 unresolved critical conflict 时回喂无意义，不发起外呼；
+- 保存失败不外呼；原 state 快照不被原地修改（不修改调用者不可见的局部变量）。
+"""
+
+from datetime import datetime
+from types import SimpleNamespace
+from typing import Any
+
+from agent.repository import create_run
+from agent.schemas import (
+    Evidence,
+    EvidenceConflict,
+    Fact,
+    LegalAgentState,
+    LegalIssue,
+    LegalValidity,
+    Observation,
+    SourceType,
+    UnknownFact,
+)
+from agent.service import _coverage_research_loop
+from agent.verifier import DeterministicVerifier, VerificationResult, VerificationVerdict
+from agent.writer import (
+    DraftAnswer,
+    DraftClaim,
+    EvidenceBoundedWriter,
+    WriterStatus,
+    coverage_feedback_payload,
+    derive_claim_id,
+)
+from models import AgentRun, AgentStep, Conversation, User
+
+
+def _evidence(
+    evidence_id: str,
+    *,
+    source_ref: str,
+    snippet: str,
+    source_type: SourceType = SourceType.STATUTE,
+    validity: LegalValidity = LegalValidity.EFFECTIVE,
+) -> Evidence:
+    return Evidence(
+        evidence_id=evidence_id,
+        source_id=f"source-{evidence_id}",
+        source_ref=source_ref,
+        source_type=source_type,
+        snippet=snippet,
+        legal_validity=validity,
+        acquired_at=datetime(2026, 9, 9),
+    )
+
+
+def _two_issue_state() -> LegalAgentState:
+    """issue-a/issue-b 各链一条生效成文法证据（run-11 C02「证据在表、draft 未绑定」最小复刻）。"""
+    return LegalAgentState(
+        issues=[
+            LegalIssue(
+                issue_id="issue-a",
+                question="诉讼时效期间是多久？",
+                facts=[
+                    Fact(
+                        statement="权利受损日期为2023年8月1日",
+                        source=SourceType.USER,
+                        source_ref="user:q",
+                        confidence=1.0,
+                    )
+                ],
+                unknown_facts=[UnknownFact(statement="是否存在中止事由", why_outcome_changes="影响时效计算")],
+            ),
+            LegalIssue(
+                issue_id="issue-b",
+                question="加班费应当如何支付？",
+                facts=[Fact(statement="公司安排周末加班", source=SourceType.USER, source_ref="user:q", confidence=1.0)],
+            ),
+        ],
+        observations=[
+            Observation(issue_id="issue-a", statement="检索劳动时效", evidence_ids=["ev-a"], confidence=0.9),
+            Observation(issue_id="issue-b", statement="检索加班费", evidence_ids=["ev-b"], confidence=0.9),
+        ],
+        evidence=[
+            _evidence(
+                "ev-a",
+                source_ref="民法典#第188条",
+                snippet="《民法典》第一百八十八条：向人民法院请求保护民事权利的诉讼时效期间为三年。",
+            ),
+            _evidence(
+                "ev-b",
+                source_ref="劳动法#第44条",
+                snippet="《劳动法》第四十四条：休息日安排劳动者工作又不能安排补休的，支付不低于工资的百分之二百的工资报酬。",
+            ),
+        ],
+    )
+
+
+def _claim(issue_id: str, text: str, evidence_ids: list[str], *, section: str = "issue_analysis") -> DraftClaim:
+    return DraftClaim(
+        claim_id=derive_claim_id(issue_id, text, list(evidence_ids), []),
+        issue_id=issue_id,
+        text=text,
+        evidence_ids=tuple(sorted(evidence_ids)),
+        fact_ids=(),
+        section=section,
+    )
+
+
+class ScriptedGenerator:
+    """按脚本返回 generate 响应，并记录每次收到的 feedback（含首轮 None）。"""
+
+    def __init__(self, responses: list[dict]) -> None:
+        self.responses = list(responses)
+        self.calls: list[dict] = []
+
+    def generate(self, *, payload, system_prompt, feedback=None):
+        self.calls.append({"feedback": feedback})
+        return self.responses.pop(0)
+
+
+def _issue_a_only_response() -> dict:
+    return {
+        "claims": [
+            {
+                "local_id": "c1",
+                "issue_id": "issue-a",
+                "text": "根据《民法典》第一百八十八条，诉讼时效期间为三年。",
+                "evidence_ids": ["ev-a"],
+                "fact_ids": [],
+                "section": "conclusion",
+            }
+        ],
+        "missing_information": [],
+    }
+
+
+def _both_issues_response() -> dict:
+    return {
+        "claims": [
+            {
+                "local_id": "c1",
+                "issue_id": "issue-a",
+                "text": "根据《民法典》第一百八十八条，诉讼时效期间为三年。",
+                "evidence_ids": ["ev-a"],
+                "fact_ids": [],
+                "section": "conclusion",
+            },
+            {
+                "local_id": "c2",
+                "issue_id": "issue-b",
+                "text": "根据《劳动法》第四十四条，休息日加班又不能安排补休的应支付加班费。",
+                "evidence_ids": ["ev-b"],
+                "fact_ids": [],
+                "section": "issue_analysis",
+            },
+        ],
+        "missing_information": [],
+    }
+
+
+def _runtime_with(generator_responses: list[dict]) -> tuple[Any, ScriptedGenerator]:
+    generator = ScriptedGenerator(generator_responses)
+    return SimpleNamespace(writer=EvidenceBoundedWriter(generator), verifier=DeterministicVerifier()), generator
+
+
+def _persisted_run(db, state: LegalAgentState) -> AgentRun:
+    """为 helper 持久化测试创建归属完整的 run（create_run 校验 conversation 归属）。"""
+    user = User(username=f"coverage-loop-{db.query(User).count()}", password_hash="x")
+    db.add(user)
+    db.commit()
+    conversation = Conversation(user_id=user.id, title="", summary="", message_count=1)
+    db.add(conversation)
+    db.commit()
+    return create_run(db, user_id=user.id, conversation_id=conversation.id, state=state)
+
+
+def _assert_attempt_checkpoint(db, run_id: str, expected_version: int) -> None:
+    saved = db.get(AgentRun, run_id)
+    assert saved.state_version == expected_version
+    reloaded = LegalAgentState.model_validate_json(saved.state_json)
+    assert reloaded.verifier_research_returns == 1
+    attempt = db.query(AgentStep).filter_by(agent_run_id=run_id, decision="coverage_rewrite_attempt").one_or_none()
+    assert attempt is not None
+    assert attempt.state_version == expected_version
+    assert attempt.reason_code == "EVIDENCE_COVERAGE_DEFICIENT"
+    # repository.compare_and_save 将 CheckpointMetadata.result_code 落到 AgentStep.result_summary 列
+    assert attempt.result_summary == "ATTEMPT_RESERVED"
+
+
+def test_coverage_loop_persists_attempt_before_recall_then_passes(db):
+    """首判 deficient → CAS 保存预算 attempt（v→v+1）→ 定向回喂 → 重渲染 PASS。
+
+    原行内修改只存在于 next_state：旧快照不被原地修改；attempt 版本必须先于外呼落盘。
+    """
+    state = _two_issue_state()
+    runtime, generator = _runtime_with([_issue_a_only_response(), _both_issues_response()])
+
+    first = runtime.writer.render(state)
+    assert first.status is WriterStatus.READY
+    verification = runtime.verifier.verify(state, first.draft)
+    assert verification.verdict is VerificationVerdict.RESEARCH_MORE  # 前提：issue-b 无 claim → deficient
+
+    run = _persisted_run(db, state)
+    outcome = _coverage_research_loop(runtime, db, run, state, 0, verification, first.draft)
+
+    assert outcome.verification.verdict is VerificationVerdict.PASS
+    assert outcome.state.verifier_research_returns == 1
+    assert outcome.state_version == 1
+    assert state.verifier_research_returns == 0  # 旧快照不被原地修改（F1 修复语义）
+    assert len(generator.calls) == 2
+    assert generator.calls[0]["feedback"] is None  # 首渲染不带回喂
+    feedback = generator.calls[1]["feedback"]
+    assert feedback is not None
+    assert "issue-b" in feedback  # 定向：只点名缺失争点
+    assert "ev-b" in feedback
+    assert "issue-a" not in feedback
+    assert any(claim.issue_id == "issue-b" for claim in outcome.draft.issue_analysis)
+    _assert_attempt_checkpoint(db, run.id, 1)
+
+
+def test_coverage_loop_skips_rerender_when_budget_exhausted():
+    """budget 已耗尽 → 不重渲染、不消耗模型外呼、不触碰数据库，原样返回。"""
+    state = _two_issue_state()
+    state.verifier_research_returns = 1  # == max_verifier_research_returns（默认 1）
+    runtime, generator = _runtime_with([])
+
+    original = VerificationResult(verdict=VerificationVerdict.RESEARCH_MORE, reason_code="EVIDENCE_COVERAGE_DEFICIENT")
+    # db=None：若 helper 意外触碰数据库将 AttributeError，用其证明零保存零外呼。
+    outcome = _coverage_research_loop(runtime, None, None, state, 3, original, None)
+
+    assert outcome.verification is original
+    assert outcome.draft is None
+    assert outcome.state is state
+    assert outcome.state_version == 3
+    assert outcome.failure_reason is None
+    assert generator.calls == []
+    assert state.verifier_research_returns == 1
+
+
+def test_coverage_loop_keeps_original_result_when_rerender_fails_safe(db):
+    """重渲染 writer FAIL_SAFE（仍输出非法绑定）→ 保持原 verification 与 reason_code。
+
+    预算已消耗且 attempt 已落盘（诚实记账）：重载可见已用预算=1。
+    """
+    state = _two_issue_state()
+    runtime, _generator = _runtime_with(
+        [
+            _issue_a_only_response(),
+            {
+                "claims": [
+                    {
+                        "local_id": "bad",
+                        "issue_id": "issue-b",
+                        "text": "引用不存在的证据。",
+                        "evidence_ids": ["ev-ghost"],
+                        "fact_ids": [],
+                        "section": "issue_analysis",
+                    }
+                ],
+                "missing_information": [],
+            },
+        ]
+    )
+
+    first = runtime.writer.render(state)
+    assert first.status is WriterStatus.READY
+    verification = runtime.verifier.verify(state, first.draft)
+    assert verification.verdict is VerificationVerdict.RESEARCH_MORE
+
+    run = _persisted_run(db, state)
+    outcome = _coverage_research_loop(runtime, db, run, state, 0, verification, first.draft)
+
+    assert outcome.verification.verdict is VerificationVerdict.RESEARCH_MORE
+    assert outcome.verification.reason_code == "EVIDENCE_COVERAGE_DEFICIENT"
+    assert outcome.draft is first.draft  # 未被半成品覆盖
+    assert outcome.state.verifier_research_returns == 1  # 预算已消耗（诚实记账）
+    _assert_attempt_checkpoint(db, run.id, 1)
+
+
+def test_coverage_loop_reports_deficient_when_rerender_still_deficient(db):
+    """重渲染后仍 deficient 且 budget 耗尽 → verifier 自行降级 FAIL_SAFE，reason_code 不变。"""
+    state = _two_issue_state()
+    runtime, generator = _runtime_with([_issue_a_only_response(), _issue_a_only_response()])
+
+    first = runtime.writer.render(state)
+    verification = runtime.verifier.verify(state, first.draft)
+    assert verification.verdict is VerificationVerdict.RESEARCH_MORE
+
+    run = _persisted_run(db, state)
+    outcome = _coverage_research_loop(runtime, db, run, state, 0, verification, first.draft)
+
+    assert outcome.verification.verdict is VerificationVerdict.FAIL_SAFE  # verifier 原有 budget 语义
+    assert outcome.verification.reason_code == "EVIDENCE_COVERAGE_DEFICIENT"
+    assert len(generator.calls) == 2  # 首渲染 + 一次回喂渲染，无第三次
+    assert outcome.state_version == 1
+    _assert_attempt_checkpoint(db, run.id, 1)
+
+
+def test_coverage_loop_skips_rerender_when_deficiency_is_conflict_only():
+    """deficient 全部来自 unresolved critical conflict → 回喂不可修复，不发起外呼不落盘。"""
+    state = _two_issue_state()
+    state.conflicts = [
+        EvidenceConflict(conflict_id="cft-1", issue_id="issue-a", evidence_ids=("ev-a",), critical=True, resolved=False)
+    ]
+    runtime, generator = _runtime_with([_both_issues_response()])
+
+    first = runtime.writer.render(state)
+    assert first.status is WriterStatus.READY
+    verification = runtime.verifier.verify(state, first.draft)
+    assert verification.verdict is VerificationVerdict.RESEARCH_MORE  # conflict 驱动的 deficient
+
+    # db=None：feedback 为 None 时在 register/保存之前 break，用其证明不触碰数据库。
+    outcome = _coverage_research_loop(runtime, None, None, state, 0, verification, first.draft)
+
+    assert outcome.verification is verification  # 原样返回
+    assert outcome.draft is first.draft
+    assert outcome.failure_reason is None
+    assert generator.calls == [  # 只有首渲染，无回喂外呼
+        {"feedback": None},
+    ]
+    assert state.verifier_research_returns == 0  # 未消耗预算
+
+
+def test_coverage_loop_skips_rerender_when_conflict_coexists_with_binding_gap():
+    """T3 DoD：unresolved critical conflict 与 binding 缺口**并存** → 回喂无法解除 conflict，
+    重写必仍 deficient → 零无效外呼（与 conflict-only 同一短路，专项钉住组合场景）。"""
+    state = _two_issue_state()
+    state.conflicts = [
+        EvidenceConflict(conflict_id="cft-1", issue_id="issue-a", evidence_ids=("ev-a",), critical=True, resolved=False)
+    ]
+    runtime, generator = _runtime_with([_issue_a_only_response(), _both_issues_response()])
+
+    first = runtime.writer.render(state)  # issue-a 有 claim（且带 conflict）+ issue-b 缺绑定
+    verification = runtime.verifier.verify(state, first.draft)
+    assert verification.verdict is VerificationVerdict.RESEARCH_MORE
+
+    # db=None：conflict 短路发生在 register/保存之前，用其证明零外呼零落盘。
+    outcome = _coverage_research_loop(runtime, None, None, state, 0, verification, first.draft)
+
+    assert outcome.verification is verification
+    assert outcome.draft is first.draft
+    assert outcome.failure_reason is None
+    assert generator.calls == [{"feedback": None}]  # 零回喂外呼
+    assert state.verifier_research_returns == 0  # 未消耗预算
+
+
+def test_coverage_attempt_cas_conflict_loser_does_not_recall(db):
+    """输家持过期版本保存 attempt → 真实 CAS 冲突；输家不执行重写、零写入。"""
+    state = _two_issue_state()
+    runtime, generator = _runtime_with([_issue_a_only_response(), _both_issues_response()])
+
+    first = runtime.writer.render(state)
+    verification = runtime.verifier.verify(state, first.draft)
+    assert verification.verdict is VerificationVerdict.RESEARCH_MORE
+
+    run = _persisted_run(db, state)
+    # stale_version=99 ≠ 数据库当前 0：模拟另一赢家已把 run 推进到新版本
+    outcome = _coverage_research_loop(runtime, db, run, state, 99, verification, first.draft)
+
+    assert outcome.failure_reason == "AGENT_FINALIZATION_CONFLICT"
+    assert outcome.verification.verdict is VerificationVerdict.RESEARCH_MORE
+    assert generator.calls == [{"feedback": None}]  # 只有首渲染：输家不外呼重写
+    saved = db.get(AgentRun, run.id)
+    assert saved.state_version == 0  # 输家零状态写入
+    assert LegalAgentState.model_validate_json(saved.state_json).verifier_research_returns == 0
+
+
+def test_coverage_loop_skips_rerender_when_deficient_issue_has_no_usable_evidence(db):
+    """T3 分流：缺绑定争点只有失效法条证据（SUPERSEDED）→ writer 创造不了法条，零外呼零落盘。"""
+    state = _two_issue_state()
+    state.evidence[1] = _evidence(
+        "ev-b",
+        source_ref="劳动法#第44条",
+        snippet="《劳动法》第四十四条（已废止）：休息日安排劳动者工作又不能安排补休的，支付不低于工资的百分之二百的工资报酬。",
+        validity=LegalValidity.SUPERSEDED,
+    )
+    runtime, generator = _runtime_with([_issue_a_only_response(), _both_issues_response()])
+
+    first = runtime.writer.render(state)
+    verification = runtime.verifier.verify(state, first.draft)
+    assert verification.verdict is VerificationVerdict.RESEARCH_MORE  # issue-b 无 claim → deficient
+
+    run = _persisted_run(db, state)
+    outcome = _coverage_research_loop(runtime, db, run, state, 0, verification, first.draft)
+
+    assert outcome.verification is verification  # 原样返回，未被重写结果覆盖
+    assert outcome.draft is first.draft
+    assert outcome.failure_reason is None
+    assert generator.calls == [{"feedback": None}]  # 只有首渲染：无可用证据的缺口不发起重写外呼
+    assert state.verifier_research_returns == 0  # 未消耗预算
+    assert db.get(AgentRun, run.id).state_version == 0  # 零落盘
+
+
+def test_coverage_feedback_lists_only_deficient_issues_with_usable_evidence():
+    """回喂文本只点名缺失争点，并附其可用证据（含生效成文法标注）。"""
+    state = _two_issue_state()
+    draft = DraftAnswer(
+        conclusion=(
+            _claim("issue-a", "根据《民法典》第一百八十八条，诉讼时效期间为三年。", ["ev-a"], section="conclusion"),
+        )
+    )
+
+    feedback = coverage_feedback_payload(state, draft)
+
+    assert feedback is not None
+    assert "issue-b" in feedback
+    assert "ev-b" in feedback
+    assert "issue-a" not in feedback
+
+
+def test_coverage_feedback_returns_none_when_no_repairable_deficiency():
+    """所有 issue 均已绑定生效成文法证据 → 无可修复缺陷，返回 None（编排层不回喂）。"""
+    state = _two_issue_state()
+    draft = DraftAnswer(
+        conclusion=(
+            _claim("issue-a", "根据《民法典》第一百八十八条，诉讼时效期间为三年。", ["ev-a"], section="conclusion"),
+            _claim(
+                "issue-b",
+                "根据《劳动法》第四十四条，休息日加班又不能安排补休的应支付加班费。",
+                ["ev-b"],
+                section="conclusion",
+            ),
+        )
+    )
+
+    assert coverage_feedback_payload(state, draft) is None

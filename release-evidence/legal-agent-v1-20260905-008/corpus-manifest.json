@@ -1,0 +1,13 @@
+{
+ "schema_version": "legal-agent-corpus-manifest/v1",
+ "candidate_git_revision": "dca9345805a9c4089105083eca86cde952e0452d",
+ "source": "backend/chroma_db/chroma.sqlite3",
+ "active_collections": [
+  "legal_provisions_cos",
+  "qa_pairs"
+ ],
+ "record_count": 10545,
+ "canonical_bytes": 8840943,
+ "canonicalization": "join embeddings, segments, collections and embedding_metadata; select the two named collections; group metadata by collection and embedding_id; sort records and metadata keys; encode compact UTF-8 JSON with ensure_ascii=false",
+ "logical_corpus_sha256": "d76220e7460789382d5bf40ce45a559b1cf017b2b43842d6056a0117d42e9474"
+}

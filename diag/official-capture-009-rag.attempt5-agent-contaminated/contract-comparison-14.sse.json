@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "合同履行过程中哪一方更可能违约",
+  "issue_id": "issue_ea904890b16e1c0f76726b03"
+ }
+]

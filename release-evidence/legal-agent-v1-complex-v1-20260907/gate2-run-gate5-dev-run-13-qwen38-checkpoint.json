@@ -1,0 +1,822 @@
+{
+ "run": "gate5-dev-run-13-qwen38",
+ "targets": [
+  "C01",
+  "C02",
+  "C03",
+  "C04",
+  "C05",
+  "C06",
+  "C07",
+  "C08",
+  "C09",
+  "C10"
+ ],
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "制度在内网，但我不记得是否培训过"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "8df747e6-d523-44d5-aad8-794416b48de0",
+      "state_version": 4,
+      "conv_id": 2327
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "8df747e6-d523-44d5-aad8-794416b48de0",
+      "state_version": 6,
+      "conv_id": 2327
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "公司在解除前是否履行了法定程序（如培训、调岗等）。"
+    },
+    {
+     "round": 2,
+     "prompt": "公司是否有证据证明员工确实连续两次绩效不合格。"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r1-f1"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "公司是否有证据证明员工确实连续两次绩效不合格。",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2327,
+   "final_chars": 404,
+   "final_text": "已确认事实：\n- 公司说我连续两次绩效不合格，当天通知解除，没有补偿。\n- 我能要求赔偿吗？\n- 制度在内网，但我不记得是否培训过\n\n尚不确定的事实：\n- 劳动合同中关于绩效不合格解除的约定内容。\n\n核心法律争点：\n- 公司解除劳动关系是否合法？\n\n法律依据：\n- 《劳动法》第二十八条\n- 《劳动合同法》第三十九条\n- 《劳动合同法》第三十六条\n- 《劳动合同法》第五十条\n\n分情形分析：\n用人单位解除劳动合同需符合法定情形,如劳动者严重违反规章制度或经证明不符合录用条件等。若公司仅以绩效不合格为由单方解除且无合法依据,可能构成违法解除。\n\n可执行建议与风险提示：\n劳动合同解除后,用人单位应当出具解除证明并办理档案和社保转移手续;若依法应支付经济补偿的,应在办结工作交接时支付。\n风险提示：劳动者是否接受过绩效考核制度培训以及该制度是否作为录用条件或规章制度的有效组成部分,将影响解除行为的合法性判断。",
+   "final_excerpt": "已确认事实：\n- 公司说我连续两次绩效不合格，当天通知解除，没有补偿。\n- 我能要求赔偿吗？\n- 制度在内网，但我不记得是否培训过\n\n尚不确定的事实：\n- 劳动合同中关于绩效不合格解除的约定内容。\n\n核心法律争点：\n- 公司解除劳动关系是否",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 33.0
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "f267220d-3b2b-4b86-87d8-42a3592c635d",
+      "state_version": 4,
+      "conv_id": 2328
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "f267220d-3b2b-4b86-87d8-42a3592c635d",
+      "state_version": 8,
+      "conv_id": 2328
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动合同中关于加班费计算的约定"
+    },
+    {
+     "round": 2,
+     "prompt": "当地最低工资标准及行业惯例"
+    }
+   ],
+   "answered_fact_ids": [
+    "C02-r1-f2"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "当地最低工资标准及行业惯例",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2328,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 29.1
+  },
+  "C03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "4e58c81d-e5f5-4ce8-9419-ccad2370ef26",
+      "state_version": 4,
+      "conv_id": 2329
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "4e58c81d-e5f5-4ce8-9419-ccad2370ef26",
+      "state_version": 8,
+      "conv_id": 2329
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动者提起劳动仲裁的具体日期"
+    },
+    {
+     "round": 2,
+     "prompt": "当地司法实践对二倍工资时效起算点（逐月计算或整体计算）的认定标准"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "劳动者提起劳动仲裁的具体日期",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "当地司法实践对二倍工资时效起算点（逐月计算或整体计算）的认定标准",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2329,
+   "final_chars": 790,
+   "final_text": "已确认事实：\n- 我工作十个月一直没签合同\n- 现在主动离职\n- 工作十个月\n- 现在主动离职\n- 工作十个月一直没签合同\n\n尚不确定的事实：\n- 用人单位是否存在法定免签情形（如非全日制用工、退休返聘等）\n- 劳动者正常工作期间的月平均工资数额及构成\n\n核心法律争点：\n- 在员工主动离职的情况下，因未签订书面劳动合同而主张二倍工资差额是否仍可获得支持？\n- 劳动者主张未签劳动合同二倍工资的请求是否已超过仲裁时效？\n- 未签劳动合同二倍工资差额的计算基数应如何确定？\n\n法律依据：\n- 《劳动合同法》第二十八条\n- 《劳动合同法》第八十二条\n- 《劳动争议调解仲裁法》第十六条\n- 《劳动合同法》第二十五条\n- 《劳动法》第八十二条\n- 《劳动争议调解仲裁法》第二十七条\n- 《劳动法》第八十三条\n- 《劳动争议调解仲裁法》第四十八条\n- 《劳动合同法》第十一条\n\n分情形分析：\n根据《劳动合同法》第八十二条,用人单位自用工之日起超过一个月不满一年未与劳动者订立书面劳动合同的,应当向劳动者每月支付二倍的工资。用户陈述工作十个月一直没签合同,该情形符合上述法律规定中关于未签劳动合同需支付二倍工资的条件。\n根据《劳动合同法》第十一条,用人单位未在用工的同时订立书面劳动合同,与劳动者约定的劳动报酬不明确的,新招用的劳动者的劳动报酬按照集体合同规定的标准执行;没有集体合同或者集体合同未规定的,实行同工同酬。在计算未签劳动合同二倍工资差额时,若双方对报酬约定不明,可参照此规定确定基数。\n\n可执行建议与风险提示：\n风险提示：根据《劳动争议调解仲裁法》第二十七条,劳动争议申请仲裁的时效期间为一年,从当事人知道或者应当知道其权利被侵害之日起计算;劳动关系终止的,应当自劳动关系终止之日起一年内提出。用户陈述现在主动离职,若主张未签劳动合同二倍工资差额,需注意是否在法定时效内提出。",
+   "final_excerpt": "已确认事实：\n- 我工作十个月一直没签合同\n- 现在主动离职\n- 工作十个月\n- 现在主动离职\n- 工作十个月一直没签合同\n\n尚不确定的事实：\n- 用人单位是否存在法定免签情形（如非全日制用工、退休返聘等）\n- 劳动者正常工作期间的月平均工",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 53.3
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "f0407677-d9f7-4a66-9483-0f01c5669718",
+      "state_version": 4,
+      "conv_id": 2330
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "UNSUPPORTED_NUMERIC_TOKEN"
+     ],
+     "clar_meta": {
+      "run_id": "f0407677-d9f7-4a66-9483-0f01c5669718",
+      "state_version": 6,
+      "conv_id": 2330
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "买卖双方已签订书面房屋买卖合同，且合同合法有效。"
+    },
+    {
+     "round": 2,
+     "prompt": "十万元款项在合同或收据中明确约定为“定金”而非“订金”、“预付款”或“购房款”。"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "买卖双方已签订书面房屋买卖合同，且合同合法有效。",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "十万元款项在合同或收据中明确约定为“定金”而非“订金”、“预付款”或“购房款”。",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "UNSUPPORTED_NUMERIC_TOKEN"
+   ],
+   "conv_id": 2330,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 23.9
+  },
+  "C05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "房东没催告",
+      "7日换锁"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "e76aa97b-6b0b-4574-acd9-5ceb822d8eb1",
+      "state_version": 4,
+      "conv_id": 2331
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "e76aa97b-6b0b-4574-acd9-5ceb822d8eb1",
+      "state_version": 8,
+      "conv_id": 2331
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "房东在换锁前是否履行了法定的催告义务"
+    },
+    {
+     "round": 2,
+     "prompt": "租客是否存在其他严重违反合同义务的行为（如破坏房屋、从事违法活动等）"
+    }
+   ],
+   "answered_fact_ids": [
+    "C05-r1-f2",
+    "C05-r1-f3"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "租客是否存在其他严重违反合同义务的行为（如破坏房屋、从事违法活动等）",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2331,
+   "final_chars": 331,
+   "final_text": "已确认事实：\n- 我晚交两天房租\n- 房东直接换锁并扣押金\n- 房东没催告；7日换锁\n\n尚不确定的事实：\n- 租赁合同中关于逾期支付租金的具体违约责任条款（如宽限期、解约条件、押金扣除规则）\n\n核心法律争点：\n- 房东在租客晚交两天房租的情况下直接换锁并扣留押金的行为是否合法？\n\n法律依据：\n- 《民法典》第七百一十九条\n- 《民法典》第七百二十二条\n- 《民法典》第七百一十七条\n- 《民法典》第七百二十四条\n\n分情形分析：\n- （无）\n\n可执行建议与风险提示：\n依据《民法典》第七百二十二条,承租人无正当理由未支付或者迟延支付租金的,出租人可以请求承租人在合理期限内支付;承租人逾期不支付的,出租人可以解除合同。本案中房东未催告即换锁扣押金,缺乏法律依据。",
+   "final_excerpt": "已确认事实：\n- 我晚交两天房租\n- 房东直接换锁并扣押金\n- 房东没催告；7日换锁\n\n尚不确定的事实：\n- 租赁合同中关于逾期支付租金的具体违约责任条款（如宽限期、解约条件、押金扣除规则）\n\n核心法律争点：\n- 房东在租客晚交两天房租的情",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 25.5
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "我改过一次柜体尺寸"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "700b3489-2d3d-4f40-b89b-63160d83208c",
+      "state_version": 4,
+      "conv_id": 2332
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "约定三个月完工",
+      "现在已超过新工期五十天"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "700b3489-2d3d-4f40-b89b-63160d83208c",
+      "state_version": 8,
+      "conv_id": 2332
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "延期两个月期间是否存在不可抗力、业主原因（如变更设计、未及时提供材料）等免责事由。"
+    },
+    {
+     "round": 2,
+     "prompt": "装修合同中约定的工期具体是多少天，以及是否有明确的竣工日期。"
+    }
+   ],
+   "answered_fact_ids": [
+    "C06-r1-f4",
+    "C06-r1-f3",
+    "C06-r2-f2"
+   ],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2332,
+   "final_chars": 667,
+   "final_text": "已确认事实：\n- 装修公司延期两个月\n- 我改过一次柜体尺寸\n- 约定三个月完工；现在已超过新工期五十天\n- 又说材料涨价必须加钱\n- 否则停工\n- 我该怎么办？\n\n尚不确定的事实：\n- 装修合同是固定总价包干还是按实结算，以及合同中是否有关于材料价格波动调整的特别约定。\n- 材料涨价的幅度是否超出了正常商业风险范围，是否构成情势变更。\n- 业主手中是否保留了催告装修公司复工、反对无理加价的书面证据（如微信记录、函件）。\n- 装修公司目前是否已经实际停工，以及停工造成的具体损失预估。\n\n核心法律争点：\n- 装修公司延期两个月是否构成违约，业主能否据此主张违约责任？\n- 装修公司以材料涨价为由要求加钱并威胁停工，该行为是否具有法律依据？\n- 面对装修公司威胁停工，业主应采取何种法律措施以保障自身权益？\n\n法律依据：\n- 《民法典》第八百零一条\n- 《民法典》第八百零三条\n- 《民法典》第八百条\n- 《建筑法》第七十五条\n- 《建筑法》第七十条\n- 《民法典》第八百零五条\n- 《建筑法》第四十九条\n- 《民法典》第八百零四条\n- 《民法典》第七百九十八条\n\n分情形分析：\n面对装修公司威胁停工,业主应保留催告复工及反对无理加价的书面证据,并可依据《民法典》第八百零四条追究因发包人原因导致停建、缓建的损失赔偿责任(若适用)。\n\n可执行建议与风险提示：\n装修公司延期两个月构成违约,业主可依据《民法典》第八百零一条主张违约责任。\n风险提示：装修公司以材料涨价为由要求加钱并威胁停工缺乏法律依据,除非合同另有约定或构成情势变更。",
+   "final_excerpt": "已确认事实：\n- 装修公司延期两个月\n- 我改过一次柜体尺寸\n- 约定三个月完工；现在已超过新工期五十天\n- 又说材料涨价必须加钱\n- 否则停工\n- 我该怎么办？\n\n尚不确定的事实：\n- 装修合同是固定总价包干还是按实结算，以及合同中是否有",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 71.2
+  },
+  "C07": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "他回复年底还"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "340dd7b5-5854-4ec7-966b-94af4e8f4c9b",
+      "state_version": 4,
+      "conv_id": 2333
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "2021年6月30日到期",
+      "我2023年5月微信催过"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "340dd7b5-5854-4ec7-966b-94af4e8f4c9b",
+      "state_version": 8,
+      "conv_id": 2333
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "债务人在诉讼时效期间内是否同意履行义务或作出还款承诺"
+    },
+    {
+     "round": 2,
+     "prompt": "在2021年至起诉期间，债权人是否向债务人主张过权利（如催收、发函等）"
+    }
+   ],
+   "answered_fact_ids": [
+    "C07-r1-f3",
+    "C07-r1-f1",
+    "C07-r1-f2"
+   ],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2333,
+   "final_chars": 556,
+   "final_text": "已确认事实：\n- 借款2021年到期\n- 对方一直没还\n- 现在起诉\n- 他回复年底还\n- 2021年6月30日到期；我2023年5月微信催过\n\n尚不确定的事实：\n- 是否存在诉讼时效中止的法定事由（如不可抗力等）\n\n核心法律争点：\n- 起诉是否因超过诉讼时效而丧失胜诉权？\n\n法律依据：\n- 《民法典》第一百九十九条\n- 《民法典》第一百九十二条\n- 《民法典》第一百九十五条\n- 《民法典》第一百八十八条\n\n分情形分析：\n根据《民法典》第一百八十八条,向人民法院请求保护民事权利的诉讼时效期间为三年。自权利人知道或者应当知道权利受到损害以及义务人之日起计算。本案中借款于2021年到期,若未发生时效中断或中止情形,起诉时可能已超过法定诉讼时效期间。\n依据《民法典》第一百九十五条,权利人向义务人提出履行请求的,诉讼时效中断,从中断时起重新计算。申请人主张2023年5月曾通过微信催促对方还款,若该行为被认定为有效催收,则诉讼时效可发生中断并重新起算。\n\n可执行建议与风险提示：\n风险提示：《民法典》第一百九十二条规定,诉讼时效期间届满后,义务人同意履行的,不得以诉讼时效期间届满为由抗辩;已自愿履行的,不得请求返还。若债务人在催款过程中明确承诺年底还款,可能构成对原债务的重新确认,从而排除时效抗辩权的适用。",
+   "final_excerpt": "已确认事实：\n- 借款2021年到期\n- 对方一直没还\n- 现在起诉\n- 他回复年底还\n- 2021年6月30日到期；我2023年5月微信催过\n\n尚不确定的事实：\n- 是否存在诉讼时效中止的法定事由（如不可抗力等）\n\n核心法律争点：\n- 起",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 35.0
+  },
+  "C08": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "主债务2023年8月到期"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "4e23623d-8563-4741-b2e3-cbe3d8ebaefb",
+      "state_version": 4,
+      "conv_id": 2334
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "债权人2024年1月微信找过我",
+      "债权人没有起诉借款人"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "UNSUPPORTED_NUMERIC_TOKEN"
+     ],
+     "clar_meta": {
+      "run_id": "4e23623d-8563-4741-b2e3-cbe3d8ebaefb",
+      "state_version": 6,
+      "conv_id": 2334
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "主债务履行期限届满的具体日期"
+    },
+    {
+     "round": 2,
+     "prompt": "债权人在保证期间内是否采取了法律规定的行动（如起诉、仲裁或书面请求）"
+    }
+   ],
+   "answered_fact_ids": [
+    "C08-r1-f1",
+    "C08-r1-f3",
+    "C08-r2-f1"
+   ],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "UNSUPPORTED_NUMERIC_TOKEN"
+   ],
+   "conv_id": 2334,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 27.3
+  },
+  "C09": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "门店已关"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "b36fd443-d658-4c52-914c-115aeed9af7a",
+      "state_version": 4,
+      "conv_id": 2335
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "签约时没人特别说明概不退款"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "b36fd443-d658-4c52-914c-115aeed9af7a",
+      "state_version": 8,
+      "conv_id": 2335
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "健身房关门原因是否属于不可抗力或经营者单方违约"
+    },
+    {
+     "round": 2,
+     "prompt": "该“概不退款”条款是否在签约时以显著方式提示并说明"
+    }
+   ],
+   "answered_fact_ids": [
+    "C09-r1-f1",
+    "C09-r2-f1"
+   ],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2335,
+   "final_chars": 529,
+   "final_text": "已确认事实：\n- 合同写概不退款\n- 门店已关\n- 签约时没人特别说明概不退款\n- 健身房突然关门\n\n尚不确定的事实：\n- 关门是否已实际导致服务完全中断且无替代安排\n- 消费者是否已提出解约请求及健身房回应情况\n\n核心法律争点：\n- 健身房合同中“概不退款”条款是否有效，消费者能否依据该条款被剥夺要求退还剩余费用的权利？\n- 健身房突然关门导致服务无法继续履行，消费者是否有权解除合同并要求返还预付款项？\n\n法律依据：\n- 《民法典》第五百零七条\n- 《民法典》第五百六十七条\n- 《民法典》第五百七十五条\n- 《民法典》第四百七十六条\n- 《民法典》第七百一十一条\n- 《民法典》第七百三十一条\n- 《消费者权益保护法》第四十三条\n- 《民法典》第七百八十七条\n\n分情形分析：\n- （无）\n\n可执行建议与风险提示：\n虽然合同中写有“概不退款”,但签约时没人特别说明该条款,且门店已关,依据《民法典》第五百七十五条,债权人免除债务人部分或者全部债务的,债权债务部分或者全部终止。\n健身房突然关门导致服务无法继续履行,消费者有权解除合同并要求返还预付款项,因为根据《消费者权益保护法》第四十三条,消费者在接受服务时合法权益受到损害的,可以向服务者要求赔偿。",
+   "final_excerpt": "已确认事实：\n- 合同写概不退款\n- 门店已关\n- 签约时没人特别说明概不退款\n- 健身房突然关门\n\n尚不确定的事实：\n- 关门是否已实际导致服务完全中断且无替代安排\n- 消费者是否已提出解约请求及健身房回应情况\n\n核心法律争点：\n- 健身",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 24.3
+  },
+  "C10": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "270431a0-ffaf-4987-9906-5986ed5e58fc",
+      "state_version": 4,
+      "conv_id": 2336
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "270431a0-ffaf-4987-9906-5986ed5e58fc",
+      "state_version": 6,
+      "conv_id": 2336
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "卖家在交易前是否具有真实的货源渠道或履约能力"
+    },
+    {
+     "round": 2,
+     "prompt": "涉案金额的具体数额"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "卖家在交易前是否具有真实的货源渠道或履约能力",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "涉案金额的具体数额",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2336,
+   "final_chars": 293,
+   "final_text": "已确认事实：\n- 卖家收钱后失联\n- 聊天里又承认其实根本没货\n\n尚不确定的事实：\n- 聊天记录中‘承认没货’的具体语境和完整对话内容\n\n核心法律争点：\n- 卖家收钱后失联且承认无货的行为是否构成刑事诈骗，还是属于民事违约？\n\n法律依据：\n- 《电子商务法》第七十四条\n- 《民法典》第六百零八条\n- 《民法典》第六百零九条\n- 《民法典》第六百零五条\n\n分情形分析：\n- （无）\n\n可执行建议与风险提示：\n卖家收钱后失联且承认无货的行为,根据《电子商务法》第七十四条,电子商务经营者销售商品或者提供服务,不履行合同义务或者履行合同义务不符合约定,或者造成他人损害的,依法承担民事责任。",
+   "final_excerpt": "已确认事实：\n- 卖家收钱后失联\n- 聊天里又承认其实根本没货\n\n尚不确定的事实：\n- 聊天记录中‘承认没货’的具体语境和完整对话内容\n\n核心法律争点：\n- 卖家收钱后失联且承认无货的行为是否构成刑事诈骗，还是属于民事违约？\n\n法律依据：\n",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 15.6
+  }
+ }
+}

@@ -32,25 +32,32 @@ def is_cosine_space(col) -> bool:
     except Exception:
         return False
 
+
 # 时效状态白名单（导入/手动添加校验用）
-STATUS_WHITELIST = ("现行", "已废止", "即将施行")
+STATUS_WHITELIST = ("现行", "已修改", "已废止", "即将施行", "未生效")
 
 
 def is_valid_by_time(meta: Mapping, today: str) -> bool:
-    """条文时效判定（阶段5）：status 非已废止 且 已生效 且 未过废止日。
+    """条文时效判定：按查询日选择当时有效的版本。
 
     today: 'YYYY-MM-DD'（ISO 字典序即时间序）；空串/缺失键视为无该限制。
     边界语义：effective_from == today 当日生效，effective_to == today 当日仍有效。
     此函数是向量池、BM25、grounded 打分的唯一共用谓词。
+
+    ``status`` 表示当前管理状态，不能抹掉历史效力。已废止/未生效条文只在缺少
+    相应日期边界时 fail closed；日期齐全时一律以 effective_from/effective_to 为准。
     """
-    if meta.get("status") == "已废止":
-        return False
+    status = meta.get("status")
     ef = (meta.get("effective_from") or "").strip()
     et = (meta.get("effective_to") or "").strip()
     if ef and ef > today:
         return False  # 尚未施行
     if et and et < today:
         return False  # 已过废止日
+    if status == "已废止" and not et:
+        return False  # 无法证明在查询日仍有效
+    if status in {"即将施行", "未生效"} and not ef:
+        return False  # 无法证明已经生效
     return True
 
 
@@ -132,5 +139,3 @@ def bm25_top(
         if len(out) >= n:
             break
     return out
-
-

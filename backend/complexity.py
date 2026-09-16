@@ -11,6 +11,7 @@
 
 图片（vision）：默认保守走旗舰，由路由层「Flash 看图 → 描述简单才降轻量」两级预判细化。
 """
+
 from domain_rules import COMPLEX_KEYWORDS, LIGHT_SHORT_LEN
 
 

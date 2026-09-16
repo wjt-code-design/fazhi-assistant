@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "合同履行阶段及违约可能造成的实际损失类型与举证难度",
+  "issue_id": "issue_8f21fa860fa5fcb9fd7607b9"
+ }
+]

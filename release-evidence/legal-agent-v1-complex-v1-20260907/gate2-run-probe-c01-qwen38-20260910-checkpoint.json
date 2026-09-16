@@ -1,0 +1,88 @@
+{
+ "run": "probe-c01-qwen38-20260910",
+ "targets": [
+  "C01"
+ ],
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "3f47dc62-993c-45f4-a4fe-9e27b168c3b0",
+      "state_version": 4,
+      "conv_id": 2326
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "制度在内网，但我不记得是否培训过"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "3f47dc62-993c-45f4-a4fe-9e27b168c3b0",
+      "state_version": 6,
+      "conv_id": 2326
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "公司在解除合同前是否通知工会"
+    },
+    {
+     "round": 2,
+     "prompt": "公司的绩效考核制度是否经民主程序制定并已向劳动者公示"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r1-f1"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "公司在解除合同前是否通知工会",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2326,
+   "final_chars": 398,
+   "final_text": "已确认事实：\n- 公司说我连续两次绩效不合格，当天通知解除，没有补偿。\n- 制度在内网，但我不记得是否培训过\n\n尚不确定的事实：\n- 劳动者是否经过培训或者调整工作岗位后仍不能胜任工作\n- 劳动合同中关于不胜任工作的具体定义及解除条件约定\n\n核心法律争点：\n- 公司是否有权仅以连续两次绩效不合格为由当天通知解除劳动合同且无需支付补偿？\n\n法律依据：\n- 《劳动法》第三十二条\n- 《劳动合同法》第七十一条\n- 《劳动合同法》第三十七条\n- 《劳动法》第三十一条\n\n分情形分析：\n劳动者解除劳动合同,应当提前三十日以书面形式通知用人单位;在试用期内提前三日通知即可。\n若存在用人单位未按照劳动合同约定支付劳动报酬或者提供劳动条件的情形,劳动者可以随时通知用人单位解除劳动合同。\n\n可执行建议与风险提示：\n非全日制用工双方当事人任何一方都可以随时通知对方终止用工,且用人单位不向劳动者支付经济补偿。",
+   "final_excerpt": "已确认事实：\n- 公司说我连续两次绩效不合格，当天通知解除，没有补偿。\n- 制度在内网，但我不记得是否培训过\n\n尚不确定的事实：\n- 劳动者是否经过培训或者调整工作岗位后仍不能胜任工作\n- 劳动合同中关于不胜任工作的具体定义及解除条件约定\n",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 29.5
+  }
+ }
+}

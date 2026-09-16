@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "主债务履行期届满的具体日期",
+  "issue_id": "issue_b745f20d1ef0d5bf6dc9e3bb"
+ }
+]

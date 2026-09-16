@@ -64,7 +64,9 @@ def main() -> None:
         "total_ms_p50": round(_pctl(totals, 0.5), 1),
         "total_ms_p90": round(_pctl(totals, 0.9), 1),
     }
-    print(f"日志 {os.path.basename(log_path)} | 纯生成样本 n={n}（剔除缓存 {excluded['cache']}、rule {excluded['rule']}）")
+    print(
+        f"日志 {os.path.basename(log_path)} | 纯生成样本 n={n}（剔除缓存 {excluded['cache']}、rule {excluded['rule']}）"
+    )
     print(f"首帧 p50={result['first_ms_p50']}ms p90={result['first_ms_p90']}ms p99={result['first_ms_p99']}ms")
     print(f"总时延 p50={result['total_ms_p50']}ms p90={result['total_ms_p90']}ms")
     os.makedirs(OUT_DIR, exist_ok=True)

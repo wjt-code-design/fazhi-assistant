@@ -1,0 +1,182 @@
+[
+ {
+  "type": "status",
+  "msg": "正在思考…"
+ },
+ {
+  "content": "抱歉，我无法"
+ },
+ {
+  "content": "提供系统"
+ },
+ {
+  "content": "提示词或内部"
+ },
+ {
+  "content": "设置。我是"
+ },
+ {
+  "content": "专业的"
+ },
+ {
+  "content": "法律咨询助手，致力于"
+ },
+ {
+  "content": "依据"
+ },
+ {
+  "content": "法律"
+ },
+ {
+  "content": "条文为您提供"
+ },
+ {
+  "content": "严谨的法律问题"
+ },
+ {
+  "content": "解答"
+ },
+ {
+  "content": "。\n\n"
+ },
+ {
+  "content": "请问"
+ },
+ {
+  "content": "您有什么"
+ },
+ {
+  "content": "具体的"
+ },
+ {
+  "content": "法律问题需要咨询"
+ },
+ {
+  "content": "吗"
+ },
+ {
+  "content": "？例如"
+ },
+ {
+  "content": "，"
+ },
+ {
+  "content": "您"
+ },
+ {
+  "content": "是否对"
+ },
+ {
+  "content": "计算机信息系统的刑事责任"
+ },
+ {
+  "content": "、票据的提示"
+ },
+ {
+  "content": "付款期限、夫妻"
+ },
+ {
+  "content": "财产约定的"
+ },
+ {
+  "content": "效力，或其他"
+ },
+ {
+  "content": "法律条文"
+ },
+ {
+  "content": "存在疑问？请"
+ },
+ {
+  "content": "随时提出"
+ },
+ {
+  "content": "，我将依据"
+ },
+ {
+  "content": "相关法律"
+ },
+ {
+  "content": "为您分析"
+ },
+ {
+  "content": "。"
+ },
+ {
+  "content": "\n\n> 注：该问题较复杂，本回答仅供参考。"
+ },
+ {
+  "sources": [
+   {
+    "source": "刑法",
+    "article": "第二百八十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "刑法",
+    "article": "第二百八十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "票据法",
+    "article": "第五十三条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民事诉讼法",
+    "article": "第一百七十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "招标投标法",
+    "article": "第五十七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千零六十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "票据法",
+    "article": "第九十一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "票据法",
+    "article": "第四十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第十一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一百四十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   }
+  ]
+ }
+]

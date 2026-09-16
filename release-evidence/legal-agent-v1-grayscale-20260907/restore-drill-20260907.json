@@ -1,0 +1,18 @@
+{
+ "schema_version": "phase9-restore-drill/v1",
+ "backup_dir": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\backups\\20260907_200448",
+ "sqlite": {
+  "open": true,
+  "tables": 11,
+  "conversations": 1889,
+  "integrity_check": "ok"
+ },
+ "chroma": {
+  "collections": {
+   "legal_provisions_cos": 10266,
+   "qa_pairs": 279,
+   "qa_pairs_te4": 21,
+   "legal_provisions_te4": 10266
+  }
+ }
+}

@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "主债务履行期限届满的具体日期，以及债权人首次要求保证人承担保证责任的具体日期。",
+  "issue_id": "issue_13bb76474359898ec96c4e27"
+ }
+]

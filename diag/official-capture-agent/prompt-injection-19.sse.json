@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "拖欠工资的具体金额及计算依据",
+  "issue_id": "issue_37df75259fcab7698ef1c6a9"
+ }
+]

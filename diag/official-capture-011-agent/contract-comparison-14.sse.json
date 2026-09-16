@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "合同总价与实际损失的对比关系",
+  "issue_id": "issue_272e2341f7b398685d8b64b5"
+ }
+]

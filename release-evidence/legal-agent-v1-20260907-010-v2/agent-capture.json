@@ -1,0 +1,2847 @@
+{
+ "schema_version": "legal-agent-eval-answers/v1",
+ "cases": [
+  {
+   "id": "loan-limitations-01",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "债权人是否在2021年至2024年期间主张过权利",
+    "trace_ref": "trace://eval010-agent-20260907/loan-limitations-01",
+    "latency_ms": 15972.3,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "labor-probation-02",
+   "answer": {
+    "claims": [
+     {
+      "text": "这种做法不合法，具体分析如下：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     },
+     {
+      "text": "一、超过法定最长试用期期限",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     },
+     {
+      "text": "根据《劳动合同法》第十九条，三年以上固定期限和无固定期限的劳动合同，试用期不得超过六个月。",
+      "evidence_ids": [
+       "劳动合同法:19"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     },
+     {
+      "text": "本案中劳动合同期限为三年，法定的试用期上限即为六个月，公司将试用期延长至八个月，明显超出了法律规定的上限。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     },
+     {
+      "text": "二、违反“只能约定一次试用期”的强制性规定",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     },
+     {
+      "text": "根据《劳动合同法》第十九条，同一用人单位与同一劳动者只能约定一次试用期。",
+      "evidence_ids": [
+       "劳动合同法:19"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     },
+     {
+      "text": "公司延长试用期的行为，实质上是试图在初次约定的试用期之外，与劳动者再次约定试用期，这直接违反了“一次试用期”的禁止性规定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     },
+     {
+      "text": "三、法律后果与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     },
+     {
+      "text": "根据《劳动合同法》第八十三条，用人单位违反本法规定与劳动者约定试用期的，由劳动行政部门责令改正；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     },
+     {
+      "text": "违法约定的试用期已经履行的，由用人单位以劳动者试用期满月工资为标准，按已经履行的超过法定试用期的期间向劳动者支付赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     },
+     {
+      "text": "因此，对于超出法定试用期的两个月，若已经履行，劳动者有权要求公司支付赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     },
+     {
+      "text": "公司单方面延长试用期的行为存在明确的违法风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     },
+     {
+      "text": "本答复仅供参考，不构成正式法律意见。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-probation-02"
+     }
+    ],
+    "detected_issues": [
+     "劳动合同",
+     "试用期"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/labor-probation-02",
+    "latency_ms": 26118.6,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "house-sale-deposit-03",
+   "answer": {
+    "claims": [
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "买方与卖方签订二手房认购书并支付10万元定金，后因卖方涨价拒绝出售。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "争议焦点在于卖方是否构成根本违约致使不能实现合同目的，以及买方能否主张定金罚则要求双倍返还，同时需审查10万元定金是否超过法定上限。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "②法律依据（引条文）",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "根据《民法典》第五百八十七条，收受定金的一方不履行债务或者履行债务不符合约定，致使不能实现合同目的的，应当双倍返还定金。",
+      "evidence_ids": [
+       "民法典:587"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "根据《民法典》第五百八十六条，定金的数额不得超过主合同标的额的百分之二十，超过部分不产生定金的效力。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "根据《民法典》第五百八十八条，定金不足以弥补一方违约造成的损失的，对方可以请求赔偿超过定金数额的损失。",
+      "evidence_ids": [
+       "民法典:588"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "首先，卖方因涨价拒绝出售，属于明确表示不履行主要债务，构成根本违约，致使不能实现合同目的，符合《民法典》第五百八十七条适用定金罚则的情形，买方有权要求双倍返还。",
+      "evidence_ids": [
+       "民法典:587"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "其次，关于定金数额，根据《民法典》第五百八十六条，10万元定金是否全部适用双倍返还规则，取决于房屋总价。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "若房屋总价的百分之二十低于10万元，则超过部分不产生定金效力，仅能视为预付款要求返还，不能主张双倍。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "最后，若卖方违约给买方造成的实际损失（如房屋涨价后的差价损失）超过双倍定金数额，根据《民法典》第五百八十八条，买方还可请求赔偿超过定金数额的损失。",
+      "evidence_ids": [
+       "民法典:588"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "结论：买方有权要求卖方双倍返还定金，但受房屋总价20%的上限限制。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "风险提示：需核实房屋总价以确认10万元是否超过法定上限；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "若主张房屋差价等实际损失，需承担举证责任；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "卖方可能以认购书非正式买卖合同等理由抗辩，需结合认购书的具体条款判断其法律性质。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     },
+     {
+      "text": "本答复仅供参考，不构成正式法律意见。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03"
+     }
+    ],
+    "detected_issues": [
+     "定金"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/house-sale-deposit-03",
+    "latency_ms": 59317.1,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "traffic-injury-04",
+   "answer": {
+    "claims": [
+     {
+      "text": "① 案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "本案为电动车与右转货车发生的交通事故。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "争议焦点为：受害人未佩戴头盔，是否构成机动车一方拒绝承担赔偿责任（免责）的法定事由。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "② 法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "《民法典》第一千一百七十四条、《道路交通安全法》第五十一条、《民法典》第一千二百一十三条、《道路交通安全法》第七十四条、《民法典》第一千一百八十二条。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "③ 逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "关于“不赔”的抗辩是否成立：根据《民法典》第一千一百七十四条，只有损害是因受害人“故意”造成的，行为人才不承担责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "您未佩戴头盔属于违反交通管理规定的行为，显然不属于“故意造成损害”，因此货车方以此为由拒绝全部赔偿没有法律依据。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "关于未佩戴头盔对赔偿数额的可能影响：根据《道路交通安全法》第五十一条，摩托车驾驶人及乘坐人员应当按规定戴安全头盔（若您的电动车被鉴定为机动车则适用；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "若为非机动车，未戴头盔亦属于交通违法行为）。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "未戴头盔通常不是导致交通事故发生的原因，但如果该行为导致了损害后果的加重（例如，因未戴头盔导致头部伤情加重），在确定具体赔偿数额时，法院可能会依据《民法典》第一千一百八十二条，对因此扩大的损失部分考虑减轻货车方的赔偿责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "但这需要结合具体伤情进行认定，并非必然导致不赔或少赔。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "关于赔偿顺位：根据《民法典》第一千二百一十三条，事故属于货车一方责任的，应先由货车承保的交强险在责任限额内赔偿；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "不足部分由商业险赔偿；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "仍不足或未投保商业险的，由货车方赔偿。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "④ 结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "货车方“没戴头盔就不赔”的说法不能成立，您有权主张赔偿。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "但需注意，未戴头盔可能对自身损害结果的加重产生影响，存在法院对加重部分不予支持或减轻对方赔偿比例的风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     },
+     {
+      "text": "根据《道路交通安全法》第七十四条，您可以请求公安机关交通管理部门调解，也可以直接向人民法院提起民事诉讼维权。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04"
+     }
+    ],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/traffic-injury-04",
+    "latency_ms": 55566.2,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "inheritance-debt-05",
+   "answer": {
+    "claims": [
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "父亲去世，遗留房产及信用卡欠款。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "核心争议在于：子女作为继承人，是否必须以个人固有财产偿还父亲的信用卡欠款。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "②法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "根据《民法典》第一千一百二十二条，遗产是自然人死亡时遗留的个人合法财产。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "根据《民法典》第一千一百六十一条，继承人以所得遗产实际价值为限清偿被继承人依法应当缴纳的税款和债务。",
+      "evidence_ids": [
+       "民法典:1161"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "超过遗产实际价值部分，继承人自愿偿还的不在此限。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "继承人放弃继承的，对被继承人依法应当缴纳的税款和债务可以不负清偿责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "根据《民事诉讼法》第二百四十三条，作为被执行人的公民死亡的，以其遗产偿还债务。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "首先，父亲遗留的房子属于其死亡时遗留的个人合法财产，即遗产；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "信用卡欠款属于其个人债务。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "其次，子女仅在继承遗产的实际价值范围内承担清偿责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "即需用继承的房产变价款来偿还信用卡欠款。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "若房产价值足以覆盖欠款，则在房产价值范围内清偿；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "若房产价值低于欠款，超出部分子女无法律义务用自己原有的钱偿还，除非子女自愿偿还。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "最后，子女享有放弃继承的选择权。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "若子女明确放弃继承该房产，则对父亲的信用卡欠款可以不负清偿责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "结论：子女并非必须拿自己的钱还，仅以继承的遗产实际价值为限承担清偿责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "重要：风险提示。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "若子女实际占有或管理遗产，需在遗产价值范围内妥善处理债务，避免因恶意转移遗产或造成遗产灭失而对债务承担额外责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     },
+     {
+      "text": "若银行起诉，法院将仅执行遗产，不会直接执行子女个人财产。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05"
+     }
+    ],
+    "detected_issues": [
+     "继承"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/inheritance-debt-05",
+    "latency_ms": 41421.9,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "company-equity-06",
+   "answer": {
+    "claims": [
+     {
+      "text": "您提到的“股权”在合伙企业中应称为“财产份额”，确认资格涉及入伙或合伙协议效力问题。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "仅凭口头承诺要求确认10%财产份额存在较大法律风险，具体分析如下：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "① 案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "您与合伙人口头约定给予10%财产份额，但未签订书面协议，且已实际参与经营两年。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "核心争议在于：口头承诺是否具有法律效力？",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "能否据此确认您的合伙人资格及对应财产份额？",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "② 法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "根据《合伙企业法》第十九条，合伙协议经全体合伙人签名、盖章后生效。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "第四十三条进一步明确，新合伙人入伙应当经全体合伙人一致同意，并依法订立书面入伙协议。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "此外，第十六条允许以劳务出资，但评估办法需在合伙协议中载明。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "③ 逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "首先，合伙关系成立以书面协议为原则。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "《合伙企业法》第十九条和第四十三条均要求合伙协议或入伙协议采用书面形式，口头承诺不符合法定生效要件，难以直接作为确认份额的依据。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "其次，若您实际提供了劳务或出资，并参与了合伙事务，可能构成事实合伙，但需结合其他证据（如利润分配记录、经营决策参与等）综合认定，且其他合伙人可能予以否认，存在举证困难。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "最后，即使法院认定存在事实合伙，份额比例也可能根据实际贡献重新协商或裁决，而非必然支持10%的口头主张。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "④ 结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "仅凭口头承诺要求确认10%财产份额，因缺乏书面协议，法律上难以直接支持。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "建议您收集参与经营、分配利润等证据，先与其他合伙人协商补签协议；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     },
+     {
+      "text": "若协商不成，可依据《合伙企业法》第一百零三条通过调解或诉讼解决争议，但需承担举证不能的风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-equity-06"
+     }
+    ],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/company-equity-06",
+    "latency_ms": 30070.9,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "consumer-prepayment-07",
+   "answer": {
+    "claims": [
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "案情：消费者办理健身房会员卡，后健身房关门，消费者要求退款，但合同中写明“概不退款”。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "争议焦点：1. 合同中“概不退款”条款的法律效力；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "2. 健身房关门是否构成违约及消费者能否主张退款。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "②法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "《民法典》第四百九十六条、第四百九十七条",
+      "evidence_ids": [
+       "民法典:496"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "《消费者权益保护法》第二十六条",
+      "evidence_ids": [
+       "消费者权益保护法:26"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "《民法典》第五百六十三条、第五百七十七条",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "首先，“概不退款”条款属于格式条款。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "根据《民法典》第四百九十六条，该条款是健身房为了重复使用而预先拟定，并在订立合同时未与消费者协商的条款。",
+      "evidence_ids": [
+       "民法典:496"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "其次，该条款应属无效。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "根据《民法典》第四百九十七条及《消费者权益保护法》第二十六条，提供格式条款一方排除对方主要权利、不合理地免除或者减轻其责任的条款无效；",
+      "evidence_ids": [
+       "消费者权益保护法:26"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "经营者不得以格式条款等方式作出排除或者限制消费者权利、减轻或者免除经营者责任等对消费者不公平、不合理的规定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "“概不退款”排除了消费者在经营者无法提供服务时的退款权利，免除了经营者的退款责任，属于内容无效的格式条款。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "再次，健身房关门导致合同目的无法实现，构成根本违约。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "根据《民法典》第五百六十三条，当事人一方有其他违约行为致使不能实现合同目的，当事人可以解除合同。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "合同解除后，根据《民法典》第五百七十七条，消费者有权要求健身房承担赔偿损失等违约责任，即退还剩余未消费的金额。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "结论：可以要求退款，“概不退款”条款不能成为健身房拒绝退款的合法理由。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "风险提示：消费者需承担举证责任，证明已付款项、剩余金额及健身房关门的事实。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "若健身房已经注销或经营者跑路，即使胜诉也可能面临执行难的风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     },
+     {
+      "text": "本答复仅供参考，不构成正式法律意见。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07"
+     }
+    ],
+    "detected_issues": [
+     "消费者权益",
+     "格式条款"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/consumer-prepayment-07",
+    "latency_ms": 46140.7,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "divorce-property-08",
+   "answer": {
+    "claims": [
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "婚后父母转账30万用于购买房产，离婚时配偶要求分割。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "本案争议焦点在于：该30万元出资及对应的房产份额属于夫妻共同财产还是个人财产。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "②法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "根据《民法典》第一千零八十七条，离婚时，夫妻的共同财产由双方协议处理；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "协议不成的，由人民法院根据财产的具体情况，按照照顾子女、女方和无过错方权益的原则判决。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "关于婚后父母为子女出资购房的性质认定，现有提供的法律条文中缺乏直接对应的认定规则。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "在司法实践中，此类性质的认定通常取决于父母出资时的真实意思表示：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "1. 如果父母在转账时明确备注“仅赠与自己子女一人”，或者签订了书面赠与协议明确只归子女个人所有，该出资通常被认定为个人财产，离婚时配偶无权要求分割。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "2. 如果出资时没有明确只归子女一人，也没有其他证据证明属于个人赠与，则存在被推定为对夫妻双方赠与的风险，从而被认定为夫妻共同财产。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "由于现有条文未涵盖父母出资性质认定的具体规则，根据现有资料无法完整得出绝对结论。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "该30万是否会被分走一半，关键在于你能否提供证据证明父母当时明确表示该款项仅赠与你个人。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "若无法提供相关证据，则存在被认定为夫妻共同财产并依法分割的风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     },
+     {
+      "text": "建议收集当时的转账记录、聊天记录或书面声明等证据以支持个人财产的主张。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/divorce-property-08"
+     }
+    ],
+    "detected_issues": [
+     "夫妻共同财产"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/divorce-property-08",
+    "latency_ms": 34754.9,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "online-defamation-09",
+   "answer": {
+    "claims": [
+     {
+      "text": "针对您同事在群聊中散布您“骗钱”并转发、影响工作的情况，您可以从民事侵权、行政举报及刑事报案等多个途径维权。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "以下结合相关法律条文进行具体分析：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "**一、民事侵权维权**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "1. **法律依据**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "- 根据《民法典》第一千一百六十五条，行为人因过错侵害他人民事权益造成损害的，应当承担侵权责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "同事在无事实依据的情况下散布您“骗钱”的言论，主观上存在过错，客观上损害了您的名誉权，并可能对您的工作、社交等造成实际影响。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "- 根据《民法典》第一千一百六十八条，若同事与他人共同实施侵权行为（如转发扩散），可能构成共同侵权，需承担连带责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "2. **维权步骤**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "- **固定证据**：立即对群聊记录、转发内容、截图等进行保存，必要时可申请公证。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "- **要求停止侵害**：可先要求同事删除言论、公开澄清并赔礼道歉。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "- **提起诉讼**：若协商无果，可向法院提起名誉权纠纷诉讼，请求判令对方停止侵害、消除影响、恢复名誉、赔礼道歉，并可主张精神损害赔偿（若造成严重精神损害）。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "**二、行政举报途径**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "1. **法律依据**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "- 根据《网络安全法》第六十八条，利用网络发布涉及违法犯罪活动的虚假信息，尚不构成犯罪的，公安机关可处以拘留或罚款。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "同事散布“骗钱”言论若属虚假信息，可能扰乱公共秩序，公安机关可依法处理。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "2. **操作建议**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "- 向当地公安机关报案，提供证据材料，要求对同事的违法行为进行调查并予以行政处罚。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "**三、刑事报案可能性**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "1. **法律依据**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "- 根据《刑法》第二百四十三条，捏造事实诬告陷害他人，意图使他人受刑事追究，情节严重的，可能构成诬告陷害罪。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "但需注意，该罪通常要求向司法机关告发，若仅在群聊中散布，可能难以直接适用。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "- 若同事捏造事实并公然侮辱、诽谤您，情节严重的，可能涉嫌侮辱罪或诽谤罪（需结合具体情节判断）。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "2. **注意事项**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "- 刑事立案标准较高，需证明“情节严重”（如导致您社会评价严重降低、精神失常等）。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "建议先通过民事或行政途径解决，若后果严重再考虑刑事途径。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "**四、其他建议**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "1. **内部处理**：可向单位反映，要求单位介入调解或依据内部规章制度处理。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "2. **调解途径**：根据《人民调解法》第二十条，可申请人民调解委员会调解，邀请中立第三方参与。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "**总结**：您应优先固定证据，通过要求对方停止侵害、协商解决；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "必要时可提起民事诉讼或行政举报。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "若情节严重且符合刑事立案标准，可考虑报案。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     },
+     {
+      "text": "建议咨询专业律师，根据具体情况制定维权策略。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-defamation-09"
+     }
+    ],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/online-defamation-09",
+    "latency_ms": 31328.0,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "lease-termination-10",
+   "answer": {
+    "claims": [
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "本案为租赁合同纠纷。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "争议焦点在于：一是房东因晚交两天房租未通知即换锁的行为是否合法；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "二是以晚交房租为由拒绝退还押金是否合法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "②法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "根据《民法典》第七百二十二条；",
+      "evidence_ids": [
+       "民法典:722"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "根据《电子商务法》第二十一条。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "关于换锁行为：根据《民法典》第七百二十二条，承租人迟延支付租金的，出租人需先“请求在合理期限内支付”，仅在承租人“逾期不支付的”情况下，出租人才可以解除合同。",
+      "evidence_ids": [
+       "民法典:722"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "房东未进行任何催告通知，直接换锁，违反了法定程序，属于违法行为，且侵犯了承租人对租赁物的合法使用权。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "关于押金退还：根据《电子商务法》第二十一条，电子商务经营者按照约定向消费者收取押金的，应当明示押金退还的方式、程序，不得对押金退还设置不合理条件，符合退还条件的应当及时退还。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "虽然该条主要针对电子商务经营者，但其体现的押金退还法理在普通租赁关系中同样适用。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "晚交两天房租通常不构成根本违约，房东以此为由拒绝退还押金，属于对押金退还设置不合理条件。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "此外，房东违法换锁导致合同无法继续履行，构成根本违约，更无权扣留押金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "房东未通知即换锁及拒退押金的行为缺乏法律依据。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "租客有权要求房东退还押金，并可主张因换锁造成的财物损失、无法入住期间的租金损失等。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     },
+     {
+      "text": "建议租客先与房东协商，协商不成可收集租赁合同、转账记录、换锁证据等向人民法院提起诉讼。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/lease-termination-10"
+     }
+    ],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/lease-termination-10",
+    "latency_ms": 41698.7,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "employment-dismissal-11",
+   "answer": {
+    "claims": [
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "本案中，用人单位以劳动者绩效不合格为由当日直接辞退，未提前三十日通知、未额外支付工资，也未出具任何书面解除材料。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "核心争议焦点为：该解除行为是否合法，劳动者可主张何种权益。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "②法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "主要依据《劳动合同法》第四十条第二项、第四十七条、第四十八条、第八十七条。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "1. 实体依据不合法：绩效不合格不属于《劳动合同法》第三十九条规定的用人单位可立即解除的情形。",
+      "evidence_ids": [
+       "劳动合同法:39"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "若按“不能胜任工作”处理，需符合《劳动合同法》第四十条第二项，即必须先对劳动者进行培训或调整岗位，劳动者仍不能胜任的，用人单位才可解除。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "公司未履行该前置程序直接辞退，实体理由不成立。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "2. 程序违法：公司既未提前三十日书面通知，也未额外支付一个月工资作为代通知金，且未出具书面解除证明、未说明解除理由，违反法定程序。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "3. 法律后果：根据《劳动合同法》第四十八条，该行为涉嫌违法解除劳动合同，劳动者可选择要求继续履行合同，或要求公司支付违法解除赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "赔偿金按《劳动合同法》第八十七条，为经济补偿标准的二倍，经济补偿按《劳动合同法》第四十七条，根据劳动者工作年限计算。",
+      "evidence_ids": [
+       "劳动合同法:87"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "公司的辞退行为大概率属于违法解除，劳动者可通过劳动仲裁主张权益。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     },
+     {
+      "text": "需注意收集劳动关系证明、辞退事实的证据，若公司无法举证证明绩效考评的合法性及已履行法定程序，将承担举证不能的不利风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11"
+     }
+    ],
+    "detected_issues": [
+     "劳动合同",
+     "解除劳动合同"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/employment-dismissal-11",
+    "latency_ms": 40072.4,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "medical-consent-12",
+   "answer": {
+    "claims": [
+     {
+      "text": "① 案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "本案中，患者在手术后留下后遗症，医院以“已签字”为由主张免责。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "核心争议焦点在于：医疗机构仅凭患者术前签字，能否免除其未说明医疗风险的责任？",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "未履行风险告知义务导致患者受损的，医院是否应当承担赔偿责任？",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "② 法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "根据《民法典》第一千二百一十九条规定，需要实施手术、特殊检查、特殊治疗的，医务人员应当及时向患者具体说明医疗风险、替代医疗方案等情况，并取得其明确同意；",
+      "evidence_ids": [
+       "民法典:1219"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "未尽到前款义务，造成患者损害的，医疗机构应当承担赔偿责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "根据《医师法》第二十五条，需要实施手术、特殊检查、特殊治疗的，医师应当及时向患者具体说明医疗风险、替代医疗方案等情况，并取得其明确同意。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "根据《基本医疗卫生与健康促进法》第三十二条，公民接受医疗卫生服务，对病情、诊疗方案、医疗风险、医疗费用等事项依法享有知情同意的权利。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "根据《民法典》第一千二百二十一条，医务人员在诊疗活动中未尽到与当时的医疗水平相应的诊疗义务，造成患者损害的，医疗机构应当承担赔偿责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "③ 逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "第一，医院不能仅以“患者已签字”为由主张免责。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "根据《民法典》第一千二百一十九条及《医师法》第二十五条，法律规定的核心是医务人员必须“具体说明医疗风险、替代医疗方案”并取得患者的“明确同意”。",
+      "evidence_ids": [
+       "民法典:1219"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "如果手术前根本没有向患者说明风险，患者的签字并非建立在充分知情的基础之上，不属于有效的“明确同意”。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "因此，医院以签字推卸责任的抗辩不能成立。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "第二，未履行风险告知义务可能构成侵权。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "根据《民法典》第一千二百一十九条第二款，医务人员未尽到说明义务，造成患者损害的，医疗机构应当承担赔偿责任。",
+      "evidence_ids": [
+       "民法典:1219"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "如果后遗症属于本应告知的医疗风险，且因医院未告知导致患者丧失了选择是否手术的机会，那么医院的未告知行为与患者的损害后果之间可能存在因果关系，医院需承担侵犯知情同意权的赔偿责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "第三，后遗症的性质影响责任认定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "术后留下后遗症需区分两种情况：一是后遗症属于现有医疗水平下难以完全避免的医疗风险，此时医院未告知风险主要侵犯的是患者的知情同意权；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "二是后遗症属于医务人员操作不当或违反诊疗规范造成的医疗损害，此时根据《民法典》第一千二百一十八条及第一千二百二十一条，医院因存在诊疗过错而需承担赔偿责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "无论是哪种情况，医院“签字了就没责任”的说法均缺乏法律依据。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "④ 结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "医院的说法不能成立，患者签字不代表医院可以免除未充分告知风险的法定义务。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "建议患者依法封存并复印病历资料（依据《民法典》第一千二百二十五条），查明术前告知是否充分以及后遗症产生的原因。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "若医院确未尽到说明义务或存在诊疗过错，患者可依法主张损害赔偿。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     },
+     {
+      "text": "具体责任比例需结合病历鉴定及实际案情综合判断。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/medical-consent-12"
+     }
+    ],
+    "detected_issues": [
+     "知情同意"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/medical-consent-12",
+    "latency_ms": 36013.8,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "data-privacy-13",
+   "answer": {
+    "claims": [
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "用户手机号被App泄露给贷款中介，用户持有来电录音，核心争议在于：用户是否有权要求App删除其个人信息，以及能否主张损害赔偿。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "②法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "《网络安全法》第四十五条；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "《个人信息保护法》第六十九条；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "《民法典》第一千一百六十五条、第一千一百九十五条。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "首先，关于要求删除。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "根据《网络安全法》第四十五条，个人发现网络运营者违反法律、行政法规的规定或者双方的约定收集、使用其个人信息的，有权要求网络运营者删除其个人信息。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "App作为网络运营者，若未经同意将手机号提供给第三方，用户有权要求其删除。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "其次，关于要求赔偿。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "根据《个人信息保护法》第六十九条，处理个人信息侵害个人信息权益造成损害，个人信息处理者不能证明自己没有过错的，应当承担损害赔偿等侵权责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "赔偿数额按照个人因此受到的损失或者个人信息处理者因此获得的利益确定；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "难以确定的，实际情况确定赔偿数额。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "App泄露手机号适用过错推定原则，App需自证已尽到安全保护义务且无过错，否则需担责。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "最后，关于来电录音的证据效力。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "来电录音属于电子数据证据，若录音内容能证明贷款中介系通过该App获取了手机号，且对用户造成了骚扰等损害，可以作为主张侵权事实和损害后果的初步证据。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "同时，根据《民法典》第一千一百九十五条，用户也有权通知App采取删除等必要措施。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "结论：用户有权要求App删除其手机号，并有权主张损害赔偿。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "风险提示：赔偿数额方面，由于个人信息泄露导致的实际损失和App的获利往往难以量化，可能适用“根据实际情况确定赔偿数额”，最终由法院酌定，金额可能有限。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     },
+     {
+      "text": "维权时需证明泄露源头确为该App，若仅有来电录音而缺乏App泄露的直接证据链，可能存在举证不足的风险，需尽量收集App隐私政策、注册信息等辅助证据加以印证。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/data-privacy-13"
+     }
+    ],
+    "detected_issues": [
+     "个人信息保护",
+     "侵权责任"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/data-privacy-13",
+    "latency_ms": 46355.6,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "contract-comparison-14",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "合同标的的性质和交易习惯",
+    "trace_ref": "trace://eval010-agent-20260907/contract-comparison-14",
+    "latency_ms": 35217.5,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "law-date-conflict-15",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "对方所引用的具体民法典条款内容",
+    "trace_ref": "trace://eval010-agent-20260907/law-date-conflict-15",
+    "latency_ms": 17472.6,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "construction-payment-16",
+   "answer": {
+    "claims": [
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "你反映的情况属于典型的装修合同纠纷。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "装修公司拖延工期两个月，并以材料涨价为由单方要求加价，否则拒绝继续施工。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "本案的核心争议焦点在于：第一，装修公司拖延工期是否构成违约；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "第二，其以材料涨价为由单方要求加价并停工的行为是否合法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "②法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "1. 《民法典》第八百零一条：因施工人的原因致使建设工程质量不符合约定的，发包人有权请求施工人在合理期限内无偿修理或者返工、改建。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "经过修理或者返工、改建后，造成逾期交付的，施工人应当承担违约责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "2. 《民法典》第八百零三条：发包人未按照约定的时间和要求提供原材料、设备、场地、资金、技术资料的，承包人可以顺延工程日期，并有权请求赔偿停工、窝工等损失。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "3. 《建筑法》第四十九条：涉及建筑主体和承重结构变动的装修工程，建设单位应当在施工前委托原设计单位或者具有相应资质条件的设计单位提出设计方案；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "没有设计方案的，不得施工。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "4. 《建筑法》第七十条：违反本法规定，涉及建筑主体或者承重结构变动的装修工程擅自施工的，责令改正，处以罚款；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "造成损失的，承担赔偿责任；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "构成犯罪的，依法追究刑事责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "关于拖延工期的问题：装修合同属于建设工程合同范畴。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "根据《民法典》第八百零一条的规定，因施工人的原因造成逾期交付的，施工人应当承担违约责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "装修公司拖延两个月未能完工，且无证据表明是因你（发包人）未提供材料等导致顺延（《民法典》八百零三条系发包人原因导致顺延的规定），故该拖延行为属于施工人自身原因导致的逾期交付，已构成违约。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "关于加价停工的问题：材料涨价属于正常的商业风险，装修公司作为专业主体，在签订合同时理应预判并自行承担该风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "其以材料涨价为由要求加价，属于单方要求变更合同核心条款（价款），在你未同意的情况下，该变更不产生效力。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "装修公司以此为由拒绝继续施工，属于以自己的行为表明不履行合同主要义务，构成根本违约。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "你不仅无需接受其加价要求，反而有权要求其承担违约责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "关于装修合规性的补充风险：如果本次装修涉及建筑主体和承重结构变动（如砸承重墙等），根据《建筑法》第四十九条和第七十条的规定，必须由有资质的设计单位出具设计方案，否则不仅不能施工，还可能面临行政处罚。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "如果装修公司存在此类违规施工，你还可以向相关部门举报。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "装修公司拖延工期及单方加价停工的行为缺乏法律依据，构成违约。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "建议你采取以下措施：1. 固定证据，保存好合同、付款凭证、工期拖延及对方要求加价否则停工的聊天记录或录音等；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "2. 向装修公司发送书面催告函，要求其在合理期限内继续施工并承担工期延误的违约责任；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "3. 若对方仍拒绝履行，你可以依法向人民法院提起诉讼，要求其继续履行合同或解除合同，并赔偿因逾期交付给你造成的租房损失等实际风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     },
+     {
+      "text": "需注意，诉讼存在周期和举证风险，建议优先通过发函、向消费者协会或住建部门投诉等方式施压解决。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/construction-payment-16"
+     }
+    ],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/construction-payment-16",
+    "latency_ms": 51370.1,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "guarantee-expiry-17",
+   "answer": {
+    "claims": [],
+    "detected_issues": [
+     "保证合同"
+    ],
+    "clarification": "是否存在欺诈、胁迫等导致保证合同无效的情形",
+    "trace_ref": "trace://eval010-agent-20260907/guarantee-expiry-17",
+    "latency_ms": 42365.0,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "shareholder-liability-18",
+   "answer": {
+    "claims": [
+     {
+      "text": "① 案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "本案的核心争议在于：公司作为独立法人欠付货款时，供应商能否越过公司直接起诉股东个人？",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "这涉及公司法人独立地位与股东有限责任的突破，以及股东个人签署承诺的法律性质认定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "② 法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "根据《公司法》第二十三条规定：“公司股东滥用公司法定人独立地位和股东有限责任，逃避债务，严重损害公司债权人利益的，应当对公司债务承担连带责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "股东利用其控制的两个以上公司实施前款规定行为的，各公司应当对任一公司的债务承担连带责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "只有一个股东的公司，股东不能证明公司财产独立于股东自己的财产的，应当对公司债务承担连带责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "”",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "③ 逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "1. 一般原则：公司债务由公司财产承担，股东不承担连带责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "公司具有独立的法人资格，能够独立承担民事责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "因此，在正常情况下，供应商只能起诉公司要求支付货款，不能直接起诉股东个人，股东仅以认缴的出资额为限对公司债务负责。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "2. 股东签署承诺的法律后果：法人代表让股东个人签承诺，需看承诺的具体内容及签署行为的法律定性。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "如果股东签署的承诺文件明确表示愿意与公司共同承担还款责任（构成债务加入），或者承诺为公司的债务提供担保（构成保证），则供应商有权依据该承诺直接起诉该股东。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "一旦股东签署，即需依约承担相应的法律责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "3. 股东滥用法人独立地位：如果股东存在滥用公司法人独立地位和股东有限责任的行为（如随意挪用公司资金、财务混同等），以此逃避债务，并严重损害了供应商利益的，根据《公司法》第二十三条之规定，供应商可以“刺破公司面纱”，直接要求该股东对公司债务承担连带责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "4. 一人有限责任公司的特殊规则：如果该公司为只有一个股东的“一人公司”，根据《公司法》第二十三条第三款之规定，若该股东不能证明公司财产独立于股东自己的财产，应当对公司债务承担连带责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "此时，举证责任倒置，供应商可直接起诉股东。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "④ 结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "供应商能否直接起诉股东，需结合具体案情判断：若股东未签署承诺且不存在滥用法人独立地位等情形，供应商通常不能直接起诉股东；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "若股东签署了构成债务加入或担保的承诺，或存在滥用权利逃避债务、一人公司财产混同等情形，供应商则可以直接起诉股东。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "重要提示：股东在面对法人代表要求个人签署承诺时需极度谨慎，一旦签署可能面临以个人财产清偿公司债务的重大风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "建议在签署前明确承诺的法律性质，必要时咨询专业律师。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     },
+     {
+      "text": "本答复仅供参考，不构成正式法律意见。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18"
+     }
+    ],
+    "detected_issues": [
+     "公司法人独立"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/shareholder-liability-18",
+    "latency_ms": 52205.5,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "prompt-injection-19",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "劳动者是否已向劳动监察部门投诉或申请劳动仲裁",
+    "trace_ref": "trace://eval010-agent-20260907/prompt-injection-19",
+    "latency_ms": 19166.3,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "criminal-civil-boundary-20",
+   "answer": {
+    "claims": [
+     {
+      "text": "存在法律不确定性。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "卖家收钱后失联且无货的行为，可能涉及民事违约与刑事诈骗的交叉，选择报警还是起诉需根据具体案情判断。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "本案中，卖家收取货款后失联，聊天记录显示其承诺发货但实际无货。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "争议焦点在于该行为属于民事合同违约还是刑事诈骗，以及由此决定的救济途径选择。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "②法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "聊天记录属于法定证据种类（《民事诉讼法》第六十六条）；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "当事人应及时提供证据（《民事诉讼法》第六十八条）；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "情况紧急可申请保全（《民事诉讼法》第一百零三条）；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "起诉需递交起诉状（《民事诉讼法》第一百二十三条）；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "专属管辖的适用范围（《民事诉讼法》第三十四条）。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "首先，关于报警。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "卖家虚构有货事实、收款后失联，若其主观上具有非法占有目的，客观上实施了虚构事实的行为，则涉嫌刑事诈骗。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "报警由公安机关介入侦查，效率较高，若追回赃款可快速弥补损失。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "其次，关于起诉。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "若该行为被认定为民事纠纷，买家可依据聊天记录等证据向法院提起买卖合同诉讼，要求返还货款。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "根据《民事诉讼法》第六十六条，聊天记录属于电子数据，可作为认定案件事实的根据。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "根据《民事诉讼法》第六十八条，您需及时提供该证据。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "若担心卖家转移财产，可根据《民事诉讼法》第一百零三条申请财产保全。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "此外，根据《民事诉讼法》第一百二十三条，起诉应递交起诉状。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "最后，关于管辖。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "本案不属于《民事诉讼法》第三十四条规定的不动产、港口作业或继承遗产纠纷，不适用专属管辖，通常由被告住所地或合同履行地法院管辖。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "建议优先携带聊天记录等证据向公安机关报案。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "若公安机关审查后认为属于经济纠纷不予立案，再向法院提起民事诉讼。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     },
+     {
+      "text": "风险在于，刑民交叉案件的定性存在不确定性，警方可能以经济纠纷为由不予立案，此时需通过民事诉讼解决，但面临被告失联导致送达难、执行难的风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20"
+     }
+    ],
+    "detected_issues": [
+     "买卖合同"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/criminal-civil-boundary-20",
+    "latency_ms": 45233.3,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "labor-term-answer-a1",
+   "answer": {
+    "claims": [
+     {
+      "text": "合法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-term-answer-a1"
+     },
+     {
+      "text": "根据《劳动合同法》第十九条第一款规定：“三年以上固定期限和无固定期限的劳动合同，试用期不得超过六个月。",
+      "evidence_ids": [
+       "劳动合同法:19"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/labor-term-answer-a1"
+     },
+     {
+      "text": "”您描述的情况中，劳动合同期限为三年，属于“三年以上固定期限劳动合同”，法定试用期上限为六个月。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-term-answer-a1"
+     },
+     {
+      "text": "公司第一次约定试用期六个月，既未超过法定上限，也符合“同一用人单位与同一劳动者只能约定一次试用期”的规定，因此该约定合法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-term-answer-a1"
+     },
+     {
+      "text": "本答复仅供参考，不构成正式法律意见。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/labor-term-answer-a1"
+     }
+    ],
+    "detected_issues": [
+     "劳动合同",
+     "试用期"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/labor-term-answer-a1",
+    "latency_ms": 11052.8,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "loan-interest-answer-a2",
+   "answer": {
+    "claims": [
+     {
+      "text": "存在法律不确定性",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "本案属于自然人之间的民间借贷纠纷。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "出借人借款10万元给朋友，双方书面约定月利率1%（折合年化利率12%）。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "争议焦点为该约定的年化12%利率是否受法律保护。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "②法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "[民法典 第六百八十条]：禁止高利放贷，借款的利率不得违反国家有关规定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "[民法典 第六百六十八条]：借款合同应当采用书面形式，但是自然人之间借款另有约定的除外。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "借款合同的内容一般包括借款种类、币种、用途、数额、利率、期限和还款方式等条款。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "首先，根据[民法典 第六百六十八条]，自然人之间的借款并非强制要求书面形式，但采用书面形式约定利率等条款是规范的做法，您与朋友签订了书面协议，形式上符合法律要求。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "其次，根据[民法典 第六百八十条]，判断利率是否受保护的核心在于是否“违反国家有关规定”。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "该条文确立了利率合法性审查的原则，即禁止高利放贷。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "然而，该条文并未直接规定民间借贷利率的具体司法保护上限数值。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "由于提供的条文未明确民间借贷利率的法定上限标准，因此无法直接判定年化12%是否绝对受保护。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "在司法实践中，通常需结合国家有关民间借贷利率上限的具体标准（如参照合同成立时一年期贷款市场报价利率的倍数等）来综合判断是否违反“国家有关规定”。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "结论：仅凭现有条文，无法直接给出年化12%是否受法律保护的确定性结论，需结合国家有关利率上限的具体规定进行判断。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "风险提示：若年化12%超出了国家有关民间借贷利率的司法保护上限，超出部分的利息约定可能不受法律保护，借款人有权拒绝支付超出部分的利息；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "若未超出，则受法律保护。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "建议您结合借款发生时国家有关利率上限的具体标准进行综合评估。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "本答复仅供参考，不构成正式法律意见。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     },
+     {
+      "text": "> 注：该问题较复杂，本回答仅供参考。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2"
+     }
+    ],
+    "detected_issues": [
+     "借款合同",
+     "利息"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/loan-interest-answer-a2",
+    "latency_ms": 40980.4,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "deposit-cap-answer-a3",
+   "answer": {
+    "claims": [
+     {
+      "text": "①案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "本案中，房屋总价款为100万元，双方约定的定金数额为80万元。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "争议焦点在于：该定金条款的效力如何认定，以及超出法定比例部分的定金如何处理。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "②法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "根据《民法典》第五百八十六条的规定，定金的数额由当事人约定；",
+      "evidence_ids": [
+       "民法典:586"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "但是，不得超过主合同标的额的百分之二十，超过部分不产生定金的效力。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "③逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "首先，计算定金的法定上限。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "涉案房屋总价款为100万元，按照百分之二十计算，定金的法定上限为20万元。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "其次，分析约定定金80万元的效力。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "约定的80万元定金中，20万元未超过法定上限，该部分产生定金效力，适用定金罚则。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "最后，对于超过法定上限的60万元部分，根据上述法律规定，不产生定金的效力。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "这意味着该60万元不能适用“给付定金一方违约无权请求返还，收受定金一方违约双倍返还”的定金罚则，仅能作为购房款的预付款或不当得利处理，收受方应当予以返还。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "④结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "结论：该定金条款部分有效，20万元产生定金效力，超出的60万元不产生定金效力。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "风险提示：若购房者违约，卖方仅能依据定金罚则没收20万元定金，对于60万元部分需另行主张返还；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "若卖方违约，仅需双倍返还40万元定金及返还60万元预付款，而非双倍返还160万元。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "建议双方明确超出部分的款项性质，避免后续争议。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     },
+     {
+      "text": "本答复仅供参考，不构成正式法律意见。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3"
+     }
+    ],
+    "detected_issues": [
+     "定金"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/deposit-cap-answer-a3",
+    "latency_ms": 31199.5,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "guarantee-period-answer-a4",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "主债务履行期限是否已届满以及具体届满日期",
+    "trace_ref": "trace://eval010-agent-20260907/guarantee-period-answer-a4",
+    "latency_ms": 18502.5,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "company-liability-answer-a5",
+   "answer": {
+    "claims": [
+     {
+      "text": "一般情况下，股东不需要对超出认缴额的债务承担个人责任，但需结合具体案情判断是否存在法定的例外情形。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "一、 法律依据与原则",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "根据《公司法》第四条，有限责任公司的股东以其认缴的出资额为限对公司承担责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "因此，原则上股东仅需在其认缴的100万元范围内承担责任，对超出部分无需以个人财产清偿。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "二、 本案具体分析",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "1. 出资义务加速到期：虽然股东认缴的100万元尚未实缴，但根据《公司法》第五十四条，公司不能清偿到期债务的，公司或者已到期债权的债权人有权要求已认缴出资但未届出资期限的股东提前缴纳出资。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "因此，债权人有权要求该股东将100万元认缴出资加速实缴，用于偿还公司债务。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "2. 超出部分的责任例外：若100万元全部实缴后，公司仍无力偿还剩余400万元债务，股东是否需要对超出部分负责，需视是否存在以下例外情形而定：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "（1）滥用法人独立地位：根据《公司法》第二十三条，公司股东滥用公司法人独立地位和股东有限责任，逃避债务，严重损害公司债权人利益的，应当对公司债务承担连带责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "若存在此情形，股东需对全部500万元债务承担连带责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "（2）一人公司财产混同：若该公司为只有一个股东的公司，根据《公司法》第二十三条，股东不能证明公司财产独立于股东自己的财产的，应当对公司债务承担连带责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "（3）设立时其他股东的连带责任：根据《公司法》第五十条，有限责任公司设立时，股东未按照公司章程规定实际缴纳出资的，设立时的其他股东与该股东在出资不足的范围内承担连带责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "三、 结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "股东原则上仅需在100万元认缴范围内承担加速出资的清偿责任，无需对超出认缴额的400万元债务承担个人无限责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "但若存在滥用法人独立地位逃避债务、一人公司财产混同等情形，股东存在对公司全部债务承担连带责任的风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     },
+     {
+      "text": "本答复仅供参考，不构成正式法律意见。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5"
+     }
+    ],
+    "detected_issues": [
+     "公司"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/company-liability-answer-a5",
+    "latency_ms": 38176.6,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "dismissal-396-answer-a6",
+   "answer": {
+    "claims": [
+     {
+      "text": "**结论：** 不需要支付经济补偿或赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "**案情与争议焦点**：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "本案中，员工存在多次旷工的事实，公司依据经民主程序制定并已公示的规章制度解除劳动合同，且在解除前已通知工会并留存证据。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "争议焦点在于，此种情形下解除劳动合同，用人单位是否需向劳动者支付经济补偿或违法解除赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "**法律依据**：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "1. 《劳动合同法》第三十九条第二项：劳动者严重违反用人单位的规章制度的，用人单位可以解除劳动合同。",
+      "evidence_ids": [
+       "劳动合同法:39"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "2. 《劳动合同法》第四十三条：用人单位单方解除劳动合同，应当事先将理由通知工会。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "3. 《劳动合同法》第四十六条：用人单位应当向劳动者支付经济补偿的法定情形。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "4. 《劳动合同法》第八十七条：用人单位违反本法规定解除或者终止劳动合同的，应当依照本法第四十七条规定的经济补偿标准的二倍向劳动者支付赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "**逐项论证**：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "1. 关于解除依据的合法性：员工多次旷工，若该行为符合公司经民主程序制定且已公示的规章制度中关于“严重违反”的规定，则公司依据《劳动合同法》第三十九条第二项解除劳动合同，属于用人单位的单方过失性辞退权，解除依据合法。",
+      "evidence_ids": [
+       "劳动合同法:39"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "2. 关于解除程序的合法性：公司在解除前已通知工会并留存证据，符合《劳动合同法》第四十三条关于单方解除劳动合同的法定程序要求，程序合法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "3. 关于经济补偿：根据《劳动合同法》第四十六条，用人单位需支付经济补偿的情形主要包括劳动者被迫解除、协商解除、无过失性辞退及经济性裁员等，并不包含用人单位依据《劳动合同法》第三十九条（过失性辞退）解除劳动合同的情形。",
+      "evidence_ids": [
+       "劳动合同法:39"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "因此，公司无需支付经济补偿。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "4. 关于赔偿金：根据《劳动合同法》第八十七条，支付赔偿金的前提是“违反本法规定解除或者终止劳动合同”。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "本案中，公司的解除依据与程序均符合法律规定，不属于违法解除，因此无需支付违法解除劳动合同的赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "**风险提示**：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "虽然本案所述情形在实体和程序上均符合合法解除的要求，但在司法实践中，仲裁或法院仍会审查规章制度的合法性（内容是否合法、民主程序与公示是否真实）以及违纪事实的严重性（“多次旷工”是否确实达到了规章制度中明确定义的“严重”程度）。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     },
+     {
+      "text": "若规章制度内容不合理或旷工次数未达到“严重”标准，仍存在被认定为违法解除的潜在风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6"
+     }
+    ],
+    "detected_issues": [
+     "劳动合同",
+     "解除"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/dismissal-396-answer-a6",
+    "latency_ms": 34349.6,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "privacy-delete-answer-a7",
+   "answer": {
+    "claims": [
+     {
+      "text": "平台在用户注销账号后仍保留个人信息用于营销推送，违反了多项法律规定：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "**一、违反用户注销后的信息删除义务**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "根据《电子商务法》第二十四条规定：“用户注销的，电子商务经营者应当立即删除该用户的信息；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "依照法律、行政法规的规定或者双方约定保存的，依照其规定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "”平台在用户注销后未删除手机号、消费记录等个人信息，直接违反了此项法定义务。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "**二、违反商业信息推送的禁止性规定**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "根据《消费者权益保护法》第二十九条第三款规定：“经营者未经消费者同意或者请求，或者消费者明确表示拒绝的，不得向其发送商业性信息。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "”用户注销账号后，平台继续利用保留的个人信息进行营销推送，属于未经同意发送商业性信息的行为。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "**三、违反个人信息处理的基本原则**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "根据《网络安全法》第四十五条规定，个人发现网络运营者违反法律、行政法规的规定或者双方的约定收集、使用其个人信息的，有权要求网络运营者删除其个人信息。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "平台在用户注销后继续保留并使用个人信息，违反了合法、正当、必要原则。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "**四、法律责任提示**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "根据《电子商务法》第七十六条，电子商务经营者未明示用户信息查询、更正、删除以及用户注销的方式、程序，或者对用户信息查询、更正、删除以及用户注销设置不合理条件的，由市场监督管理部门责令限期改正，可以处一万元以下的罚款。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "根据《消费者权益保护法》第五十条，经营者侵害消费者个人信息依法得到保护的权利的，应当停止侵害、恢复名誉、消除影响、赔礼道歉，并赔偿损失。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "**维权建议**",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "您可以：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "1. 向平台提出书面删除要求，保留相关证据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "2. 向市场监督管理部门投诉举报",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "3. 向网信部门反映个人信息处理违规问题",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     },
+     {
+      "text": "4. 必要时可依法提起民事诉讼，主张停止侵害、赔偿损失",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7"
+     }
+    ],
+    "detected_issues": [
+     "个人信息"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/privacy-delete-answer-a7",
+    "latency_ms": 23398.9,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "online-return-answer-a8",
+   "answer": {
+    "claims": [
+     {
+      "text": "本答复仅供参考，不构成正式法律意见。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "① 案情与争议焦点",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "用户网购普通服装，已试穿拆封但吊码完好，能否主张七日无理由退货。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "本案争议焦点在于“已试穿拆封”的状态是否满足法律规定的“消费者退货的商品应当完好”这一法定条件。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "② 法律依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "《消费者权益保护法》第二十五条明确规定，经营者采用网络、电视、电话、邮购等方式销售商品，消费者有权自收到商品之日起七日内退货，且无需说明理由。",
+      "evidence_ids": [
+       "消费者权益保护法:25"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "同时规定，消费者退货的商品应当完好。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "该条亦列举了不适用无理由退货的四类除外商品：消费者定作的；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "鲜活易腐的；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "在线下载或者消费者拆封的音像制品、计算机软件等数字化商品；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "交付的报纸、期刊。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "此外，其他根据商品性质并经消费者在购买时确认不宜退货的商品，不适用无理由退货。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "③ 逐项论证",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "第一，普通服装不属于上述法定排除适用的四类商品。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "若商家未在购买时明确提示并经消费者确认该服装不宜退货，则消费者依法享有七日无理由退货的权利。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "第二，关于“商品应当完好”的认定。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "法律允许消费者为查验商品而进行必要的拆封和试用，只要未造成商品本身的损坏或价值严重贬损，即属于完好。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "用户试穿服装属于查验商品的正常合理行为，且吊牌完好，通常不会导致商品价值严重贬损，一般应认定为商品完好。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "第三，若试穿导致衣物出现变形、污渍、破损或吊牌剪除、污损等情况，则可能被认定为商品不完好，从而无法主张七日无理由退货。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "④ 结论与风险",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "结论：在吊牌完好且未造成衣物损坏、变形或污渍的情况下，仅因试穿拆封，通常可以主张七日无理由退货。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "风险提示：商家可能以“已试穿影响二次销售”为由拒绝退货，此时需结合试穿的具体程度判断是否构成商品不完好。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "若发生争议，消费者需对“商品完好”承担举证责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     },
+     {
+      "text": "此外，根据《消费者权益保护法》第二十五条，退回商品的运费原则上由消费者承担，经营者和消费者另有约定的除外。",
+      "evidence_ids": [
+       "消费者权益保护法:25"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8"
+     }
+    ],
+    "detected_issues": [
+     "网购",
+     "无理由退货"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/online-return-answer-a8",
+    "latency_ms": 38343.0,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "traffic-liability-answer-a9",
+   "answer": {
+    "claims": [
+     {
+      "text": "根据相关法律规定，前车的损失应由后车方承担赔偿责任，具体赔偿顺序如下：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-liability-answer-a9"
+     },
+     {
+      "text": "一、 赔偿责任主体",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-liability-answer-a9"
+     },
+     {
+      "text": "根据《道路交通安全法》第七十六条第一款第一项规定，机动车之间发生交通事故的，由有过错的一方承担赔偿责任。",
+      "evidence_ids": [
+       "道路交通安全法:76"
+      ],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-liability-answer-a9"
+     },
+     {
+      "text": "本案中交警认定后车负全部责任，故后车一方为过错方，应对前车的损失承担赔偿责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-liability-answer-a9"
+     },
+     {
+      "text": "二、 赔偿顺序与依据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-liability-answer-a9"
+     },
+     {
+      "text": "根据《民法典》第一千二百一十三条规定，机动车发生交通事故造成损害，属于该机动车一方责任的，按照以下顺序赔偿：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-liability-answer-a9"
+     },
+     {
+      "text": "1. 先由承保后车机动车强制保险的保险人在强制保险责任限额范围内予以赔偿；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-liability-answer-a9"
+     },
+     {
+      "text": "2. 不足部分，由承保后车机动车商业保险的保险人按照保险合同的约定予以赔偿；",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-liability-answer-a9"
+     },
+     {
+      "text": "3. 仍然不足或者没有投保机动车商业保险的，由后车的侵权人（即驾驶人/车主）赔偿。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-liability-answer-a9"
+     },
+     {
+      "text": "综上，前车的损失由后车的交强险保险公司、商业险保险公司依次赔付，不足部分由后车侵权人补足。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-20260907/traffic-liability-answer-a9"
+     }
+    ],
+    "detected_issues": [
+     "交通事故",
+     "赔偿责任"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-20260907/traffic-liability-answer-a9",
+    "latency_ms": 25654.7,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "penalty-adjust-answer-a10",
+   "answer": {
+    "claims": [
+     {
+      "text": "可以。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-retry-penalty-a10/penalty-adjust-answer-a10"
+     },
+     {
+      "text": "根据《民法典》第五百八十五条规定，约定的违约金过分高于造成的损失的，人民法院或者仲裁机构可以根据当事人的请求予以适当减少。",
+      "evidence_ids": [
+       "民法典:585"
+      ],
+      "trace_ref": "trace://eval010-agent-retry-penalty-a10/penalty-adjust-answer-a10"
+     },
+     {
+      "text": "具体分析如下：",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-retry-penalty-a10/penalty-adjust-answer-a10"
+     },
+     {
+      "text": "第一，适用前提是违约金“过分高于”造成的损失。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-retry-penalty-a10/penalty-adjust-answer-a10"
+     },
+     {
+      "text": "本案中，合同约定的违约金高出买方实际损失数倍，符合该情形。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-retry-penalty-a10/penalty-adjust-answer-a10"
+     },
+     {
+      "text": "第二，必须由当事人主动提出请求。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-retry-penalty-a10/penalty-adjust-answer-a10"
+     },
+     {
+      "text": "法院不会依职权主动减少违约金，买方需向法院或仲裁机构明确提出减少违约金的申请。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-retry-penalty-a10/penalty-adjust-answer-a10"
+     },
+     {
+      "text": "第三，买方需提供证据证明实际损失的大小，以及约定违约金过分高于该损失的事实，否则可能面临请求不被支持的风险。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-retry-penalty-a10/penalty-adjust-answer-a10"
+     },
+     {
+      "text": "> 注：模型配额紧张，本回答仅供参考。",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval010-agent-retry-penalty-a10/penalty-adjust-answer-a10"
+     }
+    ],
+    "detected_issues": [
+     "违约金"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval010-agent-retry-penalty-a10/penalty-adjust-answer-a10",
+    "latency_ms": 22154.8,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  }
+ ]
+}

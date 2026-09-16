@@ -1,0 +1,702 @@
+{
+ "run": "qwen36-batch1",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "制度在内网，但我不记得是否培训过",
+      "公司没有培训或调岗"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "87dc1835-1991-490a-a254-3b5ebbd2aa50",
+      "state_version": 4,
+      "conv_id": 2227
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "CROSS_ISSUE_EVIDENCE"
+     ],
+     "clar_meta": {
+      "run_id": "87dc1835-1991-490a-a254-3b5ebbd2aa50",
+      "state_version": 8,
+      "conv_id": 2227
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "公司是否对劳动者进行了培训或者调整工作岗位"
+    },
+    {
+     "round": 2,
+     "prompt": "绩效不合格的考核标准是否经过民主程序制定并向劳动者公示"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r1-f1",
+    "C01-r2-f1"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 2,
+     "prompt": "绩效不合格的考核标准是否经过民主程序制定并向劳动者公示"
+    }
+   ],
+   "error_codes": [
+    "CROSS_ISSUE_EVIDENCE"
+   ],
+   "conv_id": 2227,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 1012.4
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "7e6c3112-2f44-4802-bcbc-eebb3b681a69",
+      "state_version": 4,
+      "conv_id": 2228
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动合同约定的工资标准或实际发放的月平均工资数额"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "劳动合同约定的工资标准或实际发放的月平均工资数额"
+    }
+   ],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2228,
+   "final_chars": 642,
+   "final_text": "存在法律不确定性\n\n1. 案情与争议焦点\n本案核心在于劳动者未保留考勤、工资条等直接证据时，如何证明加班事实、确定加班费基数及计算时效。举证责任分配与证据采信是主要难点。\n\n2. 法律依据（引条文）\n根据《劳动法》第四十一条，加班需经协商且受时长限制。根据《劳动法》第四十四条，加班费标准分别为平日150%、休息日200%、法定假日300%。根据《劳动合同法》第三十一条，用人单位应支付加班费。根据《劳动争议调解仲裁法》第三条，解决争议应遵循合法公正原则。\n\n3. 逐项论证\n关于加班事实认定：由于您未保留信息，面临举证困难。通常需提供排班表、打卡记录或工作邮件。若单位掌握考勤但拒不提供，在司法实践中可能产生对单位不利的推定，但这并非绝对。\n关于计算基数和时长：根据《劳动法》第四十四条，应按正常工作时间工资的1.5倍、2倍、3倍计算。基数通常为劳动合同约定的工资或实际发放的正常工作时间工资，不含非常规性奖金。时长需结合考勤记录核算，且每月不得超过三十六小时。\n关于追索时效：劳动争议申请仲裁的时效期间为一年，从当事人知道或者应当知道其权利被侵害之日起计算。若持续在职，时效可能中断或重新起算；若已离职，需在离职后一年内主张。因缺乏书面证据，时效起算点可能存在争议。\n\n4. 结论与风险\n结论：在法律上，只要存在客观加班事实，即受法律保护。\n风险：因您未保留信息，若无间接证据（如微信聊天记录、证人证言），可能无法证明加班时长，导致败诉风险较高。建议尽快收集能佐证工作的电子痕迹。",
+   "final_excerpt": "存在法律不确定性\n\n1. 案情与争议焦点\n本案核心在于劳动者未保留考勤、工资条等直接证据时，如何证明加班事实、确定加班费基数及计算时效。举证责任分配与证据采信是主要难点。\n\n2. 法律依据（引条文）\n根据《劳动法》第四十一条，加班需经协商且",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 97.6
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "65a2ae31-c2e6-4212-957c-a640abd17e2a",
+      "state_version": 4,
+      "conv_id": 2229
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "合同是否约定违约金或损失赔偿计算方法，且金额可达二十万元。"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "合同是否约定违约金或损失赔偿计算方法，且金额可达二十万元。"
+    }
+   ],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2229,
+   "final_chars": 757,
+   "final_text": "存在法律不确定性。由于您未保留合同文本及付款凭证，本案事实认定（款项性质、违约程度）高度依赖证据。以下基于常见交易场景进行推演分析：\n\n1. 案情与争议焦点\n核心在于认定十万元的“定金”属性及卖方行为是否构成根本违约。若认定为定金，需判断是否满足双倍返还条件；若认定为预付款，则仅涉及本金返还。\n\n2. 法律依据\n根据《民法典》第五百八十六条，定金合同自实际交付时成立，且数额不得超过主合同标的额百分之二十，超过部分不产生定金效力。根据《民法典》第五百八十七条，收受定金的一方不履行债务致使不能实现合同目的的，应当双倍返还定金。根据《民法典》第五百六十三条，当事人一方迟延履行债务或者有其他违约行为致使不能实现合同目的，可以解除合同。\n\n3. 逐项论证\n关于款项性质：若合同中明确写明“定金”，且已实际支付，符合《民法典》第五百八十六条规定，可认定为定金。若仅写“订金”或“购房款”，通常视为预付款，不适用双倍罚则。若金额超过房款20%，超出部分视为预付款。\n关于根本违约：卖方因涨价拒绝出售，属于“明确表示不履行主要债务”。若买方购买房屋旨在居住或投资，卖方毁约导致交易失败，通常被认定为致使合同目的无法实现，构成根本违约。\n关于返还金额：若确认为定金且卖方根本违约，依据《民法典》第五百八十七条，买方有权要求双倍返还（即二十万元）。若卖方主张违约金过高，可能请求法院调整，但恶意毁约通常支持双倍。若十万元仅为预付款，则只能要求返还十万元本金及利息。\n\n4. 结论与风险\n结论：在卖方恶意毁约且合同明确约定为“定金”的情况下，买方**可能**有权要求返还二十万元（双倍定金）。\n风险：若缺乏书面证据证明是“定金”，或卖方能证明买方也有过错，双倍返还的主张存在不被支持的风险。建议尽快收集转账备注、聊天记录等证据。",
+   "final_excerpt": "存在法律不确定性。由于您未保留合同文本及付款凭证，本案事实认定（款项性质、违约程度）高度依赖证据。以下基于常见交易场景进行推演分析：\n\n1. 案情与争议焦点\n核心在于认定十万元的“定金”属性及卖方行为是否构成根本违约。若认定为定金，需判断是",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 51.7
+  },
+  "C05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "房东没催告",
+      "7日换锁"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "628f3b0b-0927-44b1-a6ec-8cf9dddf8edf",
+      "state_version": 4,
+      "conv_id": 2230
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "押金两个月"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "UNSUPPORTED_NUMERIC_TOKEN"
+     ],
+     "clar_meta": {
+      "run_id": "628f3b0b-0927-44b1-a6ec-8cf9dddf8edf",
+      "state_version": 8,
+      "conv_id": 2230
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "房东换锁前是否履行了催告义务？"
+    },
+    {
+     "round": 2,
+     "prompt": "扣押金的具体用途及金额是否合理？"
+    }
+   ],
+   "answered_fact_ids": [
+    "C05-r1-f2",
+    "C05-r1-f3",
+    "C05-r2-f3"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "UNSUPPORTED_NUMERIC_TOKEN"
+   ],
+   "conv_id": 2230,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 127.9
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "04735fee-3f2d-4bcb-a55c-5d3fc197d873",
+      "state_version": 4,
+      "conv_id": 2231
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "04735fee-3f2d-4bcb-a55c-5d3fc197d873",
+      "state_version": 8,
+      "conv_id": 2231
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "业主是否存在未按约付款等先行违约行为"
+    },
+    {
+     "round": 2,
+     "prompt": "停工是否导致工程无法继续或造成业主损失"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "业主是否存在未按约付款等先行违约行为"
+    },
+    {
+     "round": 2,
+     "prompt": "停工是否导致工程无法继续或造成业主损失"
+    }
+   ],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2231,
+   "final_chars": 641,
+   "final_text": "1. 工期延月的责任应归属于哪一方？\n依据《民法典》第八百零一条，因施工人的原因致使建设工程质量不符合约定的，发包人有权请求施工人在合理期限内无偿修理或者返工、改建。经过修理或者返工、改建后，造成逾期交付的，施工人应当承担违约责任。若装修公司存在施工质量不合格导致的返工，则工期延误的责任由装修公司承担。\n\n2. 材料涨价是否构成装修公司单方变更合同价款的合法事由？\n不构成。根据《民法典》第五百零九条，当事人应当按照约定全面履行自己的义务。装修合同中已明确约定了固定总价或单价，材料市场价格波动属于商业风险，不属于不可抗力或情势变更，不能成为单方变更价款的事由。\n\n3. 装修公司以停工相威胁是否构成违约或胁迫？\n构成违约。根据《民法典》第五百七十七条，当事人一方不履行合同义务或者履行合同义务不符合约定的，应当承担继续履行、采取补救措施或者赔偿损失等违约责任。装修公司以停工要挟加价，实质上是拒绝按原合同履行，构成预期违约或实际违约。同时，若其利用优势地位强迫业主接受不合理条件，可能涉及胁迫，但核心在于违反合同约定。\n\n4. 业主可采取何种法律救济措施？\n业主可要求装修公司继续履行合同并承担违约责任。依据《民法典》第五百八十五条，当事人可以约定一方违约时应当根据违约情况向对方支付一定数额的违约金。若合同未约定违约金，业主可根据《民法典》第五百八十四条主张赔偿损失。此外，若装修公司明确表示或以行为表明不履行主要债务，业主还可依据《民法典》第五百六十三条解除合同并要求赔偿。",
+   "final_excerpt": "1. 工期延月的责任应归属于哪一方？\n依据《民法典》第八百零一条，因施工人的原因致使建设工程质量不符合约定的，发包人有权请求施工人在合理期限内无偿修理或者返工、改建。经过修理或者返工、改建后，造成逾期交付的，施工人应当承担违约责任。若装修公",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 79.0
+  }
+ }
+}

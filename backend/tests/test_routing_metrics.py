@@ -1,6 +1,8 @@
 """路由运行态指标测试。"""
+
 import os
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -54,3 +56,73 @@ def test_checked_false_excluded_from_pass_rate():
     s = rm.snapshot()
     assert s["self_check_pass_rate"] == 0.0  # 不被 9 个 flag pass 稀释成 0.9
     assert s["checked_count"] == 1
+
+
+def test_agent_gate_metrics_are_separate_from_legacy_routing_math():
+    rm.record("light", False, "pass", "miss")
+    legacy_before = rm.snapshot()
+
+    rm.record_agent_gate("agent_path", ["MULTI_ISSUE", "MISSING_FACTS"], "hashed-correlation")
+    after = rm.snapshot()
+
+    assert {key: after[key] for key in legacy_before if key != "agent_gate"} == {
+        key: legacy_before[key] for key in legacy_before if key != "agent_gate"
+    }
+    assert after["agent_gate"] == {
+        "total_predictions": 1,
+        "mode_counts": {"agent_path": 1},
+        "reason_code_counts": {"MULTI_ISSUE": 1, "MISSING_FACTS": 1},
+        "technical_failure_count": 0,
+    }
+
+
+def test_agent_gate_technical_failure_is_not_misreported_as_prediction():
+    rm.record_agent_gate(
+        "fast_path",
+        ["GATE_TECHNICAL_FAILURE"],
+        "hashed-correlation",
+        technical_failure=True,
+    )
+
+    assert rm.snapshot()["agent_gate"] == {
+        "total_predictions": 0,
+        "mode_counts": {},
+        "reason_code_counts": {"GATE_TECHNICAL_FAILURE": 1},
+        "technical_failure_count": 1,
+    }
+
+
+def test_reset_clears_legacy_and_agent_gate_state():
+    rm.record("flag", True, "pass", "hit", checked=False)
+    rm.record_agent_gate("agent_path", ["MULTI_STAGE"], "hashed-correlation")
+
+    rm.reset()
+
+    snapshot = rm.snapshot()
+    assert snapshot["total"] == 0
+    assert snapshot["agent_gate"] == {
+        "total_predictions": 0,
+        "mode_counts": {},
+        "reason_code_counts": {},
+        "technical_failure_count": 0,
+    }
+
+
+def test_concurrent_agent_gate_records_do_not_lose_counts():
+    def record_one(index: int) -> None:
+        rm.record_agent_gate(
+            "agent_path" if index % 2 else "fast_path",
+            ["MULTI_STAGE"],
+            f"hashed-{index}",
+        )
+
+    with ThreadPoolExecutor(max_workers=16) as executor:
+        list(executor.map(record_one, range(1000)))
+
+    snapshot = rm.snapshot()["agent_gate"]
+    assert snapshot == {
+        "total_predictions": 1000,
+        "mode_counts": {"fast_path": 500, "agent_path": 500},
+        "reason_code_counts": {"MULTI_STAGE": 1000},
+        "technical_failure_count": 0,
+    }

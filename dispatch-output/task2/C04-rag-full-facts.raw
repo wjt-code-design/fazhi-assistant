@@ -1,0 +1,339 @@
+# case=C04 mode=rag-full-facts status=200 started=2026-09-08T14:47:24
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "存在"}
+
+data: {"content": "法律不确定性。"}
+
+data: {"content": "司法"}
+
+data: {"content": "实践中，若"}
+
+data: {"content": "法院认定“定金"}
+
+data: {"content": "”条款显失"}
+
+data: {"content": "公平或违约金过高"}
+
+data: {"content": "，可能"}
+
+data: {"content": "不支持双倍返还，"}
+
+data: {"content": "而转为赔偿实际"}
+
+data: {"content": "损失（如房屋"}
+
+data: {"content": "涨价"}
+
+data: {"content": "差额）。需结合"}
+
+data: {"content": "当地"}
+
+data: {"content": "房价波动及卖方"}
+
+data: {"content": "过错程度综合判定"}
+
+data: {"content": "。\n\n1."}
+
+data: {"content": " 案情"}
+
+data: {"content": "与争议焦点\n"}
+
+data: {"content": "本案为二手房买卖"}
+
+data: {"content": "合同纠纷。核心争议"}
+
+data: {"content": "在于："}
+
+data: {"content": "买方能否依据“"}
+
+data: {"content": "定金十万元”"}
+
+data: {"content": "的约定，要求"}
+
+data: {"content": "卖方"}
+
+data: {"content": "双倍返还共计二十"}
+
+data: {"content": "万元"}
+
+data: {"content": "。关键事实包括"}
+
+data: {"content": "：已签署认购"}
+
+data: {"content": "书并"}
+
+data: {"content": "支付十万元；"}
+
+data: {"content": "约定七日内签"}
+
+data: {"content": "正式合同"}
+
+data: {"content": "；卖方在期限内"}
+
+data: {"content": "因高价违约。"}
+
+data: {"content": "\n\n2. "}
+
+data: {"content": "法律依据\n根据《"}
+
+data: {"content": "民法典》第五百"}
+
+data: {"content": "八十五条，当事人"}
+
+data: {"content": "可以约定违约金，"}
+
+data: {"content": "但"}
+
+data: {"content": "过分高于造成的损失的可"}
+
+data: {"content": "请求减少。\n"}
+
+data: {"content": "根据《民法典》"}
+
+data: {"content": "第五百八十七条，"}
+
+data: {"content": "债务人"}
+
+data: {"content": "履行债务后，"}
+
+data: {"content": "定金应当"}
+
+data: {"content": "抵作价款或者"}
+
+data: {"content": "收回。"}
+
+data: {"content": "给付定金的一方不履行"}
+
+data: {"content": "债务或者履行债务"}
+
+data: {"content": "不符合"}
+
+data: {"content": "约定，致使不能"}
+
+data: {"content": "实现"}
+
+data: {"content": "合同目的的，无权"}
+
+data: {"content": "请求返还定金；"}
+
+data: {"content": "收受"}
+
+data: {"content": "定金的一方不履行债务"}
+
+data: {"content": "或者履行债务不符合"}
+
+data: {"content": "约定，致使不能"}
+
+data: {"content": "实现合同目的的，"}
+
+data: {"content": "应当双倍返还定金"}
+
+data: {"content": "。\n根据《"}
+
+data: {"content": "民法典》第六百"}
+
+data: {"content": "四"}
+
+data: {"content": "十一条，当事人可以在"}
+
+data: {"content": "买卖合同中约定买受人"}
+
+data: {"content": "未履行支付价款或者其他"}
+
+data: {"content": "义务的，标的物的"}
+
+data: {"content": "所有权属于出卖人"}
+
+data: {"content": "。（注：此处"}
+
+data: {"content": "虽涉及"}
+
+data: {"content": "所有权保留，但"}
+
+data: {"content": "本案重点在于违约责任"}
+
+data: {"content": "中的定金罚则"}
+
+data: {"content": "适用）。\n根据"}
+
+data: {"content": "《民法典"}
+
+data: {"content": "》第五百九十五条"}
+
+data: {"content": "，买卖合同是出卖"}
+
+data: {"content": "人转移标的"}
+
+data: {"content": "物的所有权于买受人"}
+
+data: {"content": "，买受人支付价"}
+
+data: {"content": "款的合同。"}
+
+data: {"content": "\n\n3. "}
+
+data: {"content": "逐项论证"}
+
+data: {"content": "\n首先，判断"}
+
+data: {"content": "款项性质。双方"}
+
+data: {"content": "明确约定为“"}
+
+data: {"content": "定金”，"}
+
+data: {"content": "且已实际交付"}
+
+data: {"content": "，符合"}
+
+data: {"content": "定金合同的实践性"}
+
+data: {"content": "特征。\n其次"}
+
+data: {"content": "，判断"}
+
+data: {"content": "违约行为。卖方"}
+
+data: {"content": "在约定期限"}
+
+data: {"content": "内明确表示不卖"}
+
+data: {"content": "，构成"}
+
+data: {"content": "预期违约，导致"}
+
+data: {"content": "合同"}
+
+data: {"content": "目的无法实现。"}
+
+data: {"content": "\n再次"}
+
+data: {"content": "，适用定金罚"}
+
+data: {"content": "则"}
+
+data: {"content": "。根据《民法典"}
+
+data: {"content": "》第五百八十七条"}
+
+data: {"content": "，收受定金方"}
+
+data: {"content": "违约，应双倍"}
+
+data: {"content": "返还定金"}
+
+data: {"content": "。即卖方应"}
+
+data: {"content": "返还本金"}
+
+data: {"content": "十万元及惩罚"}
+
+data: {"content": "性赔偿十万元"}
+
+data: {"content": "，合计"}
+
+data: {"content": "二十万元。\n"}
+
+data: {"content": "最后，考量上限"}
+
+data: {"content": "风险。虽然总价"}
+
+data: {"content": "200万元"}
+
+data: {"content": "，定金10"}
+
+data: {"content": "万元占比5%，"}
+
+data: {"content": "未"}
+
+data: {"content": "超过主合同标的"}
+
+data: {"content": "额的"}
+
+data: {"content": "20%（"}
+
+data: {"content": "即"}
+
+data: {"content": "40万元），"}
+
+data: {"content": "故"}
+
+data: {"content": "定金数额本身合法"}
+
+data: {"content": "有效。但若买方"}
+
+data: {"content": "无法证明实际损失"}
+
+data: {"content": "达到"}
+
+data: {"content": "20万，"}
+
+data: {"content": "卖方可能主张违约金"}
+
+data: {"content": "过高请求调减"}
+
+data: {"content": "，但在定金罚"}
+
+data: {"content": "则"}
+
+data: {"content": "下，除非定金"}
+
+data: {"content": "数额违法，否则"}
+
+data: {"content": "通常"}
+
+data: {"content": "直接适用双倍返还"}
+
+data: {"content": "。\n\n4."}
+
+data: {"content": " 结论"}
+
+data: {"content": "与风险\n买方"}
+
+data: {"content": "有权主张返还二十"}
+
+data: {"content": "万元。"}
+
+data: {"content": "依据是《民法典"}
+
+data: {"content": "》第五百"}
+
+data: {"content": "八十七条的双倍"}
+
+data: {"content": "返还规则。风险"}
+
+data: {"content": "在于，若卖方"}
+
+data: {"content": "抗"}
+
+data: {"content": "辩该“定金"}
+
+data: {"content": "”"}
+
+data: {"content": "实为预付款"}
+
+data: {"content": "或订金，"}
+
+data: {"content": "或"}
+
+data: {"content": "证明买方也存在过错"}
+
+data: {"content": "，法院可能调整"}
+
+data: {"content": "责任比例。建议"}
+
+data: {"content": "立即固定卖方微信"}
+
+data: {"content": "拒"}
+
+data: {"content": "卖证据，并发"}
+
+data: {"content": "函催告，必要时"}
+
+data: {"content": "起诉。"}
+
+data: {"conversation_id": 2214, "sources": [{"source": "民法典", "article": "第四百八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百零二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百零九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百二十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百六十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百七十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百八十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百九十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百一十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第四百零一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第三百九十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第四百一十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第四百二十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第四百二十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第四百零六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百四十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百二十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百四十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百二十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百九十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百一十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百一十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百四十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百四十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百二十六条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

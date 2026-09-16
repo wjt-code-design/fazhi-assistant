@@ -1,0 +1,12 @@
+{"time": 1789192053.6842065, "event": "reserved", "call": 1, "model": "qwen3.8-flash", "reserve_cny": "2", "accounted_upper_cny": "2"}
+{"time": 1789192064.1520138, "event": "finished", "call": 1, "status": 200, "usage": {"completion_tokens": 393, "prompt_tokens": 792, "prompt_tokens_details": {"cached_tokens": 0, "text_tokens": 792}, "total_tokens": 1185}, "accounted_cny": "0.0016947", "accounted_upper_cny": "0.0016947", "halt": false}
+{"time": 1789192064.888862, "event": "reserved", "call": 2, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0016947"}
+{"time": 1789192065.4985166, "event": "finished", "call": 2, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0016947", "halt": false}
+{"time": 1789192066.1608045, "event": "reserved", "call": 3, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0016947"}
+{"time": 1789192067.2326343, "event": "finished", "call": 3, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0016947", "halt": false}
+{"time": 1789192067.8644078, "event": "reserved", "call": 4, "model": "BAAI/bge-reranker-v2-m3", "reserve_cny": "0", "accounted_upper_cny": "0.0016947"}
+{"time": 1789192068.4247377, "event": "finished", "call": 4, "status": 200, "usage": null, "accounted_cny": "0", "accounted_upper_cny": "0.0016947", "halt": false}
+{"time": 1789192068.6816394, "event": "reserved", "call": 5, "model": "qwen3.8-flash", "reserve_cny": "2", "accounted_upper_cny": "2.0016947"}
+{"time": 1789192078.29525, "event": "finished", "call": 5, "status": 200, "usage": {"completion_tokens": 647, "prompt_tokens": 3355, "prompt_tokens_details": {"cached_tokens": 0, "text_tokens": 3355}, "total_tokens": 4002}, "accounted_cny": "0.0044309", "accounted_upper_cny": "0.0061256", "halt": false}
+{"time": 1789192078.3705564, "event": "reserved", "call": 6, "model": "qwen3.8-flash", "reserve_cny": "2", "accounted_upper_cny": "2.0061256"}
+{"time": 1789192086.5344408, "event": "finished", "call": 6, "status": 200, "usage": {"completion_tokens": 565, "prompt_tokens": 3801, "prompt_tokens_details": {"cached_tokens": 3328, "text_tokens": 3801}, "total_tokens": 4366}, "accounted_cny": "0.0045663", "accounted_upper_cny": "0.0106919", "halt": false}

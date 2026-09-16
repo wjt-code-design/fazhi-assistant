@@ -1,0 +1,13 @@
+[
+ {
+  "type": "status",
+  "msg": "正在思考…"
+ },
+ {
+  "type": "restart",
+  "reason_code": "PLANNER_PARSE_ERROR"
+ },
+ {
+  "error": "服务暂时无响应，请稍后重试"
+ }
+]

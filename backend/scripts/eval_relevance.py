@@ -54,7 +54,9 @@ def main() -> None:
         "note": "单一 judge（qwen3.7-plus，temp=0），无人工金标——相关性主观，仅供参考",
         "scores": [r["score"] for r in rows],
     }
-    print(f"\n=== 相关性 ===\n相关（≥1）占比 {result['relevance_rate_ge1']}（{n_pass}/{len(rows)}）| 完全相关 {result['full_relevance_rate']}（{n_full}/{len(rows)}）")
+    print(
+        f"\n=== 相关性 ===\n相关（≥1）占比 {result['relevance_rate_ge1']}（{n_pass}/{len(rows)}）| 完全相关 {result['full_relevance_rate']}（{n_full}/{len(rows)}）"
+    )
     out = os.path.join(OUT_DIR, f"relevance_{result['ts']}.json")
     with open(out, "w", encoding="utf-8") as f:
         json.dump(result, f, ensure_ascii=False, indent=1)

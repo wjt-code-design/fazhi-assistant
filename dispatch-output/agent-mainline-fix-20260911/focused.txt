@@ -1,0 +1,85 @@
+....................................................F...F............... [ 75%]
+.......................                                                  [100%]
+================================== FAILURES ===================================
+_______ test_fact_repair_rejects_candidate_that_still_has_non_verbatim ________
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x00000219FC504C10>
+
+    def test_fact_repair_rejects_candidate_that_still_has_non_verbatim(caplog):
+        """深潜审查修正（2026-09-11）：**残留非逐字引用的候选不得采纳**。
+    
+        非逐字引用是下游致命项（`build_initial_agent_state` 的 verbatim 校验必抛），
+        旧准则只比"缺陷总数严格变小"，会采纳 {nv:1,unc:1}→{nv:1,unc:0} 这类"仍必死"的候选
+        并打出误导性的 repaired 日志。新准则先看可存活（nv 必须清零），再看改进。
+    
+        **判别点在日志 stage**：新旧准则下组装期都会抛同样的 verbatim 错（表象相同），
+        唯一可判别的是 stage——旧准则打 `repaired`（假象），新准则打 `repair_ineffective`。
+        """
+        import logging as _logging
+    
+        first = json.dumps(
+            {
+                "issues": [
+                    {"question": "争点1是否成立？", "facts": [{"quote": "公司拖欠我三个月工资"}], "unknown_facts": []}
+                ]
+            },  # nv=1（三个月≠两个月），unc=1（第二条分句未覆盖）
+            ensure_ascii=False,
+        )
+        still_bad = json.dumps(
+            {
+                "issues": [
+                    {"question": "争点1是否成立？", "facts": [{"quote": "公司拖欠我三个月工资"}], "unknown_facts": []},
+                    {"question": "争点2是否成立？", "facts": [{"quote": "在昨天口头解除劳动合同"}], "unknown_facts": []},
+                ]
+            },  # 覆盖修好了，但 nv=1 仍在 ⇒ 下游必死
+            ensure_ascii=False,
+        )
+        transport = RecordingTransport(first, still_bad)
+    
+        with caplog.at_level(_logging.INFO, logger="legal.agent"):
+            with pytest.raises(IssueDecompositionError):
+                build_initial_agent_state(bootstrap(_QUERY), decomposer=LLMIssueDecomposer(transport))
+        assert len(transport.calls) == 2, "修复环必须恰好触发一次"
+        stages = [getattr(r, "agent_repair_stage", "") for r in caplog.records]
+        assert "repaired" not in stages, (
+            f"残留非逐字引用的候选不得打 repaired（假象）；实际 stages={stages}"
+        )
+>       assert "repair_ineffective" in stages
+E       AssertionError: assert 'repair_ineffective' in ['detected', 'repair_failed']
+
+tests\test_agent_runtime.py:794: AssertionError
+------------------------------ Captured log call ------------------------------
+INFO     legal.agent:runtime.py:444 issue_decomposition_repair
+INFO     legal.agent:runtime.py:444 issue_decomposition_repair
+________ test_budgets_fit_contract_max_decomposition_and_never_narrow _________
+
+    def test_budgets_fit_contract_max_decomposition_and_never_narrow():
+        """V2-T8 预算上限：必须装得下契约允许的**最大分解**，且从不收紧、幂等、有界。
+    
+        **期望值全部独立手算，不引用实现常量与函数**（CONTRIBUTING：期望值来自独立来源）：
+          · 契约允许 8 个争点；冻结实测「5 争点 = **19 步**」（run-15 C08），线性趋势 ≈ 8 + 2N
+            ⇒ 8 争点约需 **24–26 步** ⇒ 上限下界取 **26**；
+          · 工具预算 = 8 次检索 + 查询余量 ⇒ 下界取 **11**；
+          · 上界受 settings 的 `le=32` 防失控约束。
+    
+        watch-it-fail：加固前装配层直接用 settings 的 16 步 ⇒ 5 争点（需 19 步）必然 AGENT_BUDGET_EXCEEDED。
+        """
+>       from agent.runtime import _fit_budgets_to_max_decomposition
+E       ImportError: cannot import name '_fit_budgets_to_max_decomposition' from 'agent.runtime' (C:\Users\33393\Desktop\ai-legal-helper\backend\agent\runtime.py)
+
+tests\test_agent_runtime.py:871: ImportError
+============================== warnings summary ===============================
+tests/test_agent_runtime.py::test_issue_decomposition_derives_stable_ids_and_only_accepts_verbatim_user_facts
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+tests/test_agent_chat_integration.py::test_chat_live_agent_selection_bootstraps_once_and_never_prepares_fast_path
+tests/test_agent_chat_integration.py::test_forbidden_agent_failure_never_calls_fast_path_fallback
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\httpx\_client.py:690: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_runtime.py::test_fact_repair_rejects_candidate_that_still_has_non_verbatim
+FAILED tests/test_agent_runtime.py::test_budgets_fit_contract_max_decomposition_and_never_narrow
+2 failed, 93 passed, 3 warnings in 40.60s

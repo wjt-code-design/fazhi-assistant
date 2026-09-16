@@ -1,0 +1,157 @@
+{
+ "run": "schema-probe2",
+ "results": {
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "房屋总价 200 万元"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "eb1c112f-2b44-4312-8b6d-0f7ce2ee9bed",
+      "state_version": 4,
+      "conv_id": 2238
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "有认购书，写了房屋、总价和“定金十万元”"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "UNKNOWN_EVIDENCE_ID"
+     ],
+     "clar_meta": {
+      "run_id": "eb1c112f-2b44-4312-8b6d-0f7ce2ee9bed",
+      "state_version": 8,
+      "conv_id": 2238
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "房屋总价款为特定金额，十万元未超过总价款的20%。"
+    },
+    {
+     "round": 2,
+     "prompt": "双方在认购书或买卖合同中明确将该十万元约定为“定金”，并约定若卖方不履行合同则需双倍返还。"
+    }
+   ],
+   "answered_fact_ids": [
+    "C04-r2-f3",
+    "C04-r1-f1"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "UNKNOWN_EVIDENCE_ID"
+   ],
+   "conv_id": 2238,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 40.8
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "约定三个月完工",
+      "现在已超过新工期五十天"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "26dc9f47-7ff9-4606-afa2-3f35f8eb1a89",
+      "state_version": 4,
+      "conv_id": 2239
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "现在已超过新工期五十天"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "26dc9f47-7ff9-4606-afa2-3f35f8eb1a89",
+      "state_version": 8,
+      "conv_id": 2239
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "合同是否明确约定工期及延期违约金或赔偿责任"
+    },
+    {
+     "round": 2,
+     "prompt": "延期是否因业主原因、不可抗力或装修公司自身原因导致"
+    }
+   ],
+   "answered_fact_ids": [
+    "C06-r1-f3",
+    "C06-r2-f2",
+    "C06-r2-f2"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2239,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 26.6
+  }
+ }
+}

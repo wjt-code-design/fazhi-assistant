@@ -1,0 +1,115 @@
+"""集中配置（pydantic-settings）。从环境变量读取（main.py 已 load_dotenv 注入 os.environ）。
+
+- 字段名小写；环境变量名大小写不敏感（case_sensitive=False）。
+- 未知环境变量忽略（extra=ignore），避免 .env 里多余项报错。
+- 兼容旧名 ZHIPUAI_API_KEY（见 api_key 属性）。
+"""
+
+from pydantic import Field
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
+
+    # ---- LLM ----
+    llm_api_key: str = ""
+    llm_base_url: str = ""
+    # 对抗审计 v2 #12：删除死配置 llm_model（无任何代码读取，真正入口是 llm_registry 的
+    # DEFAULT_ROLES / LLM_MODELS_JSON）。移除字段避免 .env/docker-compose 误以为 LLM_MODEL 生效。
+    zhipuai_api_key: str = ""  # 旧名兼容（智谱平台 key，8-23 到期免费 token）
+    zhipu_base_url: str = "https://open.bigmodel.cn/api/paas/v4"  # 智谱 OpenAI 兼容端点
+    # 阿里云百炼（DashScope）OpenAI 兼容端点：全模态角色（vision/voice）专用 provider。
+    # 2026-09-05 用户授权启用 qwen3.5-omni-flash（非 realtime 变体——实测其拒绝 HTTP 调用），
+    # 复用既有账号 key；配额上限 100 万 tokens，单价见 docs/capability-matrix.md。
+    dashscope_api_key: str = ""
+    dashscope_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    # 硅基流动（SiliconFlow）provider key：rerank 切换 BAAI/bge-reranker-v2-m3 时使用
+    # （2026-09-06 用户指定；rerank 调用方按 rerank_api_key or siliconflow_api_key 取 Bearer）。
+    siliconflow_api_key: str = ""
+
+    # ---- 鉴权 ----
+    jwt_secret: str = ""
+    admin_username: str = "admin"
+    # 已由 seed_admin.py 从 ADMIN_PASSWORD 环境变量读取（此字段为死代码）；留空，
+    # 避免"看似已配置密码"的假象与公知默认口令（对抗审计 2026-08-07）
+    admin_password: str = ""
+
+    # ---- 特性开关 ----
+    feature_hybrid: bool = True  # 向量+BM25 RRF 混合检索
+    feature_self_register: bool = (
+        False  # 方案C（2026-08-08）：默认关闭公开注册，仅管理员开户；.env FEATURE_SELF_REGISTER=true 重开
+    )
+    feature_router: bool = True  # 多模型分级路由总开关；False 时主回答退化为旧单模型（get()）
+    feature_study_retrieval: bool = True  # ADR-012：study_aid 具体题分步检索（False 一键回滚"不检索"）
+    feature_study_cache: bool = True  # 法考题(study_aid)进回答缓存白名单（False 回滚=仅 legal_query 可缓存）
+    feature_similar_cache: bool = True  # BGE 近重复命中（结构护栏防错答；False 只精确 key 命中）
+
+    # ---- Legal Agent V1 rollout（安全关闭；仅显式 enabled + 流量命中才启动 Agent Path）----
+    agent_enabled: bool = False
+    agent_shadow_enabled: bool = False
+    agent_traffic_percent: int = Field(default=0, ge=0, le=100)
+    # Task 7 必须把这些部署期值快照进 AgentBudgets；不得静默使用旧 schema 默认值。
+    # max_steps 默认 16：产品承诺"最多两轮追问"，两轮会话实测（第二轮澄清 checkpoint 时
+    # steps 已达 8，resume + 检索 + 定稿仍需 ≥3 步）在 8 时会令第二轮用户回答触发
+    # BudgetExceeded→409；16 在 le=32 防失控上限内留足两轮会话余量。
+    agent_max_steps: int = Field(default=16, ge=1, le=32)
+    agent_max_tool_calls: int = Field(default=10, ge=1, le=32)
+    agent_max_replans: int = Field(default=3, ge=0, le=32)
+    agent_max_clarifications: int = Field(default=2, ge=0, le=32)
+    agent_max_verifier_research_returns: int = Field(default=1, ge=0, le=32)
+
+    # ---- 多模型配置（可选整体覆盖默认代表表；JSON 数组，元素见 llm_registry.DEFAULT_ROLES 字段） ----
+    # 留空则用 llm_registry 内置的 8 代表模型默认表（base_url/api_key 复用上面的 LLM_*）
+    llm_models_json: str = ""
+
+    # ---- 向量嵌入（local=本地 BGE CPU；aliyun=阿里云 text-embedding-v4，需配 key）----
+    embedding_provider: str = "local"  # local / aliyun
+    embedding_api_key: str = ""
+    embedding_base_url: str = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+    embedding_model: str = "text-embedding-v4"
+    embedding_dimensions: int = 768  # text-embedding-v4 支持 768/1024 等；必须与重建库一致
+    embedding_quota_total: int = 0  # 0=不启用配额监控
+    embedding_quota_initial: int = 0  # 开通时已用 token（截图余量用）
+    embedding_warn_threshold: float = 0.15  # 剩余 <15% → 后台标黄"快用完"
+    embedding_hard_threshold: float = 0.05  # 剩余 <5% → 自动切回 local + 标红
+
+    # ---- 重排序（rerank，准度主菜；多模型按配额自动轮换，全耗尽回落 cosine 精排）----
+    rerank_enabled: bool = False  # 是否启用 rerank（开则跳过 cosine 精排，见 retrieval）
+    rerank_api_key: str = ""
+    rerank_base_url: str = "https://dashscope.aliyuncs.com/compatible-api/v1"
+    rerank_model: str = "qwen3-rerank"  # 兼容：当前模型（body.model 由 _active_rerank_model 定）
+    rerank_models: str = "qwen3-rerank,gte-rerank-v2,qwen3-vl-rerank"  # 轮换序列（逗号分隔，顺序即优先级）
+    # gte-rerank-v2 / qwen3-vl-rerank 原生端点（OpenAI 兼容 /reranks 不支持这两个模型，2026-08-07 实测）
+    rerank_native_url: str = "https://dashscope.aliyuncs.com/api/v1/services/rerank/text-rerank/text-rerank"
+    rerank_quota_total: int = 0  # 0=不启用配额监控（单模型默认配额）
+    rerank_quota_totals: str = ""  # 逗号分隔，与 rerank_models 对齐（每模型配额）；空则各模型用 rerank_quota_total
+    rerank_quota_initial: int = 0
+    rerank_warn_threshold: float = 0.15
+    rerank_hard_threshold: float = 0.05
+
+    # ---- 合同 / 文书风险评估（确定性骨架，2026-08-06）----
+    feature_multi_analyze: bool = True  # 合同评估开关（一键回滚）
+    contract_max_chars: int = 12000  # 合同文本上限（之上截取并在报告注明）
+
+    # ---- 文件上传（chat_file / admin_upload 文本文件）----
+    upload_max_mb: int = 10  # 单个文本/文档上传大小上限
+
+    # ---- 图片限制 ----
+    image_max_mb: int = 5
+    image_max_px: int = 6000
+    image_min_px: int = 10
+
+    # ---- 语音转写（M2，Qwen livetranslate 语音模型）----
+    audio_max_mb: int = 10  # 上传音频大小上限
+    feature_transcribe: bool = True  # 语音转写开关（False → 端点 501，前端回退 Web Speech）
+
+    # ---- 日志 ----
+    log_level: str = "INFO"
+
+    @property
+    def api_key(self) -> str:
+        return self.llm_api_key or self.zhipuai_api_key
+
+
+settings = Settings()

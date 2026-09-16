@@ -142,7 +142,8 @@ def main() -> None:
     ap.add_argument("--dimensions", type=int, default=None, help="目标模型向量维度（默认保持当前配置）")
     ap.add_argument("--dry-run", action="store_true", help="只校验与估算，不改配置不重建")
     ap.add_argument(
-        "--restart", action="store_true",
+        "--restart",
+        action="store_true",
         help="换班后自动重启后端（停 8000 进程再启动；默认不碰服务，只提示手动重启）",
     )
     args = ap.parse_args()
@@ -157,7 +158,9 @@ def main() -> None:
         sys.exit(1)
 
     print(f"当前模型: {settings.embedding_model}（dimensions={settings.embedding_dimensions}）")
-    print(f"目标模型: {args.model}（dimensions={'保持 ' + str(settings.embedding_dimensions) if args.dimensions is None else str(args.dimensions)}）")
+    print(
+        f"目标模型: {args.model}（dimensions={'保持 ' + str(settings.embedding_dimensions) if args.dimensions is None else str(args.dimensions)}）"
+    )
     if args.model == settings.embedding_model and args.dimensions is None:
         print("⚠ 目标模型与当前相同且维度不变——无需换班。")
     # 维度校验（B7）：已知维度且与当前不同 → 必须显式 --dimensions 一并改，否则 rebuild 维度校验会失败
@@ -166,7 +169,9 @@ def main() -> None:
     if known_dim is None:
         print(f"⚠ {args.model} 的维度未确认——若 rebuild 校验报维度不匹配，请查阿里云文档后用 --dimensions 指定")
     elif known_dim != target_dim:
-        print(f"❌ {args.model} 维度 {known_dim} ≠ 当前配置 {settings.embedding_dimensions}——必须用 --dimensions {known_dim} 一并改，否则向量库维度不匹配。")
+        print(
+            f"❌ {args.model} 维度 {known_dim} ≠ 当前配置 {settings.embedding_dimensions}——必须用 --dimensions {known_dim} 一并改，否则向量库维度不匹配。"
+        )
         sys.exit(1)
 
     # 配额检查（诚实计费：重建消耗计入当前 embedding 配额）

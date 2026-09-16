@@ -1,0 +1,1004 @@
+"""Bounded synchronous controller with durable side-effect checkpoints."""
+
+from __future__ import annotations
+
+import copy
+import hashlib
+import json
+from collections.abc import Callable, Iterator, Mapping, Sequence
+from contextlib import contextmanager
+from dataclasses import dataclass
+from datetime import date, datetime
+from threading import Lock, RLock
+from typing import Any, Protocol, cast
+
+from pydantic import BaseModel, ConfigDict
+
+from request_bootstrap import RequestBootstrap
+from tools.contracts import (
+    DuplicateToolCall,
+    LookupArticleOutput,
+    RetrieveLawsInput,
+    RetrieveLawsOutput,
+    ToolContext,
+    ToolEvidence,
+)
+from tools.gateway import ToolGateway
+
+from .evaluator import EvaluationDecision, EvaluationOutcome, EvidenceEvaluator
+from .planner import Planner, PlannerParseError, PlannerPolicyViolation, parse_plan_decision
+from .repository import CheckpointMetadata, RunVersionConflict, compare_and_save, load_owned_run
+from .schemas import (
+    AgentBudgets,
+    AgentStatus,
+    AskUserDecision,
+    Evidence,
+    Fact,
+    FinishResearchDecision,
+    LegalAgentState,
+    LegalValidity,
+    Observation,
+    ReplanDecision,
+    SourceType,
+    StopDecision,
+    ToolCallDecision,
+    UnknownFact,
+)
+from .state_machine import (
+    BudgetExceeded,
+    DuplicateAction,
+    action_fingerprint,
+    register_action,
+    register_clarification,
+    register_replan,
+    transition,
+)
+
+
+class UncertainExecutionState(RuntimeError):
+    """A recovered EXECUTING checkpoint cannot be replayed automatically."""
+
+
+@dataclass(frozen=True)
+class ControllerRun:
+    run_id: str
+    user_id: int
+    conversation_id: int
+    law_as_of: date
+    state: LegalAgentState
+    version: int
+    degraded_reason: str | None = None
+    pending_question: str | None = None
+
+
+class ControllerRepository(Protocol):
+    def load(self, *, run_id: str, conversation_id: int) -> ControllerRun | None: ...
+
+    def save(
+        self,
+        run: ControllerRun,
+        state: LegalAgentState,
+        *,
+        checkpoint: CheckpointMetadata | None = None,
+        new_evidence_by_issue: Mapping[str, Sequence[Evidence]] | None = None,
+    ) -> ControllerRun: ...
+
+
+class SQLAlchemyControllerRepository:
+    """Production adapter bound to a trusted DB session and authenticated user."""
+
+    def __init__(self, *, db: Any, user_id: int) -> None:
+        self._db = db
+        self._user_id = user_id
+
+    def load(self, *, run_id: str, conversation_id: int) -> ControllerRun | None:
+        record = load_owned_run(
+            self._db,
+            run_id=run_id,
+            user_id=self._user_id,
+            conversation_id=conversation_id,
+        )
+        if record is None:
+            return None
+        return ControllerRun(
+            run_id=cast(str, record.id),
+            user_id=cast(int, record.user_id),
+            conversation_id=cast(int, record.conversation_id),
+            law_as_of=cast(date, record.law_as_of),
+            state=LegalAgentState.model_validate_json(cast(str, record.state_json)),
+            version=cast(int, record.state_version),
+            degraded_reason=cast(str | None, record.degraded_reason),
+            pending_question=cast(str | None, record.pending_question),
+        )
+
+    def save(
+        self,
+        run: ControllerRun,
+        state: LegalAgentState,
+        *,
+        checkpoint: CheckpointMetadata | None = None,
+        new_evidence_by_issue: Mapping[str, Sequence[Evidence]] | None = None,
+    ) -> ControllerRun:
+        record = load_owned_run(
+            self._db,
+            run_id=run.run_id,
+            user_id=self._user_id,
+            conversation_id=run.conversation_id,
+        )
+        if record is None:
+            raise PermissionError("agent run is not owned by the bound user")
+        saved = compare_and_save(
+            self._db,
+            run=record,
+            expected_version=run.version,
+            state=state,
+            status=state.status.value,
+            checkpoint=checkpoint,
+            new_evidence_by_issue=new_evidence_by_issue,
+        )
+        return ControllerRun(
+            run_id=cast(str, saved.id),
+            user_id=cast(int, saved.user_id),
+            conversation_id=cast(int, saved.conversation_id),
+            law_as_of=cast(date, saved.law_as_of),
+            state=LegalAgentState.model_validate_json(cast(str, saved.state_json)),
+            version=cast(int, saved.state_version),
+            degraded_reason=cast(str | None, saved.degraded_reason),
+            pending_question=cast(str | None, saved.pending_question),
+        )
+
+
+class InMemoryRunLockRegistry:
+    """Per-controller process locks; SQL CAS remains the cross-process authority."""
+
+    def __init__(self) -> None:
+        self._guard = Lock()
+        self._locks: dict[str, tuple[RLock, int]] = {}
+
+    @contextmanager
+    def acquire(self, run_id: str) -> Iterator[None]:
+        with self._guard:
+            lock, users = self._locks.get(run_id, (RLock(), 0))
+            self._locks[run_id] = (lock, users + 1)
+        try:
+            with lock:
+                yield
+        finally:
+            with self._guard:
+                current_lock, users = self._locks[run_id]
+                if current_lock is lock and users == 1:
+                    del self._locks[run_id]
+                else:
+                    self._locks[run_id] = (current_lock, users - 1)
+
+
+_DEFAULT_RUN_LOCKS = InMemoryRunLockRegistry()
+
+RESUME_NOT_FOUND_DETAIL = "未找到可恢复的 Agent 任务"
+RESUME_CONFLICT_DETAIL = "Agent 任务已变化，无法恢复"
+
+
+class ResumeRunNotFound(LookupError):
+    """A missing or foreign run; callers must not distinguish which."""
+
+    def __init__(self) -> None:
+        super().__init__(RESUME_NOT_FOUND_DETAIL)
+
+
+_UNKNOWN_SIGNALS = (
+    "不知道",
+    "不清楚",
+    "没有这方面",
+    "没有保留",
+    "没有相关信息",
+    "无法提供",
+    "不了解",
+    "没保留",
+    "无相关信息",
+    "没有这项",
+)
+
+
+def _is_explicit_unknown(answer: str) -> bool:
+    """用户显式表示无法提供该事实（短答复 + 未知信号）→ 允许 acknowledge 而非 409。"""
+    a = answer.strip()
+    if not a or len(a) > 30:
+        return False
+    return any(s in a for s in _UNKNOWN_SIGNALS)
+
+
+def _find_pending_unknown(state: LegalAgentState, pending: str | None) -> tuple[str, UnknownFact] | None:
+    """按持久化 pending_question 精确定位 (issue_id, UnknownFact)；找不到返回 None。
+
+    2026-09-10 mypy 修复：原注解为 `state: object` / `-> tuple[str, object] | None`，
+    而函数体直接访问 `state.issues` / `issue.unknown_facts` 并返回 `uf` ⇒ 注解过宽导致
+    mypy 无法校验（且把调用点的 `resume_fact` 退化成 object）。收紧为真实类型。
+    """
+    if not pending:
+        return None
+    for issue in state.issues:
+        for uf in issue.unknown_facts:
+            if uf.statement == pending:
+                return issue.issue_id, uf
+    return None
+
+
+class ResumeRunConflict(RuntimeError):
+    """A stale, already-resumed, or structurally inconsistent resume."""
+
+    def __init__(self) -> None:
+        super().__init__(RESUME_CONFLICT_DETAIL)
+
+
+class ResumeResult(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    run_id: str
+    issue_id: str
+    old_state_version: int
+    new_state_version: int
+    state: LegalAgentState
+
+
+def resume_with_user_fact(
+    *,
+    db: Any,
+    run_locks: InMemoryRunLockRegistry,
+    run_id: str,
+    expected_version: int,
+    user_id: int,
+    conversation_id: int,
+    answer: str,
+    evaluator: EvidenceEvaluator | None = None,
+) -> ResumeResult:
+    """Atomically record one owned clarification answer without executing the Agent."""
+    normalized_answer = answer.strip()
+    if not normalized_answer:
+        raise ValueError("resume answer must be non-empty")
+
+    evidence_evaluator = evaluator or EvidenceEvaluator()
+    with run_locks.acquire(run_id):
+        run = load_owned_run(
+            db,
+            run_id=run_id,
+            user_id=user_id,
+            conversation_id=conversation_id,
+        )
+        if run is None:
+            raise ResumeRunNotFound()
+        if run.state_version != expected_version or run.status != AgentStatus.WAITING_USER.value:
+            raise ResumeRunConflict()
+
+        try:
+            persisted_state = LegalAgentState.model_validate_json(cast(str, run.state_json))
+        except ValueError as exc:
+            raise ResumeRunConflict() from exc
+        if persisted_state.status is not AgentStatus.WAITING_USER:
+            raise ResumeRunConflict()
+
+        evaluation = evidence_evaluator.evaluate(persisted_state)
+        pending_target = _find_pending_unknown(persisted_state, cast(str | None, run.pending_question))
+        if pending_target is None:
+            # 无 pending 锚点：维持收紧的 evaluate 校验（防答非所问）
+            if (
+                evaluation.outcome is not EvaluationOutcome.MISSING_FACT
+                or evaluation.issue_id is None
+                or evaluation.clarification is None
+                or run.pending_question != evaluation.clarification.statement
+            ):
+                raise ResumeRunConflict()
+            resume_issue_id: str = evaluation.issue_id
+            resume_fact = evaluation.clarification
+        else:
+            # 有 pending 锚点：以 pending_question 为准（防多轮澄清时 evaluate 重选漂移导致 409）
+            resume_issue_id, resume_fact = pending_target
+
+        next_state = persisted_state.model_copy(deep=True)
+        issue = next(
+            (item for item in next_state.issues if item.issue_id == resume_issue_id),
+            None,
+        )
+        if issue is None:
+            raise ResumeRunConflict()
+        selected_index = next(
+            (index for index, item in enumerate(issue.unknown_facts) if item == resume_fact),
+            None,
+        )
+        if selected_index is None:
+            raise ResumeRunConflict()
+
+        if _is_explicit_unknown(normalized_answer):
+            # 用户确认无法提供该事实：acknowledge 并转入条件化（不写入已确认事实，不 409）
+            issue.unknown_facts.pop(selected_index)
+        else:
+            issue.facts.append(
+                Fact(
+                    statement=normalized_answer,
+                    source=SourceType.USER,
+                    source_ref=f"agent_run:{run_id}:clarification:v{expected_version}",
+                    confidence=1.0,
+                )
+            )
+            issue.unknown_facts.pop(selected_index)
+        try:
+            next_state = transition(next_state, AgentStatus.PLANNING)
+        except BudgetExceeded as exc:
+            raise ResumeRunConflict() from exc
+
+        try:
+            saved = compare_and_save(
+                db,
+                run=run,
+                expected_version=expected_version,
+                state=next_state,
+                status=AgentStatus.PLANNING.value,
+                checkpoint=CheckpointMetadata(
+                    decision="user_fact",
+                    reason_code="USER_CLARIFICATION_RECORDED",
+                    issue_id=resume_issue_id,
+                    pending_question=None,
+                ),
+            )
+        except RunVersionConflict as exc:
+            raise ResumeRunConflict() from exc
+
+        return ResumeResult(
+            run_id=cast(str, saved.id),
+            issue_id=resume_issue_id,
+            old_state_version=expected_version,
+            new_state_version=cast(int, saved.state_version),
+            state=LegalAgentState.model_validate_json(cast(str, saved.state_json)),
+        )
+
+
+class ControllerResult(BaseModel):
+    model_config = ConfigDict(frozen=True, extra="forbid")
+
+    state: LegalAgentState
+    evaluation: EvaluationDecision | None = None
+    degraded: bool = False
+    degraded_reason: str | None = None
+    pending_question: str | None = None
+
+
+class AgentController:
+    def __init__(
+        self,
+        *,
+        planner: Planner,
+        gateway: ToolGateway,
+        repository: ControllerRepository,
+        budgets: AgentBudgets,
+        evaluator: EvidenceEvaluator | None = None,
+        run_locks: InMemoryRunLockRegistry | None = None,
+        clock: Callable[[], datetime] | None = None,
+    ) -> None:
+        self._planner = planner
+        self._gateway = gateway
+        self._repository = repository
+        self._budgets = budgets.model_copy(deep=True)
+        self._evaluator = evaluator or EvidenceEvaluator()
+        self._run_locks = run_locks or _DEFAULT_RUN_LOCKS
+        self._clock = clock or datetime.utcnow
+
+    def run(self, run_id: str, bootstrap: RequestBootstrap) -> ControllerResult:
+        with self._run_locks.acquire(run_id):
+            run = self._repository.load(run_id=run_id, conversation_id=bootstrap.conv_id)
+            if run is None or run.conversation_id != bootstrap.conv_id:
+                raise PermissionError("agent run does not match the trusted conversation")
+            if run.state.status is AgentStatus.EXECUTING:
+                raise UncertainExecutionState(
+                    "run stopped after a durable EXECUTING checkpoint; automatic replay is forbidden"
+                )
+            if run.state.status is AgentStatus.BOOTSTRAPPING:
+                state = run.state.model_copy(update={"budgets": self._budgets.model_copy(deep=True)})
+                try:
+                    state = transition(state, AgentStatus.PLANNING)
+                except BudgetExceeded as exc:
+                    return self._persist_budget_stop(run, exc)
+                run = self._save(
+                    run,
+                    state,
+                    CheckpointMetadata(decision="bootstrap", reason_code="BUDGETS_SNAPSHOTTED"),
+                )
+            return self._drive(run, bootstrap)
+
+    def _drive(self, run: ControllerRun, bootstrap: RequestBootstrap) -> ControllerResult:
+        if run.state.status is AgentStatus.EVALUATING:
+            if run.state.observations and run.state.observations[-1].status == "failed":
+                error_code = run.state.observations[-1].error_code or "TOOL_EXECUTION_ERROR"
+                return self._persist_failure(
+                    run,
+                    reason_code=error_code,
+                    degraded_reason=error_code,
+                )
+            handled = self._handle_evaluation(run, self._evaluator.evaluate(run.state))
+            if isinstance(handled, ControllerResult):
+                return handled
+            run = handled
+        if run.state.status is AgentStatus.WAITING_USER:
+            evaluation = self._evaluator.evaluate(run.state)
+            question = evaluation.clarification.statement if evaluation.clarification else None
+            return ControllerResult(
+                state=run.state,
+                evaluation=evaluation,
+                pending_question=run.pending_question or question,
+            )
+        if run.state.status in {
+            AgentStatus.DRAFTING,
+            AgentStatus.COMPLETED,
+            AgentStatus.FAILED,
+            AgentStatus.REFUSED,
+            AgentStatus.STOPPED,
+        }:
+            return ControllerResult(
+                state=run.state,
+                degraded=run.degraded_reason is not None,
+                degraded_reason=run.degraded_reason,
+                pending_question=run.pending_question,
+            )
+        if run.state.status is not AgentStatus.PLANNING:
+            raise RuntimeError(f"unsupported controller state: {run.state.status.value}")
+
+        structural = self._evaluator.evaluate(run.state)
+        if structural.outcome is EvaluationOutcome.FAIL_SAFE:
+            failed = self._handle_evaluation(run, structural)
+            if isinstance(failed, ControllerResult):
+                return failed
+            raise AssertionError("FAIL_SAFE evaluation cannot replan")
+
+        # V2-G2 争点强制扇出：每个尚无成功证据的 issue 先做一次 issue 定向检索，
+        # 消灭 planner "只查一个角度"的证据偏科（run-8 C10 全刑法查询、0 民法查询的根因）。
+        seeded = self._seed_issue_retrievals(run)
+        if isinstance(seeded, ControllerResult):
+            return seeded  # 扇出内即达终态（fail-closed/SUFFICIENT→DRAFTING/预算停）→ 直接返回
+        run = seeded
+        if run.state.status is not AgentStatus.PLANNING:
+            # 扇出将状态推进出 PLANNING（如 WAITING_USER 澄清）→ 交由 _drive 状态分派处理
+            return self._drive(run, bootstrap)
+
+        while True:
+            # V2-G1 确定性终稿门：先于 planner 的确定性判定——拿掉"何时转终稿"这个对 LLM
+            # 过难的决策（run-1~8 parse 死亡点主要在此）。SUFFICIENT 或（MISSING_FACT+澄清耗尽
+            # +每 issue 有证据）→ 跳过 planner 直接交 _handle_evaluation 走确定性状态推进。
+            gate = self._deterministic_finish_gate(run.state)
+            if gate is not None:
+                handled = self._handle_evaluation(run, gate)
+                if isinstance(handled, ControllerResult):
+                    return handled
+                run = handled
+                # 2026-09-10 mypy 修复（原为 `break`）：`while True` 之后**函数已无任何代码**，
+                # 故 break 会 fall through 出函数 → **隐式返回 None**，而调用方期望 ControllerResult。
+                # 注释原本写"出循环交状态分派"，但那段分派**从未实现**（不是漏看，是确实没有）。
+                # 可达性分析：门只在 SUFFICIENT 或（MISSING_FACT+预算耗尽+每 issue 有证据）时非 None；
+                # 而"每 issue 有证据"蕴含"每 issue 已发起检索" ⇒ _handle_evaluation 不会走 backfill 分支
+                # ⇒ 本分支为 ControllerResult ⇒ 此处**当前不可达**。但"不可达"必须显式化：
+                # 若将来放宽门的证据不变式，这里就是静默 None。故改为 fail-closed 且可诊断
+                # （service 层会折叠为 AGENT_EXECUTION_FAILURE 并带栈日志）。
+                raise AssertionError(
+                    "确定性终稿门返回了 ControllerRun（按不变式应不可达）："
+                    "说明门的证据不变式被破坏，_drive 无法安全继续"
+                )
+
+            planner_state = LegalAgentState.model_validate_json(run.state.model_dump_json())
+            planner_bootstrap = copy.deepcopy(bootstrap)
+            raw: object = None  # 取证用；首轮 decide 可能在赋值前抛错
+            try:
+                raw = self._planner.decide(state=planner_state, bootstrap=planner_bootstrap)
+                issue_ids = {issue.issue_id for issue in run.state.issues}
+                decision = parse_plan_decision(
+                    raw,
+                    policies=self._gateway.policies,
+                    issue_ids=issue_ids,
+                )
+            except PlannerPolicyViolation:
+                return self._persist_failure(run, reason_code="PLANNER_POLICY_VIOLATION")
+            except PlannerParseError as exc:
+                # 错误回喂重试一次（2026-09-08）：schema 偏差（JSON 合法但字段/枚举不合规）
+                # 盲重试同 prompt 无效；把校验错误回给模型修正后再判一次。仍失败才 fail-closed。
+                try:
+                    issue_ids = {issue.issue_id for issue in run.state.issues}
+                    raw2 = self._planner.decide(
+                        state=planner_state,
+                        bootstrap=planner_bootstrap,
+                        feedback=f"校验失败：{exc}",
+                    )
+                    decision = parse_plan_decision(
+                        raw2,
+                        policies=self._gateway.policies,
+                        issue_ids=issue_ids,
+                    )
+                except PlannerPolicyViolation:
+                    return self._persist_failure(run, reason_code="PLANNER_POLICY_VIOLATION")
+                except PlannerParseError:
+                    # 取证：记录 raw 前 500 字符，区分非 JSON / schema 不符两类失败
+                    import logging
+
+                    logging.getLogger("legal.agent").warning(
+                        "planner_schema_failure",
+                        extra={
+                            "agent_planner_raw_tail": str(raw)[:500],
+                            "agent_failure_detail": "PlannerParseError after retry-with-feedback",
+                        },
+                    )
+                    return self._persist_failure(
+                        run,
+                        reason_code="PLANNER_PARSE_ERROR",
+                        degraded_reason="PLANNER_PARSE_ERROR",
+                    )
+
+            if isinstance(decision, ToolCallDecision):
+                outcome = self._execute_tool(run, decision)
+                if isinstance(outcome, ControllerResult):
+                    return outcome
+                run = outcome
+                if run.state.status is AgentStatus.PLANNING:
+                    # A duplicate action checkpoint updates only its bounded
+                    # counter; no new evidence exists to evaluate.
+                    continue
+                evaluation = self._evaluator.evaluate(run.state)
+                handled = self._handle_evaluation(run, evaluation)
+                if isinstance(handled, ControllerRun):
+                    run = handled
+                    continue
+                return handled
+
+            if isinstance(decision, (FinishResearchDecision, AskUserDecision)):
+                handled = self._handle_evaluation(run, self._evaluator.evaluate(run.state))
+                if isinstance(handled, ControllerRun):
+                    run = handled
+                    continue
+                return handled
+
+            if isinstance(decision, ReplanDecision):
+                try:
+                    state = register_replan(run.state)
+                except BudgetExceeded as exc:
+                    return self._persist_budget_stop(run, exc)
+                run = self._save(
+                    run,
+                    state,
+                    CheckpointMetadata(decision="replan", reason_code="PLANNER_REPLAN"),
+                )
+                continue
+
+            if isinstance(decision, StopDecision):
+                state = run.state.model_copy(update={"status": AgentStatus.STOPPED, "terminal_decision": decision})
+                run = self._save(
+                    run,
+                    state,
+                    CheckpointMetadata(decision="stop", reason_code="PLANNER_STOP"),
+                )
+                return ControllerResult(state=run.state)
+
+            raise AssertionError("unreachable normalized Planner decision")
+
+    def _execute_tool(
+        self,
+        run: ControllerRun,
+        decision: ToolCallDecision,
+    ) -> ControllerRun | ControllerResult:
+        fingerprint = action_fingerprint(decision.issue_id, decision.tool_name, decision.args)
+        try:
+            registered = register_action(run.state, decision.issue_id, decision.tool_name, decision.args)
+        except DuplicateAction as exc:
+            return self._save(
+                run,
+                exc.state,
+                CheckpointMetadata(
+                    decision="duplicate_action",
+                    reason_code="DUPLICATE_ACTION",
+                    issue_id=decision.issue_id,
+                    tool_name=decision.tool_name,
+                    fingerprint=fingerprint,
+                ),
+            )
+        except BudgetExceeded as exc:
+            return self._persist_budget_stop(run, exc)
+
+        if registered.steps + 3 > registered.budgets.max_steps:
+            stopped = registered.model_copy(
+                update={
+                    "status": AgentStatus.STOPPED,
+                    "terminal_decision": StopDecision(reason="budget_exceeded:step_preflight"),
+                }
+            )
+            run = self._save(
+                run,
+                stopped,
+                CheckpointMetadata(
+                    decision="stop",
+                    reason_code="AGENT_BUDGET_EXCEEDED",
+                    issue_id=decision.issue_id,
+                    tool_name=decision.tool_name,
+                    fingerprint=fingerprint,
+                    result_code="budget_exceeded:step_preflight",
+                    degraded_reason="AGENT_BUDGET_EXCEEDED",
+                    last_error_code="AGENT_BUDGET_EXCEEDED",
+                ),
+            )
+            return ControllerResult(
+                state=run.state,
+                degraded=True,
+                degraded_reason="AGENT_BUDGET_EXCEEDED",
+            )
+
+        try:
+            executing = transition(registered, AgentStatus.EXECUTING)
+        except BudgetExceeded as exc:
+            return self._persist_budget_stop(run, exc)
+        run = self._save(
+            run,
+            executing,
+            CheckpointMetadata(
+                decision="tool_call",
+                reason_code="EXECUTING",
+                issue_id=decision.issue_id,
+                tool_name=decision.tool_name,
+                fingerprint=fingerprint,
+            ),
+        )
+
+        context = ToolContext(
+            user_id=run.user_id,
+            conversation_id=run.conversation_id,
+            run_id=run.run_id,
+            law_as_of=run.law_as_of,
+        )
+        try:
+            observation = self._gateway.execute(context, decision)
+        except DuplicateToolCall:
+            return self._persist_failure(
+                run,
+                reason_code="GATEWAY_DUPLICATE_INVARIANT",
+                degraded_reason="GATEWAY_DUPLICATE_INVARIANT",
+            )
+
+        observation, materialized = self._materialize_evidence(run.state, observation)
+        evaluating_base = run.state.model_copy(
+            update={
+                "observations": [*run.state.observations, observation],
+                "evidence": [*run.state.evidence, *materialized],
+            }
+        )
+        try:
+            evaluating = transition(evaluating_base, AgentStatus.EVALUATING)
+        except BudgetExceeded as exc:
+            return self._persist_budget_stop(run, exc)
+        run = self._save(
+            run,
+            evaluating,
+            CheckpointMetadata(
+                decision="tool_result",
+                reason_code=observation.error_code or "TOOL_SUCCEEDED",
+                issue_id=decision.issue_id,
+                tool_name=decision.tool_name,
+                fingerprint=fingerprint,
+                duration_ms=observation.duration_ms,
+                result_code=observation.error_code or "SUCCEEDED",
+            ),
+            new_evidence_by_issue={decision.issue_id: materialized} if materialized else None,
+        )
+        if observation.status == "failed":
+            return self._persist_failure(
+                run,
+                reason_code=observation.error_code or "TOOL_EXECUTION_ERROR",
+                degraded_reason=observation.error_code or "TOOL_EXECUTION_ERROR",
+            )
+        return run
+
+    def _deterministic_finish_gate(self, state: LegalAgentState) -> EvaluationDecision | None:
+        """V2-G1：LLM 决策前置的确定性闸门。返回非 None 表示跳过 planner，直接交 _handle_evaluation。
+
+        A. 评估器判 SUFFICIENT（每 issue 有有效成文法证据且无未知关键事实）→ 直接转 DRAFTING；
+        B. MISSING_FACT + 澄清预算已耗尽 + 每 issue 至少 1 条证据 → 强制条件化分析（转 DRAFTING）。
+
+        注意只捕获 SUFFICIENT 与（MISSING_FACT+耗尽+有证据）：MISSING_EVIDENCE/CONFLICT 会令
+        _handle_evaluation 走 replan 回到 PLANNING，门放行会自触发死循环——故返回 None 放行 planner。
+        """
+        evaluation = self._evaluator.evaluate(state)
+        if evaluation.outcome is EvaluationOutcome.SUFFICIENT:
+            return evaluation
+        if (
+            evaluation.outcome is EvaluationOutcome.MISSING_FACT
+            and self._clarify_budget_exhausted(state)
+            and self._every_issue_has_evidence(state)
+        ):
+            return evaluation
+        return None
+
+    @staticmethod
+    def _clarify_budget_exhausted(state: LegalAgentState) -> bool:
+        """澄清预算判定单一真源（与 _handle_evaluation MISSING_FACT 分支一致）。"""
+        return state.clarifications >= state.budgets.max_clarifications
+
+    @staticmethod
+    def _every_issue_has_evidence(state: LegalAgentState) -> bool:
+        """每个 issue 是否至少挂 1 条成功 observation 的证据。"""
+        for issue in state.issues:
+            linked = any(
+                obs.issue_id == issue.issue_id and obs.status == "succeeded" and bool(obs.evidence_ids)
+                for obs in state.observations
+            )
+            if not linked:
+                return False
+        return bool(state.issues)
+
+    def _every_issue_retrieval_attempted(self, state: LegalAgentState) -> bool:
+        """每个尚无证据的 issue 是否**都已发起过** retrieve_laws（无论是否命中）。
+
+        2026-09-10 新增：这是补齐检索的**终止条件**。`_every_issue_has_evidence` 只回答
+        "有没有证据"，在检索器持续返回空命中的情况下永远为 False——若拿它当补检索的
+        循环条件会**无界空转**，只能靠 step 预算被迫中断（当时的阈值探针误报为
+        "297 次后自然终止"，实为 `if n > 300: raise` 的人为上限；提高阈值重跑才暴露真相，
+        见 handoff-20260910 C01 节——**探针不得自带阈值**的教训即源于此）。
+        本函数回答的是"是否已经试过了"：一旦每个缺证据的 issue 都留下过
+        retrieve_laws 动作指纹，重试必然命中 duplicate 守卫、不可能产生新证据，
+        补检索就走到尽头，必须 fall through 到原有确定性收敛路径（转 DRAFTING 条件化
+        分析 / fail-closed 失败），而不是继续回 PLANNING。
+        """
+        for issue in state.issues:
+            linked = any(
+                obs.issue_id == issue.issue_id and obs.status == "succeeded" and bool(obs.evidence_ids)
+                for obs in state.observations
+            )
+            if linked:
+                continue
+            attempted = any(
+                fingerprint
+                == action_fingerprint(
+                    issue.issue_id,
+                    "retrieve_laws",
+                    RetrieveLawsInput(query=issue.question, k=4),
+                )
+                for fingerprint in state.action_fingerprints
+            )
+            if not attempted:
+                return False
+        return True
+
+    def _seed_issue_retrievals(self, run: ControllerRun) -> ControllerRun | ControllerResult:
+        """V2-G2 争点强制扇出：对每个尚无成功证据的 issue 执行一次 retrieve_laws(query=issue.question)。
+
+        构造 ToolCallDecision 走 _execute_tool 既有路径（注册/预算/fail-closed/证据物化全保留），
+        不绕过 gateway。每次扇出后按主循环同款语义 evaluate+_handle_evaluation 推进：
+        状态回到 PLANNING 才继续下一个 issue；SUFFICIENT/DRAFTING/终态（fail-closed、预算停）
+        返回 ControllerResult 由调用方直接返回。
+        """
+        for issue in run.state.issues:
+            linked = any(
+                obs.issue_id == issue.issue_id and obs.status == "succeeded" and bool(obs.evidence_ids)
+                for obs in run.state.observations
+            )
+            if linked:
+                continue
+            decision = ToolCallDecision(
+                issue_id=issue.issue_id,
+                tool_name="retrieve_laws",
+                args=RetrieveLawsInput(query=issue.question, k=4),
+            )
+            outcome = self._execute_tool(run, decision)
+            if isinstance(outcome, ControllerResult):
+                return outcome  # 工具执行即终态（fail-closed/预算停）→ 直接上抛
+            run = outcome
+            if run.state.status is AgentStatus.PLANNING:
+                continue  # 无新证据（如 duplicate）→ 扇出下一个 issue
+            evaluation = self._evaluator.evaluate(run.state)
+            handled = self._handle_evaluation(run, evaluation)
+            if isinstance(handled, ControllerResult):
+                return handled  # SUFFICIENT→DRAFTING / fail-closed → 终态直接返回
+            run = handled
+            if run.state.status is not AgentStatus.PLANNING:
+                break  # 评估推进出 PLANNING（如 WAITING_USER 澄清）→ 交调度器处理
+        return run
+
+    def _handle_evaluation(
+        self,
+        run: ControllerRun,
+        evaluation: EvaluationDecision,
+    ) -> ControllerRun | ControllerResult:
+        try:
+            if evaluation.outcome is EvaluationOutcome.SUFFICIENT:
+                state = transition(run.state, AgentStatus.DRAFTING)
+                saved = self._save(
+                    run,
+                    state,
+                    CheckpointMetadata(decision="evaluation", reason_code=evaluation.reason_code),
+                )
+                return ControllerResult(state=saved.state, evaluation=evaluation)
+
+            if evaluation.outcome is EvaluationOutcome.MISSING_FACT:
+                if run.state.clarifications >= run.state.budgets.max_clarifications:
+                    if not self._every_issue_retrieval_attempted(run.state):
+                        # 2026-09-10 修复：澄清预算已耗尽、且**仍有 issue 从未发起过检索** →
+                        # 绝不能转 DRAFTING（该 issue 在 drafting 时无证据绑定，verifier 会判
+                        # EVIDENCE_COVERAGE_DEFICIENT，而 writer 造不出未检索过的法条 → 回喂被拒
+                        # → 整轮失败、用户拿到空终稿）。
+                        # 正确去向：回 PLANNING 交扇出补齐检索（EVALUATING→PLANNING 合法，
+                        # 且这是确定性补齐而非重新规划，不消耗 replan 预算）。
+                        #
+                        # 终止条件（关键，勿改为 _every_issue_has_evidence）：
+                        # 用 `_every_issue_retrieval_attempted` 而非 `_every_issue_has_evidence`。
+                        # 后者在检索器持续空命中时恒为 False → 本分支会被无限重入，退化为
+                        # 无界空转，只能靠 step 预算被迫中断（当时阈值探针误报"297 次后终止"，
+                        # 实为人为上限；见 handoff-20260910 C01 节）。
+                        # 前者一旦每个缺证据 issue 都试过检索即为 True → fall through 到下方
+                        # 原有的确定性收敛路径，run 必然抵达终态。
+                        #
+                        # 转移幂等保护：调用点可能来自 EVALUATING（扇出执行后）或已是 PLANNING，
+                        # 已是 PLANNING 时不再转移，避免 InvalidTransition(planning→planning)。
+                        state = (
+                            run.state
+                            if run.state.status is AgentStatus.PLANNING
+                            else transition(run.state, AgentStatus.PLANNING)
+                        )
+                        return self._save(
+                            run,
+                            state,
+                            CheckpointMetadata(
+                                decision="backfill_retrieval",
+                                reason_code="CLARIFY_BUDGET_EXHAUSTED_PENDING_RETRIEVAL",
+                            ),
+                        )
+                    # 澄清预算已耗尽但仍有缺失关键事实 → 确定性强制条件化（产品承诺"最多两轮追问，
+                    # 两轮后转入分情形分析"）。无论 Planner 输出 ask_user 还是 finish_research，
+                    # 评估器决定再问时轮数已满都不注册下轮澄清（原行为：register_clarification
+                    # 触发 BudgetExceeded→STOP→静默降级，用户最后回答被丢弃）。
+                    state = transition(run.state, AgentStatus.DRAFTING)
+                    saved = self._save(
+                        run,
+                        state,
+                        CheckpointMetadata(
+                            decision="conditional_analysis",
+                            reason_code="CLARIFY_BUDGET_EXHAUSTED",
+                        ),
+                    )
+                    return ControllerResult(state=saved.state, evaluation=evaluation)
+                clarified = register_clarification(run.state)
+                state = transition(clarified, AgentStatus.WAITING_USER)
+                saved = self._save(
+                    run,
+                    state,
+                    CheckpointMetadata(
+                        decision="clarification",
+                        reason_code=evaluation.reason_code,
+                        issue_id=evaluation.issue_id,
+                        pending_question=(evaluation.clarification.statement if evaluation.clarification else None),
+                    ),
+                )
+                question = evaluation.clarification.statement if evaluation.clarification else None
+                return ControllerResult(
+                    state=saved.state,
+                    evaluation=evaluation,
+                    pending_question=question,
+                )
+
+            if evaluation.outcome in {
+                EvaluationOutcome.MISSING_EVIDENCE,
+                EvaluationOutcome.CONFLICT,
+            }:
+                replanned = register_replan(run.state)
+                state = transition(replanned, AgentStatus.PLANNING)
+                return self._save(
+                    run,
+                    state,
+                    CheckpointMetadata(
+                        decision="evaluation_replan",
+                        reason_code=evaluation.reason_code,
+                        issue_id=evaluation.issue_id,
+                    ),
+                )
+
+            return self._persist_failure(run, reason_code=evaluation.reason_code)
+        except BudgetExceeded as exc:
+            return self._persist_budget_stop(run, exc)
+
+    def _persist_failure(
+        self,
+        run: ControllerRun,
+        *,
+        reason_code: str,
+        degraded_reason: str | None = None,
+    ) -> ControllerResult:
+        try:
+            state = transition(run.state, AgentStatus.FAILED)
+        except BudgetExceeded:
+            state = run.state.model_copy(update={"status": AgentStatus.FAILED})
+        saved = self._save(
+            run,
+            state,
+            CheckpointMetadata(
+                decision="failure",
+                reason_code=reason_code,
+                result_code=reason_code,
+                degraded_reason=degraded_reason,
+                last_error_code=reason_code,
+            ),
+        )
+        return ControllerResult(
+            state=saved.state,
+            degraded=degraded_reason is not None,
+            degraded_reason=degraded_reason,
+        )
+
+    def _persist_budget_stop(self, run: ControllerRun, exc: BudgetExceeded) -> ControllerResult:
+        saved = self._save(
+            run,
+            exc.state,
+            CheckpointMetadata(
+                decision="stop",
+                reason_code="AGENT_BUDGET_EXCEEDED",
+                result_code=exc.decision.reason,
+                degraded_reason="AGENT_BUDGET_EXCEEDED",
+                last_error_code="AGENT_BUDGET_EXCEEDED",
+            ),
+        )
+        return ControllerResult(
+            state=saved.state,
+            degraded=True,
+            degraded_reason="AGENT_BUDGET_EXCEEDED",
+        )
+
+    def _save(
+        self,
+        run: ControllerRun,
+        state: LegalAgentState,
+        checkpoint: CheckpointMetadata,
+        *,
+        new_evidence_by_issue: Mapping[str, Sequence[Evidence]] | None = None,
+    ) -> ControllerRun:
+        return self._repository.save(
+            run,
+            state,
+            checkpoint=checkpoint,
+            new_evidence_by_issue=new_evidence_by_issue,
+        )
+
+    def _materialize_evidence(
+        self,
+        state: LegalAgentState,
+        observation: Observation,
+    ) -> tuple[Observation, list[Evidence]]:
+        if observation.status != "succeeded" or not isinstance(
+            observation.output, (RetrieveLawsOutput, LookupArticleOutput)
+        ):
+            return observation, []
+        known_ids = {item.evidence_id for item in state.evidence}
+        linked_ids: list[str] = []
+        materialized: list[Evidence] = []
+        for candidate in observation.output.evidence:
+            converted = self._convert_tool_evidence(candidate)
+            if converted is None:
+                continue
+            linked_ids.append(converted.evidence_id)
+            if converted.evidence_id not in known_ids:
+                known_ids.add(converted.evidence_id)
+                materialized.append(converted)
+        return observation.model_copy(update={"evidence_ids": linked_ids}), materialized
+
+    def _convert_tool_evidence(self, candidate: ToolEvidence) -> Evidence | None:
+        source_id = (candidate.source_id or "").strip()
+        source = (candidate.source or "").strip()
+        article = (candidate.article or "").strip()
+        snippet = (candidate.snippet or "").strip()
+        if not all((source_id, source, article, snippet)):
+            return None
+        source_ref = f"{source}#{article}"
+        payload = {
+            "source_id": source_id,
+            "source_ref": source_ref,
+            "source_type": SourceType.STATUTE.value,
+            "snippet": snippet,
+            "legal_validity": candidate.legal_validity,
+        }
+        canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+        evidence_id = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        return Evidence(
+            evidence_id=evidence_id,
+            source_id=source_id,
+            source_ref=source_ref,
+            source_type=SourceType.STATUTE,
+            snippet=snippet,
+            legal_validity=LegalValidity(candidate.legal_validity),
+            acquired_at=self._clock(),
+        )

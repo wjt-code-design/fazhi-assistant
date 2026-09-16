@@ -59,7 +59,10 @@ def main() -> None:
                 "bridge": bool(p.get("bridge")),
             }
         )
-        print(f"[{p['id']:>8}] orig={int(ho)} para={int(hp)} stable={int(s)} {p['original'][:20]} → {p['paraphrase'][:20]}", flush=True)
+        print(
+            f"[{p['id']:>8}] orig={int(ho)} para={int(hp)} stable={int(s)} {p['original'][:20]} → {p['paraphrase'][:20]}",
+            flush=True,
+        )
     n = len(rows)
     summary = {
         "n": n,
@@ -69,7 +72,9 @@ def main() -> None:
         "bridge_stable": bridge_ok,
         "note": "改写句不含桥接词时，bridge 对暴露措辞桥接依赖（诚实数据）",
     }
-    print(f"\nboth_hit_rate={summary['both_hit_rate']}  stable_rate={summary['stable_rate']}（bridge {bridge_ok}/{bridge_n}）")
+    print(
+        f"\nboth_hit_rate={summary['both_hit_rate']}  stable_rate={summary['stable_rate']}（bridge {bridge_ok}/{bridge_n}）"
+    )
     os.makedirs(OUT_DIR, exist_ok=True)
     ts = time.strftime("%Y%m%d-%H%M%S")
     out = os.path.join(OUT_DIR, f"robustness_{ts}.json")

@@ -32,6 +32,16 @@ jobs:
         env:
           PYTEST_ADDOPTS: "-m 'not slow'"
         run: pytest --cov=. --cov-fail-under=70 -q
+      # 评测宿主目录（dispatch-output/agent-quality-20260911）不在 backend 的
+      # lint/format/test 门禁范围内（backend project 的 testpaths=["tests"]），
+      # 2026-09-15 代码审查发现该缺陷（守卫代码曾累积 18 项 lint 违规且无人拦）。
+      # 该目录自带 ruff.toml（显式 ignore E402：serve.py 需先设环境再 import main）。
+      - name: Dispatch-output lint + guard tests
+        run: |
+          ruff check ../dispatch-output/agent-quality-20260911
+          ruff format --check ../dispatch-output/agent-quality-20260911
+          pytest -q ../dispatch-output/agent-quality-20260911/test_budget_guard.py
+
       - name: pip-audit
         run: pip-audit -r requirements.txt
 

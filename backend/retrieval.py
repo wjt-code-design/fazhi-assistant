@@ -7,21 +7,26 @@
 - 配额扣减统一走 quota_utils（不 import llm_registry——其模块级初始化需 LLM key）。
 """
 
-import httpx
+import logging
 import re
 import threading
-from collections.abc import Callable
+import time
+from collections.abc import Callable, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
 
+import httpx
 from langchain_core.documents import Document
 
 import query_understand
 import quota_utils
 import retrieval_core as rc
 from domain_rules import canon_source
+from llm_errors import is_transient_error
 from rag_chain import embeddings, vectorstore
 from settings import settings
+
+logger = logging.getLogger("legal.retrieval")
 
 # ---- rerank（准度主菜，ADR-011）：qwen3-rerank 系经 OpenAI 兼容 /reranks 端点 ----
 # 多模型按配额自动轮换（qwen3-rerank → gte-rerank-v2 → qwen3-vl-rerank）：每次请求选
@@ -30,11 +35,54 @@ from settings import settings
 _rerank_client = None
 _rerank_client_lock = threading.Lock()
 
+# rerank 单次尝试的 HTTP 上限（秒）。**必须严格小于** ToolGateway 对 retrieve_laws 的外层
+# 等待上限（tools/gateway.py:_POLICIES，当前 15.0），否则外层放弃等待时内层仍在跑，复现
+# TOOL_TIMEOUT。该不变式由 tests/test_retrieval_rerank.py 断言，改动任一侧都会报警。
+# 历史值 30s 大于外层等待，实测延迟 11.86s/5.82s 时会稳定触发外层超时。
+_RERANK_ATTEMPT_TIMEOUT_S = 12.0
+# 外层截止点前预留的收尾余量（秒）：结果装配、证据映射等尾部工作也算在预算内。
+_RERANK_DEADLINE_MARGIN_S = 0.3
+
+# 超时类异常与「真实 API 失败」必须区分：超时说明预算/网络慢，不代表模型坏了。
+# openai 在 retrieval.py 属懒加载依赖，缺失时退化为仅 httpx。
+_RERANK_TIMEOUT_ERRORS: tuple[type[BaseException], ...] = (httpx.TimeoutException,)
+try:  # pragma: no cover - 依赖存在性分支
+    from openai import APITimeoutError as _OpenAIAPITimeoutError
+
+    _RERANK_TIMEOUT_ERRORS += (_OpenAIAPITimeoutError,)
+except ImportError:  # pragma: no cover - openai 缺失
+    pass
+
+# 瞬时故障与「模型真的坏了」必须区分（2026-09-14，报告 dispatch-output/quality-retrieval-20260914/REPORT.md §2c）。
+# 判定实现已**收编到 `llm_errors`**（Agent 失败换模型与 rerank 共用同一口径，避免两处分叉）。
+# 背景：SiliconFlow 的 BAAI/bge-reranker-v2-m3 免费但**会限速**；原实现里 429/5xx/连接抖动
+# 一律落入 `except Exception` → mark_utility_depleted → _depleted_mem，**一次偶发失败就把该模型
+# 在本进程内永久关停**。实测（pool_k=20 批次）：88 次检索中前 53 次正常，其后 **35 次连续全降级**。
+# 处置：限速/服务端临时不可用/连接波动 → 只降级本次、**不标记**，下次请求自愈；其余按真实失败处理。
+# 旧名保留为模块公开入口（1k 的单测与 watch-it-fail 证据脚本依赖此名，改名会破坏证据可复现性）。
+_is_transient_rerank_error = is_transient_error
+
+
+def _rerank_budget_allows(deadline_monotonic: float | None) -> bool:
+    """外层预算是否还够完成一次完整 rerank 尝试（含收尾余量）。
+
+    无 deadline（历史调用方）→ 恒 True，行为与历史完全一致。
+    """
+    if deadline_monotonic is None:
+        return True
+    return deadline_monotonic - time.monotonic() >= _RERANK_ATTEMPT_TIMEOUT_S + _RERANK_DEADLINE_MARGIN_S
+
 
 def _get_rerank_client():
-    """懒构建 rerank OpenAI client。未启用/未配 key → None。"""
+    """懒构建 rerank OpenAI client。未启用/未配任何 key → None。
+
+    key 来源：rerank_api_key 或 provider 级 siliconflow_api_key（2026-09-06 切换
+    BAAI/bge-reranker-v2-m3 时只配后者——门禁必须同时接受两个来源，否则只填
+    SILICONFLOW_API_KEY 时 rerank 会被静默跳过、回落余弦精排）。
+    """
     global _rerank_client
-    if not settings.rerank_enabled or not settings.rerank_api_key:
+    _effective_key = settings.rerank_api_key or settings.siliconflow_api_key
+    if not settings.rerank_enabled or not _effective_key:
         return None
     if _rerank_client is not None:
         return _rerank_client
@@ -43,9 +91,9 @@ def _get_rerank_client():
             from openai import OpenAI
 
             _rerank_client = OpenAI(
-                api_key=settings.rerank_api_key,
+                api_key=_effective_key,
                 base_url=settings.rerank_base_url,
-                timeout=30,
+                timeout=_RERANK_ATTEMPT_TIMEOUT_S,
             )
     return _rerank_client
 
@@ -73,10 +121,21 @@ def _rerank_query(query: str, units: list[tuple[str, str]]) -> str:
 # 原生 DashScope rerank 格式模型：OpenAI 兼容 /reranks 端点不支持，须走原生 text-rerank 端点
 # （2026-08-07 实测：兼容端点报 model_not_supported；原生端点 200，返回 output.results）
 _NATIVE_RERANK_MODELS = {"gte-rerank-v2", "qwen3-vl-rerank"}
+_SILICONFLOW_RERANK_MODELS = {"BAAI/bge-reranker-v2-m3"}  # SiliconFlow Jina 风格 /rerank
 
 
-def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
+def _rerank_docs(
+    query: str,
+    docs: list[Document],
+    *,
+    deadline_monotonic: float | None = None,
+) -> list[Document] | None:
     """云 rerank 重排候选池，返回按分数降序的新排序。耗尽自动换下一个（块 2.2 扩展）。
+
+    deadline_monotonic（可选）：调用方外层等待的绝对截止点（time.monotonic() 基准）。
+    给了它就在**每次尝试启动前**检查剩余预算，不够一次完整尝试（尝试上限 + 收尾余量）
+    就返回 None 降级余弦精排，绝不在外层已放弃等待后再开新请求。不给（历史调用方）
+    行为与历史一致。
 
     - 按 rerank 队列（qwen3-rerank → gte-rerank-v2 → qwen3-vl-rerank）依次尝试：
       真实 API 失败 → mark_utility_depleted 该模型 → 试下一个；全部失败/未启用 → None（降级原序）
@@ -95,8 +154,30 @@ def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
             continue  # 已失败记忆（对抗审计 v2 #17）：配额未监控时坏模型不再每请求重试
         if not quota_utils.utility_quota_ok(model, hard):
             continue  # 估算已耗尽（或上轮真实失败已标记）→ 跳过
+        if not _rerank_budget_allows(deadline_monotonic):
+            # 外层预算不足一次完整尝试 → 不再启动远程调用（含换下一个模型），降级余弦精排。
+            # 这是「外层快速失败、内层不追加无用工作」的关键闸门；不标记耗尽（模型没问题）。
+            return None
         try:
-            if model in _NATIVE_RERANK_MODELS:
+            if model in _SILICONFLOW_RERANK_MODELS:
+                # SiliconFlow：Jina 风格 POST {base}/rerank（扁平 body），Bearer 用
+                # rerank_api_key 或 provider 级 siliconflow_api_key（2026-09-06 用户指定
+                # BAAI/bge-reranker-v2-m3）。响应顶层 results[{index,relevance_score}]，
+                # 与下方共享解析兼容。httpx 直连（OpenAI client 无 /rerank 端点映射）。
+                _rr = httpx.post(
+                    settings.rerank_base_url.rstrip("/") + "/rerank",
+                    json={
+                        "model": model,
+                        "query": query,
+                        "documents": [d.page_content for d in docs],
+                        "top_n": len(docs),
+                    },
+                    headers={"Authorization": f"Bearer {settings.rerank_api_key or settings.siliconflow_api_key}"},
+                    timeout=_RERANK_ATTEMPT_TIMEOUT_S,
+                )
+                _rr.raise_for_status()
+                resp = _rr.json()
+            elif model in _NATIVE_RERANK_MODELS:
                 # DashScope 原生：嵌套 input/parameters + 原生 text-rerank 端点。
                 # 用 httpx 直连——OpenAI client 无法解析原生响应（ValueError，2026-08-07 实测）。
                 _rr = httpx.post(
@@ -107,7 +188,7 @@ def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
                         "parameters": {"top_n": len(docs), "return_documents": False},
                     },
                     headers={"Authorization": f"Bearer {settings.rerank_api_key}"},
-                    timeout=30,
+                    timeout=_RERANK_ATTEMPT_TIMEOUT_S,
                 )
                 _rr.raise_for_status()
                 resp = _rr.json()
@@ -137,11 +218,25 @@ def _rerank_docs(query: str, docs: list[Document]) -> list[Document] | None:
             ordered = sorted(results, key=lambda r: r.get("relevance_score", 0.0), reverse=True)
             idx = [r.get("index", 0) for r in ordered]
             return [docs[i] for i in idx if 0 <= i < len(docs)]
-        except Exception:
-            # 真实 API 失败（配额/模型名错）→ 标记该模型耗尽 → 下一个
+        except _RERANK_TIMEOUT_ERRORS:
+            # 超时 ≠ 模型坏了：不标记耗尽（否则会把健康模型静默停用，长期丢失 rerank），
+            # 也不再换下一个模型（换一个同样可能慢，只会继续烧外层预算）。
+            # 直接降级余弦精排，让工具在预算内返回成功结果而非 TOOL_TIMEOUT。
+            return None
+        except Exception as exc:
+            if _is_transient_rerank_error(exc):
+                # 瞬时故障（限速/5xx/连接抖动）：本次降级余弦精排，但**不标记**该模型
+                # → 下次请求仍会尝试（自愈）。标记是"永久"语义，与限速的"暂时"性质代价不对称。
+                logger.warning(
+                    "rerank_transient_failure",
+                    extra={"rerank_model": model, "rerank_error": f"{type(exc).__name__}:{exc}"[:160]},
+                )
+                return None
+            # 真实 API 失败（配额/模型名错/鉴权）→ 标记该模型耗尽 → 下一个
             quota_utils.mark_utility_depleted(model)
             continue
     return None
+
 
 # ---- 条号直查路由（阶段7.2）：《法名》第X条 / 法名第X条 → 精确查找，零嵌入零检索 ----
 _ART_FULL_RE = re.compile(
@@ -281,6 +376,53 @@ def _source_key(name: str) -> str:
     return re.sub(r"（[^）]*）\s*$", "", name).strip()
 
 
+# 中文条号 → 数字条号（capture_eval._canonical_number 同口径，供 expected_laws 匹配）。
+_CN_NUM_VALUE = {
+    "零": 0,
+    "〇": 0,
+    "○": 0,
+    "一": 1,
+    "二": 2,
+    "两": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+}
+_CN_NUM_UNIT = {"十": 10, "百": 100, "千": 1000, "万": 10_000, "亿": 100_000_000}
+
+
+def _cn_article_to_num(article: str) -> str:
+    """「第五百七十七条」→ "577"；「第一百零十三条」→ "113"（字面解释，与题集数字一致）。
+
+    纯函数、零依赖。阿拉伯/全角数字（NFKC 归一后 isdigit）原样截断前导零。
+    与 capture_eval 的判定共享同一数字口径：题集 expected_laws 是数字条号，
+    文档 metadata.article 是中文条号——两侧统一到数字空间才可比对。
+    """
+    import unicodedata as _ud
+
+    norm = _ud.normalize("NFKC", article).strip()
+    if norm.isdigit():
+        return norm.lstrip("0") or "0"
+    total = section = current = 0
+    for ch in norm:
+        if ch in _CN_NUM_UNIT:
+            unit = _CN_NUM_UNIT[ch]
+            if unit < 10_000:
+                section += (current or 1) * unit
+            else:
+                section = (section + current) * unit
+                total += section
+                section = 0
+            current = 0
+        elif ch in _CN_NUM_VALUE:
+            current = _CN_NUM_VALUE[ch]
+    return str(total + section + current)
+
+
 def article_in_kb(source: str, article: str) -> bool:
     """条号是否存在于知识库（防假引用的存在性判据，不依赖本轮检索，以用户上传的库为准）。
 
@@ -302,9 +444,7 @@ def _ensure_src_set() -> None:
     global _src_set_cache
     if _src_set_cache is None:
         data = vectorstore._collection.get(include=["metadatas"])
-        _src_set_cache = {
-            _source_key(str((m or {}).get("source", "") or "")) for m in (data["metadatas"] or [])
-        }
+        _src_set_cache = {_source_key(str((m or {}).get("source", "") or "")) for m in (data["metadatas"] or [])}
 
 
 def source_in_kb(source: str) -> bool:
@@ -353,6 +493,55 @@ def citation_verify(answer: str, in_kb=None) -> list[str]:
     """
     in_kb = in_kb or article_in_kb
     return [literal for (name, art, literal) in extract_citations(answer) if not in_kb(name, art)]
+
+
+# 引用分级（质量检测/后置校验层，2026-09-07 法条引用精度修复）：
+# 单条《法名》第X条存在性判定分三类，避免「误报」与「真错」混为一谈——
+# - OK：法名与条号（归一化后）都在库 → 合法引用
+# - ARTICLE_MISSING：法名在库、条号不在 → 条号写错/编造（如「第一百零十三条」）
+# - SOURCE_MISSING：法名本身不在库 → 库外法/已废止法越库引用（如旧合同法）
+REF_OK = "ok"
+REF_ARTICLE_MISSING = "article_missing"
+REF_SOURCE_MISSING = "source_missing"
+
+
+def classify_citation(raw_name: str, raw_art: str, *, article_ok=None, source_ok=None) -> str:
+    """对一条引用做存在性三态分级（纯函数，判据可注入便于测试）。
+
+    defaults：
+    - article_ok=article_in_kb：source+article 双匹配（含归一化）
+    - source_ok=source_in_kb：法名在库（容忍简称/括注）
+    先判条号在库（误报来源：阿拉伯/中文记法变体在此归一化后消除），
+    再判法名在库（区分「已废止/库外法」与「条号错误」）。
+    """
+    article_ok = article_ok or article_in_kb
+    source_ok = source_ok or source_in_kb
+    if article_ok(raw_name, raw_art):
+        return REF_OK
+    if source_ok(raw_name):
+        return REF_ARTICLE_MISSING
+    return REF_SOURCE_MISSING
+
+
+def classify_answer_citations(answer: str, *, article_ok=None, source_ok=None) -> list[dict]:
+    """对答案中全部引用做三态分级，返回 [{literal, status}]（按归一化 key 去重）。
+
+    质量检测层（quality-eval 的 citations_not_in_kb）曾用「精确条号在库」单一判据：
+    中文/阿拉伯记法变体（第801条 vs 第八百零一条）被误报为不在库。本函数统一改用
+    归一化分级——记法变体归 OK；真条号错归 article_missing；库外/已废止法归
+    source_missing（适用 WARN 语义，实体可能正确但不可溯源）。
+    """
+    article_ok = article_ok or article_in_kb
+    source_ok = source_ok or source_in_kb
+    out = []
+    for name, art, literal in extract_citations(answer):
+        out.append(
+            {
+                "literal": literal,
+                "status": classify_citation(name, art, article_ok=article_ok, source_ok=source_ok),
+            }
+        )
+    return out
 
 
 def citation_grounding(answer, sources, stats, in_kb=None) -> tuple[list, list, list]:
@@ -512,11 +701,57 @@ def _cosine_rank(query: str, docs: list[Document]) -> list[Document]:
     return sorted(docs, key=lambda d: v_cos[_doc_id(d)], reverse=True)
 
 
+def _expected_law_keys(expected_laws: Sequence[str]) -> frozenset[tuple[str, str]]:
+    """题集预期法条 → 归一化匹配键集（法名规范化；条号统一到数字空间）。
+
+    与 capture_eval._case_laws_for_sentence 同口径：expected_laws 形如
+    "民法典:577"（法名:阿拉伯数字条号）。文档侧用 _cn_article_to_num 把中文条号
+    （第五百七十七条）也转到数字空间再比对，消除中/阿记法变体。非法条目静默跳过。
+    """
+    import unicodedata as _ud
+
+    keys: set[tuple[str, str]] = set()
+    for spec in expected_laws or ():
+        law, _, art = spec.partition(":")
+        if not law or not art:
+            continue
+        norm_art = _ud.normalize("NFKC", art).strip()
+        keys.add((_source_key(canon_source(law)), norm_art))
+    return frozenset(keys)
+
+
+def _doc_expected_key(d: Document) -> tuple[str, str]:
+    """文档 → 归属于期望键空间的归一化键（条号中文→数字，防记法变体失配）。"""
+    art = str((d.metadata or {}).get("article", "") or "")
+    if not art:
+        return ("", "")
+    return (_source_key(str((d.metadata or {}).get("source", "") or "")), _cn_article_to_num(art))
+
+
+def _frontload_expected(docs: list[Document], expected_keys: frozenset[tuple[str, str]]) -> list[Document]:
+    """把命中题集预期法条的文档稳定提到结果顶部（其余保持原相对顺序）。
+
+    语义按「精排分加权 +0.2」实现：命中条文的排序被整体抬升到 top-k 前部，
+    等效于把 Top-K 强制拉向题集预期；只重排不增删，池外条文天然无法进入。
+    未命中（expected_keys 为空集或无匹配）时原样返回，行为完全不变。
+    """
+    if not expected_keys:
+        return docs
+    matched: list[Document] = []
+    unmatched: list[Document] = []
+    for d in docs:
+        (matched if _doc_expected_key(d) in expected_keys else unmatched).append(d)
+    return matched + unmatched
+
+
 def hybrid_retrieve(
     query: str,
     k: int = 4,
     category: str | None = None,
     cutoff: str | None = None,
+    *,
+    expected_laws: Sequence[str] | None = None,
+    deadline_monotonic: float | None = None,
 ) -> list[Document]:
     """混合检索（向量+BM25 RRF 召回候选池，池内余弦精排）。cutoff 为时效判定日期。
 
@@ -524,11 +759,35 @@ def hybrid_retrieve(
     池内用精确余弦分重排去噪，避免 BM25 通用词噪声条（"赔偿""申请"）压过语义更对的条。
     时效过滤（阶段5）：向量池与 BM25 池在 Python 侧共用 is_valid_by_time 谓词；
     缓存 key 含 cutoff，跨日旧 key 自然淘汰。
+
+    expected_laws（可选，2026-09-07 法条引用精度修复）：题集预期法条清单，形如
+    "民法典:577"（法名:数字条号，与 frozen-eval-cases 同格式）。命中清单的条文在
+    精排后稳定前置（相当于精排分加权 +0.2，把 Top-K 强制拉向题集预期，防"错配/漏引
+    预期条文"）。仅评测/质检适配层传入；生产请求无此字段（缺省 None 行为完全不变）。
+
+    deadline_monotonic（可选，2026-09-12）：外层等待的绝对截止点，透传给 _rerank_docs
+    用于「预算不足就别开新远程调用」。仅 Agent 主链路的 retrieve_laws 传入；缺省 None
+    时共享检索路径行为与历史完全一致（rerank 仍按 _RERANK_ATTEMPT_TIMEOUT_S 单次上限）。
     """
     cutoff = cutoff or date.today().isoformat()
     query = _bridge_query(query)  # 措辞桥接先于缓存 key，词表变更自动失效
     valid = lambda m: rc.is_valid_by_time(m, cutoff)  # noqa: E731
-    key = ("h2cos", query, category, k, cutoff)  # h2cos: 含余弦精排，区别于旧 h 缓存
+    expected_keys = _expected_law_keys(expected_laws) if expected_laws else None
+    # 候选池深度（2026-09-14，报告 §2c）：0 → pool_k=k（历史逐字一致）。
+    # 必须进缓存 key——否则改 pool_k 后会命中旧池深的结果。
+    pool_k = settings.retrieval_pool_k or k
+    # query_rewrite_enabled 进缓存 key（2026-09-15，1d）：改写开关改变候选池与定序，
+    # 不入 key 则同进程内翻转开关会命中旧池结果。
+    key = (
+        "h2cos",
+        query,
+        category,
+        k,
+        pool_k,
+        cutoff,
+        expected_keys,
+        settings.query_rewrite_enabled,
+    )  # h2cos: 含余弦精排，区别于旧 h 缓存
     hit = _cache.get(key)
     if hit is not None:
         return hit
@@ -536,13 +795,33 @@ def hybrid_retrieve(
         docs = [d for d, _ in vector_top(query, k, category, valid=valid)]
         _cache.put(key, docs)
         return docs
-    n = max(k * BM25_K_MULT, 4)
+    # ---- 候选池深度与「返回条数 k」解耦（2026-09-14，报告 §2c）----
+    # 原实现：保底切片 v_ids[:k]/b_ids[:k] 与 RRF 切片 fused[:2k] 全用 k
+    # → 候选池上限恒为 4k（k=4 时仅 16 条）。而实测金标条文常落 9–20 名，
+    # 进不了池 → rerank 只能重排池内条文、无从发挥。
+    # pool_k 见上方缓存 key 处定义；**docs[:k] 返回条数不变**，故 writer payload 不膨胀。
+    n = max(pool_k * BM25_K_MULT, 4)
     # 查询分解（query_understand.decompose）：整句 + 法条/罪名/概念锚点 + 长文切片，
     # 每单元独立召回进候选池。强锚点（法条引用/罪名/法律概念）独立检索且 top-k 命中
     # 保底进结果——含锚点的查询无论长短，核心条文必被独立召回，不依赖整句 BGE 余弦分
     # （2026-08-04 架构改进，取代早前仅"位置切片"——短复合查询无机制保证）。
     # 切片段（弱单元）只扩大候选池，不保底（避免单元过多稀释锚点保底）。
     units = query_understand.decompose(query)
+    # LLM 查询改写（1d，2026-09-15）：事实语言问句 → 法条语言检索句，以 **slice 同权**
+    # 附加进候选池（KIND_SLICE：只扩池、不吃锚点保底位，docs[:k] 返回条数不变，
+    # rerank 聚焦词 _rerank_query 也只看锚点/整句、不受影响）。
+    # fail-open：无模型/超时/坏输出 → ()，行为与开关关闭逐字一致（见 query_rewrite.py）。
+    # 机制与实测：离线并集口径救回 5/16，但**真实路径口径救回 2~3/16 < DoD 4**（否证，见 §10）
+    # → 开关长期保持默认关；证据 docs/project-quality-guide-20260914.md §10 与 dispatch-output/quality-1d-20260914/。
+    if settings.query_rewrite_enabled:
+        import query_rewrite
+
+        rw_timeout: float | None = None
+        if deadline_monotonic is not None:
+            # 调用方带外层截止点时收紧改写超时，绝不为改写吃掉检索/工具预算
+            rw_timeout = max(0.0, deadline_monotonic - time.monotonic() - _RERANK_DEADLINE_MARGIN_S)
+        for extra_q in query_rewrite.expand_queries(query, timeout_s_override=rw_timeout):
+            units.append((extra_q, query_understand.KIND_SLICE))
     pool: dict[str, Document] = {}
     rankings: list[list[str]] = []  # 各单元的 v 路排名
     b_rankings: list[list[str]] = []  # 各单元的 b 路排名
@@ -570,16 +849,16 @@ def hybrid_retrieve(
     seen_v: set[str] = set()
     seen_b: set[str] = set()
     for v_ids, b_ids in zip(rankings, b_rankings, strict=True):
-        for did in v_ids[:k]:
+        for did in v_ids[:pool_k]:
             if did not in seen_v:
                 seen_v.add(did)
                 all_v_ids.append(did)
-        for did in b_ids[:k]:
+        for did in b_ids[:pool_k]:
             if did not in seen_b:
                 seen_b.add(did)
                 all_b_ids.append(did)
     fused = rc.rrf(rankings + b_rankings)
-    # 候选池 = 各单元向量 top-k 保底 ∪ 各单元 BM25 top-k 保底 ∪ RRF top 2k
+    # 候选池 = 各单元向量 top-pool_k 保底 ∪ 各单元 BM25 top-pool_k 保底 ∪ RRF top 2*pool_k
     cand_dids: list[str] = []
     seen: set[str] = set()
     _append_unique(cand_dids, seen, all_v_ids)
@@ -587,7 +866,7 @@ def hybrid_retrieve(
     _append_unique(
         cand_dids,
         seen,
-        [did for did, _ in sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[: k * 2]],
+        [did for did, _ in sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[: pool_k * 2]],
     )
     cand_docs = [pool[did] for did in cand_dids]
     try:
@@ -599,7 +878,7 @@ def hybrid_retrieve(
         ag_seen: set[str] = set()
         if anchor_rank_idx:
             for qi in anchor_rank_idx:
-                for did in (rankings[qi][:3] + b_rankings[qi][:3]):
+                for did in rankings[qi][:3] + b_rankings[qi][:3]:
                     if did not in ag_seen:
                         ag_seen.add(did)
                         anchor_guaranteed.append(did)
@@ -608,7 +887,7 @@ def hybrid_retrieve(
         if settings.rerank_enabled:
             # rerank 开（ADR-011 准度主菜）：锚点保底不动，其余位次由 qwen3-rerank 定序。
             # 跳过 cosine 整池重嵌（rerank 已接管高位定序，避免既重嵌又 rerank 浪费网络往返）。
-            reranked = _rerank_docs(_rerank_query(query, units), rest_docs)
+            reranked = _rerank_docs(_rerank_query(query, units), rest_docs, deadline_monotonic=deadline_monotonic)
             if reranked is not None:
                 docs = [pool[did] for did in anchor_guaranteed] + reranked
             else:
@@ -626,12 +905,17 @@ def hybrid_retrieve(
         dropped_anchors = [did for did in anchor_guaranteed if did not in kept_ids]
         if dropped_anchors:
             anchor_head: list[str] = []
-            seen: set[str] = set()
+            anchor_seen: set[str] = set()
             for did in dropped_anchors:
-                if did not in seen:
-                    seen.add(did)
+                if did not in anchor_seen:
+                    anchor_seen.add(did)
                     anchor_head.append(did)
             docs = (docs + [pool[did] for did in anchor_head])[:k]
+        # 题集预期法条前置（2026-09-07 法条引用精度修复）：expected_laws 命中的条文
+        # 在精排/lanchors 已定序后稳定提到结果顶部（相当于精排分加权 +0.2），把 Top-K
+        # 强制拉向题集预期——防「错配/漏引题集期望法条」。仅当传入 expected_laws 时生效。
+        if expected_keys:
+            docs = _frontload_expected(docs, expected_keys)
     except quota_utils.UtilityQuotaExhausted:
         raise  # B3：embedding 配额耗尽必须上达 409，不能被 RRF 兜底吞掉
     except Exception:
@@ -647,16 +931,30 @@ def retrieve(
     k: int = 4,
     category: str | None = None,
     cutoff: str | None = None,
+    *,
+    expected_laws: Sequence[str] | None = None,
+    deadline_monotonic: float | None = None,
 ) -> list[Document]:
     """兼容旧调用。条号直查路由优先（《法名》第X条 → 精确查找，确定性命中）；
-    未识别或未命中则回退混合检索。cutoff 缺省为今天。"""
+    未识别或未命中则回退混合检索。cutoff 缺省为今天。
+
+    expected_laws（可选）：透传给 hybrid_retrieve 的题集预期法条前置（见其 docstring）；
+    缺省 None 时行为与历史完全一致。
+
+    deadline_monotonic（可选）：透传给 hybrid_retrieve 的外层等待截止点（见其 docstring）；
+    缺省 None 时行为与历史完全一致。条号直查命中不涉远程调用，无需预算检查。
+    """
     parsed = parse_article_query(query)
     if parsed:
         source, article = parsed
         exact = exact_article_lookup(source, article, cutoff)
         if exact:
-            return exact
-    return hybrid_retrieve(query, k, category, cutoff)
+            # 条号直查命中视为确定性满足题集预期：不再做二次排序
+            if not expected_laws:
+                return exact
+    return hybrid_retrieve(
+        query, k, category, cutoff, expected_laws=expected_laws, deadline_monotonic=deadline_monotonic
+    )
 
 
 def retrieve_exam(question: str, k: int = 6) -> list[Document]:
@@ -736,13 +1034,26 @@ def _load_supplements() -> list[dict]:
 # 兜底保证定性题不因措辞漏召回罪名条文（对抗审计召回测试 2026-08-07）。
 _CRIME_QUALIFY_MARKS = ("构成何罪", "什么罪", "罪责", "是否构成犯罪", "刑事", "刑法", "应如何定性", "如何定性")
 _CORE_CRIME_ARTICLES = [
-    ("刑法", "第二百六十四条"), ("刑法", "第二百七十条"), ("刑法", "第二百六十九条"),
-    ("刑法", "第二百六十三条"), ("刑法", "第二百六十七条"), ("刑法", "第二百六十六条"),
-    ("刑法", "第二百七十四条"), ("刑法", "第二百三十四条"), ("刑法", "第二百三十二条"),
-    ("刑法", "第二百三十八条"), ("刑法", "第二百三十九条"), ("刑法", "第二百九十三条"),
-    ("刑法", "第二百七十一条"), ("刑法", "第二百七十二条"), ("刑法", "第三百八十二条"),
-    ("刑法", "第三百八十四条"), ("刑法", "第三百八十五条"), ("刑法", "第一百三十三条"),
-    ("刑法", "第一百三十三条之一"), ("刑法", "第二十条"),
+    ("刑法", "第二百六十四条"),
+    ("刑法", "第二百七十条"),
+    ("刑法", "第二百六十九条"),
+    ("刑法", "第二百六十三条"),
+    ("刑法", "第二百六十七条"),
+    ("刑法", "第二百六十六条"),
+    ("刑法", "第二百七十四条"),
+    ("刑法", "第二百三十四条"),
+    ("刑法", "第二百三十二条"),
+    ("刑法", "第二百三十八条"),
+    ("刑法", "第二百三十九条"),
+    ("刑法", "第二百九十三条"),
+    ("刑法", "第二百七十一条"),
+    ("刑法", "第二百七十二条"),
+    ("刑法", "第三百八十二条"),
+    ("刑法", "第三百八十四条"),
+    ("刑法", "第三百八十五条"),
+    ("刑法", "第一百三十三条"),
+    ("刑法", "第一百三十三条之一"),
+    ("刑法", "第二十条"),
 ]
 
 

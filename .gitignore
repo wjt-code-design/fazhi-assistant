@@ -4,6 +4,8 @@ __pycache__/
 *.egg-info/
 venv/
 .venv/
+backend/.venv311/
+backend/.runtime/
 
 # ===== 覆盖率 / 工具产物 =====
 .coverage
@@ -12,6 +14,8 @@ htmlcov/
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/
+.worktrees/
+.superpowers/
 
 # ===== 数据库（含用户数据，绝不提交）=====
 *.db
@@ -66,3 +70,31 @@ docs/benchmark_results/*2026*.json
 
 # 本地验收脚本（硬编码本机浏览器路径，不适用他人环境）
 frontend/scripts/accept_admin.mjs
+
+
+# ===== 凭据与评测盲测材料（绝不提交，2026-09-12 交接时补充）=====
+dispatch-output/token.json
+dispatch-output/task1/
+
+# ===== pytest 临时目录（运行产物，不提交）=====
+dispatch-output/**/pytest-tmp*/
+dispatch-output/**/pytest-full*/
+dispatch-output/**/pytest-tmp-*/
+
+# ===== 助手工作状态（非项目代码）=====
+.workbuddy/
+# ===== 配置备份（含密钥，绝不提交；2026-09-15 代码审查发现：
+# `.bak` 备份不被上面的 `.env` 规则覆盖，一次 git add -A 即泄密）=====
+dispatch-output/config-backups-*/
+*.bak
+
+# 注：**不要**加 `*.before-*` —— 会误伤被有意跟踪的历史快照证据
+# （dispatch-output/agent-quality-h3-20260912/*.before-h3，实测 3 个文件）。
+# SQLite WAL/SHM 伴随文件（同 *.sqlite，含用户数据，绝不提交；2026-09-15 审查同族缺口）
+*.sqlite-shm
+*.sqlite-wal
+*.db-shm
+*.db-wal
+# 该目录的代码备份（无密钥，但同"备份不入库"原则；2026-09-15）
+dispatch-output/agent-quality-20260911/*.before-*
+
