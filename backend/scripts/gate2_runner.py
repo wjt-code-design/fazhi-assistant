@@ -271,6 +271,12 @@ def run(argv: list[str] | None = None) -> int:
         help="覆盖题集文件（默认 frozen-cases-v1.json）。用于留出集 holdout-cases-v1.json 的双集验收；"
         "run 名必须能区分题集（如 *-holdout），禁止复用评测 run 名",
     )
+    ap.add_argument(
+        "--no-case-domain",
+        action="store_true",
+        help="不向服务端透传 case_domain（模拟**生产形态**：tier-1 域码不触发，判域走 tier-2 "
+        "用户原始问题拼接）；缺省=按案例 domain 透传（评测形态，R1-OB 在线批次口径）",
+    )
     args = ap.parse_args(argv)
     if args.retry_unknown and not args.resume:
         raise SystemExit("--retry-unknown 仅在 --resume 下有效")
@@ -433,9 +439,9 @@ def run(argv: list[str] | None = None) -> int:
         conv_id = None
         t0 = time.time()
         payload = {"content": c["initial_question"], "no_cache": True, "force_agent": True}
-        _cd = _case_domain_of(c)
+        _cd = None if args.no_case_domain else _case_domain_of(c)
         if _cd is not None:
-            # R1-OB：tier-1 域码随请求透传（未映射案例不带该键 = 生产语义）
+            # R1-OB：tier-1 域码随请求透传（--no-case-domain 关闭=生产形态；未映射案例不带该键）
             payload["case_domain"] = _cd
         status, raw = post("/api/chat", payload, token)
         events = _events(raw)
