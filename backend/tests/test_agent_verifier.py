@@ -440,9 +440,7 @@ def test_verify_exempt_skips_uncovered_issue_coverage():
     assert default.verdict is not VerificationVerdict.PASS
     assert default.reason_code == "EVIDENCE_COVERAGE_DEFICIENT"
 
-    exempted = DeterministicVerifier().verify(
-        current, draft, covered_issues_exempt=frozenset({"issue-b"})
-    )
+    exempted = DeterministicVerifier().verify(current, draft, covered_issues_exempt=frozenset({"issue-b"}))
     assert exempted.verdict is VerificationVerdict.PASS
 
 

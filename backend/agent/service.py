@@ -405,6 +405,18 @@ def execute_agent_request(
                 state_version=state_version,
             )
         issue_result = runtime.writer.render_issue(state, issue.issue_id)
+        if (
+            partial
+            and issue_result.status is not WriterStatus.READY
+            and issue_result.reason_code == "ISSUE_CLAIMS_MISSING"
+        ):
+            # T3（2026-09-16）：零 claim 是 writer 单次生成的**非确定性抖动**——
+            # 1e9 实证同分布输入 r1 写满 5 claim、r2 漏产 2/4 争点（required 条文
+            # 87 条已检索归位仍丢失确定性结论）。对 ISSUE_CLAIMS_MISSING 重试**至多一次**
+            # （重采样可改变结果）；确定性校验失败（UNKNOWN_*_ID / CROSS_ISSUE_* /
+            # UNSUPPORTED_* 等）同输入同校验，重试无意义，不在此列。
+            # 重试仍失败 → 落入下方既有 uncovered 兜底，行为不劣于现状。
+            issue_result = runtime.writer.render_issue(state, issue.issue_id)
         if issue_result.status is not WriterStatus.READY or issue_result.draft is None:
             if not partial:
                 return _persist_drafting_failure(

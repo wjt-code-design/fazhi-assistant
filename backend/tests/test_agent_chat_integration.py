@@ -873,6 +873,8 @@ class _SerialWriterTransport:
     - "invalid_evidence_last"：最后一个争点引用不存在的证据 ID → writer UNKNOWN_EVIDENCE_ID；
     - "overconfident_last"：最后一个争点 claim 含过度自信表述 → verifier REWRITE（首次非 PASS
       即终态失败，不再有第二轮 writer）。
+    - "empty_claims_first_issue_then_ok"（T3 反例，2026-09-16）：**首次** writer 调用返回
+      零 claims（→ ISSUE_CLAIMS_MISSING 非确定性抖动，1e9 r2 实证）；此后所有调用正常。
     """
 
     def __init__(self, issue_payload: dict, *, mode: str = "complete") -> None:
@@ -910,6 +912,9 @@ class _SerialWriterTransport:
             text = "引用不存在的证据，应当被 writer 拒绝。"
         if self.mode == "overconfident_last" and writer_index == total_issues - 1:
             text = f"依据《{source}》{article}，一定应当依法履行相应义务。"
+        if self.mode == "empty_claims_first_issue_then_ok" and writer_index == 0:
+            # T3 反例注入：首次生成零 claim（writer ISSUE_CLAIMS_MISSING 抖动），之后恢复正常
+            return SimpleNamespace(content=json.dumps({"claims": [], "missing_information": []}, ensure_ascii=False))
         claims = [
             {
                 "local_id": f"claim-{issue['issue_id']}",
@@ -1054,6 +1059,42 @@ def test_partial_delivery_all_failed_still_fails(db):
     assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
     # 两个争点都被渲染过（不是首个失败即停）
     assert [k for k, _ in transport.calls if k == "writer"] == ["writer", "writer"]
+
+
+def test_writer_flaky_zero_claims_retried_once_when_partial_on(db):
+    """T3（2026-09-16）：writer 零 claim 抖动（ISSUE_CLAIMS_MISSING）在 partial 开时**重试一次**。
+
+    反例来源：1e9 r2（58ea5109）——争点3 的 87 条等证据已检索归位，writer 单次生成
+    却只产出 2/4 争点 claim（r1 同分布写满 5 claim），确定性结论因一次抖动丢失。
+    改动后期望：首次空 → 重试一次成功 → 两争点全覆盖（coverage=full），writer 恰 3 次调用
+    （1 次抖动 + 1 次重试 + 争点2 一次）；确定性校验失败不重试（invalid_evidence_last
+    现有测试的 writer==2 断言继续守护该边界）。
+    """
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    transport = _SerialWriterTransport(_two_issue_payload(), mode="empty_claims_first_issue_then_ok")
+    settings_stub = _settings()
+    settings_stub.agent_partial_delivery_enabled = True  # 重试仅在该开关下启用
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=settings_stub,
+        bootstrap=_two_issue_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+
+    assert result.outcome == "completed", f"unexpected failure: {result.reason_code}"
+    # 抖动争点经重试恢复 ⇒ 无未覆盖、coverage=full
+    assert result.coverage_status == "full"
+    assert result.uncovered_issues == []
+    # writer 恰 3 次：争点1 首次（空）+ 重试（成功）+ 争点2（一次）
+    assert [k for k, _ in transport.calls if k == "writer"] == ["writer", "writer", "writer"]
+    # 终稿含两个争点各自的结论（不静默降级）
+    answer = result.answer or ""
+    assert "未能覆盖的争点" not in answer
 
 
 def test_partial_delivery_off_keeps_fail_fast(db):

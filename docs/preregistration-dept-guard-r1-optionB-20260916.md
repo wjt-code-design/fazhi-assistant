@@ -12,8 +12,10 @@ R1 验收（`docs/accept-r1-dept-law-filter-20260914.md`）确认了两个**判�
 
 - **E01 型（零指示词漏网）**：R1 判域输入仅用 issue 问句
   （`backend/tools/legal_retrieval.py:34` `domain_of_text(tool_input.query)`）。
-  E01 终稿混入《行政诉讼法》49/75 的归因改判（2026-09-16 DB 取证）：issue 问句
-  「行政诉讼中主体资格如何认定」**零指示词命中 → 判域 None → 不过滤**——检索层守卫
+  E01 终稿混入《行政诉讼法》49/75 的归因改判（2026-09-16 DB 取证）：污染进入路径的
+  issue 问句「被告公司的诉讼主体资格是否明确且具备应诉能力？」**零指示词命中 →
+  判域 None → 不过滤**（该 run 4 个 issue 中 2 个如此，见
+  `dispatch-output/r1-ob-offline-20260916/counterexamples.json`）——检索层守卫
   在最需要它的案例上失效。预注册 §2 原文含「案例域元信息（若可得）」，实现只用了问句。
 - **E04 型（mixed 边界放过真实串台）**：E04（交通案）双域线索 → mixed → 保守不过滤，
   终稿混入行政诉讼法 75 / 行政复议法 67。R1 预注册 §5 风险 2 假设「mixed 退化为现状
@@ -44,14 +46,36 @@ R1 验收纪律），而是**输入源**的问题。
 
 ### 2.2 离线反例验证（先于任何付费运行，质量指导书 §9.1 第 3 条）
 
-- **反例集**：E01、E04 的真实 sessions（`dispatch-output/r1-accept-eval-20260914/`
-  等）取 issue 问句 + 用户原始问题，断言新判域输入下：
-  E01 → administrative（原 None）；E04 → administrative（元信息直判路径）。
+- **反例集**：E01、E04 的真实 sessions（`dispatch-output/r1-accept-eval-20260914/`，
+  issue 问句自 app.db `agent_runs.state_json` 提取，见
+  `dispatch-output/r1-ob-offline-20260916/counterexamples.json`）取 issue 问句 +
+  用户原始问题，断言新判域输入下判域 = 案例真实域 **civil**（依据：
+  `evals/frozen-cases-v2.json` 两案例 forbidden 均为他域程序法/刑法
+  [E01：行政诉讼法 49/51；E04：刑法 133]，required 均为民事实体法）：
+  E01 → civil（**tier-2 拼接即修复**：4 个 issue 中 2 个在旧口径下零指示词→None）；
+  E04 → civil（**仅 tier-1 域码可修复**：issue 2「交警认定…行政决定是否合法有效」
+  含行政指示词，用户原始问题零指示词无法对冲，tier-2 拼接后仍判 administrative
+  ——D2 域码字段是 E04 修复的**硬前提**）。
+  > **勘误（2026-09-16，验证执行前数据核对）**：本节初稿误写「E01 → administrative；
+  > E04 → administrative」，系撰写时记忆失真；以 frozen-cases-v2.json 案例定义为准
+  > 修正为 civil。判据（2/2 修复 + required 误杀 0 + 无新增 forbidden 漏杀）不变。
 - **回归面**：`evals/filter-simulation-r1.json`（20 案例 × top-6=120 条）全量重放
   `simulate_filter_r1.py` 同口径模拟，断言：required 误杀仍为 **0**、18/20 零改动
   案例不因拼接引入新 mixed 翻转（若有翻转逐例列出到报告，判定是否可接受）。
 - **通过标准**：反例集 2/2 修复 + required 误杀 0 + 无新增 forbidden 漏杀。
   **离线不过 → 方案冻结，不进付费验证**（止损线 0，比 R1 更前置）。
+
+**离线验证结果（2026-09-16 执行：PASS，附 D2 硬前提）**——证据
+`dispatch-output/r1-ob-offline-20260916/report.md` + `validation-result.json`
+（脚本 `evals/validate_r1_ob_offline.py` exit 0，P0 基线复现逐字段一致）：
+
+- E01：tier-2 修复（旧口径 4 issue 中 2 个 None → 拼接后 4/4 civil）；
+- E04：**tier-2 单独不足**（issue 2「行政决定」指示词主导，用户问题零指示无法对冲），
+  仅 tier-1 域码直判可修复 → **D2 从"待确认口径"升格为实现的硬前提**；
+- P2 回归：required 误杀 0、forbidden 漏杀 0→0、杀死 5→5；6 例判域翻转全部零行为影响
+  （removed 集合逐例相等，无激进翻转）；
+- 池级证据：E01 池含行政诉讼法、E04 池含行政诉讼法+行政复议法（污染前提坐实）；
+- E04 的 frozen forbidden（刑法 133）为实体法，超出 R1-OB 范围（设计边界，非缺陷）。
 
 ### 2.3 实施要点（供实现窗口，本文档不动代码）
 
