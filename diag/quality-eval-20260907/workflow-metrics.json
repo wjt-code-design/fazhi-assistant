@@ -1,0 +1,46 @@
+{
+ "routing": {
+  "total": 30,
+  "agent_routed": 6,
+  "routed_ids": [
+   "loan-limitations-01",
+   "contract-comparison-14",
+   "law-date-conflict-15",
+   "guarantee-expiry-17",
+   "prompt-injection-19",
+   "guarantee-period-answer-a4"
+  ],
+  "latency_p50": 37262.5
+ },
+ "workflow": {
+  "total_steps": 24,
+  "tool_calls": 6,
+  "decisions": [
+   "bootstrap",
+   "tool_call",
+   "tool_result",
+   "clarification",
+   "bootstrap",
+   "tool_call",
+   "tool_result",
+   "clarification",
+   "bootstrap",
+   "tool_call",
+   "tool_result",
+   "clarification",
+   "bootstrap",
+   "tool_call",
+   "tool_result",
+   "clarification",
+   "bootstrap",
+   "tool_call",
+   "tool_result",
+   "clarification",
+   "bootstrap",
+   "tool_call",
+   "tool_result",
+   "clarification"
+  ],
+  "avg_step_ms": 194
+ }
+}

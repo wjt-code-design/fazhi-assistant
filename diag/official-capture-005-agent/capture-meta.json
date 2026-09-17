@@ -1,0 +1,14 @@
+{
+ "mode": "agent",
+ "execution_id": "eval005-agent-20260906",
+ "case_set_sha256": "0202a54820d99b715f6ae6b28fdadcc62e9edec45d1203ae48fd305b0c4356ae",
+ "controls": {
+  "timeout_seconds": 90,
+  "total_timeout_seconds": 3600,
+  "max_retries": 1,
+  "concurrency": 1,
+  "cache_policy": "disabled",
+  "max_output_tokens": 4096,
+  "max_tool_calls": 8
+ }
+}

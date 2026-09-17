@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "是否存在不可抗力、合同约定的免责条款、对方违约在先等免责事由",
+  "issue_id": "issue_9d8dd94a35a16d65695dd6df"
+ }
+]

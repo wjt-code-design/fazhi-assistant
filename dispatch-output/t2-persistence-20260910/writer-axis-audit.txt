@@ -1,0 +1,89 @@
+writer 引用轴机制审计（逐题 × required_laws 断层分类）
+
+### gate5-dev-run-14-qwen38-t8（窗口 [2026-09-10 09:42:21, 2026-09-10 10:37:52)，题数 9）
+  C01（issues=4, 证据=13） required=4
+    劳动合同法第40条 → HIT
+    劳动合同法第43条 → EVIDENCE_MISS
+    劳动合同法第47条 → EVIDENCE_MISS
+    劳动合同法第87条 → EVIDENCE_MISS
+  C02（issues=3, 证据=7） required=3
+    劳动法第36条 → EVIDENCE_MISS
+    劳动法第44条 → EVIDENCE_MISS
+    劳动争议调解仲裁法第27条 → EVIDENCE_MISS
+  C03（issues=4, 证据=14） required=2
+    劳动合同法第10条 → HIT
+    劳动合同法第82条 → HIT
+  C04（issues=4, 证据=16） required=3
+    民法典第586条 → EVIDENCE_MISS
+    民法典第587条 → EVIDENCE_MISS
+    民法典第588条 → EVIDENCE_MISS
+  C05（issues=4, 证据=11） required=2
+    民法典第577条 → EVIDENCE_MISS
+    民法典第722条 → HIT
+  C07（issues=1, 证据=4） required=3
+    民法典第188条 → EVIDENCE_MISS
+    民法典第195条 → HIT
+    民法典第675条 → EVIDENCE_MISS
+  C08（issues=5, 证据=16） required=4
+    民法典第686条 → HIT
+    民法典第692条 → HIT
+    民法典第693条 → HIT
+    民法典第695条 → HIT
+  C09（issues=3, 证据=12） required=4
+    消费者权益保护法第26条 → EVIDENCE_MISS
+    民法典第496条 → EVIDENCE_MISS
+    民法典第497条 → EVIDENCE_MISS
+    民法典第577条 → EVIDENCE_MISS
+  C10（issues=4, 证据=14） required=2
+    民法典第577条 → EVIDENCE_MISS
+    刑法第266条 → HIT
+
+### gate5-dev-run-15-qwen38-t8b（窗口 [2026-09-10 10:37:52, 2026-09-10 13:47:04)，题数 10）
+  C01（issues=5, 证据=17） required=4
+    劳动合同法第40条 → EVIDENCE_MISS
+    劳动合同法第43条 → EVIDENCE_MISS
+    劳动合同法第47条 → HIT
+    劳动合同法第87条 → HIT
+  C02（issues=5, 证据=15） required=3
+    劳动法第36条 → EVIDENCE_MISS
+    劳动法第44条 → EVIDENCE_MISS
+    劳动争议调解仲裁法第27条 → EVIDENCE_MISS
+  C03（issues=2, 证据=6） required=2
+    劳动合同法第10条 → HIT
+    劳动合同法第82条 → HIT
+  C04（issues=2, 证据=8） required=3
+    民法典第586条 → EVIDENCE_MISS
+    民法典第587条 → EVIDENCE_MISS
+    民法典第588条 → EVIDENCE_MISS
+  C05（issues=4, 证据=12） required=2
+    民法典第577条 → EVIDENCE_MISS
+    民法典第722条 → HIT
+  C06（issues=5, 证据=17） required=3
+    民法典第509条 → EVIDENCE_MISS
+    民法典第543条 → EVIDENCE_MISS
+    民法典第577条 → EVIDENCE_MISS
+  C07（issues=2, 证据=5） required=3
+    民法典第188条 → EVIDENCE_MISS
+    民法典第195条 → EVIDENCE_MISS
+    民法典第675条 → EVIDENCE_MISS
+  C08（issues=4, 证据=9） required=4
+    民法典第686条 → EVIDENCE_MISS
+    民法典第692条 → EVIDENCE_MISS
+    民法典第693条 → EVIDENCE_MISS
+    民法典第695条 → EVIDENCE_MISS
+  C09（issues=4, 证据=16） required=4
+    消费者权益保护法第26条 → EVIDENCE_MISS
+    民法典第496条 → HIT
+    民法典第497条 → HIT
+    民法典第577条 → EVIDENCE_MISS
+  C10（issues=4, 证据=15） required=2
+    民法典第577条 → EVIDENCE_MISS
+    刑法第266条 → HIT
+
+### 汇总
+  HIT           : 18
+  WRITER_MISS   : 0
+  EVIDENCE_MISS : 39
+  合计: 57
+
+结论口径：EVIDENCE_MISS = 检索/链接侧断（writer 无原料）；WRITER_MISS = writer/渲染侧断。

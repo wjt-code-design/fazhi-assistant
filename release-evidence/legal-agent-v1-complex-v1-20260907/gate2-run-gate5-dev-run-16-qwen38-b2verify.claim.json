@@ -1,0 +1,9 @@
+{
+ "run": "gate5-dev-run-16-qwen38-b2verify",
+ "targets": [
+  "C07"
+ ],
+ "started_at": "2026-09-10T13:47:04.777175+00:00",
+ "pid": 24512,
+ "protocol_version": "v1"
+}

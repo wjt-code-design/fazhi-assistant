@@ -1,0 +1,263 @@
+# case=C03 mode=rag-full-facts status=200 started=2026-09-08T14:47:04
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "1"}
+
+data: {"content": ". 案情"}
+
+data: {"content": "与争议焦点\n"}
+
+data: {"content": "您"}
+
+data: {"content": "入职十个月未"}
+
+data: {"content": "签"}
+
+data: {"content": "书面劳动合同，期间"}
+
+data: {"content": "工资按月发放。"}
+
+data: {"content": "现您主动离职"}
+
+data: {"content": "，核心"}
+
+data: {"content": "争议在于：在"}
+
+data: {"content": "劳动者单方提出离职"}
+
+data: {"content": "的情况下"}
+
+data: {"content": "，是否仍有权"}
+
+data: {"content": "主张"}
+
+data: {"content": "未签合同期间的双倍"}
+
+data: {"content": "工资差额"}
+
+data: {"content": "。\n\n2."}
+
+data: {"content": " 法律依据（"}
+
+data: {"content": "引条文）\n"}
+
+data: {"content": "根据《劳动合同法》"}
+
+data: {"content": "第十条规定，建立"}
+
+data: {"content": "劳动关系应当"}
+
+data: {"content": "订立书面合同，"}
+
+data: {"content": "用工"}
+
+data: {"content": "之日起一个月内应订立"}
+
+data: {"content": "。\n根据"}
+
+data: {"content": "《劳动合同法》第八"}
+
+data: {"content": "十二条规定，"}
+
+data: {"content": "用人单位自用工之日起"}
+
+data: {"content": "超过一个月不满一年"}
+
+data: {"content": "未与劳动者订立"}
+
+data: {"content": "书面劳动合同"}
+
+data: {"content": "的，应当向劳动者"}
+
+data: {"content": "每月支付二"}
+
+data: {"content": "倍的工资。\n"}
+
+data: {"content": "根据《劳动合同法实施条例"}
+
+data: {"content": "》相关法理"}
+
+data: {"content": "及司法实践，"}
+
+data: {"content": "双倍"}
+
+data: {"content": "工资属于法定惩罚"}
+
+data: {"content": "性"}
+
+data: {"content": "赔偿，不以劳动者"}
+
+data: {"content": "解除合同为前提。\n\n"}
+
+data: {"content": "3. "}
+
+data: {"content": "逐项论证\n首先"}
+
+data: {"content": "，关于双倍工资的"}
+
+data: {"content": "起算点。"}
+
+data: {"content": "法律规定"}
+
+data: {"content": "给予一个月的宽限期"}
+
+data: {"content": "用于补签合同。"}
+
+data: {"content": "您工作已满"}
+
+data: {"content": "十个月，故"}
+
+data: {"content": "双倍工资的起算"}
+
+data: {"content": "时间为用工满一个月的"}
+
+data: {"content": "次日，截止时间为"}
+
+data: {"content": "补签合同之日或"}
+
+data: {"content": "劳动关系"}
+
+data: {"content": "终止之日。最长"}
+
+data: {"content": "可主张九个月"}
+
+data: {"content": "的双"}
+
+data: {"content": "倍工资差额。"}
+
+data: {"content": "\n其次，"}
+
+data: {"content": "关于“主动离职"}
+
+data: {"content": "”的影响"}
+
+data: {"content": "。法律并未规定"}
+
+data: {"content": "只有"}
+
+data: {"content": "因公司过错（"}
+
+data: {"content": "如"}
+
+data: {"content": "未及时足额支付报酬"}
+
+data: {"content": "）被迫离职才能"}
+
+data: {"content": "主张"}
+
+data: {"content": "双倍工资。只要"}
+
+data: {"content": "存在“用工超"}
+
+data: {"content": "一月未签合同”"}
+
+data: {"content": "的事实"}
+
+data: {"content": "，且无证据"}
+
+data: {"content": "表明是您个人原因"}
+
+data: {"content": "导致"}
+
+data: {"content": "合同无法签订（"}
+
+data: {"content": "如拒绝"}
+
+data: {"content": "签署），公司即"}
+
+data: {"content": "应承担赔偿责任。\n"}
+
+data: {"content": "再次"}
+
+data: {"content": "，关于空白合同"}
+
+data: {"content": "的处理"}
+
+data: {"content": "。公司曾发"}
+
+data: {"content": "空白合同"}
+
+data: {"content": "让您签，这"}
+
+data: {"content": "证明公司具有缔"}
+
+data: {"content": "约的主观意愿和"}
+
+data: {"content": "客观行为，但"}
+
+data: {"content": "因其"}
+
+data: {"content": "内容不完整导致合同"}
+
+data: {"content": "未"}
+
+data: {"content": "正式生效。若"}
+
+data: {"content": "您在要求补齐条款"}
+
+data: {"content": "后公司"}
+
+data: {"content": "仍未处理，说明"}
+
+data: {"content": "拖延责任在公司。"}
+
+data: {"content": "除非公司有证据证明是"}
+
+data: {"content": "您在合理期限内明确"}
+
+data: {"content": "拒绝签署符合约定的"}
+
+data: {"content": "合同，否则不能"}
+
+data: {"content": "免除其法律责任。"}
+
+data: {"content": "\n\n4"}
+
+data: {"content": ". 结论与"}
+
+data: {"content": "风险\n结论："}
+
+data: {"content": "您可以要求公司支付"}
+
+data: {"content": "从"}
+
+data: {"content": "第二个月至第十"}
+
+data: {"content": "个月共计九个月"}
+
+data: {"content": "的双倍工资"}
+
+data: {"content": "差额。\n风险"}
+
+data: {"content": "：需注意仲裁时效"}
+
+data: {"content": "问题"}
+
+data: {"content": "，劳动争议申请仲裁"}
+
+data: {"content": "的"}
+
+data: {"content": "时效期间为一年"}
+
+data: {"content": "，"}
+
+data: {"content": "从知道或应当"}
+
+data: {"content": "知道权利被侵害"}
+
+data: {"content": "之日起计算。建议您"}
+
+data: {"content": "保留好工资流水"}
+
+data: {"content": "、考勤记录以及"}
+
+data: {"content": "关于“空白合同"}
+
+data: {"content": "”沟通"}
+
+data: {"content": "的记录作为证据。"}
+
+data: {"conversation_id": 2212, "sources": [{"source": "劳动合同法", "article": "第十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第二十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第三十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第三十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第四百八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百零二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百零九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百二十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百六十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百七十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百八十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百九十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百一十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第二十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第三十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第三十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动法", "article": "第五十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动法", "article": "第九十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第三十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第八十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第四十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "行政复议法", "article": "第八十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动争议调解仲裁法", "article": "第九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动合同法", "article": "第十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动法", "article": "第九十一条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

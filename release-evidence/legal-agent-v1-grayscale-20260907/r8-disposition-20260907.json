@@ -1,0 +1,222 @@
+{
+ "schema_version": "phase9-r8-disposition/v1",
+ "scan_date": "2026-09-07",
+ "scanner": "pip-audit + OSV（venv 实扫）",
+ "total_vulns": 82,
+ "packages_affected": 10,
+ "per_package": {
+  "langchain": {
+   "version": "0.1.20",
+   "vuln_count": 6,
+   "ids": [
+    "PYSEC-2024-118",
+    "PYSEC-2026-1507",
+    "PYSEC-2024-323",
+    "PYSEC-2026-2192",
+    "PYSEC-2026-2555",
+    "CVE-2024-7774"
+   ],
+   "reachability": "partially_reachable",
+   "rationale": "文档加载/外部 URL 拉取组件；本项目 RAG 走 Chroma/本地，SitemapLoader 等未使用",
+   "candidate_disposition": "risk_accept_required"
+  },
+  "langchain-core": {
+   "version": "0.1.53",
+   "vuln_count": 6,
+   "ids": [
+    "PYSEC-2026-1518",
+    "PYSEC-2026-373",
+    "PYSEC-2026-2193",
+    "PYSEC-2026-2564",
+    "PYSEC-2026-2562",
+    "PYSEC-2026-2563"
+   ],
+   "reachability": "partially_reachable",
+   "rationale": "同上；core 组件被 langchain 引用",
+   "candidate_disposition": "risk_accept_required"
+  },
+  "langchain-community": {
+   "version": "0.0.38",
+   "vuln_count": 4,
+   "ids": [
+    "PYSEC-2026-1515",
+    "PYSEC-2026-1514",
+    "PYSEC-2026-1516",
+    "PYSEC-2026-2561"
+   ],
+   "reachability": "partially_reachable",
+   "rationale": "同上",
+   "candidate_disposition": "risk_accept_required"
+  },
+  "langchain-openai": {
+   "version": "0.1.7",
+   "vuln_count": 2,
+   "ids": [
+    "PYSEC-2026-76",
+    "PYSEC-2026-76"
+   ],
+   "reachability": "partially_reachable",
+   "rationale": "LLM 调用适配层",
+   "candidate_disposition": "risk_accept_required"
+  },
+  "chromadb": {
+   "version": "0.4.24",
+   "vuln_count": 2,
+   "ids": [
+    "CVE-2026-45830",
+    "CVE-2026-45833"
+   ],
+   "reachability": "internal",
+   "rationale": "内部向量库，仅本进程访问；开放端口未暴露",
+   "candidate_disposition": "not_exploitable_or_accept"
+  },
+  "pypdf": {
+   "version": "5.9.0",
+   "vuln_count": 41,
+   "ids": [
+    "PYSEC-2026-1833",
+    "PYSEC-2026-1829",
+    "PYSEC-2026-1832",
+    "PYSEC-2026-1830",
+    "PYSEC-2026-1831",
+    "PYSEC-2026-1827",
+    "PYSEC-2026-1828",
+    "PYSEC-2026-3023",
+    "PYSEC-2026-3022",
+    "PYSEC-2026-3017",
+    "PYSEC-2026-3019",
+    "PYSEC-2026-3020",
+    "PYSEC-2026-3018",
+    "PYSEC-2026-3021",
+    "PYSEC-2026-3011",
+    "PYSEC-2026-3007",
+    "PYSEC-2026-3004",
+    "PYSEC-2026-3005",
+    "PYSEC-2026-3006",
+    "PYSEC-2026-3014",
+    "PYSEC-2026-3024",
+    "PYSEC-2026-3026",
+    "PYSEC-2026-3016",
+    "PYSEC-2026-3010",
+    "PYSEC-2026-3015",
+    "PYSEC-2026-3025",
+    "PYSEC-2026-3013",
+    "PYSEC-2026-3009",
+    "PYSEC-2026-3012",
+    "PYSEC-2026-3027",
+    "PYSEC-2026-3613",
+    "PYSEC-2026-3610",
+    "PYSEC-2026-3612",
+    "PYSEC-2026-3611",
+    "PYSEC-2026-3655",
+    "PYSEC-2026-3656",
+    "GHSA-jm82-fx9c-mx94",
+    "CVE-2026-84309",
+    "CVE-2026-84310",
+    "CVE-2026-84311",
+    "CVE-2026-82398"
+   ],
+   "reachability": "reachable",
+   "rationale": "若存在用户上传 PDF 解析路径（文档上传场景）",
+   "candidate_disposition": "risk_accept_required"
+  },
+  "langchain-text-splitters": {
+   "version": "0.0.2",
+   "vuln_count": 3,
+   "ids": [
+    "PYSEC-2026-77",
+    "PYSEC-2026-77",
+    "PYSEC-2026-1520"
+   ],
+   "reachability": "unknown_need_review",
+   "rationale": "",
+   "candidate_disposition": "risk_accept_required"
+  },
+  "langsmith": {
+   "version": "0.1.147",
+   "vuln_count": 3,
+   "ids": [
+    "PYSEC-2026-2582",
+    "PYSEC-2026-2583",
+    "GHSA-f4xh-w4cj-qxq8"
+   ],
+   "reachability": "unknown_need_review",
+   "rationale": "",
+   "candidate_disposition": "risk_accept_required"
+  },
+  "starlette": {
+   "version": "0.37.2",
+   "vuln_count": 9,
+   "ids": [
+    "PYSEC-2026-161",
+    "PYSEC-2026-161",
+    "PYSEC-2026-248",
+    "PYSEC-2026-249",
+    "PYSEC-2026-248",
+    "PYSEC-2026-1943",
+    "PYSEC-2026-1941",
+    "PYSEC-2026-2281",
+    "PYSEC-2026-2280"
+   ],
+   "reachability": "reachable",
+   "rationale": "FastAPI 底层 ASGI 栈，对外 HTTP 面",
+   "candidate_disposition": "risk_accept_required"
+  },
+  "transformers": {
+   "version": "4.57.6",
+   "vuln_count": 6,
+   "ids": [
+    "PYSEC-2025-217",
+    "PYSEC-2026-2290",
+    "PYSEC-2026-2288",
+    "PYSEC-2026-2289",
+    "PYSEC-2026-2290",
+    "CVE-2026-9856"
+   ],
+   "reachability": "not_reachable",
+   "rationale": "本地推理、固定官方权重、无用户模型注入路径",
+   "candidate_disposition": "not_exploitable_or_accept"
+  }
+ },
+ "finding_remark": "实扫 82 漏洞较 remaining-risks 记录（starlette/transformers 两条链）更全：新增 langchain* / pypdf / chromadb 链",
+ "reachability_review": {
+  "pypdf_reachable_evidence": "knowledge_service.parse_uploaded: 用户上传 .pdf 经 pypdf.PdfReader 解析（chat_file 合同评估 + admin_upload 知识库），10MB 上限 → PYSEC-2026-18xx/30xx 面真实可达",
+  "starlette_reachable": "FastAPI 底层 ASGI 栈对外 HTTP 面（9 条）",
+  "transformers_not_reachable": "本地推理、固定官方权重、无用户模型/权重注入路径",
+  "chromadb_internal": "仅本进程访问，未暴露监听端口",
+  "langchain_*_partial": "组件引用存在但漏洞相关能力（SitemapLoader/GraphCypherQAChain 等）未启用；LLM 适配层走 API"
+ },
+ "per_cve_disposition": {
+  "not_exploitable_evidence": [
+   "transformers（6，固定权重本地推理）",
+   "chromadb（2，未监听外部）"
+  ],
+  "risk_accept_required": [
+   "pypdf（41）",
+   "starlette（9）",
+   "langchain*（21）",
+   "langsmith（3）",
+   "langchain-text-splitters（3）"
+  ]
+ },
+ "risk_accept_form": {
+  "approver": "（数据所有者批准）",
+  "severity": "pypdf/starlette 按 CVSS 中-高保守取值（未逐个联网核证，扫描器未给 severity 时按高估）",
+  "affected_component": "pdf 解析面（pypdf）/ HTTP 框架面（starlette）/ 检索适配（langchain 系，多未启用）",
+  "reachability": "pypdf=真实（用户上传路径）；starlette=对外 HTTP 面；langchain*=受限（相关图/文档加载能力未启用）",
+  "exploitability": "未逐一核证 PoC；pypdf 多条为畸形文件处理类（需用户主动上传恶意 PDF 且本地文件仅提取文本），starlette 为框架面需对外攻击向量；按保守风险接受处理",
+  "compensating_controls": {
+   "pypdf": "10MB 大小上限；仅文本提取（不渲染/不执行）；上传需登录会话",
+   "starlette": "公网入口建议置于网关/反代之后做网络层过滤（部署未确认前为计划缓解）",
+   "langchain_*": "漏洞相关加载器/图查询未启用；检索走 Chroma + 本地 corpus"
+  },
+  "rationale": "修复均需破坏性大版本升级（starlette 0.40~1.1、pypdf 6.x、transformers 5.x 破坏 sentence-transformers 兼容），需独立候选周期回归；灰度期以接受+监控进行",
+  "expiry": "90 天或 Agent 下一候选周期（以先到为准）复审；灰度期间持续 pip-audit 定时扫描监控"
+ },
+ "owner_approval": {
+  "status": "APPROVED",
+  "decision": "数据所有者批准整体 Risk Accepted（2026-09-07）",
+  "approved_by": "数据所有者（项目 owner）",
+  "approved_at": "2026-09-07"
+ }
+}

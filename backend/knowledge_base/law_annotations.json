@@ -1,0 +1,907 @@
+{
+ "_meta": {
+  "schema_version": "ta1-v1",
+  "created": "2026-09-17",
+  "articles_source": "evals/frozen-cases-v2.json required_laws（53 entries → 38 unique (law,article)，15 条跨案例重复）",
+  "text_source": "data/laws_raw/*.txt（KB 同源）",
+  "key_format": "{短法名}#{中文条号}（与运行时 evidence.source_ref 同构）",
+  "fields": {
+   "subject_types": "string[]，受控词表（subject_vocabulary），允许词表外补充（自查会列出）",
+   "claim_direction": "单值枚举 ['grant_right', 'impose_duty', 'procedural', 'definition']",
+   "chapter": "逐字取自条文上方章节标题",
+   "applies_when": "≤80 字适用情形，须点明权利/义务主体"
+  },
+  "subject_vocabulary": [
+   "自然人",
+   "法人",
+   "公司",
+   "股东",
+   "合伙人",
+   "个人独资企业",
+   "消费者",
+   "经营者",
+   "劳动者",
+   "用人单位",
+   "发包人",
+   "承包人",
+   "借款人",
+   "出借人",
+   "债权人",
+   "债务人",
+   "机动车方",
+   "非机动车方/行人",
+   "平台",
+   "行政机关",
+   "保证人",
+   "受害人",
+   "非法人组织"
+  ],
+  "process": "LLM 预标（temperature=0，text 档旗舰）→ 程序自查 → 复核人抽验 ≥1/3（≥13 条）",
+  "labeling_model": "qwen3.7-max-2026-06-08",
+  "failed": [],
+  "installed_path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\knowledge_base\\law_annotations.json",
+  "status": "final — 14/38 条抽验（36.8%）：56 项判定 53 是/3 否（一致率 94.6%），3 项 subject_types 已按复核意见修正；chapter/direction 14/14 通过；未抽验 24 条维持预标值",
+  "review": {
+   "reviewer": "外部法律复核人（法律合规专家）",
+   "date": "2026-09-17",
+   "sample": "reviewer-sample.md 14 条（系统抽样 ∪ 2 条锚点分歧）",
+   "verdicts": "56 项：53 是 / 3 否（94.6%）",
+   "fixes_applied": {
+    "民法典#第一千一百七十九条": {
+     "before": [
+      "自然人"
+     ],
+     "after": [
+      "自然人",
+      "法人"
+     ]
+    },
+    "民法典#第六百九十三条": {
+     "before": [
+      "债权人",
+      "债务人"
+     ],
+     "after": [
+      "债权人",
+      "债务人",
+      "保证人"
+     ]
+    },
+    "民法典#第六百八十六条": {
+     "before": [
+      "债权人",
+      "债务人"
+     ],
+     "after": [
+      "债权人",
+      "保证人"
+     ]
+    }
+   },
+   "vocab_added": [
+    "保证人",
+    "受害人",
+    "非法人组织"
+   ],
+   "deferred_suggestions": [
+    "claim_direction 增设 invalidity（效力性规范）→ 列入 T-A2 设计输入，本轮不改任何 direction",
+    "applies_when 补全 497 条第1款援引性规定 → 后续打磨项（该项判定为'是'）",
+    "预标管线增设主体完整性校验（效果承受主体必须出现在 subject_types）→ 下次预标批自查规则"
+   ]
+  },
+  "ta2_extension": {
+   "date": "2026-09-17",
+   "added": 31,
+   "source": "review-verdicts.json 独立引用 31 条缺口（D2/D3 Owner 授权）",
+   "labeling_model": "qwen3.7-max（registry key=agent_text_37max；priority 0 免费额度耗尽后按优先级回退）",
+   "status": "preliminary — 无独立复核抽验；功能性验证 = T-A2 四组测试（43 项零误杀）",
+   "d1_decision": "选项一：两机制确定性子集 + 残余走 P5 出口"
+  },
+  "total_annotated": 69
+ },
+ "annotations": {
+  "刑法#第二百六十六条": {
+   "subject_types": [
+    "自然人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第五章 侵犯财产罪",
+   "applies_when": "自然人诈骗公私财物且数额较大或具有严重情节时，国家对其追究刑事责任并处以相应刑罚"
+  },
+  "劳动争议调解仲裁法#第二十七条": {
+   "subject_types": [
+    "劳动者",
+    "用人单位"
+   ],
+   "claim_direction": "procedural",
+   "chapter": "第二节 申请和受理",
+   "applies_when": "劳动者或用人单位申请劳动争议仲裁时，关于一年时效期间的起算、中断、中止及拖欠报酬特殊时限的适用"
+  },
+  "劳动合同法#第十条": {
+   "subject_types": [
+    "用人单位",
+    "劳动者"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第二章 劳动合同的订立",
+   "applies_when": "用人单位与劳动者建立劳动关系时，双方应当依法订立书面劳动合同。"
+  },
+  "劳动合同法#第三十条": {
+   "subject_types": [
+    "用人单位",
+    "劳动者"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第三章 劳动合同的履行和变更",
+   "applies_when": "用人单位未按约定或国家规定及时足额支付劳动报酬时，劳动者有权向法院申请支付令，法院应依法发出。"
+  },
+  "劳动合同法#第四十条": {
+   "subject_types": [
+    "用人单位",
+    "劳动者"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第四章 劳动合同的解除和终止",
+   "applies_when": "劳动者患病、不胜任工作或客观情况重大变化致合同无法履行时，用人单位履行通知或代通知义务后可解除劳动合同"
+  },
+  "劳动合同法#第四十三条": {
+   "subject_types": [
+    "用人单位"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第四章 劳动合同的解除和终止",
+   "applies_when": "用人单位单方解除劳动合同时，应当向工会履行通知理由、研究意见及书面反馈处理结果的义务。"
+  },
+  "劳动合同法#第四十七条": {
+   "subject_types": [
+    "劳动者",
+    "用人单位"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第四章 劳动合同的解除和终止",
+   "applies_when": "劳动合同解除或终止时，用人单位应按劳动者工作年限及工资标准向劳动者支付经济补偿。"
+  },
+  "劳动合同法#第八十二条": {
+   "subject_types": [
+    "用人单位",
+    "劳动者"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第七章 法律责任",
+   "applies_when": "用人单位未依法与劳动者订立书面或无固定期限劳动合同时，应向劳动者支付二倍工资。"
+  },
+  "劳动合同法#第八十七条": {
+   "subject_types": [
+    "用人单位",
+    "劳动者"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第七章 法律责任",
+   "applies_when": "用人单位违反本法规定解除或终止劳动合同时，应向劳动者支付二倍经济补偿标准的赔偿金。"
+  },
+  "劳动法#第三十六条": {
+   "subject_types": [
+    "劳动者",
+    "用人单位"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第四章 工作时间和休息休假",
+   "applies_when": "用人单位安排劳动者工作时，须遵守每日不超过八小时、每周平均不超过四十四小时的工时限制。"
+  },
+  "劳动法#第四十四条": {
+   "subject_types": [
+    "用人单位",
+    "劳动者"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第四章 工作时间和休息休假",
+   "applies_when": "用人单位安排劳动者延长工作时间、休息日工作未补休或法定休假日工作时，应向劳动者支付高于正常工资的报酬。"
+  },
+  "民事诉讼法#第一百二十二条": {
+   "subject_types": [
+    "自然人",
+    "法人"
+   ],
+   "claim_direction": "procedural",
+   "chapter": "第一节 起诉和受理",
+   "applies_when": "原告向人民法院提起民事诉讼时，须满足主体适格、被告明确、诉求具体及属于受诉法院管辖等法定起诉条件。"
+  },
+  "民法典#第一百四十八条": {
+   "subject_types": [
+    "自然人",
+    "法人"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第三节 民事法律行为的效力",
+   "applies_when": "一方以欺诈手段使对方违背真实意思实施民事法律行为时，受欺诈方有权请求法院或仲裁机构撤销该行为。"
+  },
+  "民法典#第一百八十八条": {
+   "subject_types": [
+    "自然人",
+    "法人"
+   ],
+   "claim_direction": "procedural",
+   "chapter": "第九章 诉讼时效",
+   "applies_when": "权利人向人民法院请求保护民事权利时，诉讼时效期间为三年，自知道或应当知道权利受损及义务人之日起算。"
+  },
+  "民法典#第一百九十五条": {
+   "subject_types": [
+    "债权人",
+    "债务人"
+   ],
+   "claim_direction": "procedural",
+   "chapter": "第九章 诉讼时效",
+   "applies_when": "权利人向义务人主张权利、义务人同意履行或提起诉讼仲裁时，诉讼时效中断并重新计算。"
+  },
+  "民法典#第四百九十六条": {
+   "subject_types": [
+    "自然人",
+    "法人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第二章 合同的订立",
+   "applies_when": "采用格式条款订立合同时，提供格式条款一方未履行提示或说明义务，对方可主张该条款不成为合同内容。"
+  },
+  "民法典#第四百九十七条": {
+   "subject_types": [
+    "自然人",
+    "法人"
+   ],
+   "claim_direction": "definition",
+   "chapter": "第二章 合同的订立",
+   "applies_when": "当提供格式条款一方不合理免除减轻己责、加重对方责任或排除对方主要权利时，该格式条款无效。"
+  },
+  "民法典#第五百零九条": {
+   "subject_types": [
+    "自然人",
+    "法人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第四章 合同的履行",
+   "applies_when": "合同当事人在履行合同过程中，应当全面履行约定义务及诚信附随义务，并避免浪费资源、污染环境和破坏生态。"
+  },
+  "民法典#第五百四十三条": {
+   "subject_types": [
+    "自然人",
+    "法人"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第六章 合同的变更和转让",
+   "applies_when": "合同当事人协商一致时，双方均有权变更合同内容。"
+  },
+  "民法典#第五百七十七条": {
+   "subject_types": [
+    "自然人",
+    "法人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第八章 违约责任",
+   "applies_when": "当事人一方不履行合同义务或履行不符合约定时，违约方应向守约方承担继续履行、补救或赔偿等违约责任。"
+  },
+  "民法典#第五百七十九条": {
+   "subject_types": [
+    "债权人",
+    "债务人"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第八章 违约责任",
+   "applies_when": "债务人未支付价款、报酬、租金、利息或不履行其他金钱债务时，债权人可请求其支付。"
+  },
+  "民法典#第五百八十六条": {
+   "subject_types": [
+    "债权人",
+    "债务人"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第八章 违约责任",
+   "applies_when": "债权人与债务人约定以定金担保债权时，可设立定金合同并受数额上限约束"
+  },
+  "民法典#第五百八十七条": {
+   "subject_types": [
+    "债权人",
+    "债务人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第八章 违约责任",
+   "applies_when": "给付或收受定金的债务人不履行债务或履行不符合约定致合同目的不能实现时，适用定金罚则。"
+  },
+  "民法典#第五百八十八条": {
+   "subject_types": [
+    "自然人",
+    "法人"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第八章 违约责任",
+   "applies_when": "当事人既约定违约金又约定定金且一方违约时，守约方可选择适用其一或请求赔偿超定金部分的损失。"
+  },
+  "民法典#第六百六十七条": {
+   "subject_types": [
+    "借款人",
+    "出借人"
+   ],
+   "claim_direction": "definition",
+   "chapter": "第十二章 借款合同",
+   "applies_when": "界定借款人与贷款人之间成立借款合同关系的情形"
+  },
+  "民法典#第六百七十五条": {
+   "subject_types": [
+    "借款人",
+    "出借人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第十二章 借款合同",
+   "applies_when": "借款人应按约定期限返还借款；期限未定或不明时，借款人可随时返还，出借人可催告其在合理期限内返还。"
+  },
+  "民法典#第六百八十条": {
+   "subject_types": [
+    "借款人",
+    "出借人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第十二章 借款合同",
+   "applies_when": "出借人与借款人订立借款合同时，对利率限制及利息约定不明或未约定的情形"
+  },
+  "民法典#第六百八十六条": {
+   "subject_types": [
+    "债权人",
+    "保证人"
+   ],
+   "claim_direction": "definition",
+   "chapter": "第一节 一般规定",
+   "applies_when": "保证合同当事人对保证方式没有约定或约定不明确时，保证人按一般保证向债权人承担责任",
+   "_review_fixed": true
+  },
+  "民法典#第六百九十二条": {
+   "subject_types": [
+    "债权人",
+    "债务人"
+   ],
+   "claim_direction": "definition",
+   "chapter": "第二节 保证责任",
+   "applies_when": "债权人与保证人确定保证期间，或主债务履行期限未约定时计算保证期间"
+  },
+  "民法典#第六百九十三条": {
+   "subject_types": [
+    "债权人",
+    "债务人",
+    "保证人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第二节 保证责任",
+   "applies_when": "一般或连带责任保证中，债权人未在保证期间对债务人诉讼仲裁或请求保证人承担责任时，保证人免除责任。",
+   "_review_fixed": true
+  },
+  "民法典#第六百九十五条": {
+   "subject_types": [
+    "债权人",
+    "债务人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第二节 保证责任",
+   "applies_when": "债权人和债务人未经保证人书面同意协商变更主债权债务合同内容或履行期限时，确定保证人的责任范围及保证期间。"
+  },
+  "民法典#第七百二十二条": {
+   "subject_types": [
+    "自然人",
+    "法人"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第十四章 租赁合同",
+   "applies_when": "承租人无正当理由未支付或迟延支付租金时，出租人可请求限期支付或解除合同。"
+  },
+  "民法典#第八百零六条": {
+   "subject_types": [
+    "发包人",
+    "承包人"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第十八章 建设工程合同",
+   "applies_when": "承包人转包或违法分包，或发包人提供材料不合格、不履行协助义务致无法施工且催告未果时，对方可解除合同并结算价款。"
+  },
+  "民法典#第一千一百六十五条": {
+   "subject_types": [
+    "自然人",
+    "法人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第一章 一般规定",
+   "applies_when": "行为人因过错侵害他人民事权益造成损害，或法律推定有过错且不能自证无过错时，应向受害人承担侵权责任。"
+  },
+  "民法典#第一千一百七十九条": {
+   "subject_types": [
+    "自然人",
+    "法人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第二章 损害赔偿",
+   "applies_when": "侵害人造成他人人身损害、残疾或死亡时，应向受害人或其近亲属赔偿相应费用",
+   "_review_fixed": true
+  },
+  "消费者权益保护法#第二十六条": {
+   "subject_types": [
+    "经营者",
+    "消费者"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第三章 经营者的义务",
+   "applies_when": "经营者在经营活动中使用格式条款时，应向消费者履行提示说明义务，且不得作出不公平不合理规定或强制交易。"
+  },
+  "消费者权益保护法#第五十五条": {
+   "subject_types": [
+    "经营者",
+    "消费者"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第七章 法律责任",
+   "applies_when": "经营者存在欺诈或明知缺陷致人严重损害时，消费者或受害人有权要求经营者承担惩罚性赔偿"
+  },
+  "道路交通安全法#第七十六条": {
+   "subject_types": [
+    "机动车方",
+    "非机动车方/行人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第五章 交通事故处理",
+   "applies_when": "机动车发生交通事故致人身伤亡或财产损失时，机动车方对受害人承担赔偿责任及免责情形"
+  },
+  "个人独资企业法#第四十二条": {
+   "subject_types": [
+    "个人独资企业"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第五章 法律责任",
+   "applies_when": "个人独资企业及其投资人在清算前或清算期间隐匿或转移财产逃避债务时，依法追回财产并处罚或追究刑责",
+   "_ta2": {
+    "duty_subjects": [
+     "个人独资企业"
+    ],
+    "right_subjects": []
+   }
+  },
+  "产品质量法#第五十九条": {
+   "subject_types": [
+    "经营者",
+    "消费者"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第五章 罚  则",
+   "applies_when": "经营者在广告中对产品质量作虚假宣传，欺骗和误导消费者时，依法追究法律责任。",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": [],
+    "note": "duty 词不在条文文本（主体完整性规则拦截）→ 置空 fail-open；认可条文，机制A不受影响"
+   }
+  },
+  "企业破产法#第二十一条": {
+   "subject_types": [
+    "债务人"
+   ],
+   "claim_direction": "procedural",
+   "chapter": "第二节 受  理",
+   "applies_when": "人民法院受理破产申请后，有关债务人的民事诉讼管辖确定",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": []
+   }
+  },
+  "公司法#第二十三条": {
+   "subject_types": [
+    "公司",
+    "股东",
+    "债权人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第一章 总  则",
+   "applies_when": "股东滥用法人独立地位或财产混同逃避债务严重损害债权人利益时，股东或关联公司对债务承担连带责任",
+   "_ta2": {
+    "duty_subjects": [
+     "股东",
+     "公司"
+    ],
+    "right_subjects": [
+     "债权人"
+    ]
+   }
+  },
+  "劳动争议调解仲裁法#第六条": {
+   "subject_types": [
+    "劳动者",
+    "用人单位"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第一章 总则",
+   "applies_when": "发生劳动争议时，当事人对主张负举证责任；证据由用人单位掌握的，用人单位应当提供",
+   "_ta2": {
+    "duty_subjects": [
+     "用人单位"
+    ],
+    "right_subjects": []
+   }
+  },
+  "反不正当竞争法#第九条": {
+   "subject_types": [
+    "经营者",
+    "消费者"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第二章 不正当竞争行为",
+   "applies_when": "经营者进行商业宣传或组织虚假交易、评价时，不得欺骗误导消费者和其他经营者",
+   "_ta2": {
+    "duty_subjects": [
+     "经营者"
+    ],
+    "right_subjects": []
+   }
+  },
+  "反不正当竞争法#第二十五条": {
+   "subject_types": [
+    "经营者",
+    "行政机关"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第四章 法律责任",
+   "applies_when": "经营者违反第九条作虚假或引人误解商业宣传、帮助他人虚假宣传，或发布虚假广告时，由监督检查部门予以行政处罚。",
+   "_ta2": {
+    "duty_subjects": [
+     "经营者"
+    ],
+    "right_subjects": []
+   }
+  },
+  "合伙企业法#第一百零二条": {
+   "subject_types": [
+    "合伙企业",
+    "清算人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第五章 法律责任",
+   "applies_when": "清算人违反规定隐匿转移财产、虚假记载或未清偿债务前分配财产，损害债权人利益时",
+   "_ta2": {
+    "duty_subjects": [
+     "清算人"
+    ],
+    "right_subjects": [
+     "债权人"
+    ]
+   },
+   "_review_note": "修正：subject_types 语义=条文规制主体；债权人系条文提及的受偿方，保留于 right_subjects"
+  },
+  "广告法#第十八条": {
+   "subject_types": [
+    "经营者"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第二章 广告内容准则",
+   "applies_when": "经营者发布保健食品广告时，不得含有法定禁止内容并应显著标明提示语",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": [],
+    "note": "duty 词不在条文文本（主体完整性规则拦截）→ 置空 fail-open；认可条文，机制A不受影响"
+   }
+  },
+  "广告法#第二十八条": {
+   "subject_types": [
+    "经营者"
+   ],
+   "claim_direction": "definition",
+   "chapter": "第二章 广告内容准则",
+   "applies_when": "广告以虚假或者引人误解的内容欺骗、误导消费者，或存在商品服务不存在、信息不符等法定情形时",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": []
+   }
+  },
+  "建筑法#第七十条": {
+   "subject_types": [
+    "承包人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第七章 法律责任",
+   "applies_when": "涉及建筑主体或承重结构变动的装修工程擅自施工时，违法施工方承担行政、民事及刑事责任",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": []
+   }
+  },
+  "民事诉讼法#第二十二条": {
+   "subject_types": [
+    "自然人",
+    "法人",
+    "非法人组织"
+   ],
+   "claim_direction": "procedural",
+   "chapter": "第二节 地域管辖",
+   "applies_when": "对公民、法人或其他组织提起民事诉讼时，确定由被告住所地或经常居住地法院管辖的情形",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": []
+   }
+  },
+  "民事诉讼法#第一百二十一条": {
+   "subject_types": [
+    "自然人",
+    "法人",
+    "非法人组织"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第十一章 诉讼费用",
+   "applies_when": "当事人进行民事诉讼时，应按规定交纳案件受理费及其他诉讼费用",
+   "_ta2": {
+    "duty_subjects": [
+     "当事人"
+    ],
+    "right_subjects": []
+   }
+  },
+  "民法典#第一百九十二条": {
+   "subject_types": [
+    "债权人",
+    "债务人"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第九章 诉讼时效",
+   "applies_when": "诉讼时效期间届满时，义务人可提出不履行抗辩；同意履行或自愿履行后不得再抗辩或请求返还",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": [
+     "义务人"
+    ]
+   }
+  },
+  "民法典#第五百六十二条": {
+   "subject_types": [],
+   "claim_direction": "grant_right",
+   "chapter": "第七章 合同的权利义务终止",
+   "applies_when": "当事人协商一致或约定解除事由发生时，解除权人可解除合同",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": [
+     "解除权人"
+    ]
+   }
+  },
+  "民法典#第五百六十四条": {
+   "subject_types": [],
+   "claim_direction": "definition",
+   "chapter": "第七章 合同的权利义务终止",
+   "applies_when": "解除权行使期限届满或法定一年内未行使，或经催告后合理期限内未行使时，解除权消灭",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": []
+   }
+  },
+  "民法典#第七百八十三条": {
+   "subject_types": [
+    "承揽人",
+    "定作人"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第十七章 承揽合同",
+   "applies_when": "定作人未向承揽人支付报酬或者材料费等价款时，承揽人对完成的工作成果享有留置权或拒绝交付权",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": [
+     "承揽人"
+    ]
+   }
+  },
+  "民法典#第七百八十七条": {
+   "subject_types": [
+    "定作人",
+    "承揽人"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第十七章 承揽合同",
+   "applies_when": "定作人在承揽人完成工作前解除合同，造成承揽人损失时，定作人享有解除权但应赔偿损失",
+   "_ta2": {
+    "duty_subjects": [
+     "定作人"
+    ],
+    "right_subjects": [
+     "定作人"
+    ]
+   },
+   "_review_note": "修正标注错误：787=定作人任意解除承揽合同（承揽章），原标发包人/承包人系建设工程章角色"
+  },
+  "民法典#第八百零一条": {
+   "subject_types": [
+    "发包人",
+    "承包人"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第十八章 建设工程合同",
+   "applies_when": "因施工人原因致建设工程质量不符合约定时，发包人可请求施工人无偿修理、返工或改建",
+   "_ta2": {
+    "duty_subjects": [
+     "施工人"
+    ],
+    "right_subjects": [
+     "发包人"
+    ]
+   }
+  },
+  "民法典#第八百零二条": {
+   "subject_types": [
+    "承包人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第十八章 建设工程合同",
+   "applies_when": "因承包人原因致建设工程在合理使用期限内造成人身损害和财产损失时，承包人承担赔偿责任",
+   "_ta2": {
+    "duty_subjects": [
+     "承包人"
+    ],
+    "right_subjects": []
+   }
+  },
+  "民法典#第八百零四条": {
+   "subject_types": [
+    "发包人",
+    "承包人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第十八章 建设工程合同",
+   "applies_when": "因发包人原因致工程中途停建、缓建时，发包人对承包人承担减损及赔偿义务",
+   "_ta2": {
+    "duty_subjects": [
+     "发包人"
+    ],
+    "right_subjects": [
+     "承包人"
+    ]
+   }
+  },
+  "民法典#第八百零七条": {
+   "subject_types": [
+    "发包人",
+    "承包人"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第十八章 建设工程合同",
+   "applies_when": "发包人未按约定支付价款且逾期不支付时，承包人可催告、协议折价或请求拍卖工程并优先受偿",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": [
+     "承包人"
+    ]
+   }
+  },
+  "民法典#第一千一百九十七条": {
+   "subject_types": [
+    "平台"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第三章 责任主体的特殊规定",
+   "applies_when": "网络服务提供者知道或应知网络用户利用其服务侵害他人民事权益且未采取必要措施时，对受害人承担连带责任",
+   "_ta2": {
+    "duty_subjects": [
+     "网络服务提供者"
+    ],
+    "right_subjects": []
+   }
+  },
+  "消费者权益保护法#第十一条": {
+   "subject_types": [
+    "消费者"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第二章 消费者的权利",
+   "applies_when": "消费者因购买、使用商品或者接受服务受到人身、财产损害时，享有依法获得赔偿的权利",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": [
+     "消费者"
+    ]
+   }
+  },
+  "消费者权益保护法#第四十条": {
+   "subject_types": [
+    "消费者",
+    "经营者"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第六章 争议的解决",
+   "applies_when": "消费者购买使用商品或接受服务权益受损，或因商品缺陷致人身财产损害时向销售者、生产者或服务者索赔",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": [
+     "消费者",
+     "受害人"
+    ]
+   }
+  },
+  "消费者权益保护法#第四十四条": {
+   "subject_types": [
+    "消费者",
+    "平台"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第六章 争议的解决",
+   "applies_when": "消费者通过网络交易平台购买商品或接受服务合法权益受损，且平台不能提供销售者或服务者真实信息时",
+   "_ta2": {
+    "duty_subjects": [
+     "网络交易平台提供者"
+    ],
+    "right_subjects": [
+     "消费者"
+    ]
+   }
+  },
+  "消费者权益保护法#第四十九条": {
+   "subject_types": [
+    "经营者",
+    "消费者",
+    "受害人"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第七章 法律责任",
+   "applies_when": "经营者提供商品或者服务造成消费者或者其他受害人人身伤害、残疾或死亡时",
+   "_ta2": {
+    "duty_subjects": [
+     "经营者"
+    ],
+    "right_subjects": [
+     "消费者",
+     "受害人"
+    ]
+   }
+  },
+  "药品管理法#第一百二十八条": {
+   "subject_types": [
+    "经营者"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第十一章 法律责任",
+   "applies_when": "药品包装未按规定印有贴有标签或附说明书，或标签说明书未注明相关信息或标志时，对违法经营者责令改正、警告或吊销证书",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": []
+   }
+  },
+  "药品管理法#第一百三十一条": {
+   "subject_types": [
+    "平台"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第十一章 法律责任",
+   "applies_when": "药品网络交易第三方平台提供者未履行资质审核、报告、停止提供网络交易平台服务等义务时",
+   "_ta2": {
+    "duty_subjects": [
+     "药品网络交易第三方平台提供者"
+    ],
+    "right_subjects": []
+   }
+  },
+  "证券法#第九十三条": {
+   "subject_types": [
+    "法人",
+    "股东"
+   ],
+   "claim_direction": "grant_right",
+   "chapter": "第六章 投资者保护",
+   "applies_when": "发行人因欺诈发行、虚假陈述等给投资者造成损失时，相关主体可委托机构先行赔付并追偿",
+   "_ta2": {
+    "duty_subjects": [],
+    "right_subjects": [
+     "控股股东",
+     "实际控制人",
+     "证券公司"
+    ]
+   }
+  },
+  "道路交通安全法#第七十三条": {
+   "subject_types": [
+    "行政机关"
+   ],
+   "claim_direction": "impose_duty",
+   "chapter": "第五章 交通事故处理",
+   "applies_when": "公安机关交通管理部门在处理交通事故时，应根据勘验调查及鉴定结论制作认定书并送达当事人",
+   "_ta2": {
+    "duty_subjects": [
+     "公安机关交通管理部门"
+    ],
+    "right_subjects": []
+   }
+  }
+ }
+}

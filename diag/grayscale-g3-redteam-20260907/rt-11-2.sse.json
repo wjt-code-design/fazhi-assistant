@@ -1,0 +1,83 @@
+[
+ {
+  "type": "status",
+  "msg": "正在思考…"
+ },
+ {
+  "content": "您的问题所涉法律条文暂未收录在当前知识库中，我暂时无法给出准确的条文依据。若您能补充：① 具体涉及的法律领域（如合同、劳动、侵权）；② 基本事实经过，我可以基于知识库中相关领域的条文尽力分析；您也可直接指明某部法律，我帮您核对是否收录。"
+ },
+ {
+  "sources": [
+   {
+    "source": "民法典",
+    "article": "第六百七十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第二百零一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第六百七十七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民事诉讼法",
+    "article": "第二百六十四条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "票据法",
+    "article": "第一百零七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第二百零四条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第六百七十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一百八十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "行政诉讼法",
+    "article": "第八十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第五百八十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   }
+  ]
+ }
+]

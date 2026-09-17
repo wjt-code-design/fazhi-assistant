@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "是否已支付部分工资",
+  "issue_id": "issue_0a9a6d234f3bbc9b1e6ca558"
+ }
+]

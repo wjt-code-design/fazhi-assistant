@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "债权人是否在2021年至2024年期间向债务人主张过权利，或债务人同意履行义务",
+  "issue_id": "issue_8dd7feb69885175478db1b45"
+ }
+]

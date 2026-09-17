@@ -1,0 +1,4 @@
+registered_in_whitelist=True
+rendered={"ts": "2026-09-12T14:52:58", "level": "WARNING", "logger": "legal.agent", "req": "probe", "msg": "writer_render_summary", "agent_writer_summary": {"reason": "NON_CANONICAL_CITATION", "has_feedback": true, "claims_proposed": 1, "claims_accepted": 0, "claims_dropped": 0, "per_issue": [{"issue_id": "issue-a", "proposed": 1, "accepted": 0, "dropped": 0}], "failing_issue_id": "issue-a"}}
+field_present_in_json=True
+failing_issue_recoverable=issue-a

@@ -1,0 +1,467 @@
+from datetime import datetime
+
+import pytest
+
+import agent.writer as writer_module
+from agent.schemas import (
+    Evidence,
+    EvidenceConflict,
+    Fact,
+    LegalAgentState,
+    LegalIssue,
+    LegalValidity,
+    Observation,
+    SourceType,
+    UnknownFact,
+)
+from agent.writer import EvidenceBoundedWriter, WriterStatus
+
+
+class RecordingGenerator:
+    def __init__(self, response):
+        self.response = response
+        self.calls = []
+
+    def generate(self, *, payload, system_prompt, feedback=None):
+        self.calls.append((payload, system_prompt))
+        return self.response
+
+
+def evidence(
+    evidence_id: str,
+    *,
+    source_type: SourceType = SourceType.STATUTE,
+    validity: LegalValidity = LegalValidity.EFFECTIVE,
+    snippet: str = "《民法典》第一百八十八条规定诉讼时效期间为三年。",
+) -> Evidence:
+    return Evidence(
+        evidence_id=evidence_id,
+        source_id=f"source-{evidence_id}",
+        source_ref="《民法典》第一百八十八条",
+        source_type=source_type,
+        snippet=snippet,
+        legal_validity=validity,
+        acquired_at=datetime(2026, 8, 30),
+    )
+
+
+def state() -> LegalAgentState:
+    return LegalAgentState(
+        steps=9,
+        verifier_research_returns=0,
+        action_fingerprints={"secret-fingerprint"},
+        issues=[
+            LegalIssue(
+                issue_id="issue-a",
+                question="诉讼时效多久？",
+                facts=[
+                    Fact(
+                        statement="权利受损日期为2023年8月1日",
+                        source=SourceType.USER,
+                        source_ref="user:answer",
+                        confidence=1,
+                    ),
+                    Fact(
+                        statement="模型推断用户已催告",
+                        source=SourceType.INFERENCE,
+                        source_ref="planner:thought",
+                        confidence=0.2,
+                    ),
+                ],
+                unknown_facts=[UnknownFact(statement="是否存在中止事由", why_outcome_changes="影响时效")],
+            ),
+            LegalIssue(issue_id="issue-b", question="违约金是否过高？"),
+        ],
+        observations=[
+            Observation(
+                issue_id="issue-a",
+                statement="raw observation prose canary",
+                evidence_ids=["ev-a"],
+                confidence=0.9,
+            ),
+            Observation(
+                issue_id="issue-b",
+                statement="second issue",
+                evidence_ids=["ev-b"],
+                confidence=0.8,
+            ),
+        ],
+        evidence=[
+            evidence("ev-a"),
+            evidence("ev-b", snippet="《民法典》第五百八十五条规定约定违约金。"),
+            evidence("ev-unlinked", snippet="unlinked retrieval document canary"),
+        ],
+        conflicts=[
+            EvidenceConflict(
+                conflict_id="conflict-resolved",
+                issue_id="issue-a",
+                evidence_ids=("ev-a",),
+                critical=True,
+                resolved=True,
+            )
+        ],
+    )
+
+
+def response_claim(**updates):
+    claim = {
+        "local_id": "local-a",
+        "issue_id": "issue-a",
+        "text": "根据《民法典》第一百八十八条，诉讼时效期间为三年。",
+        "evidence_ids": ["ev-a"],
+        "fact_ids": [],
+        "section": "conclusion",
+    }
+    claim.update(updates)
+    return {"claims": [claim], "missing_information": ["是否存在中止事由"]}
+
+
+def test_writer_payload_is_allowlisted_and_excludes_untrusted_canaries():
+    generator = RecordingGenerator(response_claim())
+
+    result = EvidenceBoundedWriter(generator).render(state())
+
+    assert result.status is WriterStatus.READY
+    assert result.draft is not None
+    assert result.draft.claim_checks == ()
+    payload, prompt = generator.calls[0]
+    dumped = payload.model_dump(mode="json")
+    serialized = payload.model_dump_json()
+    assert set(dumped) == {"issues", "resolved_conflict_ids"}
+    assert "raw observation prose canary" not in serialized
+    assert "unlinked retrieval document canary" not in serialized
+    assert "模型推断用户已催告" not in serialized
+    for forbidden in ("history", "summary", "retrieval", "planner", "fingerprint", "budget", "counter", "tool_args"):
+        assert forbidden not in serialized.lower()
+    assert "secret-fingerprint" not in serialized
+    assert "尽力回答" not in prompt
+    assert "不得新增" in prompt
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        "raw text",
+        {"claims": [], "missing_information": [], "conclusion": "unchecked"},
+        {
+            "claims": [
+                {
+                    "local_id": "x",
+                    "issue_id": "issue-a",
+                    "text": "a",
+                    "evidence_ids": ["ev-a"],
+                    "fact_ids": [],
+                    "section": "unknown",
+                }
+            ],
+            "missing_information": [],
+        },
+        {
+            "claims": [
+                {
+                    "local_id": "same",
+                    "issue_id": "issue-a",
+                    "text": "a",
+                    "evidence_ids": ["ev-a"],
+                    "fact_ids": [],
+                    "section": "conclusion",
+                },
+                {
+                    "local_id": "same",
+                    "issue_id": "issue-a",
+                    "text": "b",
+                    "evidence_ids": ["ev-a"],
+                    "fact_ids": [],
+                    "section": "risk",
+                },
+            ],
+            "missing_information": [],
+        },
+    ],
+)
+def test_writer_rejects_malformed_extra_unknown_section_and_duplicate_local_ids(response):
+    result = EvidenceBoundedWriter(RecordingGenerator(response)).render(state())
+    assert result.status is WriterStatus.FAIL_SAFE
+    assert result.draft is None
+
+
+def test_writer_drops_zero_evidence_claim_from_every_section():
+    result = EvidenceBoundedWriter(RecordingGenerator(response_claim(evidence_ids=[], text="一定胜诉"))).render(state())
+    assert result.status is WriterStatus.READY
+    assert result.draft is not None
+    assert result.draft.conclusion == ()
+    assert result.draft.issue_analysis == ()
+    assert result.draft.risks == ()
+    assert len(result.dropped_claim_ids) == 1
+    assert "rendered_text" not in type(result).model_fields
+    assert not hasattr(writer_module, "render_draft_text")
+
+
+@pytest.mark.parametrize(
+    ("updates", "mutate", "reason"),
+    [
+        ({"evidence_ids": ["missing"]}, None, "UNKNOWN_EVIDENCE_ID"),
+        ({"evidence_ids": ["ev-b"]}, None, "CROSS_ISSUE_EVIDENCE"),
+        (
+            {"evidence_ids": ["ev-a"]},
+            lambda s: s.model_copy(
+                update={"evidence": [evidence("ev-a", validity=LegalValidity.SUPERSEDED), *s.evidence[1:]]}
+            ),
+            "INVALID_STATUTE_EVIDENCE",
+        ),
+        ({"fact_ids": ["missing"]}, None, "UNKNOWN_FACT_ID"),
+    ],
+)
+def test_writer_fails_safe_for_unknown_cross_issue_or_invalid_sources(updates, mutate, reason):
+    current = state()
+    if mutate:
+        current = mutate(current)
+    result = EvidenceBoundedWriter(RecordingGenerator(response_claim(**updates))).render(current)
+    assert result.status is WriterStatus.FAIL_SAFE
+    assert result.reason_code == reason
+    assert result.draft is None
+
+
+def test_writer_derives_fact_and_claim_ids_and_accepts_bound_number():
+    capture = RecordingGenerator({"claims": [], "missing_information": []})
+    EvidenceBoundedWriter(capture).render(state())
+    fact_id = capture.calls[0][0].issues[0].facts[0].fact_id
+    raw = response_claim(text="权利受损日期为2023年8月1日，依据《民法典》第一百八十八条处理。", fact_ids=[fact_id])
+    first = EvidenceBoundedWriter(RecordingGenerator(raw)).render(state())
+    second = EvidenceBoundedWriter(RecordingGenerator(raw)).render(state())
+    assert first.status is WriterStatus.READY
+    assert first.draft is not None and second.draft is not None
+    claim = first.draft.conclusion[0]
+    assert claim.claim_id
+    assert claim.fact_ids == (fact_id,)
+    assert claim.claim_id == second.draft.conclusion[0].claim_id
+
+
+@pytest.mark.parametrize("text", ["金额为5000元。", "比例为30%。", "日期为2025年1月1日。", "期限为六个月。"])
+def test_writer_fails_safe_for_unsupported_numbers_dates_amounts_and_durations(text):
+    result = EvidenceBoundedWriter(RecordingGenerator(response_claim(text=text))).render(state())
+    assert result.status is WriterStatus.FAIL_SAFE
+    assert result.reason_code == "UNSUPPORTED_NUMERIC_TOKEN"
+
+
+def test_writer_rejects_invented_missing_information():
+    raw = response_claim()
+    raw["missing_information"] = ["模型新增的待补信息"]
+    result = EvidenceBoundedWriter(RecordingGenerator(raw)).render(state())
+    assert result.status is WriterStatus.FAIL_SAFE
+    assert result.reason_code == "UNKNOWN_MISSING_INFORMATION"
+
+
+def test_writer_rejects_citation_not_present_in_claim_bound_evidence():
+    result = EvidenceBoundedWriter(
+        RecordingGenerator(
+            response_claim(
+                text="根据《民法典》第五百八十五条，诉讼时效期间为三年。",
+                evidence_ids=["ev-a"],
+            )
+        )
+    ).render(state())
+
+    assert result.status is WriterStatus.FAIL_SAFE
+    assert result.reason_code == "UNSUPPORTED_CITATION"
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "根据民法典第五百八十五条，诉讼时效期间为三年。",
+        "根据《民法典》第一百八十八条、第五百八十五条，诉讼时效期间为三年。",
+    ],
+)
+def test_writer_rejects_noncanonical_citation_before_normalization(text):
+    result = EvidenceBoundedWriter(
+        RecordingGenerator(
+            response_claim(
+                text=text,
+                evidence_ids=["ev-a"],
+            )
+        )
+    ).render(state())
+
+    assert result.status is WriterStatus.FAIL_SAFE
+    assert result.reason_code == "NON_CANONICAL_CITATION"
+
+
+def test_writer_does_not_accept_user_fact_as_statute_citation_authority():
+    current = state()
+    issue_a = current.issues[0].model_copy(
+        update={
+            "facts": [
+                *current.issues[0].facts,
+                Fact(
+                    statement="用户称《民法典》第五百八十五条适用",
+                    source=SourceType.USER,
+                    source_ref="user:answer",
+                    confidence=1,
+                ),
+            ]
+        }
+    )
+    current = current.model_copy(update={"issues": [issue_a, current.issues[1]]})
+    capture = RecordingGenerator({"claims": [], "missing_information": []})
+    EvidenceBoundedWriter(capture).render(current)
+    user_fact_id = capture.calls[0][0].issues[0].facts[-1].fact_id
+
+    result = EvidenceBoundedWriter(
+        RecordingGenerator(
+            response_claim(
+                text="根据《民法典》第五百八十五条，诉讼时效期间为三年。",
+                fact_ids=[user_fact_id],
+            )
+        )
+    ).render(current)
+
+    assert result.status is WriterStatus.FAIL_SAFE
+    assert result.reason_code == "UNSUPPORTED_CITATION"
+
+
+@pytest.mark.parametrize(
+    ("source_text", "claim_text"),
+    [
+        ("证据仅记载赔偿金额为30元。", "违约比例为30%。"),
+        ("证据仅记载赔偿金额为2025元。", "履行期限为2025年。"),
+        ("证据仅记载违约比例为3%。", "履行期限为3个月。"),
+    ],
+)
+def test_writer_rejects_same_value_with_fabricated_numeric_kind_or_unit(source_text, claim_text):
+    current = state().model_copy(
+        update={
+            "evidence": [
+                evidence("ev-a", snippet=source_text),
+                *state().evidence[1:],
+            ]
+        }
+    )
+
+    result = EvidenceBoundedWriter(RecordingGenerator(response_claim(text=claim_text))).render(current)
+
+    assert result.status is WriterStatus.FAIL_SAFE
+    assert result.reason_code == "UNSUPPORTED_NUMERIC_TOKEN"
+
+
+def test_writer_accepts_evidence_linked_to_multiple_issues():
+    current = state()
+    current = current.model_copy(
+        update={
+            "observations": [
+                *current.observations,
+                Observation(
+                    issue_id="issue-b",
+                    statement="shared statute",
+                    evidence_ids=["ev-a"],
+                    confidence=0.9,
+                ),
+            ]
+        }
+    )
+    raw = response_claim()
+    raw["claims"].append(
+        {
+            "local_id": "local-b",
+            "issue_id": "issue-b",
+            "text": "《民法典》第一百八十八条也适用于该争点。",
+            "evidence_ids": ["ev-a"],
+            "fact_ids": [],
+            "section": "risk",
+        }
+    )
+
+    result = EvidenceBoundedWriter(RecordingGenerator(raw)).render(current)
+
+    assert result.status is WriterStatus.READY
+    assert result.draft is not None
+    assert result.draft.risks[0].evidence_ids == ("ev-a",)
+
+
+@pytest.mark.parametrize("resolved", [False, True])
+def test_writer_fails_safe_for_dangling_conflict_references(resolved):
+    current = state().model_copy(
+        update={
+            "conflicts": [
+                EvidenceConflict(
+                    conflict_id="dangling",
+                    issue_id="missing-issue",
+                    evidence_ids=("missing-evidence",),
+                    critical=True,
+                    resolved=resolved,
+                )
+            ]
+        }
+    )
+
+    result = EvidenceBoundedWriter(RecordingGenerator(response_claim())).render(current)
+
+    assert result.status is WriterStatus.FAIL_SAFE
+    assert result.reason_code == "STATE_INTEGRITY_FAILURE"
+
+
+def test_writer_rejects_unlinked_evidence_and_cross_issue_fact():
+    current = state()
+    unlinked = current.model_copy(
+        update={
+            "observations": [
+                *[item for item in current.observations if item.issue_id != "issue-a"],
+                Observation(
+                    issue_id="issue-a",
+                    statement="tool failed",
+                    evidence_ids=["ev-a"],
+                    tool_name="retrieve_laws",
+                    status="failed",
+                    error_code="TOOL_TIMEOUT",
+                ),
+            ]
+        }
+    )
+    result = EvidenceBoundedWriter(RecordingGenerator(response_claim(evidence_ids=["ev-a"]))).render(unlinked)
+    assert result.status is WriterStatus.FAIL_SAFE
+
+    capture = RecordingGenerator({"claims": [], "missing_information": []})
+    EvidenceBoundedWriter(capture).render(current)
+    issue_a_fact_id = capture.calls[0][0].issues[0].facts[0].fact_id
+    result = EvidenceBoundedWriter(
+        RecordingGenerator(
+            response_claim(
+                issue_id="issue-b",
+                text="《民法典》第五百八十五条规定约定违约金。",
+                evidence_ids=["ev-b"],
+                fact_ids=[issue_a_fact_id],
+            )
+        )
+    ).render(current)
+    assert result.status is WriterStatus.FAIL_SAFE
+    assert result.reason_code == "CROSS_ISSUE_FACT"
+
+
+def test_writer_payload_orders_effective_statute_evidence_first():
+    """V2-W4: payload 证据确定性重排序——生效成文法优先（一行可回退）。
+
+    原按 evidence_id（内容哈希）排序使有效法条证据随机沉底，模型倾向只绑前部
+    证据（run-11 C02 实证：金标法条在表中但 draft 未绑定）。排序只影响模型输入
+    分布，不影响任何校验与 claim_id/state_digest 的正确性。
+    """
+    mixed = LegalAgentState(
+        issues=[LegalIssue(issue_id="issue-a", question="加班费如何计算？")],
+        observations=[
+            Observation(
+                issue_id="issue-a",
+                statement="检索加班费依据",
+                evidence_ids=["ev-aaa", "ev-mmm", "ev-zzz"],
+                confidence=0.9,
+            )
+        ],
+        evidence=[
+            evidence("ev-aaa", source_type=SourceType.CASE, snippet="指导案例：某加班费劳动争议案。"),
+            evidence("ev-mmm", validity=LegalValidity.SUPERSEDED, snippet="已废止条例相关文本。"),
+            evidence("ev-zzz", snippet="《劳动法》第四十四条：休息日加班支付百分之二百工资报酬。"),
+        ],
+    )
+
+    payload = writer_module.build_writer_payload(mixed)
+
+    # 生效成文法证据排最前；其余按 (source_ref, evidence_id) 稳定排序
+    assert [item.evidence_id for item in payload.issues[0].evidence] == ["ev-zzz", "ev-aaa", "ev-mmm"]

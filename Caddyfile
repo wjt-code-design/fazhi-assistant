@@ -1,0 +1,30 @@
+# 法智同源反代（2026-08-08，手机端上线）：/api/* → backend:8000，其余 → frontend:3000
+# 修复（2026-08-08 服务器部署）：{$DOMAIN::80} 环境变量语法 Caddy 解析失败，改固定 :80
+#（容器内监听 80，由 docker-compose 映射宿主端口）；云服务器 + 域名场景在此行改域名。
+:80 {
+	# 安全响应头（公网暴露防护，2026-08-08）
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	# API/SSE/媒体 → 后端
+	# 【已修复 2026-08-22 SSE 流式】Caddy 的 reverse_proxy 默认会攒批（不认 X-Accel-Buffering），
+	# 导致 SSE 在手机端“一次性输出”。flush_interval -1 = 收到即下发，逐帧流式。
+	handle /api/* {
+		reverse_proxy backend:8000 {
+			flush_interval -1
+		}
+		header {
+			Cache-Control "no-cache, no-transform"
+			X-Accel-Buffering "no"
+		}
+	}
+
+	# 其余（页面/静态资源）→ 前端
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "是否存在诉讼时效中止的法定事由？",
+  "issue_id": "issue_09b7d6a6d2aa34df157539b5"
+ }
+]

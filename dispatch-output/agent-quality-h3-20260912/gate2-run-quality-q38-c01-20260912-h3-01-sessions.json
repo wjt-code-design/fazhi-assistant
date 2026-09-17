@@ -1,0 +1,87 @@
+{
+ "run": "quality-q38-c01-20260912-h3-01",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "013dd97e-ddc9-4c0d-94a7-49f95ea30983",
+      "state_version": 4,
+      "conv_id": 1
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "制度在内网，但我不记得是否培训过"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "013dd97e-ddc9-4c0d-94a7-49f95ea30983",
+      "state_version": 8,
+      "conv_id": 1
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动者是否确实存在连续两次绩效不合格的事实及具体证据"
+    },
+    {
+     "round": 2,
+     "prompt": "绩效考核制度是否经过民主程序制定并已向劳动者公示或告知"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r1-f1"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "劳动者是否确实存在连续两次绩效不合格的事实及具体证据",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 1,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 33.3
+  }
+ }
+}

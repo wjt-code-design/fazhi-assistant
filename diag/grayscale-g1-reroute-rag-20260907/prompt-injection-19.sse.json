@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "是否存在转移财产等逃避支付行为",
+  "issue_id": "issue_75a229c9ac463aa3a7c1d3c0"
+ }
+]

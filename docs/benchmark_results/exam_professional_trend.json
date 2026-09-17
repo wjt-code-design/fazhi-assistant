@@ -1,0 +1,50 @@
+[
+ {
+  "ts": "20260805-122855",
+  "professional_avg": 2.8,
+  "freeze_hash": "376ee0b3a865",
+  "n": 20
+ },
+ {
+  "ts": "20260805-125544",
+  "professional_avg": 2.85,
+  "freeze_hash": "376ee0b3a865",
+  "n": 20
+ },
+ {
+  "ts": "20260805-130337",
+  "professional_avg": 2.9,
+  "freeze_hash": "376ee0b3a865",
+  "n": 20
+ },
+ {
+  "ts": "20260805-132142",
+  "professional_avg": 2.9,
+  "freeze_hash": "376ee0b3a865",
+  "n": 20
+ },
+ {
+  "ts": "20260805-184441",
+  "professional_avg": 2.8,
+  "freeze_hash": "376ee0b3a865",
+  "n": 20
+ },
+ {
+  "ts": "20260805-205549",
+  "professional_avg": 2.85,
+  "freeze_hash": "376ee0b3a865",
+  "n": 20
+ },
+ {
+  "ts": "20260805-221054",
+  "professional_avg": 2.9,
+  "freeze_hash": "75072b9f8949",
+  "n": 20
+ },
+ {
+  "ts": "20260805-225720",
+  "professional_avg": 2.9,
+  "freeze_hash": "75bfbd80724e",
+  "n": 20
+ }
+]

@@ -1,0 +1,58 @@
+[
+  {
+    "path": "backend/agent/service.py",
+    "before_lines": 573,
+    "after_lines": 568,
+    "delta_lines": -5,
+    "before_sha256": "60533d55e0bd33cb350db2b8e79e912c216fa45591fd3b9046ec7cd7805791e3",
+    "after_sha256": "24b4e3d8c8e22de4ba7243deb66d23b62f2868bbe2d054a659b6b98da9698864"
+  },
+  {
+    "path": "backend/agent/runtime.py",
+    "before_lines": 927,
+    "after_lines": 902,
+    "delta_lines": -25,
+    "before_sha256": "712553f12dd0d17570f75c36cde7d242b46f36e61a031d11be0c99d227784b97",
+    "after_sha256": "ab17e572c06d1ed755440d43913a1163c19447520c820102b45d95066d530b79"
+  },
+  {
+    "path": "backend/agent/controller.py",
+    "before_lines": 1004,
+    "after_lines": 1008,
+    "delta_lines": 4,
+    "before_sha256": "90e1208bf78bf41b1fe467433ffbeded24a621704744c8ba6312dcd53dc15184",
+    "after_sha256": "155afd1eacd6b8111caaf8eec2828751494b0010de555ce26afad60b5d0d3416"
+  },
+  {
+    "path": "backend/agent/planner.py",
+    "before_lines": 111,
+    "after_lines": 115,
+    "delta_lines": 4,
+    "before_sha256": "96af221d554c2f0d09ed9b73a6e4155871e2909bb98ee4222759b56b24542ce3",
+    "after_sha256": "d39e52c7681bb1d894e4de0b0eb304d6ddc6fc1d26433685b8bbd7064b800908"
+  },
+  {
+    "path": "backend/tests/test_agent_chat_integration.py",
+    "before_lines": 1486,
+    "after_lines": 1621,
+    "delta_lines": 135,
+    "before_sha256": "311f478ccc21c69f419691d2fd852109fcc55fc94c590f92c9e770461c1e0440",
+    "after_sha256": "f180efb446473961e68b969f1e49ed3dc0d159c2d73d90f1e677fd46fc4bd29e"
+  },
+  {
+    "path": "backend/tests/test_agent_runtime.py",
+    "before_lines": 862,
+    "after_lines": 865,
+    "delta_lines": 3,
+    "before_sha256": "ea81eba5188dac9f28bf4d92abe562d7f8da0482ecb34ef323fa9551bbea3fd1",
+    "after_sha256": "43858972b0ed8683bb63427b72e22839a0c3f4f36902f8c4061f08003da6c657"
+  },
+  {
+    "path": "backend/tests/test_agent_gate.py",
+    "before_lines": 549,
+    "after_lines": 548,
+    "delta_lines": -1,
+    "before_sha256": "8a134372ee16598e21f38541faae4d25f99d83878ee857e30978de8774079191",
+    "after_sha256": "ad982f7e3059bacf03df2555bb4cb3c6fa74eafccc90309f32044f78d6cf6952"
+  }
+]

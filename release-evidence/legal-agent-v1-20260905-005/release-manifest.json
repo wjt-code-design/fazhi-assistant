@@ -1,0 +1,39 @@
+{
+ "schema_version": "legal-agent-release-manifest/v1",
+ "release_id": "legal-agent-v1-20260905-005",
+ "candidate": {
+  "git_revision": "3ba4aafb2ada244a8dc21621f5f2c9f1c8ee267b",
+  "build_digest": "sha256:f1ec2e001a2ac87d71917358adc3f61d817bb0de92d3c4351c5409d1c126360e"
+ },
+ "evaluation": {
+  "case_set_sha256": "0202a54820d99b715f6ae6b28fdadcc62e9edec45d1203ae48fd305b0c4356ae",
+  "evaluator_name": "legal-agent-deterministic-evaluator",
+  "evaluator_version": "1.1.0",
+  "rubric_hash": "6f258472c3c932eacccafd2d3b4a0306a10039b87b29058c2dbf00777a5a7db1",
+  "release_policy_sha256": "254b8ed662f66ea62f889a8c228d2b33f403f0561e5a95a2b73ce9009455ac82"
+ },
+ "knowledge": {
+  "corpus_manifest_sha256": "df0c169e56fa46c203acbb2e074284c8bac017d1f9d080c1cf2d2b1278fcf918",
+  "index_manifest_sha256": "adcd971741cc941beb0187dc877d40a1226283d45018ced353cf2ce4382d2640",
+  "jurisdictions": [
+   "CN"
+  ],
+  "law_as_of": "2026-08-01"
+ },
+ "runtime": {
+  "provider": "longcat-openai-compatible",
+  "model": "LongCat-2.0",
+  "model_snapshot": "LongCat-2.0",
+  "prompt_bundle_sha256": "0f82f4a1e513792757613533ce793396beb31330f123b47bedbea59ba75233f2",
+  "tool_policy_sha256": "5b12b23a8efa98af5824187dac1063391b7fd5f1eb8bb04c95872f6b925d7552",
+  "config_sha256": "59baf47af9a3ea429fee362f228822ec6a603684ab7b998462da7645e23864b2"
+ },
+ "capture": {
+  "protocol_sha256": "8dc3c72834ec5e5ac781ddb66fe8c50d47ed7fa0543763565a81a8d55575b028",
+  "retry_policy_sha256": "8dc3c72834ec5e5ac781ddb66fe8c50d47ed7fa0543763565a81a8d55575b028",
+  "timeout_seconds": 90,
+  "concurrency": 1,
+  "cache_policy": "disabled",
+  "network_policy": "frozen-knowledge-only"
+ }
+}

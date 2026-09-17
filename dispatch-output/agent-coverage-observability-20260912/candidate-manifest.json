@@ -1,0 +1,54 @@
+{
+  "round": "agent-coverage-observability-20260912",
+  "purpose": "make coverage-gate terminal failure attributable (H3 C01 could not be attributed)",
+  "changed_files": [
+    {
+      "path": "backend/agent/service.py",
+      "sha256": "c98ba33512b6fc6736e64e35c749237363813c720d201c01b04d43c45111a649",
+      "lines": 616
+    },
+    {
+      "path": "backend/observability.py",
+      "sha256": "2836c37c87c7ef1c95b3c0b1923abbcd6352a2aff8694f8a381eb8d96cf6d01c",
+      "lines": 178
+    },
+    {
+      "path": "backend/tests/test_agent_chat_integration.py",
+      "sha256": "1b4b5d468c3cb78e0cd29ece43073d1e59592850f4aa3206df563e419bcc5fc3",
+      "lines": 1672
+    }
+  ],
+  "prior_round_files_should_be_unchanged": [
+    {
+      "path": "backend/tools/contracts.py",
+      "sha256": "a5553e65b12d8a6bb663002367429e5739063055949f7461336e95a680bd22f6",
+      "lines": 264
+    },
+    {
+      "path": "backend/tools/gateway.py",
+      "sha256": "20c797c2510bd356bacea9f26a67435fc6a74dbb695106e05994009659f252fe",
+      "lines": 288
+    },
+    {
+      "path": "backend/tools/legal_retrieval.py",
+      "sha256": "f647a6ad80876c14e588376bc32c4bdbcaf4759c84e67ef3177d1c34aeab8e1c",
+      "lines": 43
+    },
+    {
+      "path": "backend/retrieval.py",
+      "sha256": "b3795e56b10d532e1c3a8afca5e5d3e0f3f99a0d39700ecc07170af59387f8c9",
+      "lines": 1124
+    },
+    {
+      "path": "backend/tests/test_retrieval_rerank.py",
+      "sha256": "4031d4c96826a07a137b203d0d09b7c640a69644503c221481eda537f76947b2",
+      "lines": 354
+    },
+    {
+      "path": "backend/tests/test_tool_gateway.py",
+      "sha256": "82278fd4264722285417c20e468039e46fa2db5c93cb9f7317808778fdf3e0ba",
+      "lines": 704
+    }
+  ],
+  "h1_before_snapshot_note": "pre-edit byte snapshots were again not captured (process gap)"
+}

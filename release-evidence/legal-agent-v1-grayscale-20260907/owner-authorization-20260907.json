@@ -1,0 +1,24 @@
+{
+ "schema_version": "phase9-owner-authorization/v1",
+ "authorization_id": "AUTH-20260907-GRAYSCALE-TRAFFIC",
+ "grant": "数据所有者授权对候选 legal-agent-v1-grayscale-20260907 执行真实流量灰度",
+ "scope": {
+  "candidate": "legal-agent-v1-grayscale-20260907",
+  "candidate_commit_sha": "4e6950a8141010076560befe7846f057a7d9c0b0",
+  "ramp_schedule": "runbook deployment-v1.md §2 逐级：AGENT_TRAFFIC_PERCENT=1 →（观察≥24h）→ 5",
+  "traffic_ceiling_percent": 5,
+  "existing_conditional": "L1(=OWNER_EXEMPTED via ADR-20260907-L1-EXEMPTION) AND L2(SSG=READY) AND ProdPrereq 全绿",
+  "kill_switch": "runbook §0.5 回滚触发器（fabricated citation>0 / critical safety failure>0 / unauthorized tool>0 / high-risk confident hallucination>0 / SSG invariant violation>0 / P0P1 事故>0）触发时不经再授权即刻回退 RAG",
+  "window": "自部署环境就绪起 ≤30 天；超过需重新授权（与 ADR expiry 一致）"
+ },
+ "prerequisites": {
+  "environment_verified": "PENDING——授权不代表环境已就绪；环境（服务器/域名/访问/回滚演练）验证通过后方可放行",
+  "final_gate_run": "部署时以真实状态执行 safety_readiness_check，RESULT=READY_WITH_EXEMPTION 才放行"
+ },
+ "decision": {
+  "approved": true,
+  "approved_by": "数据所有者（项目 owner）",
+  "approved_at": "2026-09-07",
+  "recorded_after": "R8 Risk Accepted 批准 + SSG READY + L1 豁免 ADR 生效"
+ }
+}

@@ -1,0 +1,172 @@
+"""阶段6 测试：结构化切分（纯函数，fixture 为合成测试文本）。"""
+
+import os
+
+import chunking as C
+
+FIXTURE = os.path.join(os.path.dirname(__file__), "..", "..", "data", "sample_laws", "sample_law.txt")
+
+EXPECTED_ARTICLES = {"第一条", "第二条", "第三条", "第四条", "第五条", "第五条之一", "第一〇一条", "第100条", "第六条"}
+
+
+def _load() -> str:
+    return open(FIXTURE, encoding="utf-8").read()
+
+
+def _chunks() -> list:
+    return C.split_law_document(_load())
+
+
+def test_article_coverage_exactly_once():
+    """正文每条条号恰好进入 chunk 元数据；目录条目不被识别为条文。"""
+    chunks = _chunks()
+    articles = [c.meta.get("article", "") for c in chunks]
+    found = {a for a in articles if a}
+    assert found == EXPECTED_ARTICLES, f"条号覆盖不完整：{found ^ EXPECTED_ARTICLES}"
+    # 目录条目（立法目的与依据 / 适用范围）不得成为条文
+    assert not any("立法目的与依据" in c.page_content for c in chunks), "目录条目不应进入内容"
+
+
+def test_toc_skipped():
+    chunks = _chunks()
+    joined = "\n".join(c.page_content for c in chunks)
+    assert "目  录" not in joined
+    assert "第一章 总则" in joined  # 正文章节标题仍在（作为前缀）
+
+
+def test_chapter_prefix_injected():
+    chunks = _chunks()
+    fifth = [c for c in chunks if c.meta.get("article") == "第五条"]
+    assert fifth and all("第二章 分则" in c.page_content for c in fifth)
+    last = [c for c in chunks if c.meta.get("article") == "第六条"]
+    assert last and all("附则" in c.page_content for c in last)
+
+
+def test_variants_recognized():
+    chunks = _chunks()
+    arts = {c.meta.get("article", "") for c in chunks}
+    assert "第一〇一条" in arts  # 汉字〇
+    assert "第100条" in arts  # 阿拉伯数字
+    assert "第五条之一" in arts  # 条之一
+
+
+def test_midline_citation_not_split():
+    """正文行中「第十九条的适用」不得触发新条号边界。"""
+    chunks = _chunks()
+    assert not any(c.meta.get("article") == "第十九条" for c in chunks)
+
+
+def test_long_article_sentence_split():
+    """超长条句切：多条 chunk 共享同一条号，且每条不超过句切上限+前缀。"""
+    chunks = _chunks()
+    third = [c for c in chunks if c.meta.get("article") == "第三条"]
+    assert len(third) >= 2, "超长条应被句切为多个 chunk"
+    assert all(c.meta["article"] == "第三条" for c in third)
+    assert all(len(c.page_content) <= 700 for c in third)
+
+
+def test_long_article_coverage_complete():
+    """超长条句切后覆盖完整原文、无遗漏段（基准步骤6）——每句代表子串都必须出现。"""
+    body = "".join(f"第{i}条第二款的规定要求各方妥善履行义务，确保交易安全与秩序稳定。" for i in range(60))
+    assert len(body) > C.CHUNK_MAX, "测试前提：超过句切阈值"
+    long = C.split_article_text(body, article="第九条", chapter="第二章 分则")
+    assert len(long) >= 2
+    joined = "".join(c.page_content for c in long)
+    for i in range(0, 60, 5):
+        assert f"第{i}条第二款" in joined, f"第{i}条第二款 被句切遗漏"
+    # 拼接总长应不小于原文（重叠允许，遗漏会缩小总长）
+    assert sum(len(c.page_content) for c in long) >= len(body)
+
+
+def test_article_has_headline_kept():
+    """条号头行保留在内容中（BM25 条号查询的精确匹配载荷）。"""
+    chunks = _chunks()
+    second = [c for c in chunks if c.meta.get("article") == "第二条"][0]
+    assert "第二条 本条例适用于" in second.page_content  # 条号头行保留（章节前缀在前）
+
+
+def test_fallback_paragraph_without_articles():
+    """全文无条号 → 回退段落切分，meta 无 article。"""
+    text = "这是一段没有条号结构的备忘录。\n\n它包含多个段落，用于验证降级切分路径。\n\n第三个段落。"
+    chunks = C.split_law_document(text)
+    assert chunks and all(c.meta.get("article", "") == "" for c in chunks)
+    assert sum(len(c.page_content) for c in chunks) == len(text)
+
+
+def test_toc_only_short_entries_falls_back():
+    """只有目录式短条目（如「第一条 立法目的」）的文本 → 全部丢弃后回退段落切分。"""
+    text = "第一章 总则\n第一条 立法目的\n第二条 适用范围"
+    chunks = C.split_law_document(text)
+    assert chunks and all(not c.meta.get("article") for c in chunks)
+
+
+def test_split_article_text_basic_and_long():
+    short = C.split_article_text("依法成立的合同受法律保护。", article="第八条")
+    assert len(short) == 1 and short[0].meta["article"] == "第八条"
+    long_body = "第" + "一段。" + "第二段；" * 300
+    long = C.split_article_text(long_body, article="第九条", chapter="第二章 分则")
+    assert len(long) >= 2 and all(c.meta["article"] == "第九条" for c in long)
+    assert all("第二章 分则" in c.page_content for c in long)
+
+
+def test_empty_input():
+    assert C.split_law_document("") == []
+    assert C.split_law_document("   ") == []
+    assert C.split_article_text("") == []
+
+
+# ---------------- MIN_ARTICLE 边界（规格定案，2026-08-03） ----------------
+# 语料实测：10236 条真条文 body 全部 ≥10 字（0 条被吞）——MIN_ARTICLE=10 丢弃的
+# 都是 TOC 残留/误识别（如「第一条 立法目的」）。锁死边界：<10 吞（TOC）、==10 保（真条文）。
+def test_min_article_boundary():
+    assert C.MIN_ARTICLE == 10, "边界测试依赖 MIN_ARTICLE=10"
+    # <10 字：TOC 残留/误识别 → 丢弃（有真实条文时不影响）
+    text = "第一条 立法目的\n第二条 为了保护合法权益，制定本法，规范有关行为。"
+    chunks = C.split_law_document(text)
+    arts = {c.meta.get("article") for c in chunks}
+    assert "第一条" not in arts, "过短条文（<10 字）应作为 TOC 残留丢弃"
+    assert "第二条" in arts, "正常条文不受 MIN_ARTICLE 影响"
+
+
+def test_min_article_exactly_10_kept():
+    # 恰 10 字：边界值保留（body 长度 == MIN_ARTICLE 不丢弃）
+    assert C.MIN_ARTICLE == 10
+    text = "第一条 甲乙丙丁戊己"  # body="第一条 甲乙丙丁戊己" = 恰 10 字
+    assert len("第一条 甲乙丙丁戊己") == 10
+    chunks = C.split_law_document(text)
+    assert any(c.meta.get("article") == "第一条" for c in chunks), "恰 10 字条文应保留（边界）"
+
+
+# ---------------- _strip_toc 退出分支（目录误吞正文是切分最大误伤源） ----------------
+def test_toc_exits_on_zhengwen_marker():
+    """目录后的显式「正文」标记 → 退出 TOC，后续条文进入 chunk。"""
+    text = "目  录\n第一章 总则\n第一条 立法目的\n正文\n第一章 总则\n第一条 为了保护合法权益，制定本法。"
+    chunks = C.split_law_document(text)
+    assert any(c.meta.get("article") == "第一条" for c in chunks)
+
+
+def test_toc_exits_on_repeated_chapter_heading():
+    """无「正文」标记，靠「章节标题第二次出现」退出 TOC（主退出机制）。"""
+    text = "目  录\n第一章 总则\n第一条 立法目的\n第二章 分则\n第一章 总则\n第一条 为了保护合法权益，制定本法。"
+    chunks = C.split_law_document(text)
+    assert any(c.meta.get("article") == "第一条" for c in chunks)
+
+
+def test_toc_safe_cap_exits_after_long_toc():
+    """无任何退出信号的长目录（纯短条目）→ TOC_MAX_SKIP 兜底退出，正文不丢。"""
+    toc = "\n".join(f"第{i}部分" for i in range(C.TOC_MAX_SKIP + 50))
+    text = "目  录\n" + toc + "\n第一条 为了保护合法权益，制定本法。"
+    chunks = C.split_law_document(text)
+    assert any(c.meta.get("article") == "第一条" for c in chunks)
+
+
+def test_toc_exits_on_long_article_line():
+    """目录里出现 >60 字含句号的完整条文 → 视为正文开始。"""
+    long_art = (
+        "第一条 为了保护合法权益，制定本法并明确适用范围、主管机关职责、"
+        "法律责任承担方式与救济途径，本条为示例性长条文内容，用于验证目录长行退出机制。"
+    )
+    assert len(long_art) > 60
+    text = "目  录\n第一章 总则\n第一条 立法目的\n" + long_art
+    chunks = C.split_law_document(text)
+    assert any(c.meta.get("article") == "第一条" for c in chunks)

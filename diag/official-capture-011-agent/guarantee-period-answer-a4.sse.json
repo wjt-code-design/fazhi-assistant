@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "主债务履行期限是否明确约定",
+  "issue_id": "issue_f34029f0acda6dba536d0727"
+ }
+]

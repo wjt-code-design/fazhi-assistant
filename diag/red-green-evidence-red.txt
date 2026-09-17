@@ -1,0 +1,6 @@
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED backend\tests\test_agent_prompt_contracts.py::test_planner_prompt_states_exact_tool_call_fields
+FAILED backend\tests\test_agent_prompt_contracts.py::test_planner_prompt_states_per_tool_args_fields
+FAILED backend\tests\test_agent_prompt_contracts.py::test_writer_prompt_states_claims_output_schema
+3 failed, 1 passed, 1 warning in 11.75s

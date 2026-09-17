@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "实际损失的具体数额",
+  "issue_id": "issue_4502d9e158241fafd9fb98d3"
+ }
+]

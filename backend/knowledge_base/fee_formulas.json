@@ -1,0 +1,30 @@
+{
+  "_meta": {
+    "schema_version": "ta3b-v1",
+    "created": "2026-09-17",
+    "source": "《诉讼费用交纳办法》（国务院令第481号，2007-04-01 施行）第十三条（财产案件受理费累计递进费率）、第十六条（简易程序减半交纳）",
+    "authorization": "Owner 2026-09-17 授权 T-A3(b)：官方公式表入库 + 确定性计算 + verifier 验算",
+    "scope_note": "本轮仅入库结构化公式表（计算真源）；《交纳办法》条文全文待 Owner 提供官方文本后另行入库 laws_raw（KB 检索索引未重建，条文暂不进检索池——受控计算走本表，不受影响）",
+    "anchor_values": {
+      "10000": {"normal": 50, "simplified": 25},
+      "50000": {"normal": 1050, "simplified": 525},
+      "100000": {"normal": 2300, "simplified": 1150},
+      "200000": {"normal": 4300, "simplified": 2150},
+      "500000": {"normal": 8800, "simplified": 4400},
+      "1000000": {"normal": 13800, "simplified": 6900}
+    }
+  },
+  "case_acceptance_fee": {
+    "type": "progressive",
+    "base": 50,
+    "base_upto": 10000,
+    "brackets": [
+      {"upto": 100000, "rate": 0.025},
+      {"upto": 200000, "rate": 0.02},
+      {"upto": 500000, "rate": 0.015},
+      {"upto": 1000000, "rate": 0.01},
+      {"upto": null, "rate": 0.005}
+    ],
+    "simplified_half": true
+  }
+}

@@ -1,0 +1,73 @@
+{
+ "schema_version": "owner-adr/v1",
+ "adr_id": "ADR-20260907-L1-EXEMPTION",
+ "decision": "APPROVED",
+ "decision_nature": "QUALITY_GATE_EXEMPTION_FOR_GRAYSCALE",
+ "title": "Agent V1 as high-risk consultation safety guardrail: L1 policy v2 quality score exempted from being the sole blocking criterion (observation only), release governed by SSG + ProdPrereq for this grayscale window",
+ "owner": {
+  "identity": "数据所有者（项目 owner；经 Trae 会话方案 A 确认）",
+  "approved": true,
+  "approval_timestamp": "2026-09-07"
+ },
+ "scope": {
+  "candidate": "legal-agent-v1-grayscale-20260907",
+  "candidate_commit_sha": "4e6950a8141010076560befe7846f057a7d9c0b0",
+  "agent_policy": "policy v2（文件冻结）",
+  "evaluator": "1.2.0（rubric 089e1a64… 冻结）",
+  "case_set_sha256": "86066616d7bba2c7f3699523e8ae3766d7e6c52231136e22f5b9822833f07469",
+  "ssg_evidence_manifest": "release-evidence/legal-agent-v1-grayscale-20260907/evidence-manifest.json"
+ },
+ "l1_original_result": {
+  "raw": "BLOCKED（011 agent 0.5167 < rag 0.6167 - 1/30；'allowed=false, reasons=[AGENT_QUALITY_BELOW_EXISTING_RAG]'）",
+  "historical_record_untouched": true
+ },
+ "exemption": {
+  "type": "QUALITY_GATE_ONLY",
+  "effect": "L1 policy v2 quality *score* is exempted from blocking this grayscale; it stays recorded as an observation metric. policy v2 file, evaluator v1.2.0 and evaluation results remain byte-identical.",
+  "initial_traffic_percent": 1,
+  "traffic_ceiling_percent": 5,
+  "expiry_conditions": [
+   "policy v3 officially effective",
+   "agent behavior code substantive change",
+   "model version change",
+   "system/safety prompt change",
+   "tool permission change",
+   "key safety metric regression",
+   "any SSG item PASS -> FAIL",
+   "grayscale duration exceeds approved window",
+   "grayscale traffic exceeds ceiling (5%)"
+  ]
+ },
+ "minimum_functional_floor": {
+  "catastrophic_wrong_answer": 0,
+  "fabricated_citation": 0,
+  "unsafe_confident_answer": 0,
+  "required_clarification_compliance_min_pct": 100,
+  "unnecessary_refusal_observe": "non-blocking observation"
+ },
+ "rollback_triggers": {
+  "immediate": [
+   "fabricated citation > 0",
+   "critical safety failure > 0",
+   "unauthorized tool/action > 0",
+   "high-risk confident hallucination > 0",
+   "SSG invariant violation > 0",
+   "P0/P1 production incident > 0"
+  ],
+  "pause_scale": [
+   "quality floor violations over N consecutive windows -> halt ramp-up"
+  ]
+ },
+ "prod_prereq": {
+  "environment_verified": "PENDING（数据所有者待确认环境）",
+  "authorization_verified": "PENDING",
+  "r8_verified": "PENDING",
+  "rollback_verified": "PASS（runbook §1 回滚预案/镜像标签在册）",
+  "owner_attestation": "PENDING——owner 批准事实而非制造事实，各子项需附证据"
+ },
+ "rationale": {
+  "converged_position": "Agent 定位为高风险咨询安全护栏（decision-agent-position/checklist 9 项共识）",
+  "evidence_strength": "现有证据不足以证明 policy v2 quality score 可以可靠区分当前安全护栏定位下的发布风险（8 代方向未反转 + 011 安全项全 0 + 质量分随样本 0.49-0.62 波动且行为代码几乎无差异）；因此不宜作为本候选的唯一 blocking criterion",
+  "limitation_acknowledged": "质量门不具稳定区分力为工程判断，非统计证明；上线期间 quality score 继续全量记录供后续 ADR 回顾"
+ }
+}

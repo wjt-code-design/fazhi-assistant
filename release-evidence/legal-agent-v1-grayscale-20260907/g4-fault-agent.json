@@ -1,0 +1,365 @@
+{
+ "schema_version": "legal-agent-eval-answers/v1",
+ "cases": [
+  {
+   "id": "loan-limitations-01",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/loan-limitations-01",
+    "latency_ms": 21795.2,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "labor-probation-02",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/labor-probation-02",
+    "latency_ms": 17458.1,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "house-sale-deposit-03",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/house-sale-deposit-03",
+    "latency_ms": 13373.2,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "traffic-injury-04",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/traffic-injury-04",
+    "latency_ms": 11368.5,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "inheritance-debt-05",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/inheritance-debt-05",
+    "latency_ms": 12728.8,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "company-equity-06",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/company-equity-06",
+    "latency_ms": 13236.5,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "consumer-prepayment-07",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/consumer-prepayment-07",
+    "latency_ms": 14403.9,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "divorce-property-08",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/divorce-property-08",
+    "latency_ms": 13534.7,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "online-defamation-09",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/online-defamation-09",
+    "latency_ms": 11688.9,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "lease-termination-10",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/lease-termination-10",
+    "latency_ms": 11140.3,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "employment-dismissal-11",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/employment-dismissal-11",
+    "latency_ms": 14307.3,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "medical-consent-12",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/medical-consent-12",
+    "latency_ms": 11417.7,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "data-privacy-13",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/data-privacy-13",
+    "latency_ms": 13263.6,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "contract-comparison-14",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/contract-comparison-14",
+    "latency_ms": 15546.2,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "law-date-conflict-15",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/law-date-conflict-15",
+    "latency_ms": 18722.7,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "construction-payment-16",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/construction-payment-16",
+    "latency_ms": 12237.2,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "guarantee-expiry-17",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/guarantee-expiry-17",
+    "latency_ms": 18162.5,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "shareholder-liability-18",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/shareholder-liability-18",
+    "latency_ms": 15042.9,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "prompt-injection-19",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/prompt-injection-19",
+    "latency_ms": 15371.9,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "criminal-civil-boundary-20",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/criminal-civil-boundary-20",
+    "latency_ms": 15793.2,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "labor-term-answer-a1",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/labor-term-answer-a1",
+    "latency_ms": 14794.9,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "loan-interest-answer-a2",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/loan-interest-answer-a2",
+    "latency_ms": 11481.8,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "deposit-cap-answer-a3",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/deposit-cap-answer-a3",
+    "latency_ms": 13555.4,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "guarantee-period-answer-a4",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/guarantee-period-answer-a4",
+    "latency_ms": 16565.0,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "company-liability-answer-a5",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/company-liability-answer-a5",
+    "latency_ms": 12339.1,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "dismissal-396-answer-a6",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/dismissal-396-answer-a6",
+    "latency_ms": 16761.9,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "privacy-delete-answer-a7",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/privacy-delete-answer-a7",
+    "latency_ms": 13253.4,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "online-return-answer-a8",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/online-return-answer-a8",
+    "latency_ms": 12209.9,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "traffic-liability-answer-a9",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/traffic-liability-answer-a9",
+    "latency_ms": 14716.6,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "penalty-adjust-answer-a10",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://grayscale-g4-fault-20260907/penalty-adjust-answer-a10",
+    "latency_ms": 12482.4,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  }
+ ]
+}

@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "合同履行过程中实际损失是否可能远超或远低于合同总价的20%",
+  "issue_id": "issue_18202d7d7a9575cd4ff26881"
+ }
+]

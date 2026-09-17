@@ -1,0 +1,10 @@
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "红色"}
+
+data: {"content": "\n\n> 注：该问题较复杂，本回答仅供参考。"}
+
+data: {"conversation_id": 6, "sources": [{"source": "宪法（1982年）", "article": "第一百三十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "专利法", "article": "第二十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "刑法", "article": "第二十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "专利法", "article": "第六十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "刑法", "article": "第三百六十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一千零一十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "商标法", "article": "第十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "安全生产法", "article": "第五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "道路交通安全法", "article": "第十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "刑法", "article": "第十三条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

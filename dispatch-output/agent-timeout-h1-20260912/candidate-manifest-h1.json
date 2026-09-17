@@ -1,0 +1,84 @@
+{
+  "round": "agent-timeout-h1-20260912",
+  "disjoint_from_first_round": true,
+  "h1_files": [
+    {
+      "path": "backend/tools/contracts.py",
+      "h1_after_sha256": "a5553e65b12d8a6bb663002367429e5739063055949f7461336e95a680bd22f6",
+      "h1_after_lines": 264,
+      "snapshot": "backend__tools__contracts.py.h1-after",
+      "h1_before_snapshot": null,
+      "note": "pre-H1 snapshot not captured before editing (process gap)"
+    },
+    {
+      "path": "backend/tools/gateway.py",
+      "h1_after_sha256": "20c797c2510bd356bacea9f26a67435fc6a74dbb695106e05994009659f252fe",
+      "h1_after_lines": 288,
+      "snapshot": "backend__tools__gateway.py.h1-after",
+      "h1_before_snapshot": null,
+      "note": "pre-H1 snapshot not captured before editing (process gap)"
+    },
+    {
+      "path": "backend/tools/legal_retrieval.py",
+      "h1_after_sha256": "f647a6ad80876c14e588376bc32c4bdbcaf4759c84e67ef3177d1c34aeab8e1c",
+      "h1_after_lines": 43,
+      "snapshot": "backend__tools__legal_retrieval.py.h1-after",
+      "h1_before_snapshot": null,
+      "note": "pre-H1 snapshot not captured before editing (process gap)"
+    },
+    {
+      "path": "backend/retrieval.py",
+      "h1_after_sha256": "b3795e56b10d532e1c3a8afca5e5d3e0f3f99a0d39700ecc07170af59387f8c9",
+      "h1_after_lines": 1124,
+      "snapshot": "backend__retrieval.py.h1-after",
+      "h1_before_snapshot": null,
+      "note": "pre-H1 snapshot not captured before editing (process gap)"
+    },
+    {
+      "path": "backend/tests/test_retrieval_rerank.py",
+      "h1_after_sha256": "4031d4c96826a07a137b203d0d09b7c640a69644503c221481eda537f76947b2",
+      "h1_after_lines": 354,
+      "snapshot": "backend__tests__test_retrieval_rerank.py.h1-after",
+      "h1_before_snapshot": null,
+      "note": "pre-H1 snapshot not captured before editing (process gap)"
+    },
+    {
+      "path": "backend/tests/test_tool_gateway.py",
+      "h1_after_sha256": "82278fd4264722285417c20e468039e46fa2db5c93cb9f7317808778fdf3e0ba",
+      "h1_after_lines": 704,
+      "snapshot": "backend__tests__test_tool_gateway.py.h1-after",
+      "h1_before_snapshot": null,
+      "note": "pre-H1 snapshot not captured before editing (process gap)"
+    }
+  ],
+  "first_round_files_unchanged_by_h1": [
+    {
+      "path": "backend/agent/service.py",
+      "current_sha256": "24b4e3d8c8e22de4ba7243deb66d23b62f2868bbe2d054a659b6b98da9698864"
+    },
+    {
+      "path": "backend/agent/runtime.py",
+      "current_sha256": "ab17e572c06d1ed755440d43913a1163c19447520c820102b45d95066d530b79"
+    },
+    {
+      "path": "backend/agent/controller.py",
+      "current_sha256": "155afd1eacd6b8111caaf8eec2828751494b0010de555ce26afad60b5d0d3416"
+    },
+    {
+      "path": "backend/agent/planner.py",
+      "current_sha256": "d39e52c7681bb1d894e4de0b0eb304d6ddc6fc1d26433685b8bbd7064b800908"
+    },
+    {
+      "path": "backend/tests/test_agent_chat_integration.py",
+      "current_sha256": "f180efb446473961e68b969f1e49ed3dc0d159c2d73d90f1e677fd46fc4bd29e"
+    },
+    {
+      "path": "backend/tests/test_agent_runtime.py",
+      "current_sha256": "43858972b0ed8683bb63427b72e22839a0c3f4f36902f8c4061f08003da6c657"
+    },
+    {
+      "path": "backend/tests/test_agent_gate.py",
+      "current_sha256": "ad982f7e3059bacf03df2555bb4cb3c6fa74eafccc90309f32044f78d6cf6952"
+    }
+  ]
+}

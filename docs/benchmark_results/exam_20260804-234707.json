@@ -1,0 +1,196 @@
+{
+ "ts": "20260804-234707",
+ "summary": {
+  "recall@6": 0.8083,
+  "cite_ok": 0.7,
+  "golden_hit": 0.95,
+  "refuse_ok": 1.0,
+  "freeze_hash": "376ee0b3a865",
+  "n": 20
+ },
+ "freeze_hash": "376ee0b3a865",
+ "judge": "off",
+ "pipeline": "真实 chat API（_client.chat）+ 确定性指标（recall/cite/golden/refuse_ok）",
+ "rows": [
+  {
+   "id": 1,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 0.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 2,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 0.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 3,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 4,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": false,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 5,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": false,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 6,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 7,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 8,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": false,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 9,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 0.67,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 10,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 11,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": false,
+   "golden_hit": false,
+   "refuse_ok": true
+  },
+  {
+   "id": 12,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 13,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 0.5,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 14,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 0.5,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 15,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": false,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 16,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 17,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 18,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 0.5,
+   "cite_ok": false,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 19,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  },
+  {
+   "id": 20,
+   "intent": "legal_query",
+   "decide": "direct",
+   "recall@6": 1.0,
+   "cite_ok": true,
+   "golden_hit": true,
+   "refuse_ok": true
+  }
+ ]
+}

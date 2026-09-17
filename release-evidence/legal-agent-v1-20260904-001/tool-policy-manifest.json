@@ -1,0 +1,21 @@
+{
+  "schema_version": "legal-agent-file-boundary/v1",
+  "boundary": "tool-policy",
+  "candidate_git_revision": "1a8331f5cd3372e50643ce78cb1dfcf47c786406",
+  "selection": "all Python files in backend/tools plus Agent controller, planner and schemas",
+  "canonicalization": "sort unique POSIX-relative paths; concatenate path + NUL + decimal byte size + NUL + lowercase file SHA-256 + LF; hash UTF-8 bytes with SHA-256",
+  "aggregate_sha256": "094e2a699c6f153d6973bb4752037dc2ca03f8ec2f960c9cdb9fa66d71f0dbf4",
+  "files": [
+    "backend/agent/controller.py",
+    "backend/agent/planner.py",
+    "backend/agent/schemas.py",
+    "backend/tools/__init__.py",
+    "backend/tools/clarification.py",
+    "backend/tools/contract.py",
+    "backend/tools/contracts.py",
+    "backend/tools/exact_article.py",
+    "backend/tools/gateway.py",
+    "backend/tools/legal_retrieval.py",
+    "backend/tools/memory.py"
+  ]
+}

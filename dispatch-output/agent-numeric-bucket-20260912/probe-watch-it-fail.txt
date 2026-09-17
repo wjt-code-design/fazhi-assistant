@@ -1,0 +1,11 @@
+[WATCH-IT-FAIL OK] ② 漏绑分桶: assert 'stub' == 'issue-a'
+  
+  - issue-a
+  + stub
+[WATCH-IT-FAIL OK] ③ 跨争点分桶: assert 'stub' == 'issue-b'
+  
+  - issue-b
+  + stub
+[WATCH-IT-FAIL OK] ① 编造分桶: assert 0 >= 1
+.
+1 passed in 0.28s

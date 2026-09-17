@@ -1,0 +1,6 @@
+data: {"type": "agent_status", "status": "waiting_user"}
+
+data: {"type": "clarification", "run_id": "f3fdace1-d32d-4147-9dd7-b239e3e9bc59", "state_version": 4, "prompt": "债务人是否在诉讼时效期间内作出过还款承诺或部分还款", "issue_id": "issue_39c877758c05e5eaa524ffa8", "conversation_id": 8}
+
+data: [DONE]
+

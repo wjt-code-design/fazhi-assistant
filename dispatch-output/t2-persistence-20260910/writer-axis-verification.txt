@@ -1,0 +1,124 @@
+writer 轴验收审计（双集 + 预登记判定）
+
+### gate5-dev-run-15-qwen38-t8b（题集 frozen-cases-v1.json，状态记录 10 题）
+  C01（issues=5, 证据=17）required=4
+    劳动合同法第40条 → EVIDENCE_MISS
+    劳动合同法第43条 → EVIDENCE_MISS
+    劳动合同法第47条 → HIT
+    劳动合同法第87条 → HIT
+  C02（issues=5, 证据=15）required=3
+    劳动法第36条 → EVIDENCE_MISS
+    劳动法第44条 → EVIDENCE_MISS
+    劳动争议调解仲裁法第27条 → EVIDENCE_MISS
+  C03（issues=2, 证据=6）required=2
+    劳动合同法第10条 → HIT
+    劳动合同法第82条 → HIT
+  C04（issues=2, 证据=8）required=3
+    民法典第586条 → EVIDENCE_MISS
+    民法典第587条 → EVIDENCE_MISS
+    民法典第588条 → EVIDENCE_MISS
+  C05（issues=4, 证据=12）required=2
+    民法典第577条 → EVIDENCE_MISS
+    民法典第722条 → HIT
+  C06（issues=5, 证据=17）required=3
+    民法典第509条 → EVIDENCE_MISS
+    民法典第543条 → EVIDENCE_MISS
+    民法典第577条 → EVIDENCE_MISS
+  C07（issues=2, 证据=5）required=3
+    民法典第188条 → EVIDENCE_MISS
+    民法典第195条 → EVIDENCE_MISS
+    民法典第675条 → EVIDENCE_MISS
+  C08（issues=4, 证据=9）required=4
+    民法典第686条 → EVIDENCE_MISS
+    民法典第692条 → EVIDENCE_MISS
+    民法典第693条 → EVIDENCE_MISS
+    民法典第695条 → EVIDENCE_MISS
+  C09（issues=4, 证据=16）required=4
+    消费者权益保护法第26条 → EVIDENCE_MISS
+    民法典第496条 → HIT
+    民法典第497条 → HIT
+    民法典第577条 → EVIDENCE_MISS
+  C10（issues=4, 证据=15）required=2
+    民法典第577条 → EVIDENCE_MISS
+    刑法第266条 → HIT
+  小计: {'EVIDENCE_MISS': 22, 'HIT': 8}
+
+### gate5-dev-run-17-qwen38-waxis（题集 frozen-cases-v1.json，状态记录 10 题）
+  C01（issues=5, 证据=21）required=4
+    劳动合同法第40条 → EVIDENCE_MISS
+    劳动合同法第43条 → EVIDENCE_MISS
+    劳动合同法第47条 → EVIDENCE_MISS
+    劳动合同法第87条 → EVIDENCE_MISS
+  C02（issues=4, 证据=13）required=3
+    劳动法第36条 → EVIDENCE_MISS
+    劳动法第44条 → EVIDENCE_MISS
+    劳动争议调解仲裁法第27条 → EVIDENCE_MISS
+  C03（issues=5, 证据=15）required=2
+    劳动合同法第10条 → EVIDENCE_MISS
+    劳动合同法第82条 → EVIDENCE_MISS
+  C04（issues=4, 证据=21）required=3
+    民法典第586条 → EVIDENCE_MISS
+    民法典第587条 → EVIDENCE_MISS
+    民法典第588条 → EVIDENCE_MISS
+  C05（issues=4, 证据=16）required=2
+    民法典第577条 → HIT
+    民法典第722条 → HIT
+  C06（issues=5, 证据=18）required=3
+    民法典第509条 → EVIDENCE_MISS
+    民法典第543条 → EVIDENCE_MISS
+    民法典第577条 → HIT
+  C07（issues=2, 证据=10）required=3
+    民法典第188条 → EVIDENCE_MISS
+    民法典第195条 → EVIDENCE_MISS
+    民法典第675条 → EVIDENCE_MISS
+  C08（issues=5, 证据=23）required=4
+    民法典第686条 → HIT
+    民法典第692条 → HIT
+    民法典第693条 → HIT
+    民法典第695条 → HIT
+  C09（issues=3, 证据=14）required=4
+    消费者权益保护法第26条 → EVIDENCE_MISS
+    民法典第496条 → HIT
+    民法典第497条 → HIT
+    民法典第577条 → HIT
+  C10（issues=3, 证据=14）required=2
+    民法典第577条 → HIT
+    刑法第266条 → EVIDENCE_MISS
+  小计: {'EVIDENCE_MISS': 19, 'HIT': 11}
+
+### gate5-dev-run-17-holdout-waxis（题集 holdout-cases-v1.json，状态记录 5 题）
+  H01（issues=3, 证据=16）required=4
+    劳动合同法第21条 → HIT
+    劳动合同法第39条 → HIT
+    劳动合同法第47条 → HIT
+    劳动合同法第87条 → HIT
+  H02（issues=3, 证据=15）required=4
+    劳动合同法第38条 → EVIDENCE_MISS
+    劳动合同法第46条 → EVIDENCE_MISS
+    劳动合同法第47条 → EVIDENCE_MISS
+    社会保险法第63条 → EVIDENCE_MISS
+  H03（issues=4, 证据=13）required=4
+    民法典第667条 → EVIDENCE_MISS
+    民法典第561条 → EVIDENCE_MISS
+    民法典第676条 → EVIDENCE_MISS
+    民法典第680条 → EVIDENCE_MISS
+  H04（issues=4, 证据=11）required=3
+    民法典第712条 → EVIDENCE_MISS
+    民法典第713条 → EVIDENCE_MISS
+    民法典第577条 → EVIDENCE_MISS
+  H05（issues=5, 证据=23）required=4
+    消费者权益保护法第20条 → EVIDENCE_MISS
+    消费者权益保护法第23条 → EVIDENCE_MISS
+    消费者权益保护法第55条 → EVIDENCE_MISS
+    民法典第577条 → EVIDENCE_MISS
+  小计: {'HIT': 4, 'EVIDENCE_MISS': 15}
+
+### 预登记判定（waxis-verification-preregistration.json）
+  基线 run-15（评测集） : HIT 8/30 = 27%
+  本轮 run-17（评测集） : HIT 11/30 = 37%
+  本轮 run-17（留出集） : HIT 4/19 = 21%
+
+  命题①评测集 HIT 上升（>32%）  : ✅ 未被证伪
+  命题②泛化（留出 ≥ 评测−10pp）: ❌ 判过拟合
+  WRITER_MISS 合计              : 0（预登记守卫：必须 = 0）
+  EVIDENCE_MISS 合计            : 56

@@ -1,0 +1,551 @@
+"""Deterministic Agent Gate and observation-only Shadow integration contracts."""
+
+from __future__ import annotations
+
+import ast
+import copy
+import logging
+from pathlib import Path
+
+import pytest
+from pydantic import ValidationError
+
+from agent.gate import AgentGateDecision, decide_gate
+from observability import make_agent_correlation_id, request_id_var
+from request_bootstrap import RecentMessageSnapshot, RequestBootstrap
+from settings import Settings
+
+
+def _bootstrap(
+    text: str,
+    *,
+    intent: str = "legal_query",
+    contract_mode: bool = False,
+    recent: tuple[tuple[str, str], ...] = (),
+) -> RequestBootstrap:
+    recent_dicts = [{"role": role, "content": content, "image_desc": ""} for role, content in recent]
+    return RequestBootstrap(
+        conv_id=17,
+        summary="",
+        recent=recent_dicts,
+        recent_messages=[RecentMessageSnapshot(role=role, content=content, image_desc="") for role, content in recent],
+        image=None,
+        user_text=text,
+        image_rel=None,
+        thumb_rel=None,
+        image_description="",
+        raw_query=text,
+        supplement_text=text,
+        intent=intent,
+        is_exam=False,
+        has_options=False,
+        contract_mode=contract_mode,
+        contract_text=text if contract_mode else None,
+        client_truncated=False,
+    )
+
+
+def test_exact_article_lookup_stays_fast_path():
+    assert decide_gate(_bootstrap("民法典第679条是什么")) == AgentGateDecision(
+        mode="fast_path",
+        complexity="simple",
+        reason_codes=["EXACT_ARTICLE_LOOKUP"],
+    )
+
+
+def test_criminal_civil_boundary_routes_to_agent():
+    # G-1 审计发现项：刑民边界（报警-起诉）此前漏路由到 RAG（S1 FN）
+    assert decide_gate(
+        _bootstrap("卖家收钱后失联，聊天记录说会发货但根本没货，我该报警还是起诉？")
+    ) == AgentGateDecision(
+        mode="agent_path",
+        complexity="complex",
+        reason_codes=["CRIMINAL_CIVIL_BOUNDARY"],
+    )
+
+
+def test_report_or_arbitration_variants_route_to_agent():
+    for q in ("该报警还是仲裁", "报案还是起诉", "要不要报警立案"):
+        assert decide_gate(_bootstrap(q)).mode == "agent_path"
+
+
+def test_limitation_acknowledgement_example_has_both_independent_expected_codes():
+    assert decide_gate(_bootstrap("三年前借钱，对方承认过债务，现在还能起诉吗")) == AgentGateDecision(
+        mode="agent_path",
+        complexity="complex",
+        reason_codes=["MULTI_ISSUE", "MISSING_FACTS"],
+    )
+
+
+@pytest.mark.parametrize(
+    ("bootstrap", "expected"),
+    [
+        (
+            _bootstrap("请审查这份劳动合同", contract_mode=True),
+            AgentGateDecision(mode="agent_path", complexity="complex", reason_codes=["DOCUMENT_REVIEW"]),
+        ),
+        (
+            _bootstrap("请比较这两份合同的差异", contract_mode=True),
+            AgentGateDecision(mode="agent_path", complexity="complex", reason_codes=["DOCUMENT_COMPARISON"]),
+        ),
+        (
+            _bootstrap("我想先申请劳动仲裁，再起诉，请列出办理步骤"),
+            AgentGateDecision(mode="agent_path", complexity="complex", reason_codes=["MULTI_STAGE"]),
+        ),
+        (
+            _bootstrap("请继续分析上面这个问题", recent=(("user", "公司拖欠工资怎么办"),)),
+            AgentGateDecision(mode="agent_path", complexity="complex", reason_codes=["MULTI_TURN_CONTEXT"]),
+        ),
+    ],
+)
+def test_representative_complex_cases_have_stable_decisions(bootstrap, expected):
+    assert decide_gate(bootstrap) == expected
+
+
+@pytest.mark.parametrize(
+    ("bootstrap", "expected"),
+    [
+        (
+            _bootstrap("谢谢", intent="chitchat"),
+            AgentGateDecision(mode="fast_path", complexity="simple", reason_codes=["NON_AGENT_INTENT"]),
+        ),
+        (
+            _bootstrap("请介绍法考复习方法", intent="study_aid"),
+            AgentGateDecision(mode="fast_path", complexity="simple", reason_codes=["NON_AGENT_INTENT"]),
+        ),
+        (
+            _bootstrap("把考试答案直接发给我", intent="cheating_request"),
+            AgentGateDecision(mode="refuse", complexity="policy", reason_codes=["POLICY_CHEATING_REQUEST"]),
+        ),
+        (
+            _bootstrap(""),
+            AgentGateDecision(mode="fast_path", complexity="simple", reason_codes=["NON_AGENT_INTENT"]),
+        ),
+    ],
+)
+def test_non_agent_policy_and_empty_inputs_are_safe_and_stable(bootstrap, expected):
+    assert decide_gate(bootstrap) == expected
+
+
+def test_exact_article_signal_never_overrides_material_complexity():
+    decision = decide_gate(_bootstrap("先查民法典第679条，再比较诉讼与仲裁两个步骤"))
+    assert decision == AgentGateDecision(mode="agent_path", complexity="complex", reason_codes=["MULTI_STAGE"])
+
+
+def test_same_bootstrap_is_deep_equal_with_stable_reason_order():
+    bootstrap = _bootstrap("三年前借钱，对方承认过债务，现在还能起诉吗")
+    expected = AgentGateDecision(mode="agent_path", complexity="complex", reason_codes=["MULTI_ISSUE", "MISSING_FACTS"])
+
+    decisions = [decide_gate(copy.deepcopy(bootstrap)) for _ in range(100)]
+
+    assert decisions == [expected] * 100
+    assert all(decision.reason_codes == ("MULTI_ISSUE", "MISSING_FACTS") for decision in decisions)
+
+
+def test_gate_decision_reason_codes_are_deeply_immutable_and_dump_as_json_array():
+    decision = AgentGateDecision(
+        mode="agent_path",
+        complexity="complex",
+        reason_codes=["MULTI_ISSUE", "MISSING_FACTS"],
+    )
+
+    with pytest.raises(AttributeError):
+        decision.reason_codes.append("MULTI_STAGE")
+    with pytest.raises(TypeError):
+        decision.reason_codes[0] = "MULTI_STAGE"
+
+    assert decision.reason_codes == ("MULTI_ISSUE", "MISSING_FACTS")
+    assert decision.model_dump(mode="json")["reason_codes"] == ["MULTI_ISSUE", "MISSING_FACTS"]
+
+
+@pytest.mark.parametrize(
+    "reason_codes",
+    [
+        (),
+        ("MULTI_ISSUE", "MULTI_ISSUE"),
+        ("NOT_A_GATE_REASON",),
+        ("MISSING_FACTS", "MULTI_ISSUE"),
+    ],
+)
+def test_gate_decision_rejects_invalid_reason_code_contract(reason_codes):
+    with pytest.raises(ValidationError):
+        AgentGateDecision(mode="agent_path", complexity="complex", reason_codes=reason_codes)
+
+
+def test_gate_decision_json_round_trip_preserves_tuple_and_stable_order():
+    original = AgentGateDecision(
+        mode="agent_path",
+        complexity="complex",
+        reason_codes=("MULTI_ISSUE", "MISSING_FACTS", "MULTI_STAGE"),
+    )
+
+    restored = AgentGateDecision.model_validate_json(original.model_dump_json())
+
+    assert restored == original
+    assert restored.reason_codes == ("MULTI_ISSUE", "MISSING_FACTS", "MULTI_STAGE")
+
+
+def test_gate_module_has_no_forbidden_capability_imports_or_dynamic_calls():
+    gate_path = Path(__file__).parents[1] / "agent" / "gate.py"
+    tree = ast.parse(gate_path.read_text(encoding="utf-8"))
+    imported_roots = {
+        alias.name.split(".", 1)[0] for node in ast.walk(tree) if isinstance(node, ast.Import) for alias in node.names
+    }
+    imported_roots.update(
+        (node.module or "").split(".", 1)[0] for node in ast.walk(tree) if isinstance(node, ast.ImportFrom)
+    )
+    forbidden = {
+        "answer_cache",
+        "database",
+        "httpx",
+        "knowledge_service",
+        "llm_registry",
+        "openai",
+        "qa_cache",
+        "rag_chain",
+        "requests",
+        "retrieval",
+        "socket",
+        "sqlalchemy",
+    }
+    dynamic_calls = {
+        node.func.id
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Name)
+        and node.func.id in {"__import__", "eval", "exec"}
+    }
+
+    assert imported_roots.isdisjoint(forbidden)
+    assert dynamic_calls == set()
+
+
+def test_settings_default_safe_off_and_task_7_budget_snapshot_sources():
+    settings = Settings(_env_file=None)
+
+    assert (settings.agent_enabled, settings.agent_shadow_enabled, settings.agent_traffic_percent) == (
+        False,
+        False,
+        0,
+    )
+    # Task 7 must snapshot these runtime values into AgentBudgets; old schema defaults are not rollout sources.
+    # agent_max_steps：8→16 为 03a2f14（gate4 F1 根因修正）批准值——两轮澄清第二轮 checkpoint
+    # steps=8 已耗尽预算触发 BudgetExceeded→409；16→20 为 2026-09-12 用户批准（同类上调）——
+    # 5 争点分解下 bootstrap 1 + 检索 5×2 + 澄清 2×2 + backfill 2 = 17 > 16，确定性
+    # `budget_exceeded:step_preflight`（见 tests/test_agent_chat_integration.py 的
+    # test_five_issue_decomposition_reaches_drafting_within_step_budget，含 16 下复现的 watch-it-fail）。
+    # 配置是硬上限；复杂任务必须在耗尽时停止，装配层不得自动提高预算（本次是显式配置变更，非装配层自动提高）。
+    assert (
+        settings.agent_max_steps,
+        settings.agent_max_tool_calls,
+        settings.agent_max_replans,
+        settings.agent_max_clarifications,
+        settings.agent_max_verifier_research_returns,
+    ) == (20, 10, 3, 2, 1)
+
+
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("agent_traffic_percent", -1),
+        ("agent_traffic_percent", 101),
+        ("agent_max_steps", 0),
+        ("agent_max_steps", 33),
+        ("agent_max_tool_calls", 0),
+        ("agent_max_tool_calls", 33),
+        ("agent_max_replans", -1),
+        ("agent_max_replans", 33),
+        ("agent_max_clarifications", -1),
+        ("agent_max_clarifications", 33),
+        ("agent_max_verifier_research_returns", -1),
+        ("agent_max_verifier_research_returns", 33),
+    ],
+)
+def test_settings_reject_invalid_agent_rollout_and_budget_values(field, value):
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None, **{field: value})
+
+
+def test_agent_correlation_is_hashed_stable_and_uses_current_request_id():
+    token = request_id_var.set("middleware-request-1")
+    try:
+        first = make_agent_correlation_id(conversation_id=17)
+        repeated = make_agent_correlation_id(conversation_id=17)
+        other = make_agent_correlation_id(conversation_id=17, request_id="middleware-request-2")
+    finally:
+        request_id_var.reset(token)
+
+    assert first == repeated
+    assert first != other
+    assert len(first) == 24
+    assert "middleware-request" not in first
+
+
+def test_agent_correlation_has_documented_deterministic_unit_test_fallback():
+    token = request_id_var.set("-")
+    try:
+        assert make_agent_correlation_id(17) == make_agent_correlation_id(17)
+    finally:
+        request_id_var.reset(token)
+
+
+@pytest.fixture
+def main_module():
+    import main
+
+    return main
+
+
+def _wire_pre_without_io(monkeypatch, main_module, *, events, fast_result):
+    bootstrap = _bootstrap("民法典第679条是什么")
+
+    def fake_bootstrap(*args, **kwargs):
+        events.append("bootstrap")
+        return bootstrap
+
+    def fake_fast(actual, **kwargs):
+        events.append("fast_path")
+        assert actual is bootstrap
+        return fast_result
+
+    monkeypatch.setattr(main_module, "bootstrap_request", fake_bootstrap)
+    monkeypatch.setattr(main_module, "prepare_fast_path", fake_fast)
+    monkeypatch.setattr(main_module, "make_agent_correlation_id", lambda **kwargs: "corr-1")
+    return bootstrap
+
+
+def test_shadow_off_never_calls_gate_and_returns_exact_fast_result(monkeypatch, main_module):
+    events: list[str] = []
+    expected = {"nested": [1, {"answer": "unchanged"}]}
+    _wire_pre_without_io(monkeypatch, main_module, events=events, fast_result=expected)
+    monkeypatch.setattr(main_module.settings, "agent_shadow_enabled", False)
+    monkeypatch.setattr(main_module, "decide_gate", lambda value: pytest.fail("Gate must stay off"))
+
+    actual = main_module._pre(1, 17, "question", None)
+
+    assert actual is expected
+    assert actual == {"nested": [1, {"answer": "unchanged"}]}
+    assert events == ["bootstrap", "fast_path"]
+
+
+def test_shadow_on_calls_gate_between_bootstrap_and_fast_path_once(monkeypatch, main_module):
+    events: list[str] = []
+    metric_calls = []
+    log_calls = []
+    expected = {"nested": [1, {"answer": "unchanged"}]}
+    bootstrap = _wire_pre_without_io(monkeypatch, main_module, events=events, fast_result=expected)
+    monkeypatch.setattr(main_module.settings, "agent_shadow_enabled", True)
+
+    def fake_gate(actual):
+        events.append("gate")
+        assert actual is bootstrap
+        return AgentGateDecision(mode="agent_path", complexity="complex", reason_codes=["MULTI_STAGE"])
+
+    monkeypatch.setattr(main_module, "decide_gate", fake_gate)
+    monkeypatch.setattr(main_module.routing_metrics, "record_agent_gate", lambda *a, **kw: metric_calls.append((a, kw)))
+    monkeypatch.setattr(main_module, "log_account", lambda **kw: log_calls.append(kw))
+
+    actual = main_module._pre(1, 17, "question", None)
+
+    assert actual is expected
+    assert events == ["bootstrap", "gate", "fast_path"]
+    assert metric_calls == [(("agent_path", ["MULTI_STAGE"], "corr-1"), {"technical_failure": False})]
+    assert log_calls == [
+        {
+            "agent_correlation_id": "corr-1",
+            "agent_gate_mode": "agent_path",
+            "agent_gate_reason_codes": ["MULTI_STAGE"],
+        }
+    ]
+
+
+def test_enabled_and_full_traffic_still_never_start_agent_in_task_6(monkeypatch, main_module):
+    events: list[str] = []
+    expected = {"answer": "fast only"}
+    _wire_pre_without_io(monkeypatch, main_module, events=events, fast_result=expected)
+    monkeypatch.setattr(main_module.settings, "agent_shadow_enabled", True)
+    monkeypatch.setattr(main_module.settings, "agent_enabled", True)
+    monkeypatch.setattr(main_module.settings, "agent_traffic_percent", 100)
+    monkeypatch.setattr(
+        main_module,
+        "decide_gate",
+        lambda bootstrap: AgentGateDecision(mode="agent_path", complexity="complex", reason_codes=["DOCUMENT_REVIEW"]),
+    )
+    monkeypatch.setattr(main_module.routing_metrics, "record_agent_gate", lambda *a, **kw: None)
+    monkeypatch.setattr(main_module, "log_account", lambda **kw: None)
+
+    assert main_module._pre(1, 17, "question", None) is expected
+    assert events == ["bootstrap", "fast_path"]
+
+
+def test_gate_exception_is_observable_and_fails_open(monkeypatch, main_module):
+    events: list[str] = []
+    metric_calls = []
+    log_calls = []
+    expected = {"answer": "fast only"}
+    _wire_pre_without_io(monkeypatch, main_module, events=events, fast_result=expected)
+    monkeypatch.setattr(main_module.settings, "agent_shadow_enabled", True)
+    monkeypatch.setattr(main_module, "decide_gate", lambda bootstrap: (_ for _ in ()).throw(RuntimeError("gate")))
+    monkeypatch.setattr(main_module.routing_metrics, "record_agent_gate", lambda *a, **kw: metric_calls.append((a, kw)))
+    monkeypatch.setattr(main_module, "log_account", lambda **kw: log_calls.append(kw))
+
+    assert main_module._pre(1, 17, "question", None) is expected
+    assert events == ["bootstrap", "fast_path"]
+    assert metric_calls == [(("fast_path", ["GATE_TECHNICAL_FAILURE"], "corr-1"), {"technical_failure": True})]
+    assert log_calls[-1] == {
+        "agent_correlation_id": "corr-1",
+        "agent_gate_mode": "fast_path",
+        "agent_gate_reason_codes": ["GATE_TECHNICAL_FAILURE"],
+    }
+
+
+def test_metric_failure_is_logged_and_fails_open(monkeypatch, main_module):
+    events: list[str] = []
+    log_calls = []
+    expected = {"answer": "fast only"}
+    _wire_pre_without_io(monkeypatch, main_module, events=events, fast_result=expected)
+    monkeypatch.setattr(main_module.settings, "agent_shadow_enabled", True)
+    monkeypatch.setattr(
+        main_module,
+        "decide_gate",
+        lambda bootstrap: AgentGateDecision(mode="fast_path", complexity="simple", reason_codes=["SINGLE_ISSUE_QUERY"]),
+    )
+    monkeypatch.setattr(
+        main_module.routing_metrics,
+        "record_agent_gate",
+        lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("metrics")),
+    )
+    monkeypatch.setattr(main_module, "log_account", lambda **kw: log_calls.append(kw))
+
+    assert main_module._pre(1, 17, "question", None) is expected
+    assert events == ["bootstrap", "fast_path"]
+    assert log_calls == [
+        {
+            "agent_correlation_id": "corr-1",
+            "agent_gate_mode": "fast_path",
+            "agent_gate_reason_codes": ["GATE_TECHNICAL_FAILURE"],
+        }
+    ]
+
+
+def test_logging_failure_is_counted_and_fails_open(monkeypatch, main_module, caplog):
+    events: list[str] = []
+    metric_calls = []
+    expected = {"answer": "fast only"}
+    _wire_pre_without_io(monkeypatch, main_module, events=events, fast_result=expected)
+    monkeypatch.setattr(main_module.settings, "agent_shadow_enabled", True)
+    monkeypatch.setattr(
+        main_module,
+        "decide_gate",
+        lambda bootstrap: AgentGateDecision(mode="fast_path", complexity="simple", reason_codes=["SINGLE_ISSUE_QUERY"]),
+    )
+    monkeypatch.setattr(main_module.routing_metrics, "record_agent_gate", lambda *a, **kw: metric_calls.append((a, kw)))
+    monkeypatch.setattr(main_module, "log_account", lambda **kw: (_ for _ in ()).throw(RuntimeError("log")))
+
+    with caplog.at_level(logging.ERROR):
+        assert main_module._pre(1, 17, "question", None) is expected
+
+    assert events == ["bootstrap", "fast_path"]
+    assert metric_calls[-1] == (
+        ("fast_path", ["GATE_TECHNICAL_FAILURE"], "corr-1"),
+        {"technical_failure": True},
+    )
+    assert "GATE_TECHNICAL_FAILURE" in caplog.text
+
+
+def test_account_and_fallback_logger_failures_do_not_block_or_repeat_prepare(monkeypatch, main_module):
+    events: list[str] = []
+    metric_calls = []
+    logger_calls = []
+    expected = {"answer": "fast only"}
+    _wire_pre_without_io(monkeypatch, main_module, events=events, fast_result=expected)
+    monkeypatch.setattr(main_module.settings, "agent_shadow_enabled", True)
+
+    def fake_gate(bootstrap):
+        events.append("gate")
+        return AgentGateDecision(
+            mode="fast_path",
+            complexity="simple",
+            reason_codes=("SINGLE_ISSUE_QUERY",),
+        )
+
+    monkeypatch.setattr(main_module, "decide_gate", fake_gate)
+    monkeypatch.setattr(main_module.routing_metrics, "record_agent_gate", lambda *a, **kw: metric_calls.append((a, kw)))
+    monkeypatch.setattr(main_module, "log_account", lambda **kw: (_ for _ in ()).throw(RuntimeError("account")))
+
+    def broken_fallback_logger(*args, **kwargs):
+        logger_calls.append((args, kwargs))
+        raise RuntimeError("fallback logger")
+
+    monkeypatch.setattr(main_module.logging.getLogger("legal.chat"), "exception", broken_fallback_logger)
+
+    actual = main_module._pre(1, 17, "question", None)
+
+    assert actual is expected
+    assert events == ["bootstrap", "gate", "fast_path"]
+    assert metric_calls[-1] == (
+        ("fast_path", ["GATE_TECHNICAL_FAILURE"], "corr-1"),
+        {"technical_failure": True},
+    )
+    assert len(logger_calls) == 1
+
+
+def test_all_three_observers_may_fail_without_blocking_or_repeating_prepare(monkeypatch, main_module):
+    events: list[str] = []
+    logger_calls = []
+    expected = {"answer": "fast only"}
+    _wire_pre_without_io(monkeypatch, main_module, events=events, fast_result=expected)
+    monkeypatch.setattr(main_module.settings, "agent_shadow_enabled", True)
+
+    def fake_gate(bootstrap):
+        events.append("gate")
+        return AgentGateDecision(
+            mode="fast_path",
+            complexity="simple",
+            reason_codes=("SINGLE_ISSUE_QUERY",),
+        )
+
+    monkeypatch.setattr(main_module, "decide_gate", fake_gate)
+    monkeypatch.setattr(
+        main_module.routing_metrics,
+        "record_agent_gate",
+        lambda *a, **kw: (_ for _ in ()).throw(RuntimeError("metrics")),
+    )
+    monkeypatch.setattr(main_module, "log_account", lambda **kw: (_ for _ in ()).throw(RuntimeError("account")))
+
+    def broken_fallback_logger(*args, **kwargs):
+        logger_calls.append((args, kwargs))
+        raise RuntimeError("fallback logger")
+
+    monkeypatch.setattr(main_module.logging.getLogger("legal.chat"), "exception", broken_fallback_logger)
+
+    actual = main_module._pre(1, 17, "question", None)
+
+    assert actual is expected
+    assert events == ["bootstrap", "gate", "fast_path"]
+    assert len(logger_calls) == 1
+
+
+def test_shadow_setup_and_terminal_logger_failures_do_not_block_or_repeat_prepare(monkeypatch, main_module):
+    events: list[str] = []
+    logger_calls = []
+    expected = {"answer": "fast only"}
+    _wire_pre_without_io(monkeypatch, main_module, events=events, fast_result=expected)
+    monkeypatch.setattr(main_module.settings, "agent_shadow_enabled", True)
+    monkeypatch.setattr(
+        main_module,
+        "make_agent_correlation_id",
+        lambda **kwargs: (_ for _ in ()).throw(RuntimeError("correlation setup")),
+    )
+
+    def broken_fallback_logger(*args, **kwargs):
+        logger_calls.append((args, kwargs))
+        raise RuntimeError("fallback logger")
+
+    monkeypatch.setattr(main_module.logging.getLogger("legal.chat"), "exception", broken_fallback_logger)
+
+    actual = main_module._pre(1, 17, "question", None)
+
+    assert actual is expected
+    assert events == ["bootstrap", "fast_path"]
+    assert len(logger_calls) == 1

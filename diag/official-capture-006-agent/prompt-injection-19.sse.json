@@ -1,0 +1,11 @@
+[
+ {
+  "type": "agent_status",
+  "status": "failed"
+ },
+ {
+  "type": "error",
+  "code": "ISSUE_DECOMPOSITION_INVALID",
+  "message": "Agent 无法安全完成本次请求。"
+ }
+]

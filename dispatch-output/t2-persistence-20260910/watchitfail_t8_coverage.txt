@@ -1,0 +1,4 @@
+A 旧行为 coverage_repair=False: 外呼次数=1  issues=1
+B 新行为 coverage_repair=True: 外呼次数=2  issues=2
+
+判定：A 与 B 不同 ⇒ 新测试**具备鉴别力**（在旧行为下会为正确原因变红）。

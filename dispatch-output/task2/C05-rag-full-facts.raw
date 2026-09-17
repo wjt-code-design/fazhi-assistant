@@ -1,0 +1,301 @@
+# case=C05 mode=rag-full-facts status=200 started=2026-09-08T14:47:41
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "1"}
+
+data: {"content": ". 案情"}
+
+data: {"content": "与争议焦点\n"}
+
+data: {"content": "用户"}
+
+data: {"content": "因迟延两天支付"}
+
+data: {"content": "租金，房东在未"}
+
+data: {"content": "催告的情况下直接换"}
+
+data: {"content": "锁并"}
+
+data: {"content": "扣除押金。争议"}
+
+data: {"content": "焦点在于：房东"}
+
+data: {"content": "单方换锁扣"}
+
+data: {"content": "押金是否构成合法"}
+
+data: {"content": "解除合同"}
+
+data: {"content": "及正当行使权利"}
+
+data: {"content": "；用户已转账"}
+
+data: {"content": "被退回但物品"}
+
+data: {"content": "仍在屋内，双方"}
+
+data: {"content": "权利义务状态如何认定"}
+
+data: {"content": "。\n\n2."}
+
+data: {"content": " 法律依据（引"}
+
+data: {"content": "条文）\n根据"}
+
+data: {"content": "《民法典》第五百"}
+
+data: {"content": "零九条规定"}
+
+data: {"content": "，当事人应当按照约定"}
+
+data: {"content": "全面履行自己的"}
+
+data: {"content": "义务，遵循诚信"}
+
+data: {"content": "原则。"}
+
+data: {"content": "根据《民法典》"}
+
+data: {"content": "第七百二十二条"}
+
+data: {"content": "规定，承租人"}
+
+data: {"content": "无正当理由未支付或者"}
+
+data: {"content": "迟延支付租金的"}
+
+data: {"content": "，出租人可以请求"}
+
+data: {"content": "承租人在合理"}
+
+data: {"content": "期限内支付；承租人"}
+
+data: {"content": "逾期不支付的，"}
+
+data: {"content": "出租人可以解除合同。"}
+
+data: {"content": "根据"}
+
+data: {"content": "《民法典》第五百"}
+
+data: {"content": "七十七条规定，"}
+
+data: {"content": "当事人一方不履行合同"}
+
+data: {"content": "义务或者履行合同义务"}
+
+data: {"content": "不符合约定的，应当承担"}
+
+data: {"content": "继续履行、采取"}
+
+data: {"content": "补救"}
+
+data: {"content": "措施或者赔偿损失"}
+
+data: {"content": "等违约责任。\n\n"}
+
+data: {"content": "3. 逐项"}
+
+data: {"content": "论证"}
+
+data: {"content": "\n首先，关于"}
+
+data: {"content": "解除合同的程序合法性"}
+
+data: {"content": "。虽然"}
+
+data: {"content": "合同约定每月5日前"}
+
+data: {"content": "付款，用户晚"}
+
+data: {"content": "两天确实"}
+
+data: {"content": "构成迟延履行，但"}
+
+data: {"content": "根据"}
+
+data: {"content": "《民法典》第七"}
+
+data: {"content": "百二十二条，"}
+
+data: {"content": "对于"}
+
+data: {"content": "迟延支付租金的情形"}
+
+data: {"content": "，法律赋予出租"}
+
+data: {"content": "人的"}
+
+data: {"content": "前置程序是“"}
+
+data: {"content": "请求承租"}
+
+data: {"content": "人在合理期限内支付"}
+
+data: {"content": "”。本案中，房东"}
+
+data: {"content": "在"}
+
+data: {"content": "7日换锁"}
+
+data: {"content": "前"}
+
+data: {"content": "并未进行催告，"}
+
+data: {"content": "也未给予合理宽"}
+
+data: {"content": "限期"}
+
+data: {"content": "，直接解除合同并"}
+
+data: {"content": "换锁的行为，"}
+
+data: {"content": "不符合法定"}
+
+data: {"content": "解除条件，存在"}
+
+data: {"content": "程序瑕疵，可能"}
+
+data: {"content": "构成违法解除或"}
+
+data: {"content": "违约。\n其次"}
+
+data: {"content": "，关于"}
+
+data: {"content": "换锁与扣"}
+
+data: {"content": "押"}
+
+data: {"content": "金的性质。房东"}
+
+data: {"content": "换"}
+
+data: {"content": "锁导致用户无法"}
+
+data: {"content": "进入房屋，实质上"}
+
+data: {"content": "阻碍了用户对租赁"}
+
+data: {"content": "物的使用收益。"}
+
+data: {"content": "即使用户8"}
+
+data: {"content": "日尝试转账，"}
+
+data: {"content": "但因"}
+
+data: {"content": "房东行为导致款项"}
+
+data: {"content": "退回，该后果"}
+
+data: {"content": "不应完全由用户"}
+
+data: {"content": "承担"}
+
+data: {"content": "。房东单方面扣留"}
+
+data: {"content": "两个月押金且无"}
+
+data: {"content": "明确合同依据支持"}
+
+data: {"content": "“迟延两天即可"}
+
+data: {"content": "没收”，可能属于"}
+
+data: {"content": "不当得利或违约"}
+
+data: {"content": "行为。若房东"}
+
+data: {"content": "行为导致用户产生"}
+
+data: {"content": "额外损失（如"}
+
+data: {"content": "临时"}
+
+data: {"content": "住宿、物品保全"}
+
+data: {"content": "费用），房东需"}
+
+data: {"content": "根据《民法典》"}
+
+data: {"content": "第五百"}
+
+data: {"content": "七十七条承担赔偿"}
+
+data: {"content": "损失责任"}
+
+data: {"content": "。\n最后，"}
+
+data: {"content": "关于"}
+
+data: {"content": "物品归属。个人"}
+
+data: {"content": "物品仍在屋内，"}
+
+data: {"content": "房东"}
+
+data: {"content": "无权擅自处分。"}
+
+data: {"content": "若房东处置物品"}
+
+data: {"content": "造成损毁或丢失"}
+
+data: {"content": "，需承担侵权"}
+
+data: {"content": "赔偿责任"}
+
+data: {"content": "。\n\n4."}
+
+data: {"content": " 结论与风险"}
+
+data: {"content": "\n房东直接换"}
+
+data: {"content": "锁扣押金"}
+
+data: {"content": "的行为大概率不合法"}
+
+data: {"content": "，缺乏"}
+
+data: {"content": "“催告”这一"}
+
+data: {"content": "法定前置程序。"}
+
+data: {"content": "建议"}
+
+data: {"content": "用户立即书面通知"}
+
+data: {"content": "房东要求恢复钥匙"}
+
+data: {"content": "使用权并返还押金"}
+
+data: {"content": "，保留"}
+
+data: {"content": "转账记录、沟通"}
+
+data: {"content": "录音及物品清单"}
+
+data: {"content": "。若协商不成"}
+
+data: {"content": "，可起诉要求"}
+
+data: {"content": "确认解除行为无效"}
+
+data: {"content": "或赔偿损失。"}
+
+data: {"content": "存在法律不确定性，"}
+
+data: {"content": "具体"}
+
+data: {"content": "需结合当地司法"}
+
+data: {"content": "实践对“合理"}
+
+data: {"content": "期限"}
+
+data: {"content": "”的认定。"}
+
+data: {"conversation_id": 2216, "sources": [{"source": "民法典", "article": "第四百八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百零二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百零九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百二十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百六十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百七十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百八十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百九十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百一十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百二十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百一十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百二十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百五十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百三十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百二十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "行政处罚法", "article": "第八十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百一十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百零七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百二十九条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

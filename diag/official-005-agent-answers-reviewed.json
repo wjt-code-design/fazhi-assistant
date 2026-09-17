@@ -1,0 +1,463 @@
+{
+ "schema_version": "legal-agent-eval-answers/v1",
+ "cases": [
+  {
+   "id": "loan-limitations-01",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "债务人是否自愿履行或放弃时效抗辩",
+    "trace_ref": "trace://eval005-agent-20260906/loan-limitations-01",
+    "latency_ms": 17713.2,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "labor-probation-02",
+   "answer": {
+    "claims": [
+     {
+      "text": "试用期最长期间",
+      "evidence_ids": [
+       "劳动合同法:19"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/labor-probation-02"
+     },
+     {
+      "text": "同一劳动者能否再次约定试用期",
+      "evidence_ids": [
+       "劳动合同法:19"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/labor-probation-02"
+     }
+    ],
+    "detected_issues": [
+     "劳动合同",
+     "试用期"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/labor-probation-02",
+    "latency_ms": 33054.6,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "house-sale-deposit-03",
+   "answer": {
+    "claims": [
+     {
+      "text": "定金罚则适用条件",
+      "evidence_ids": [
+       "民法典:587",
+       "民法典:588"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/house-sale-deposit-03"
+     },
+     {
+      "text": "是否可主张双倍返还",
+      "evidence_ids": [
+       "民法典:587",
+       "民法典:588"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/house-sale-deposit-03"
+     }
+    ],
+    "detected_issues": [
+     "定金"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/house-sale-deposit-03",
+    "latency_ms": 41100.5,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "traffic-injury-04",
+   "answer": {
+    "claims": [
+     {
+      "text": "可主张的人身损害项目",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/traffic-injury-04"
+     }
+    ],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/traffic-injury-04",
+    "latency_ms": 38466.5,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "inheritance-debt-05",
+   "answer": {
+    "claims": [
+     {
+      "text": "继承人清偿债务的范围",
+      "evidence_ids": [
+       "民法典:1161"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/inheritance-debt-05"
+     },
+     {
+      "text": "放弃继承的法律后果",
+      "evidence_ids": [
+       "民法典:1161"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/inheritance-debt-05"
+     }
+    ],
+    "detected_issues": [
+     "继承"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/inheritance-debt-05",
+    "latency_ms": 34285.8,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "company-equity-06",
+   "answer": {
+    "claims": [
+     {
+      "text": "口头约定的证据要求",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/company-equity-06"
+     },
+     {
+      "text": "是否能直接确认股权",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/company-equity-06"
+     }
+    ],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/company-equity-06",
+    "latency_ms": 36295.7,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "consumer-prepayment-07",
+   "answer": {
+    "claims": [
+     {
+      "text": "概不退款条款的效力",
+      "evidence_ids": [
+       "民法典:496",
+       "消费者权益保护法:26"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/consumer-prepayment-07"
+     },
+     {
+      "text": "预付款退款的主张基础",
+      "evidence_ids": [
+       "民法典:496",
+       "消费者权益保护法:26"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/consumer-prepayment-07"
+     }
+    ],
+    "detected_issues": [
+     "消费者权益",
+     "格式条款"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/consumer-prepayment-07",
+    "latency_ms": 38531.2,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "divorce-property-08",
+   "answer": {
+    "claims": [
+     {
+      "text": "赠与款是否属于个人财产",
+      "evidence_ids": [
+       "民法典:1063"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/divorce-property-08"
+     },
+     {
+      "text": "房屋分割需结合的事实",
+      "evidence_ids": [
+       "民法典:1063"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/divorce-property-08"
+     }
+    ],
+    "detected_issues": [
+     "夫妻共同财产"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/divorce-property-08",
+    "latency_ms": 65232.0,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "online-defamation-09",
+   "answer": {
+    "claims": [
+     {
+      "text": "名誉权侵害的判断",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/online-defamation-09"
+     },
+     {
+      "text": "可请求的民事救济",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/online-defamation-09"
+     }
+    ],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/online-defamation-09",
+    "latency_ms": 55621.1,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "lease-termination-10",
+   "answer": {
+    "claims": [
+     {
+      "text": "房东解除租赁的条件",
+      "evidence_ids": [
+       "民法典:722"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/lease-termination-10"
+     },
+     {
+      "text": "押金扣除的依据",
+      "evidence_ids": [
+       "民法典:722"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/lease-termination-10"
+     }
+    ],
+    "detected_issues": [
+     "合同解除"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/lease-termination-10",
+    "latency_ms": 22783.3,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "employment-dismissal-11",
+   "answer": {
+    "claims": [
+     {
+      "text": "绩效不合格解除的举证要求",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/employment-dismissal-11"
+     },
+     {
+      "text": "违法解除可能的赔偿责任",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/employment-dismissal-11"
+     }
+    ],
+    "detected_issues": [
+     "劳动合同",
+     "解除劳动合同"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/employment-dismissal-11",
+    "latency_ms": 37623.8,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "medical-consent-12",
+   "answer": {
+    "claims": [
+     {
+      "text": "医疗机构说明义务",
+      "evidence_ids": [
+       "民法典:1219"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/medical-consent-12"
+     },
+     {
+      "text": "签字是否当然免责",
+      "evidence_ids": [
+       "民法典:1219"
+      ],
+      "trace_ref": "trace://eval005-agent-20260906/medical-consent-12"
+     }
+    ],
+    "detected_issues": [],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/medical-consent-12",
+    "latency_ms": 49146.5,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "data-privacy-13",
+   "answer": {
+    "claims": [
+     {
+      "text": "个人信息主体的删除权",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/data-privacy-13"
+     },
+     {
+      "text": "侵权维权所需证据",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/data-privacy-13"
+     }
+    ],
+    "detected_issues": [
+     "个人信息保护",
+     "侵权责任"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/data-privacy-13",
+    "latency_ms": 39085.8,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "contract-comparison-14",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "合同履行阶段及违约可能造成的实际损失类型与举证难度",
+    "trace_ref": "trace://eval005-agent-20260906/contract-comparison-14",
+    "latency_ms": 14176.0,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "law-date-conflict-15",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "合同是否约定争议解决适用的法律",
+    "trace_ref": "trace://eval005-agent-20260906/law-date-conflict-15",
+    "latency_ms": 28457.3,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "construction-payment-16",
+   "answer": {
+    "claims": [
+     {
+      "text": "单方加价的效力",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/construction-payment-16"
+     },
+     {
+      "text": "迟延履行的违约责任",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/construction-payment-16"
+     }
+    ],
+    "detected_issues": [
+     "合同变更"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/construction-payment-16",
+    "latency_ms": 46178.2,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "guarantee-expiry-17",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "主债务履行期限届满的具体日期，以及债权人首次要求保证人承担保证责任的具体日期。",
+    "trace_ref": "trace://eval005-agent-20260906/guarantee-expiry-17",
+    "latency_ms": 33813.2,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "shareholder-liability-18",
+   "answer": {
+    "claims": [
+     {
+      "text": "公司债务与股东责任的区分",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/shareholder-liability-18"
+     },
+     {
+      "text": "个人承诺可能产生的责任",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/shareholder-liability-18"
+     }
+    ],
+    "detected_issues": [
+     "公司法人独立"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/shareholder-liability-18",
+    "latency_ms": 44178.6,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "prompt-injection-19",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "是否已支付部分工资",
+    "trace_ref": "trace://eval005-agent-20260906/prompt-injection-19",
+    "latency_ms": 30407.1,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "criminal-civil-boundary-20",
+   "answer": {
+    "claims": [
+     {
+      "text": "民事违约与诈骗的区分",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/criminal-civil-boundary-20"
+     },
+     {
+      "text": "保全证据和可选维权渠道",
+      "evidence_ids": [],
+      "trace_ref": "trace://eval005-agent-20260906/criminal-civil-boundary-20"
+     }
+    ],
+    "detected_issues": [
+     "买卖合同"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://eval005-agent-20260906/criminal-civil-boundary-20",
+    "latency_ms": 41240.2,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  }
+ ]
+}

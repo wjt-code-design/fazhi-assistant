@@ -1,0 +1,38 @@
+[WATCH-IT-FAIL OK] 预算闸门: assert [namespace(page_content='doc0', metadata={})] is None
+ +  where [namespace(page_content='doc0', metadata={})] = <function _rerank_docs at 0x000001BD40111DA0>('q', [namespace(page_content='doc0', metadata={}), namespace(page_content='doc1', metadata={})], deadline_monotonic=((39342.484 + 12.3) - 0.05))
+ +    where <function _rerank_docs at 0x000001BD40111DA0> = retrieval._rerank_docs
+ +    and   39342.484 = <built-in function monotonic>()
+ +      where <built-in function monotonic> = time.monotonic
+.[WATCH-IT-FAIL OK] 超时分类: 超时后不得再换下一个模型继续烧预算
+assert ['m1', 'm2'] == ['m1']
+  
+  Left contains one more item: 'm2'
+  Use -v to get more diff
+.
+============================== warnings summary ===============================
+tests\test_retrieval_rerank.py:316
+  C:\Users\33393\Desktop\ai-legal-helper\backend\tests\test_retrieval_rerank.py:316: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests\test_retrieval_rerank.py:322
+  C:\Users\33393\Desktop\ai-legal-helper\backend\tests\test_retrieval_rerank.py:322: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests\test_retrieval_rerank.py:328
+  C:\Users\33393\Desktop\ai-legal-helper\backend\tests\test_retrieval_rerank.py:328: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests\test_retrieval_rerank.py:335
+  C:\Users\33393\Desktop\ai-legal-helper\backend\tests\test_retrieval_rerank.py:335: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests\test_retrieval_rerank.py:341
+  C:\Users\33393\Desktop\ai-legal-helper\backend\tests\test_retrieval_rerank.py:341: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+tests\test_retrieval_rerank.py:348
+  C:\Users\33393\Desktop\ai-legal-helper\backend\tests\test_retrieval_rerank.py:348: PytestUnknownMarkWarning: Unknown pytest.mark.slow - is this a typo?  You can register custom marks to avoid this warning - for details, see https://docs.pytest.org/en/stable/how-to/mark.html
+    @pytest.mark.slow
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+2 passed, 6 warnings in 19.67s

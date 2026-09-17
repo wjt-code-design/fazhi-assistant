@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "原告是否与本案有直接利害关系",
+  "issue_id": "issue_2860073d11b68e2c2e65726f"
+ }
+]

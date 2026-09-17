@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "劳动者是否已向劳动监察部门投诉或申请劳动仲裁",
+  "issue_id": "issue_b13787284a68795dcb571a8f"
+ }
+]

@@ -1,0 +1,189 @@
+.................................FF..................................... [  7%]
+........................................................................ [ 15%]
+........................................................................ [ 23%]
+........................................................................ [ 30%]
+........................................................................ [ 38%]
+........................................................................ [ 46%]
+........................................................................ [ 54%]
+........................................................................ [ 61%]
+........................................................................ [ 69%]
+........................................................................ [ 77%]
+........................................................................ [ 84%]
+........................................................................ [ 92%]
+.....................................................................    [100%]
+================================== FAILURES ===================================
+______ test_planner_transport_error_is_not_retried_as_bad_output[False] _______
+
+db = <sqlalchemy.orm.session.Session object at 0x0000019AE5D9B6D0>
+feedback_first = False
+
+    @pytest.mark.parametrize("feedback_first", [False, True])
+    def test_planner_transport_error_is_not_retried_as_bad_output(db, feedback_first):
+        from agent.service import execute_agent_request
+    
+        class UnavailablePlanner(_CoverageLoopTransport):
+            def invoke(self, messages):
+                if "Planner" in messages[0].content:
+                    self.calls.append(("planner", len(messages)))
+                    if feedback_first and sum(kind == "planner" for kind, _ in self.calls) == 1:
+                        return SimpleNamespace(content='{"kind":"invalid-decision"}')
+                    raise TimeoutError("secret-provider-details")
+                return super().invoke(messages)
+    
+        user, conversation = _owner_conversation(db)
+        transport = UnavailablePlanner(_two_issue_payload())
+        result = execute_agent_request(
+            db=db,
+            user_id=user.id,
+            settings=_settings(),
+            bootstrap=_two_issue_bootstrap(conversation.id),
+            finalizer=_finalize,
+            llm=transport,
+            gateway=_TwoIssueLawGateway().as_gateway(),
+        )
+>       assert result.reason_code == "AGENT_EXECUTION_FAILURE"
+E       AssertionError: assert 'READY' == 'AGENT_EXECUTION_FAILURE'
+E         
+E         - AGENT_EXECUTION_FAILURE
+E         + READY
+
+tests\test_agent_chat_integration.py:1249: AssertionError
+_______ test_planner_transport_error_is_not_retried_as_bad_output[True] _______
+
+db = <sqlalchemy.orm.session.Session object at 0x0000019AE654BD90>
+feedback_first = True
+
+    @pytest.mark.parametrize("feedback_first", [False, True])
+    def test_planner_transport_error_is_not_retried_as_bad_output(db, feedback_first):
+        from agent.service import execute_agent_request
+    
+        class UnavailablePlanner(_CoverageLoopTransport):
+            def invoke(self, messages):
+                if "Planner" in messages[0].content:
+                    self.calls.append(("planner", len(messages)))
+                    if feedback_first and sum(kind == "planner" for kind, _ in self.calls) == 1:
+                        return SimpleNamespace(content='{"kind":"invalid-decision"}')
+                    raise TimeoutError("secret-provider-details")
+                return super().invoke(messages)
+    
+        user, conversation = _owner_conversation(db)
+        transport = UnavailablePlanner(_two_issue_payload())
+        result = execute_agent_request(
+            db=db,
+            user_id=user.id,
+            settings=_settings(),
+            bootstrap=_two_issue_bootstrap(conversation.id),
+            finalizer=_finalize,
+            llm=transport,
+            gateway=_TwoIssueLawGateway().as_gateway(),
+        )
+>       assert result.reason_code == "AGENT_EXECUTION_FAILURE"
+E       AssertionError: assert 'READY' == 'AGENT_EXECUTION_FAILURE'
+E         
+E         - AGENT_EXECUTION_FAILURE
+E         + READY
+
+tests\test_agent_chat_integration.py:1249: AssertionError
+============================== warnings summary ===============================
+venv\Lib\site-packages\starlette\formparsers.py:12
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+tests/test_agent_chat_integration.py: 2 warnings
+tests/test_agent_resume.py: 6 warnings
+tests/test_capability_gates.py: 3 warnings
+tests/test_contract_file.py: 7 warnings
+tests/test_flagship_quality.py: 1 warning
+tests/test_phase3.py: 5 warnings
+tests/test_phase5.py: 1 warning
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\httpx\_client.py:690: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+tests/test_contract_file.py: 5 warnings
+tests/test_flagship_quality.py: 1 warning
+tests/test_phase3.py: 5 warnings
+tests/test_phase5.py: 1 warning
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    return self._jws.encode(
+
+tests/test_contract_file.py: 5 warnings
+tests/test_flagship_quality.py: 1 warning
+tests/test_phase3.py: 5 warnings
+tests/test_phase5.py: 1 warning
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    decoded = self.decode_complete(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=============================== tests coverage ================================
+_______________ coverage: platform win32, python 3.11.0-final-0 _______________
+
+Name                        Stmts   Miss Branch BrPart  Cover
+-------------------------------------------------------------
+agent\__init__.py               3      0      0      0   100%
+agent\chat_integration.py     107     23     38     10    76%
+agent\controller.py           406     41    134     21    88%
+agent\evaluator.py             67      1     38      2    97%
+agent\gate.py                 101      2     30      2    97%
+agent\planner.py               53      3     22      4    91%
+agent\repository.py            59      1     14      1    97%
+agent\runtime.py              338     11     74      9    95%
+agent\schemas.py              145      1     22      1    99%
+agent\service.py              199     35     56      9    83%
+agent\state_machine.py         52      0      8      0   100%
+agent\verifier.py             152     14     66     13    87%
+agent\writer.py               351     23    122     16    92%
+answer_cache.py                43      2     18      2    93%
+audit.py                       13      2      0      0    85%
+auth.py                        42      6      8      2    84%
+chunking.py                   136      9     58      4    93%
+clarify.py                     81      7     54      8    89%
+complexity.py                  31      0     18      0   100%
+contract_verify.py            110      7     52      8    91%
+curation.py                     9      0      0      0   100%
+database.py                    16      0      0      0   100%
+docx_utils.py                  61      6     36      7    87%
+domain_rules.py               156     51     64      6    65%
+eval_metrics.py                16      0      2      0   100%
+intent.py                      16      0      6      0   100%
+knowledge_service.py          196     43     62     21    74%
+law_versions.py                20      0      4      0   100%
+llm_guard.py                   24      0      4      0   100%
+llm_registry.py               220     63     48      6    70%
+main.py                      1213    522    310     54    54%
+manage.py                     111    111     32      0     0%
+mcp_server.py                  66     66     18      0     0%
+memory.py                      60      5      8      0    90%
+migrations.py                  24     10      6      1    57%
+models.py                     140      0      0      0   100%
+multi_extract.py               54     12     34      2    70%
+multimodal.py                  90     67     18      0    21%
+observability.py               67      3     20      3    93%
+output_normalize.py            42      4     18      4    87%
+prompts.py                     12      0      0      0   100%
+qa_seeds.py                    26     26      6      0     0%
+quality.py                     41      0     20      1    98%
+query_understand.py           137      1     62      2    98%
+quota_store.py                 85     30      8      2    63%
+quota_utils.py                 81     19     38      8    71%
+rag_chain.py                  128     20     40      7    80%
+request_bootstrap.py          269     39     62     12    83%
+retrieval.py                  544     83    216     34    82%
+retrieval_core.py              85      4     26      2    95%
+routing_metrics.py            104      1     32      1    99%
+schemas.py                    138      3     10      3    96%
+settings.py                    62      0      0      0   100%
+tools\__init__.py              16     10      6      0    27%
+tools\clarification.py          3      1      0      0    67%
+tools\contract.py              13      2      0      0    85%
+tools\contracts.py            139      6     18      4    94%
+tools\exact_article.py         11      6      0      0    45%
+tools\gateway.py              133     10     28      5    91%
+tools\legal_retrieval.py       12      0      0      0   100%
+tools\memory.py                25      4      2      0    85%
+-------------------------------------------------------------
+TOTAL                        7154   1416   2096    297    78%
+Required test coverage of 70% reached. Total coverage: 78.30%
+=========================== short test summary info ===========================
+FAILED tests/test_agent_chat_integration.py::test_planner_transport_error_is_not_retried_as_bad_output[False]
+FAILED tests/test_agent_chat_integration.py::test_planner_transport_error_is_not_retried_as_bad_output[True]
+2 failed, 931 passed, 18 deselected, 50 warnings in 223.33s (0:03:43)

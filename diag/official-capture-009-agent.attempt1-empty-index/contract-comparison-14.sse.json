@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "合同总价的金额",
+  "issue_id": "issue_2f49b24265ac5c8d14f0228f"
+ }
+]

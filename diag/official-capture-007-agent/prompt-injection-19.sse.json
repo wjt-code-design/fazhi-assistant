@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "劳动者是否以拖欠工资为由提出解除劳动合同",
+  "issue_id": "issue_223d9a4768a7d6b038d41322"
+ }
+]

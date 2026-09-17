@@ -1,0 +1,32 @@
+{
+  "context": "阶段A根因证据：LongCat-2.0 在 002 候选隔离预检与两次仪器化全路径复现中的真实结构化输出形状（脱敏；仅合成测试题内容，无用户数据、无密钥、无宿主路径）",
+  "capture_source": "diag/repro_full_path.py 与 diag/repro_full_path2.py 在 legal-agent-preflight-002 容器内旁路记录 LLMIssueDecomposer.decompose / LLMPlannerAdapter.decide 返回值",
+  "observed": [
+    {
+      "call_site": "planner.decide",
+      "observed_shape": {
+        "kind": "tool_call",
+        "name": "retrieve_laws",
+        "args": {"query": "诉讼时效期间 三年 中止 中断 借款合同"}
+      },
+      "expected_by_validator": {
+        "kind": "tool_call",
+        "issue_id": "<must be copied from input issues>",
+        "tool_name": "retrieve_laws",
+        "args": {"query": "…"}
+      },
+      "violations": [
+        "字段名 name 而非 tool_name（planner.py:89-91 exact-fields 校验拒绝）",
+        "缺失 issue_id（同上）"
+      ],
+      "observed_count": "2/2 full-path runs（planner 首个 tool_call 决策均此形状）",
+      "args_schema_itself": "合法（query 为 RetrieveLawsInput 接受字段）"
+    },
+    {
+      "call_site": "decomposer.decompose",
+      "observed_shape": "合法 _IssueEnvelope（3/3 直连探测 + 003 预检均通过）",
+      "note": "07:34 的分解器硬失败形状不可恢复（run 创建前失败无 trace，harness 未记录 SSE error.code）；残留风险记录于 003 STATUS.md 已知限制 2"
+    }
+  ],
+  "fix_reference": "deb65fc（提示词契约补全）；回归测试 backend/tests/test_agent_prompt_contracts.py（红绿证据 diag/red-green-evidence-red.log / -green.log）"
+}

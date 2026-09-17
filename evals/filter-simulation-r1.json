@@ -1,0 +1,122 @@
+{
+ "R1": {
+  "forb_killed": 5,
+  "forb_kept": 0,
+  "req_killed": 0,
+  "req_kept": 19,
+  "noise_removed": 3,
+  "kept": 112
+ },
+ "per_case": [
+  {
+   "case": "C01",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "C02",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "C03",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "C04",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "C05",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "C06",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "C07",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "C08",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "C09",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "C10",
+   "domain": "mixed",
+   "removed": []
+  },
+  {
+   "case": "E01",
+   "domain": "civil",
+   "removed": [
+    "行政诉讼法#第四十九条",
+    "行政诉讼法#第五十条",
+    "行政诉讼法#第五十一条"
+   ]
+  },
+  {
+   "case": "E02",
+   "domain": "civil",
+   "removed": [
+    "行政诉讼法#第五十二条",
+    "行政诉讼法#第五十一条",
+    "刑事诉讼法#第一百八十条",
+    "行政诉讼法#第五十条",
+    "刑事诉讼法#第一百一十三条"
+   ]
+  },
+  {
+   "case": "E03",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "E04",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "E05",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "E06",
+   "domain": "mixed",
+   "removed": []
+  },
+  {
+   "case": "E07",
+   "domain": "mixed",
+   "removed": []
+  },
+  {
+   "case": "E08",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "E09",
+   "domain": "civil",
+   "removed": []
+  },
+  {
+   "case": "E10",
+   "domain": "mixed",
+   "removed": []
+  }
+ ]
+}

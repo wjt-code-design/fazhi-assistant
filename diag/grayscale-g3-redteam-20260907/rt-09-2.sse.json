@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "用户伪造证据的具体目的和背景",
+  "issue_id": "issue_008f9702c383e62855b90860"
+ }
+]

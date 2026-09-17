@@ -1,0 +1,47 @@
+{
+ "run_ids": ["gate5-dev-run-17-qwen38-waxis", "gate5-dev-run-17-holdout-waxis"],
+ "kind": "writer 轴立项（要件法条确定性补充）的双集验收（预登记）",
+ "preregistered_at_local": "2026-09-10 23:30",
+ "change_under_test": "domain_rules._STATUTE_SUPPLEMENT_TABLE（10 域映射，领域知识依据）+ tools/legal_retrieval.retrieve_laws 注入 + gate2_runner --cases-file 接入",
+ "setup_gates": [
+  "服务重启且启动时刻晚于全部源码改动（domain_rules/legal_retrieval 23:2x）",
+  "uvicorn 日志落盘（service-waxis.log）",
+  "前置哨兵：/healthz 三真 + llm_model=qwen3.8-flash + 伪造 resume 404"
+ ],
+ "arms": {
+  "eval_set": "gate2_runner --run gate5-dev-run-17-qwen38-waxis --all（题集 = frozen-cases-v1.json，C01-C10）",
+  "holdout_set": "gate2_runner --run gate5-dev-run-17-holdout-waxis --cases-file release-evidence/legal-agent-v1-complex-v1-20260907/holdout-cases-v1.json --all（H01-H05）"
+ },
+ "baseline": {
+  "run": "gate5-dev-run-15-qwen38-t8b",
+  "statute_hit": "18/57 = 32%（WRITER_MISS 0，EVIDENCE_MISS 39）",
+  "note": "HIT 判定口径 = judge 冻结的 _extract_citations + 各集 required_laws（writer_axis_audit.py 扩展支持 holdout）"
+ },
+ "judgement": {
+  "main_falsifiable": [
+   {
+    "claim": "映射显著提升评测题集的 required-law HIT 率",
+    "observable": "评测集 HIT/required 总数",
+    "falsified_if": "HIT 率 ≤ 32%（基线）"
+   },
+   {
+    "claim": "映射**泛化**到留出集（不过拟合评测）",
+    "observable": "留出集 HIT 率",
+    "falsified_if": "留出集 HIT 率 < 评测集 HIT 率 − 10pp ⇒ **判过拟合，改动必须回退或重做**"
+   }
+  ],
+  "guard_falsifiable": [
+   "全量 pytest：0 failed（本预登记时已在跑，junit t8j）",
+   "三道门禁：ruff check / ruff format --check / mypy 全绿",
+   "冻结物漂移 = 0",
+   "错误码分布不恶化：NON_CANONICAL_CITATION 与 UNSUPPORTED_NUMERIC_TOKEN 合计不得 > run-15 的 2 次",
+   "WRITER_MISS 仍必须 = 0（writer 渲染回归即失败）"
+  ],
+  "not_claimed": [
+   "full_closure 不作为主判据（它还含 R6 章节结构/R7 争点等其它维度；本轮只判 HIT 率 + 守卫）",
+   "不声称'质量提升'——HIT 率只是 required 法条覆盖这一个轴"
+  ]
+ },
+ "cost": "15 题付费 ≈ 10–12 分钟（两轮）",
+ "red_lines": ["冻结物一字不改", "失败/unknown 原样保留", "留出集 required_laws 在本轮前已冻结（SHA256 734f0f11…），不得回头调整"]
+}

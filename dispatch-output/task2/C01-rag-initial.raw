@@ -1,0 +1,257 @@
+# case=C01 mode=rag-initial status=200 started=2026-09-08T14:46:12
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "1"}
+
+data: {"content": ". 案情"}
+
+data: {"content": "与争议焦点\n"}
+
+data: {"content": "公司因"}
+
+data: {"content": "员工连续两次绩效"}
+
+data: {"content": "不合格"}
+
+data: {"content": "，当天通知解除劳动合同"}
+
+data: {"content": "且未支付补偿"}
+
+data: {"content": "。争议"}
+
+data: {"content": "焦点在于：公司以"}
+
+data: {"content": "“绩效不合格”"}
+
+data: {"content": "为由即时解除劳动关系"}
+
+data: {"content": "是否合法，以及"}
+
+data: {"content": "员工是否有权要求"}
+
+data: {"content": "赔偿或补偿。"}
+
+data: {"content": "\n\n2."}
+
+data: {"content": " 法律依据\n根据"}
+
+data: {"content": "《劳动法》第三"}
+
+data: {"content": "十二条，劳动者可随时"}
+
+data: {"content": "解除合同的情形限于试用期"}
+
+data: {"content": "、暴力威胁强迫"}
+
+data: {"content": "劳动及"}
+
+data: {"content": "未按约支付报酬"}
+
+data: {"content": "或提供条件"}
+
+data: {"content": "；本案不适用该"}
+
+data: {"content": "条的劳动者单方"}
+
+data: {"content": "解除权。\n"}
+
+data: {"content": "根据"}
+
+data: {"content": "《劳动合同法》相关规定"}
+
+data: {"content": "（虽未在提供"}
+
+data: {"content": "条文中直接列"}
+
+data: {"content": "明，但属"}
+
+data: {"content": "劳动争议核心依据），"}
+
+data: {"content": "用人单位"}
+
+data: {"content": "以“不能胜任"}
+
+data: {"content": "工作”为由解除合同"}
+
+data: {"content": "需遵循严格程序"}
+
+data: {"content": "：经培训或"}
+
+data: {"content": "调"}
+
+data: {"content": "岗后仍不能"}
+
+data: {"content": "胜任的，提前"}
+
+data: {"content": "三十日书面通知"}
+
+data: {"content": "或支付"}
+
+data: {"content": "代通知金后方可"}
+
+data: {"content": "解除，并需"}
+
+data: {"content": "支付经济补偿。若"}
+
+data: {"content": "未履行上述法定程序"}
+
+data: {"content": "直接"}
+
+data: {"content": "解除，属于违法"}
+
+data: {"content": "解除。\n结合"}
+
+data: {"content": "提供的《劳动法》"}
+
+data: {"content": "第九十一条，用人单位"}
+
+data: {"content": "违法解除劳动合同等侵害"}
+
+data: {"content": "劳动者权益的"}
+
+data: {"content": "，由劳动行政部门"}
+
+data: {"content": "责令支付赔偿金。"}
+
+data: {"content": "\n\n3"}
+
+data: {"content": ". 逐项论证"}
+
+data: {"content": "\n首先，绩效"}
+
+data: {"content": "不合格通常被认定为"}
+
+data: {"content": "“不能胜任"}
+
+data: {"content": "工作”。法律并未"}
+
+data: {"content": "规定“连续两次"}
+
+data: {"content": "绩效不合格"}
+
+data: {"content": "”可直接作为即时"}
+
+data: {"content": "解除合同的理由。"}
+
+data: {"content": "公司若"}
+
+data: {"content": "以此为由解除合同，"}
+
+data: {"content": "必须先"}
+
+data: {"content": "对员工进行培训"}
+
+data: {"content": "或者调整工作岗位。"}
+
+data: {"content": "只有在证明员工经过"}
+
+data: {"content": "培训或调岗"}
+
+data: {"content": "后仍然不能胜任"}
+
+data: {"content": "工作的"}
+
+data: {"content": "情况下，公司才可以"}
+
+data: {"content": "行使解除权，"}
+
+data: {"content": "且必须履行提前"}
+
+data: {"content": "三十日书面"}
+
+data: {"content": "通知或额外支付"}
+
+data: {"content": "一个月工资"}
+
+data: {"content": "的程序。\n其次"}
+
+data: {"content": "，本案中"}
+
+data: {"content": "公司“当天通知"}
+
+data: {"content": "解除”，显然未履行"}
+
+data: {"content": "法"}
+
+data: {"content": "定的培训/调"}
+
+data: {"content": "岗前置"}
+
+data: {"content": "程序及提前通知"}
+
+data: {"content": "义务"}
+
+data: {"content": "，构成违法解除劳动合同"}
+
+data: {"content": "。\n最后，"}
+
+data: {"content": "关于"}
+
+data: {"content": "赔偿金额。虽然"}
+
+data: {"content": "提供的条文未详细"}
+
+data: {"content": "列明计算标准"}
+
+data: {"content": "，但依据《"}
+
+data: {"content": "劳动法》"}
+
+data: {"content": "第九十一条的逻辑及"}
+
+data: {"content": "一般法律适用，"}
+
+data: {"content": "违法解除劳动合同"}
+
+data: {"content": "的，劳动者有权"}
+
+data: {"content": "要求继续履行合同或"}
+
+data: {"content": "要求"}
+
+data: {"content": "支付赔偿金（通常为"}
+
+data: {"content": "经济补偿标准的二倍"}
+
+data: {"content": "）。\n\n"}
+
+data: {"content": "4. 结论"}
+
+data: {"content": "与风险\n结论"}
+
+data: {"content": "：你有权要求"}
+
+data: {"content": "赔偿"}
+
+data: {"content": "。公司的解除行为"}
+
+data: {"content": "极"}
+
+data: {"content": "可能被认定为违法解除"}
+
+data: {"content": "。\n建议："}
+
+data: {"content": "你可以主张"}
+
+data: {"content": "违法解除劳动合同赔偿金。"}
+
+data: {"content": "需注意，维权过程"}
+
+data: {"content": "需结合具体证据"}
+
+data: {"content": "（"}
+
+data: {"content": "如绩效考核制度是否"}
+
+data: {"content": "民主公示、解除"}
+
+data: {"content": "通知书内容等）"}
+
+data: {"content": "进行，存在一定"}
+
+data: {"content": "举证责任。"}
+
+data: {"conversation_id": 2207, "sources": [{"source": "民法典", "article": "第一千一百六十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一千一百六十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一千一百六十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一千一百七十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一千一百九十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一千二百一十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第二百零九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第二百三十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第四百零六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一千零四十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一千一百二十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一千一百六十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第二十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第三十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第三十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第三十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第四十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第七十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第一百八十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第一百八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第一百八十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第五十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "国家赔偿法", "article": "第十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "建筑法", "article": "第八十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "国家赔偿法", "article": "第十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动法", "article": "第九十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "行政复议法", "article": "第七十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动争议调解仲裁法", "article": "第十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动法", "article": "第九十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动法", "article": "第三十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动争议调解仲裁法", "article": "第九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "劳动法", "article": "第九十七条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

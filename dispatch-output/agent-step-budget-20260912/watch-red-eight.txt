@@ -1,0 +1,69 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+_____ test_eight_issue_decomposition_reaches_drafting_within_step_budget ______
+
+db = <sqlalchemy.orm.session.Session object at 0x00000263436CED90>
+
+    def test_eight_issue_decomposition_reaches_drafting_within_step_budget(db):
+        """回归（2026-09-12 付费 run budget20-q38-c01-20260912-01 真实复现）：
+    
+        planner 实测规划出 **8 个争点**（历轮 3/4/4/5/8 —— 模型驱动、无上界）。
+        步数成本随 N 线性：每次检索 2 个检查点、每次澄清 2 个、backfill 每争点 1 个。
+        澄清会在扇出中途打断（`_seed_issue_retrievals` 遇 WAITING_USER 即 break），
+        导致后续争点只能靠 backfill 补，步数在 20 内耗尽 → `budget_exceeded:step_preflight`。
+    
+        修复方向（用户选定 C-1 批量检索）：扇出期间**暂缓澄清**（登记不问），
+        全部争点检索完再问 —— 澄清仍 ≤2 轮，backfill 不再触发，步数与澄清解耦。
+        """
+        from agent.controller import _DEFAULT_RUN_LOCKS, resume_with_user_fact
+        from agent.service import execute_agent_request
+    
+        n_issues = 8
+        user = User(username="eight-issue-owner", password_hash="x")
+        db.add(user)
+        db.commit()
+        conversation = Conversation(user_id=user.id, title="", summary="", message_count=1)
+        db.add(conversation)
+        db.commit()
+    
+>       transport = _MultiIssueTransport(n_issues)
+                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_agent_chat_integration.py:1670: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+tests\test_agent_chat_integration.py:1439: in __init__
+    self.issue_payload = _multi_issue_payload(n_issues)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+tests\test_agent_chat_integration.py:1418: in _multi_issue_payload
+    "issues": [
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+.0 = <range_iterator object at 0x00000263437B1B70>
+
+        "issues": [
+            {
+                "question": f"争点{i}的法律依据是什么？",
+>               "facts": [{"quote": _MULTI_ISSUE_QUOTES[i]}],
+                                    ^^^^^^^^^^^^^^^^^^^^^^
+                "unknown_facts": [{"statement": f"缺失事实{i}", "why_outcome_changes": f"影响争点{i}的结论"}],
+            }
+            for i in range(n_issues)
+        ]
+    }
+E   IndexError: list index out of range
+
+tests\test_agent_chat_integration.py:1421: IndexError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+============================== warnings summary ===============================
+tests/test_agent_chat_integration.py::test_eight_issue_decomposition_reaches_drafting_within_step_budget
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_chat_integration.py::test_eight_issue_decomposition_reaches_drafting_within_step_budget
+1 failed, 34 deselected, 1 warning in 17.61s

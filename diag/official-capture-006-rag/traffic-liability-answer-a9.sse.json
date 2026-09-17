@@ -1,0 +1,398 @@
+[
+ {
+  "type": "status",
+  "msg": "正在思考…"
+ },
+ {
+  "content": "前"
+ },
+ {
+  "content": "车的损失由后"
+ },
+ {
+  "content": "车一方赔偿。"
+ },
+ {
+  "content": "具体赔偿顺位"
+ },
+ {
+  "content": "如下：\n\n首先"
+ },
+ {
+  "content": "，由后车"
+ },
+ {
+  "content": "投保的机动车"
+ },
+ {
+  "content": "强制保险（交"
+ },
+ {
+  "content": "强险）在"
+ },
+ {
+  "content": "责任限额范围内对"
+ },
+ {
+  "content": "前车的损失予以"
+ },
+ {
+  "content": "赔偿。\n\n其次"
+ },
+ {
+  "content": "，超出交强"
+ },
+ {
+  "content": "险责任限额的部分"
+ },
+ {
+  "content": "，由后车"
+ },
+ {
+  "content": "承保机动车商业保险"
+ },
+ {
+  "content": "（商业三者"
+ },
+ {
+  "content": "险）的保险人"
+ },
+ {
+  "content": "按照保险合同的约定"
+ },
+ {
+  "content": "予以赔偿。\n\n"
+ },
+ {
+  "content": "最后，如果赔偿"
+ },
+ {
+  "content": "数额仍然不足或者"
+ },
+ {
+  "content": "后车没有投保"
+ },
+ {
+  "content": "机动车商业保险，"
+ },
+ {
+  "content": "则由后车（"
+ },
+ {
+  "content": "侵权人）自行"
+ },
+ {
+  "content": "承担赔偿责任。\n\n"
+ },
+ {
+  "content": "法律依据：\n"
+ },
+ {
+  "content": "根据《道路交通安全法"
+ },
+ {
+  "content": "》第七十六条，"
+ },
+ {
+  "content": "机动车之间发生交通事故"
+ },
+ {
+  "content": "的，由有过错的一方承担赔偿责任"
+ },
+ {
+  "content": "。\n根据《"
+ },
+ {
+  "content": "民法典》第一千二百"
+ },
+ {
+  "content": "一十三条，机动车"
+ },
+ {
+  "content": "发生交通事故造成损害"
+ },
+ {
+  "content": "，属于该机动车"
+ },
+ {
+  "content": "一方责任的，先"
+ },
+ {
+  "content": "由承保机动车强制"
+ },
+ {
+  "content": "保险的保险人在"
+ },
+ {
+  "content": "强制保险责任限额"
+ },
+ {
+  "content": "范围内予以赔偿；"
+ },
+ {
+  "content": "不足部分，由"
+ },
+ {
+  "content": "承保机动车商业保险"
+ },
+ {
+  "content": "的保险人按照保险"
+ },
+ {
+  "content": "合同的约定予以赔偿"
+ },
+ {
+  "content": "；仍然不足或者"
+ },
+ {
+  "content": "没有投保机动车商业"
+ },
+ {
+  "content": "保险的，由"
+ },
+ {
+  "content": "侵权人赔偿。"
+ },
+ {
+  "content": "\n根据《民法典"
+ },
+ {
+  "content": "》第一千一百六"
+ },
+ {
+  "content": "十五条，行为人"
+ },
+ {
+  "content": "因过错侵害他"
+ },
+ {
+  "content": "人民事权益造成"
+ },
+ {
+  "content": "损害的，应当"
+ },
+ {
+  "content": "承担侵权责任。"
+ },
+ {
+  "sources": [
+   {
+    "source": "刑法",
+    "article": "第一百三十三条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "刑法",
+    "article": "第一百三十三条之一",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "道路交通安全法",
+    "article": "第十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "道路交通安全法",
+    "article": "第二十二条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "道路交通安全法",
+    "article": "第四十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "道路交通安全法",
+    "article": "第七十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "道路交通安全法",
+    "article": "第九十一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "道路交通安全法",
+    "article": "第九十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "道路交通安全法",
+    "article": "第一百零一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百六十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百六十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百六十七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百七十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百九十一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千二百一十三条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第二百零九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第二百三十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第四百零六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千零四十二条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百二十七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百六十一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千二百零八条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千二百一十三条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百八十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千二百零九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "道路交通安全法",
+    "article": "第一百一十八条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "道路交通安全法",
+    "article": "第七十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千二百一十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "道路交通安全法",
+    "article": "第九十八条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千二百一十七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千二百一十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   }
+  ]
+ }
+]

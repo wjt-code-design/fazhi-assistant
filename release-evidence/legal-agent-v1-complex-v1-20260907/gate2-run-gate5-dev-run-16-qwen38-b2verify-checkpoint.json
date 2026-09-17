@@ -1,0 +1,89 @@
+{
+ "run": "gate5-dev-run-16-qwen38-b2verify",
+ "targets": [
+  "C07"
+ ],
+ "results": {
+  "C07": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "8af63017-ed3d-4f03-9a81-b25ee59ba5f4",
+      "state_version": 4,
+      "conv_id": 2372
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "8af63017-ed3d-4f03-9a81-b25ee59ba5f4",
+      "state_version": 8,
+      "conv_id": 2372
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "原告与被告之间是否存在明确的借贷合意及款项交付凭证"
+    },
+    {
+     "round": 2,
+     "prompt": "原告是否具备适格的诉讼主体资格"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "原告与被告之间是否存在明确的借贷合意及款项交付凭证",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "原告是否具备适格的诉讼主体资格",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2372,
+   "final_chars": 701,
+   "final_text": "已确认事实：\n- 借款2021年到期\n- 对方一直没还\n- 现在起诉是不是过时效了？\n\n尚不确定的事实：\n- 2021年到期后的具体月份及日期\n- 原告在2021年到期后至今是否有催告、主张权利或被告同意履行等行为\n\n核心法律争点：\n- 该笔借款是否已超过诉讼时效期间\n- 原告现在提起诉讼是否符合法定起诉条件\n\n法律依据：\n- 《民法典》第一百九十二条\n- 《民法典》第一百九十五条\n- 《民法典》第一百八十九条\n- 《民事诉讼法》第二百五十条\n- 《行政诉讼法》第四十九条\n- 《民事诉讼法》第一百二十二条\n- 《民事诉讼法》第一百二十六条\n- 《民事诉讼法》第一百二十七条\n\n分情形分析：\n根据《民法典》第一百八十九条,当事人约定同一债务分期履行的,诉讼时效期间自最后一期履行期限届满之日起计算。结合《民事诉讼法》第二百五十条关于申请执行期间的规定及《民法典》第一百九十二条关于诉讼时效届满后义务人抗辩权的规定,需确定借款到期具体日期以判断时效起算点。\n依据《民法典》第一百九十五条,若权利人在诉讼时效期间内向义务人提出履行请求、义务人同意履行或权利人提起诉讼等情形发生,诉讼时效中断并重新计算。鉴于事实表明对方一直没还,需核实是否存在上述导致时效中断的行为。\n\n可执行建议与风险提示：\n根据《民事诉讼法》第一百二十二条,起诉必须符合原告与本案有直接利害关系、有明确被告、有具体诉讼请求和事实理由以及属于法院受理范围和管辖等条件。《民事诉讼法》第一百二十六条规定,符合起诉条件的应当立案。因此,是否超过诉讼时效属于实体审理范畴,不影响起诉本身的程序性受理条件,除非存在法律特别规定的不予受理情形。",
+   "final_excerpt": "已确认事实：\n- 借款2021年到期\n- 对方一直没还\n- 现在起诉是不是过时效了？\n\n尚不确定的事实：\n- 2021年到期后的具体月份及日期\n- 原告在2021年到期后至今是否有催告、主张权利或被告同意履行等行为\n\n核心法律争点：\n- 该",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 28.6
+  }
+ }
+}

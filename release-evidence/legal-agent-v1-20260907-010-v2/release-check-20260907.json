@@ -1,0 +1,28 @@
+{
+  "allowed": false,
+  "reasons": [
+    "AGENT_QUALITY_BELOW_EXISTING_RAG"
+  ],
+  "details": [],
+  "freeze_hash": "86066616d7bba2c7f3699523e8ae3766d7e6c52231136e22f5b9822833f07469",
+  "sample_size": 30,
+  "existing_report_sha256": "67bcc8c8b203bd094101b6a04fd82256171e529cb4adc4a53b54d1632ecedaf8",
+  "agent_report_sha256": "3a1f558216b6618597014317a8563887db00c00d5132142a4342b5c625af987c",
+  "existing_artifact_sha256": "b924faf4252958ad19b97f2753d22ac267744628ec33b8a250a98a04a9525408",
+  "agent_artifact_sha256": "357be13cedc208401b95b279117530e66b5b80fd4810483aca145103bb992a7c",
+  "replayed_case_set_sha256": "86066616d7bba2c7f3699523e8ae3766d7e6c52231136e22f5b9822833f07469",
+  "existing_git_revision": "b59c708db5918e1442a1a15875d20acc70ebacc3",
+  "agent_git_revision": "b59c708db5918e1442a1a15875d20acc70ebacc3",
+  "evaluator_version": "1.2.0",
+  "rubric_hash": "089e1a646f13fa49eb24426d940569f0377800730a3cc8e3fa7c3ccb772dcb06",
+  "existing_complex_task_quality": 0.6583333333333333,
+  "agent_complex_task_quality": 0.49166666666666664,
+  "agent_gain": -0.16666666666666666,
+  "issue_recall": 0.48333333333333334,
+  "evidence_coverage": 0.43333333333333335,
+  "clarification_precision": 0.16666666666666666,
+  "p50_latency_ms": 35217.5,
+  "p90_latency_ms": 51370.1,
+  "tool_calls": 6,
+  "budget_exceeded_rate": 0.0
+}

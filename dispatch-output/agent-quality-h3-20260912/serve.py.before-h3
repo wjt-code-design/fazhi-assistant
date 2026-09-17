@@ -1,0 +1,70 @@
+"""Isolated local evaluation host for the existing gate2_runner, not a deployment."""
+import hashlib
+import json
+import os
+import secrets
+import sys
+from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+ROOT = HERE.parent.parent
+BACKEND = ROOT / "backend"
+sys.path.insert(0, str(BACKEND))
+os.chdir(BACKEND)
+
+from dotenv import load_dotenv
+
+load_dotenv(BACKEND / ".env", override=True)
+os.environ.update({
+    "DATABASE_URL": "sqlite:///" + (HERE / "evaluation.sqlite").as_posix(),
+    "QUOTA_DB": str(HERE / "quota.sqlite"),
+    "JWT_SECRET": secrets.token_urlsafe(48),
+    "AGENT_ENABLED": "true", "AGENT_SHADOW_ENABLED": "false", "AGENT_TRAFFIC_PERCENT": "100",
+    "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1", "ANONYMIZED_TELEMETRY": "false",
+})
+
+from budget_guard import BudgetGuard
+
+guard = BudgetGuard(HERE / "cost-ledger.jsonl")
+guard.install()
+
+import main
+from auth import hash_password
+from database import SessionLocal, init_db
+from llm_registry import registry
+from models import User
+from settings import settings
+
+init_db()
+entry = registry._default_entry()
+assert entry and entry.cfg["model"] == "qwen3.8-flash"
+assert settings.embedding_provider == "local"
+entry.llm.model_kwargs = {**entry.llm.model_kwargs, "stream_options": {"include_usage": True}}
+raw_env = {}
+for line in (BACKEND / ".env").read_text(encoding="utf-8").splitlines():
+    if line.startswith(("ADMIN_USERNAME=", "ADMIN_PASSWORD=")):
+        key, value = line.split("=", 1)
+        raw_env[key] = value.strip()  # Same parsing as the existing runner.
+assert raw_env.get("ADMIN_USERNAME") and raw_env.get("ADMIN_PASSWORD")
+with SessionLocal() as db:
+    assert db.query(User).count() == 0
+    db.add(User(username=raw_env["ADMIN_USERNAME"], password_hash=hash_password(raw_env["ADMIN_PASSWORD"]), role="admin"))
+    db.commit()
+
+manifest = {
+    "model": entry.cfg["model"], "role": entry.key, "stream_usage": True,
+    "max_steps": settings.agent_max_steps, "max_tool_calls": settings.agent_max_tool_calls,
+    "max_replans": settings.agent_max_replans, "max_clarifications": settings.agent_max_clarifications,
+    "max_verifier_research_returns": settings.agent_max_verifier_research_returns,
+    "sdk_max_retries": entry.llm.max_retries, "rerank_enabled": settings.rerank_enabled,
+    "rerank_model": settings.rerank_model, "embedding_provider": settings.embedding_provider,
+    "budget_cny": "20", "outbound_request_limit": 60,
+    "files": {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
+              for p in list((BACKEND / "agent").glob("*.py")) + [BACKEND / "llm_registry.py", BACKEND / "main.py"]},
+}
+(HERE / "runtime-manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+print("EVALUATION_READY " + json.dumps({k: v for k, v in manifest.items() if k != "files"}), flush=True)
+
+import uvicorn
+
+uvicorn.run(main.app, host="127.0.0.1", port=18111, access_log=False)

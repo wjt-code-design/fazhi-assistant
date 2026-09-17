@@ -1,0 +1,15 @@
+{
+  "_comment": "法智知识库批量导入文件。结构同 laws_extra.example.json。",
+  "_comment2": "使用方式：把每条 content 里的【请粘贴...】占位符替换为真实条文原文（一字不差）。未替换的占位符导入时会被拒绝。",
+  "entries": [
+    {
+      "title": "劳动法",
+      "article_number": "第三条",
+      "category": "劳动法",
+      "content": "【请粘贴《劳动法》第三条的权威原文】",
+      "status": "现行",
+      "effective_from": "1995-01-01",
+      "effective_to": ""
+    }
+  ]
+}

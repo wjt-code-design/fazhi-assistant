@@ -1,0 +1,245 @@
+# case=C07 mode=rag-full-facts status=200 started=2026-09-08T14:48:35
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "1"}
+
+data: {"content": ". 案情"}
+
+data: {"content": "与争议焦点"}
+
+data: {"content": "\n本案"}
+
+data: {"content": "核心争议在于："}
+
+data: {"content": "2021"}
+
+data: {"content": "年6月3"}
+
+data: {"content": "0日到期的借款"}
+
+data: {"content": "，"}
+
+data: {"content": "在诉讼时效期间内"}
+
+data: {"content": "（202"}
+
+data: {"content": "3"}
+
+data: {"content": "年5月微信"}
+
+data: {"content": "催收、20"}
+
+data: {"content": "2"}
+
+data: {"content": "4年12"}
+
+data: {"content": "月部分还款）"}
+
+data: {"content": "发生中断后，"}
+
+data: {"content": "起诉"}
+
+data: {"content": "是否已过时效。"}
+
+data: {"content": "\n\n2"}
+
+data: {"content": ". 法律依据\n"}
+
+data: {"content": "根据《民法典》"}
+
+data: {"content": "第一百八十八条规定"}
+
+data: {"content": "，向人民法院请求"}
+
+data: {"content": "保护民事"}
+
+data: {"content": "权利的诉讼时效期间为"}
+
+data: {"content": "三年。诉讼时效期间"}
+
+data: {"content": "自权利人知道"}
+
+data: {"content": "或者应当知道权利"}
+
+data: {"content": "受到损害以及义务"}
+
+data: {"content": "人之日起计算。"}
+
+data: {"content": "\n根据《民法典"}
+
+data: {"content": "》"}
+
+data: {"content": "第一百九十五条规定"}
+
+data: {"content": "，有下列情形之一的"}
+
+data: {"content": "，诉讼时效中断，"}
+
+data: {"content": "从中断"}
+
+data: {"content": "、有关程序终结"}
+
+data: {"content": "时起，诉讼时效期间"}
+
+data: {"content": "重新计算：（"}
+
+data: {"content": "一）权利人向"}
+
+data: {"content": "义务人提出履行"}
+
+data: {"content": "请求；（二"}
+
+data: {"content": "）义务人同意"}
+
+data: {"content": "履行义务。\n\n"}
+
+data: {"content": "3. "}
+
+data: {"content": "逐项论证\n首先"}
+
+data: {"content": "，初始诉讼时效起"}
+
+data: {"content": "算点为2"}
+
+data: {"content": "021"}
+
+data: {"content": "年6月3"}
+
+data: {"content": "0日，届满"}
+
+data: {"content": "日为202"}
+
+data: {"content": "4年"}
+
+data: {"content": "6月29"}
+
+data: {"content": "日。\n其次"}
+
+data: {"content": "，202"}
+
+data: {"content": "3年5月的"}
+
+data: {"content": "微信催收属于“"}
+
+data: {"content": "权利人"}
+
+data: {"content": "向义务人提出"}
+
+data: {"content": "履行请求”，且"}
+
+data: {"content": "对方回复“年底"}
+
+data: {"content": "还”属于“"}
+
+data: {"content": "义务人同意"}
+
+data: {"content": "履行义务”。该"}
+
+data: {"content": "行为导致原诉讼时效"}
+
+data: {"content": "中断"}
+
+data: {"content": "，新的三年诉讼时效"}
+
+data: {"content": "从"}
+
+data: {"content": "此时重新起算"}
+
+data: {"content": "。\n再次，"}
+
+data: {"content": "202"}
+
+data: {"content": "4年12"}
+
+data: {"content": "月的"}
+
+data: {"content": "转账并备注“"}
+
+data: {"content": "先还"}
+
+data: {"content": "一部分”，再次构成"}
+
+data: {"content": "“义务人同意"}
+
+data: {"content": "履行义务”或"}
+
+data: {"content": "“"}
+
+data: {"content": "权利人提出履行请求"}
+
+data: {"content": "被认可”，导致"}
+
+data: {"content": "诉讼时效再次"}
+
+data: {"content": "中断。新的三年"}
+
+data: {"content": "诉讼时效从20"}
+
+data: {"content": "2"}
+
+data: {"content": "4年12"}
+
+data: {"content": "月起"}
+
+data: {"content": "重新计算，至"}
+
+data: {"content": "2027"}
+
+data: {"content": "年1"}
+
+data: {"content": "2月左右届满"}
+
+data: {"content": "。\n"}
+
+data: {"content": "最后，即便未"}
+
+data: {"content": "发生中断，因"}
+
+data: {"content": "对方在20"}
+
+data: {"content": "24"}
+
+data: {"content": "年12月"}
+
+data: {"content": "明确同意履行，"}
+
+data: {"content": "根据"}
+
+data: {"content": "《民法典》第一百"}
+
+data: {"content": "九十二条，义务"}
+
+data: {"content": "人已经自愿履行的"}
+
+data: {"content": "，不得以诉讼时效"}
+
+data: {"content": "期间"}
+
+data: {"content": "届满为由抗辩"}
+
+data: {"content": "。因此，无论"}
+
+data: {"content": "是否中断，当前"}
+
+data: {"content": "起诉均未过时效"}
+
+data: {"content": "。\n\n4"}
+
+data: {"content": ". 结论与"}
+
+data: {"content": "风险\n现在起诉"}
+
+data: {"content": "没有"}
+
+data: {"content": "超过诉讼时效。建议"}
+
+data: {"content": "保存好微信聊天记录"}
+
+data: {"content": "及转账凭证作为"}
+
+data: {"content": "证据。"}
+
+data: {"conversation_id": 2220, "sources": [{"source": "民事诉讼法", "article": "第二十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第三十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第六十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第六十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百零三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百四十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百五十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百七十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第二百条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第二百三十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第八十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百八十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百九十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百九十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百九十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百八十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百九十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百九十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第一百九十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "行政诉讼法", "article": "第四十八条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

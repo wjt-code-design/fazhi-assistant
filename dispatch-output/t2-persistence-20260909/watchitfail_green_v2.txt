@@ -1,0 +1,25 @@
+...                                                                      [100%][safe-delete][SAFE_DELETE_FAIL_CLOSED] {"target": "\\\\?\\C:\\Users\\33393\\AppData\\Local\\Temp\\pytest-of-33393\\garbage-6f36d943-b377-47cf-937b-32cc3f6b2580", "reason": "trash-failed", "detail": "[Errno 53] 找不到网络路径。: '\\\\\\\\?\\\\C:\\\\Users\\\\33393\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-33393\\\\garbage-6f36d943-b377-47cf-937b-32cc3f6b2580'"}
+
+============================== warnings summary ===============================
+tests/test_agent_chat_integration.py::test_clarify_budget_exhaustion_must_not_skip_unretrieved_issues
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+venv\Lib\site-packages\_pytest\pathlib.py:95
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\_pytest\pathlib.py:95: PytestWarning: (rm_rf) error removing \\?\C:\Users\33393\AppData\Local\Temp\pytest-of-33393\garbage-6f36d943-b377-47cf-937b-32cc3f6b2580
+  <class 'OSError'>: [Errno 53] 找不到网络路径。: '\\\\?\\C:\\Users\\33393\\AppData\\Local\\Temp\\pytest-of-33393\\garbage-6f36d943-b377-47cf-937b-32cc3f6b2580'
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=================================== PASSES ====================================
+_______ test_clarify_budget_exhaustion_must_not_skip_unretrieved_issues _______
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+=========================== short test summary info ===========================
+PASSED tests/test_agent_chat_integration.py::test_clarify_budget_exhaustion_must_not_skip_unretrieved_issues
+PASSED tests/test_agent_chat_integration.py::test_backfill_retrieval_terminates_when_retriever_returns_no_evidence
+PASSED tests/test_agent_controller.py::test_seed_retrievals_covers_every_issue_before_forcing_drafting
+3 passed, 2 warnings in 24.30s

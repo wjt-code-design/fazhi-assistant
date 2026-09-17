@@ -1,0 +1,129 @@
+{
+  "_说明": "同义改写对（人工手写，覆盖 eval_set expected_articles + _QUERY_BRIDGE 词面鸿沟）。robustness：检索稳定性评测（原句/改写 top-k 命中一致性）；consistency：回答一致性评测（同题两改写绕开答案缓存，比较两次答案语义一致）。",
+  "robustness": [
+    {
+      "id": 2,
+      "original": "网购七天无理由退货有法律依据吗？",
+      "paraphrase": "在网上买的东西不想要了，七天内能无理由退吗？有法律支持吗？",
+      "expected_sources": ["消费者权益保护法"],
+      "expected_articles": ["第二十五条"]
+    },
+    {
+      "id": 3,
+      "original": "民事权利的诉讼时效是几年？",
+      "paraphrase": "民事纠纷去法院起诉有时效限制吗？期限是多长？",
+      "expected_sources": ["民法典"],
+      "expected_articles": ["第一百八十八条"]
+    },
+    {
+      "id": 5,
+      "original": "醉酒驾驶会被吊销驾照吗？",
+      "paraphrase": "喝酒开车被交警查到，驾驶证会被吊销吗？",
+      "expected_sources": ["道路交通安全法"],
+      "expected_articles": ["第九十一条"]
+    },
+    {
+      "id": 10,
+      "original": "遗产的法定继承顺序是什么？",
+      "paraphrase": "父母去世后遗产应该由谁先继承？顺序怎么排？",
+      "expected_sources": ["民法典"],
+      "expected_articles": ["第一千一百二十七条"]
+    },
+    {
+      "id": 12,
+      "original": "盗窃公私财物数额较大的处几年有期徒刑？",
+      "paraphrase": "偷东西金额达到立案标准要判几年？",
+      "expected_sources": ["刑法"],
+      "expected_articles": ["第二百六十四条"]
+    },
+    {
+      "id": 16,
+      "original": "机动车交通事故先由交强险赔偿的法律依据是什么？",
+      "paraphrase": "出了车祸，是不是先由交强险赔？依据是什么？",
+      "expected_sources": ["民法典"],
+      "expected_articles": ["第一千二百一十三条"]
+    },
+    {
+      "id": 19,
+      "original": "处理敏感个人信息需要取得单独同意吗？",
+      "paraphrase": "收集用户的敏感个人信息，光有概括同意够吗？",
+      "expected_sources": ["个人信息保护法"],
+      "expected_articles": ["第二十九条"]
+    },
+    {
+      "id": 21,
+      "original": "股东未按期足额缴纳出资应当承担什么责任？",
+      "paraphrase": "股东拖着不缴认缴的出资要担什么责？",
+      "expected_sources": ["公司法"],
+      "expected_articles": ["第四十九条"]
+    },
+    {
+      "id": "bridge1",
+      "original": "高空抛物致人损害，由谁承担责任？",
+      "paraphrase": "有人从楼上扔东西砸伤了人，该由谁来负责？",
+      "bridge": true,
+      "expected_sources": ["民法典"],
+      "expected_articles": ["第一千二百五十四条"]
+    },
+    {
+      "id": "bridge2",
+      "original": "行政复议的受案范围包括哪些情形？",
+      "paraphrase": "对哪些行政行为不服可以申请行政复议？",
+      "bridge": true,
+      "expected_sources": ["行政复议法"],
+      "expected_articles": ["第十一条"]
+    }
+  ],
+  "consistency": [
+    {
+      "id": 1,
+      "question": "劳动合同试用期最长多久？",
+      "paraphrases": ["劳动合同的试用期最多能约定多长时间？", "公司规定的试用期上限是多少？"]
+    },
+    {
+      "id": 2,
+      "question": "网购七天无理由退货有法律依据吗？",
+      "paraphrases": ["网购后不想要了能七天无理由退货吗？", "网上购物适用七日无理由退货吗？"]
+    },
+    {
+      "id": 3,
+      "question": "民事权利的诉讼时效是几年？",
+      "paraphrases": ["民事案件诉讼时效多久？", "向法院请求保护民事权利的时效期是多长？"]
+    },
+    {
+      "id": 5,
+      "question": "醉酒驾驶会被吊销驾照吗？",
+      "paraphrases": ["酒驾醉驾被查会吊销驾驶证吗？", "喝酒开车被处罚会吊销驾照吗？"]
+    },
+    {
+      "id": 10,
+      "question": "遗产的法定继承顺序是什么？",
+      "paraphrases": ["遗产继承的法定顺序怎么排？", "法定继承中谁排第一顺序？"]
+    },
+    {
+      "id": 11,
+      "question": "正当防卫明显超过必要限度造成重大损害怎么处理？",
+      "paraphrases": ["防卫过当造成重大损害怎么处罚？", "正当防卫超过限度致人重伤怎么办？"]
+    },
+    {
+      "id": 12,
+      "question": "盗窃公私财物数额较大的处几年有期徒刑？",
+      "paraphrases": ["偷盗财物数额较大判多少年？", "盗窃金额达到较大标准怎么判刑？"]
+    },
+    {
+      "id": 18,
+      "question": "在道路上醉酒驾驶机动车构成什么罪？",
+      "paraphrases": ["醉驾构成什么罪名？", "醉酒开车上路算犯罪吗？是什么罪？"]
+    },
+    {
+      "id": 25,
+      "question": "注册商标的有效期是多少年？",
+      "paraphrases": ["商标有效期几年？", "注册商标多少年到期？"]
+    },
+    {
+      "id": 28,
+      "question": "未成年人的父母是其监护人吗？",
+      "paraphrases": ["孩子的父母是法定监护人吗？", "未成年人由谁来监护？"]
+    }
+  ]
+}

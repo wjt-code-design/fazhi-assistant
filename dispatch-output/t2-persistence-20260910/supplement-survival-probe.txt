@@ -1,0 +1,73 @@
+§2.1 探针：EVIDENCE_MISS 的 required 法条，注入触发了吗？
+
+### gate5-dev-run-17-qwen38-waxis（题集 frozen-cases-v1.json，case 数 10）
+  C01（issues=5, 证据=21）required=4
+    劳动合同法第40条 → not_fired（EVIDENCE_MISS）
+    劳动合同法第43条 → not_fired（EVIDENCE_MISS）
+    劳动合同法第47条 → not_fired（EVIDENCE_MISS）
+    劳动合同法第87条 → not_fired（EVIDENCE_MISS）
+  C02（issues=4, 证据=13）required=3
+    劳动法第36条 → not_fired（EVIDENCE_MISS）
+    劳动法第44条 → not_fired（EVIDENCE_MISS）
+    劳动争议调解仲裁法第27条 → not_fired（EVIDENCE_MISS）
+  C03（issues=5, 证据=15）required=2
+    劳动合同法第10条 → not_fired（EVIDENCE_MISS）
+    劳动合同法第82条 → not_fired（EVIDENCE_MISS）
+  C04（issues=4, 证据=21）required=3
+    民法典第586条 → not_fired（EVIDENCE_MISS）
+    民法典第587条 → not_fired（EVIDENCE_MISS）
+    民法典第588条 → not_fired（EVIDENCE_MISS）
+  C05（issues=4, 证据=16）required=2
+    民法典第577条 → not_fired（EVIDENCE_MISS）
+    民法典第722条 → not_fired（EVIDENCE_MISS）
+  C06（issues=5, 证据=18）required=3
+    民法典第509条 → not_fired（EVIDENCE_MISS）
+    民法典第543条 → not_fired（EVIDENCE_MISS）
+    民法典第577条 → not_fired（EVIDENCE_MISS）
+  C07（issues=2, 证据=10）required=3
+    民法典第188条 → not_fired（EVIDENCE_MISS）
+    民法典第195条 → not_fired（EVIDENCE_MISS）
+    民法典第675条 → not_fired（EVIDENCE_MISS）
+  C08（issues=5, 证据=23）required=4
+    民法典第686条 → not_fired（EVIDENCE_MISS）
+    民法典第692条 → not_fired（EVIDENCE_MISS）
+    民法典第693条 → not_fired（EVIDENCE_MISS）
+    民法典第695条 → not_fired（EVIDENCE_MISS）
+  C09（issues=3, 证据=14）required=4
+    消费者权益保护法第26条 → not_fired（EVIDENCE_MISS）
+    民法典第496条 → not_fired（EVIDENCE_MISS）
+    民法典第497条 → not_fired（EVIDENCE_MISS）
+    民法典第577条 → not_fired（EVIDENCE_MISS）
+  C10（issues=3, 证据=14）required=2
+    民法典第577条 → not_fired（EVIDENCE_MISS）
+    刑法第266条 → not_fired（EVIDENCE_MISS）
+
+### gate5-dev-run-17-holdout-waxis（题集 holdout-cases-v1.json，case 数 5）
+  H01（issues=3, 证据=16）required=4
+    劳动合同法第21条 → not_fired（EVIDENCE_MISS）
+    劳动合同法第39条 → not_fired（EVIDENCE_MISS）
+    劳动合同法第47条 → not_fired（EVIDENCE_MISS）
+    劳动合同法第87条 → not_fired（EVIDENCE_MISS）
+  H02（issues=3, 证据=15）required=4
+    劳动合同法第38条 → not_fired（EVIDENCE_MISS）
+    劳动合同法第46条 → not_fired（EVIDENCE_MISS）
+    劳动合同法第47条 → not_fired（EVIDENCE_MISS）
+    社会保险法第63条 → not_fired（EVIDENCE_MISS）
+  H03（issues=4, 证据=13）required=4
+    民法典第667条 → not_fired（EVIDENCE_MISS）
+    民法典第561条 → not_fired（EVIDENCE_MISS）
+    民法典第676条 → not_fired（EVIDENCE_MISS）
+    民法典第680条 → not_fired（EVIDENCE_MISS）
+  H04（issues=4, 证据=11）required=3
+    民法典第712条 → not_fired（EVIDENCE_MISS）
+    民法典第713条 → not_fired（EVIDENCE_MISS）
+    民法典第577条 → not_fired（EVIDENCE_MISS）
+  H05（issues=5, 证据=23）required=4
+    消费者权益保护法第20条 → not_fired（EVIDENCE_MISS）
+    消费者权益保护法第23条 → not_fired（EVIDENCE_MISS）
+    消费者权益保护法第55条 → not_fired（EVIDENCE_MISS）
+    民法典第577条 → not_fired（EVIDENCE_MISS）
+
+### 汇总（仅 EVIDENCE_MISS 的条目）
+  fired_absent ★（注入触发了但没进证据）: 0 → []
+  not_fired（关键词没打中，注入没触发）: 49 → ['C01:劳动合同法40', 'C01:劳动合同法43', 'C01:劳动合同法47', 'C01:劳动合同法87', 'C02:劳动法36', 'C02:劳动法44', 'C02:劳动争议调解仲裁法27', 'C03:劳动合同法10', 'C03:劳动合同法82', 'C04:民法典586', 'C04:民法典587', 'C04:民法典588', 'C05:民法典577', 'C05:民法典722', 'C06:民法典509', 'C06:民法典543', 'C06:民法典577', 'C07:民法典188', 'C07:民法典195', 'C07:民法典675', 'C08:民法典686', 'C08:民法典692', 'C08:民法典693', 'C08:民法典695', 'C09:消费者权益保护法26', 'C09:民法典496', 'C09:民法典497', 'C09:民法典577', 'C10:民法典577', 'C10:刑法266', 'H01:劳动合同法21', 'H01:劳动合同法39', 'H01:劳动合同法47', 'H01:劳动合同法87', 'H02:劳动合同法38', 'H02:劳动合同法46', 'H02:劳动合同法47', 'H02:社会保险法63', 'H03:民法典667', 'H03:民法典561', 'H03:民法典676', 'H03:民法典680', 'H04:民法典712', 'H04:民法典713', 'H04:民法典577', 'H05:消费者权益保护法20', 'H05:消费者权益保护法23', 'H05:消费者权益保护法55', 'H05:民法典577']

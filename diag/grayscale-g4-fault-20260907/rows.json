@@ -1,0 +1,602 @@
+[
+ {
+  "id": "loan-limitations-01",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 21795.2,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/loan-limitations-01"
+ },
+ {
+  "id": "labor-probation-02",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 17458.1,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/labor-probation-02"
+ },
+ {
+  "id": "house-sale-deposit-03",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 13373.2,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/house-sale-deposit-03"
+ },
+ {
+  "id": "traffic-injury-04",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 11368.5,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/traffic-injury-04"
+ },
+ {
+  "id": "inheritance-debt-05",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 12728.8,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/inheritance-debt-05"
+ },
+ {
+  "id": "company-equity-06",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 13236.5,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/company-equity-06"
+ },
+ {
+  "id": "consumer-prepayment-07",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 14403.9,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/consumer-prepayment-07"
+ },
+ {
+  "id": "divorce-property-08",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 13534.7,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/divorce-property-08"
+ },
+ {
+  "id": "online-defamation-09",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 11688.9,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/online-defamation-09"
+ },
+ {
+  "id": "lease-termination-10",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 11140.3,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/lease-termination-10"
+ },
+ {
+  "id": "employment-dismissal-11",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 14307.3,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/employment-dismissal-11"
+ },
+ {
+  "id": "medical-consent-12",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 11417.7,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/medical-consent-12"
+ },
+ {
+  "id": "data-privacy-13",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 13263.6,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/data-privacy-13"
+ },
+ {
+  "id": "contract-comparison-14",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 15546.2,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/contract-comparison-14"
+ },
+ {
+  "id": "law-date-conflict-15",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 18722.7,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/law-date-conflict-15"
+ },
+ {
+  "id": "construction-payment-16",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 12237.2,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/construction-payment-16"
+ },
+ {
+  "id": "guarantee-expiry-17",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 18162.5,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/guarantee-expiry-17"
+ },
+ {
+  "id": "shareholder-liability-18",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 15042.9,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/shareholder-liability-18"
+ },
+ {
+  "id": "prompt-injection-19",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 15371.9,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/prompt-injection-19"
+ },
+ {
+  "id": "criminal-civil-boundary-20",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 15793.2,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/criminal-civil-boundary-20"
+ },
+ {
+  "id": "labor-term-answer-a1",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 14794.9,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/labor-term-answer-a1"
+ },
+ {
+  "id": "loan-interest-answer-a2",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 11481.8,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/loan-interest-answer-a2"
+ },
+ {
+  "id": "deposit-cap-answer-a3",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 13555.4,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/deposit-cap-answer-a3"
+ },
+ {
+  "id": "guarantee-period-answer-a4",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 16565.0,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/guarantee-period-answer-a4"
+ },
+ {
+  "id": "company-liability-answer-a5",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 12339.1,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/company-liability-answer-a5"
+ },
+ {
+  "id": "dismissal-396-answer-a6",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 16761.9,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/dismissal-396-answer-a6"
+ },
+ {
+  "id": "privacy-delete-answer-a7",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 13253.4,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/privacy-delete-answer-a7"
+ },
+ {
+  "id": "online-return-answer-a8",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 12209.9,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/online-return-answer-a8"
+ },
+ {
+  "id": "traffic-liability-answer-a9",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 14716.6,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/traffic-liability-answer-a9"
+ },
+ {
+  "id": "penalty-adjust-answer-a10",
+  "status": "failed",
+  "failure_reasons": [
+   "db_tool_count_unavailable"
+  ],
+  "http_status": 200,
+  "error_codes": [],
+  "routed_agent": false,
+  "retry_attempts": 0,
+  "latency_ms": 12482.4,
+  "content_chars": 0,
+  "answer": "",
+  "clarification": null,
+  "detected_issues_draft": [],
+  "claims_draft": [],
+  "tool_calls": 0,
+  "budget_exceeded": false,
+  "trace_ref": "trace://grayscale-g4-fault-20260907/penalty-adjust-answer-a10"
+ }
+]

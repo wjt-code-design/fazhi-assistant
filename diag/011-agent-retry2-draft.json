@@ -1,0 +1,29 @@
+{
+ "schema_version": "legal-agent-eval-answers/v1",
+ "cases": [
+  {
+   "id": "loan-limitations-01",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "原告是否与本案有直接利害关系",
+    "trace_ref": "trace://eval011-agent-retry2-20260907/loan-limitations-01",
+    "latency_ms": 37841.9,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "law-date-conflict-15",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "合同签订时有效的法律是《合同法》而非《民法典》",
+    "trace_ref": "trace://eval011-agent-retry2-20260907/law-date-conflict-15",
+    "latency_ms": 23317.5,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  }
+ ]
+}

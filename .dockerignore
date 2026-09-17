@@ -1,0 +1,36 @@
+# ===== 防泄密（.env 绝不进镜像）=====
+.env
+.env.local
+.env.*.local
+**/.env
+
+# ===== VCS / 本地工具缓存 =====
+.git
+.gitignore
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+node_modules/
+.next/
+*.tsbuildinfo
+
+# ===== 用户数据（DB / 向量库 / 媒体 / 导入产物）=====
+**/chroma_db/
+**/media/
+**/backups/
+*.db
+*.sqlite
+*.sqlite3
+data/laws_raw/
+data/laws_clean/
+
+# ===== 其他 =====
+*.log
+.DS_Store
+backend/docs/
+frontend/docs/

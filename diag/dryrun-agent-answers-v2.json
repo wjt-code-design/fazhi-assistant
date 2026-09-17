@@ -1,0 +1,114 @@
+{
+ "schema_version": "legal-agent-eval-answers/v1",
+ "cases": [
+  {
+   "id": "loan-limitations-01",
+   "answer": {
+    "claims": [],
+    "detected_issues": [],
+    "clarification": "债权人是否知道或应当知道其权利受到损害及债务人身份",
+    "trace_ref": "trace://dryrun-agent-v2/loan-limitations-01",
+    "latency_ms": 21098.7,
+    "tool_calls": 1,
+    "budget_exceeded": false
+   }
+  },
+  {
+   "id": "labor-probation-02",
+   "answer": {
+    "claims": [
+     {
+      "text": "不合法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "①案情与争议焦点：劳动合同期限为3年，公司初次约定6个月试用期后又延长2个月，核心争议在于延长试用期的行为是否合法以及违法后的法律后果。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "②法律依据：根据《劳动合同法》第十九条，三年以上固定期限和无固定期限的劳动合同，试用期不得超过六个月；",
+      "evidence_ids": [
+       "劳动合同法:19"
+      ],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "同一用人单位与同一劳动者只能约定一次试用期。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "根据《劳动合同法》第八十三条，用人单位违反本法规定与劳动者约定试用期的，由劳动行政部门责令改正；",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "违法约定的试用期已经履行的，由用人单位以劳动者试用期满月工资为标准，按已经履行的超过法定试用期的期间向劳动者支付赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "③逐项论证：首先，3年期限的劳动合同，初次约定6个月试用期符合《劳动合同法》第十九条关于“试用期不得超过六个月”的规定，该部分合法。",
+      "evidence_ids": [
+       "劳动合同法:19"
+      ],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "其次，公司延长2个月试用期的行为违法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "一方面，延长后总计8个月，超过了6个月的法定上限；",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "另一方面，延长试用期实质上是再次约定试用期，违反了《劳动合同法》第十九条“同一用人单位与同一劳动者只能约定一次试用期”的强制性规定。",
+      "evidence_ids": [
+       "劳动合同法:19"
+      ],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "最后，对于违法履行的试用期，公司需承担相应的法律责任。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "④结论与风险：公司的延长行为违法。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "对于已经履行的超过法定试用期的期间（即延长的2个月），劳动者有权要求公司依照《劳动合同法》第八十三条规定，以试用期满月工资为标准支付赔偿金。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "此外，若试用期工资低于转正后工资，超过法定试用期的2个月，劳动者还有权主张按转正工资标准补足工资差额。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     },
+     {
+      "text": "本答复仅供参考，不构成正式法律意见。",
+      "evidence_ids": [],
+      "trace_ref": "trace://dryrun-agent-v2/labor-probation-02"
+     }
+    ],
+    "detected_issues": [
+     "劳动合同",
+     "试用期"
+    ],
+    "clarification": null,
+    "trace_ref": "trace://dryrun-agent-v2/labor-probation-02",
+    "latency_ms": 34414.9,
+    "tool_calls": 0,
+    "budget_exceeded": false
+   }
+  }
+ ]
+}

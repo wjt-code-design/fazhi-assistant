@@ -1,0 +1,1486 @@
+"""Task 10: Agent final storage and fallback boundary integration tests."""
+
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from datetime import datetime
+from types import SimpleNamespace
+
+import pytest
+
+from agent.repository import create_run
+from agent.schemas import (
+    AgentStatus,
+    ClaimCheck,
+    Evidence,
+    Fact,
+    LegalAgentState,
+    LegalIssue,
+    LegalValidity,
+    Observation,
+    SourceType,
+)
+from agent.verifier import DeterministicVerifier
+from agent.writer import DraftAnswer, DraftClaim, derive_claim_id, derive_fact_id
+from models import AgentClaimCheck, AgentRun, AgentStep, Conversation, Message, User
+from request_bootstrap import RequestBootstrap
+from tools.gateway import ToolGateway
+
+
+def _drafting_state() -> tuple[LegalAgentState, DraftAnswer]:
+    fact = Fact(
+        statement="借款本金为10000元",
+        source=SourceType.DOCUMENT,
+        source_ref="document:loan-1",
+        confidence=1.0,
+    )
+    issue = LegalIssue(issue_id="issue-a", question="借款是否应返还", facts=[fact])
+    evidence = Evidence(
+        evidence_id="evidence-a",
+        source_id="statute:civil-code:675",
+        source_ref="《民法典》第675条",
+        source_type=SourceType.STATUTE,
+        snippet="借款本金为10000元，依据《民法典》第675条应按约返还。",
+        legal_validity=LegalValidity.EFFECTIVE,
+        acquired_at=datetime(2026, 8, 31),
+    )
+    state = LegalAgentState(
+        status=AgentStatus.DRAFTING,
+        steps=3,
+        issues=[issue],
+        evidence=[evidence],
+        observations=[
+            Observation(
+                issue_id="issue-a",
+                statement="已取得借款返还规则",
+                evidence_ids=["evidence-a"],
+                confidence=1.0,
+            )
+        ],
+    )
+    fact_id = derive_fact_id("issue-a", fact)
+    text = "借款本金为10000元，依据《民法典》第675条应按约返还。"
+    claim = DraftClaim(
+        claim_id=derive_claim_id("issue-a", text, ["evidence-a"], [fact_id]),
+        issue_id="issue-a",
+        text=text,
+        evidence_ids=("evidence-a",),
+        fact_ids=(fact_id,),
+        section="conclusion",
+    )
+    return state, DraftAnswer(conclusion=(claim,))
+
+
+def _records(db):
+    user = User(username="agent-final-owner", password_hash="x")
+    db.add(user)
+    db.commit()
+    conversation = Conversation(user_id=user.id, title="", summary="", message_count=1)
+    db.add(conversation)
+    db.commit()
+    state, draft = _drafting_state()
+    run = create_run(db, user_id=user.id, conversation_id=conversation.id, state=state)
+    return user, conversation, run, state, draft
+
+
+def test_final_agent_answer_is_stored_once_with_completed_checkpoint(db):
+    from agent.chat_integration import persist_agent_final_once
+
+    user, conversation, run, state, draft = _records(db)
+    verification = DeterministicVerifier().verify(state, draft)
+
+    first = persist_agent_final_once(
+        db,
+        user_id=user.id,
+        conversation_id=conversation.id,
+        run_id=run.id,
+        expected_version=0,
+        state=state,
+        answer="借款本金为10000元，依据《民法典》第675条应按约返还。",
+        verification=verification,
+    )
+    second = persist_agent_final_once(
+        db,
+        user_id=user.id,
+        conversation_id=conversation.id,
+        run_id=run.id,
+        expected_version=0,
+        state=state,
+        answer="借款本金为10000元，依据《民法典》第675条应按约返还。",
+        verification=verification,
+    )
+
+    assert first is True
+    assert second is False
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 1
+    db.refresh(conversation)
+    assert conversation.message_count == 2
+    saved = db.get(AgentRun, run.id)
+    assert (saved.status, saved.state_version) == ("completed", 1)
+    completed = LegalAgentState.model_validate_json(saved.state_json)
+    assert completed.status is AgentStatus.COMPLETED
+    assert completed.claim_checks == [
+        ClaimCheck(
+            claim="借款本金为10000元，依据《民法典》第675条应按约返还。",
+            supported=True,
+            evidence_ids=["evidence-a"],
+            rationale="deterministic_verifier_pass",
+        )
+    ]
+    assert db.query(AgentStep).filter_by(agent_run_id=run.id, decision="finalize").count() == 1
+    assert db.query(AgentClaimCheck).filter_by(agent_run_id=run.id).count() == 1
+
+
+def test_final_storage_rejects_foreign_owner_and_does_not_write(db):
+    from agent.chat_integration import AgentFinalizationConflict, persist_agent_final_once
+
+    user, conversation, run, state, draft = _records(db)
+    verification = DeterministicVerifier().verify(state, draft)
+
+    with pytest.raises(AgentFinalizationConflict):
+        persist_agent_final_once(
+            db,
+            user_id=user.id + 99,
+            conversation_id=conversation.id,
+            run_id=run.id,
+            expected_version=0,
+            state=state,
+            answer="借款本金为10000元，依据《民法典》第675条应按约返还。",
+            verification=verification,
+        )
+
+    assert db.query(Message).filter_by(role="assistant").count() == 0
+    assert db.get(AgentRun, run.id).status == "drafting"
+
+
+def test_final_storage_rejects_non_pass_verification(db):
+    from agent.chat_integration import AgentFinalizationConflict, persist_agent_final_once
+    from agent.verifier import VerificationResult, VerificationVerdict
+
+    user, conversation, run, state, _draft = _records(db)
+
+    with pytest.raises(AgentFinalizationConflict):
+        persist_agent_final_once(
+            db,
+            user_id=user.id,
+            conversation_id=conversation.id,
+            run_id=run.id,
+            expected_version=0,
+            state=state,
+            answer="不应写入",
+            verification=VerificationResult(
+                verdict=VerificationVerdict.FAIL_SAFE,
+                reason_code="UNSUPPORTED_CLAIM",
+            ),
+        )
+
+    assert db.query(Message).filter_by(role="assistant").count() == 0
+
+
+def _bootstrap(conversation_id: int) -> RequestBootstrap:
+    query = "公司拖欠工资，应当如何主张权利？"
+    return RequestBootstrap(
+        conv_id=conversation_id,
+        summary="",
+        recent=[],
+        recent_messages=[],
+        image=None,
+        user_text=query,
+        image_rel=None,
+        thumb_rel=None,
+        image_description="",
+        raw_query=query,
+        supplement_text=query,
+        intent="legal_query",
+        is_exam=False,
+        has_options=False,
+        contract_mode=False,
+        contract_text=None,
+        client_truncated=False,
+    )
+
+
+class _AgentTransport:
+    def __init__(self, *, issue_payload, planner_payload) -> None:
+        self.issue_payload = issue_payload
+        self.planner_payload = planner_payload
+        self.calls = []
+
+    def invoke(self, messages):
+        self.calls.append(messages)
+        system = messages[0].content
+        if "争点分解器" in system:
+            return SimpleNamespace(content=json.dumps(self.issue_payload, ensure_ascii=False))
+        if "Planner" in system:
+            content = (
+                self.planner_payload
+                if isinstance(self.planner_payload, str)
+                else json.dumps(self.planner_payload, ensure_ascii=False)
+            )
+            return SimpleNamespace(content=content)
+        payload = json.loads(messages[1].content)
+        issue = payload["issues"][0]
+        evidence_id = issue["evidence"][0]["evidence_id"]
+        return SimpleNamespace(
+            content=json.dumps(
+                {
+                    "claims": [
+                        {
+                            "local_id": "claim-a",
+                            "issue_id": issue["issue_id"],
+                            "text": "依据《民法典》第675条，应按约处理工资给付争议。",
+                            "evidence_ids": [evidence_id],
+                            "fact_ids": [],
+                            "section": "conclusion",
+                        }
+                    ],
+                    "missing_information": [],
+                },
+                ensure_ascii=False,
+            )
+        )
+
+
+def _settings():
+    return SimpleNamespace(
+        agent_max_steps=8,
+        agent_max_tool_calls=10,
+        agent_max_replans=3,
+        agent_max_clarifications=2,
+        agent_max_verifier_research_returns=1,
+    )
+
+
+def _owner_conversation(db):
+    user = User(username=f"agent-service-{db.query(User).count()}", password_hash="x")
+    db.add(user)
+    db.commit()
+    conversation = Conversation(user_id=user.id, title="", summary="", message_count=1)
+    db.add(conversation)
+    db.commit()
+    return user, conversation
+
+
+def _issue_payload(*, unknown=False):
+    return {
+        "issues": [
+            {
+                "question": "拖欠工资时劳动者可以主张哪些权利？",
+                "facts": [{"quote": "公司拖欠工资"}],
+                "unknown_facts": (
+                    [
+                        {
+                            "statement": "工资支付日是什么？",
+                            "why_outcome_changes": "影响拖欠期间的确定。",
+                        }
+                    ]
+                    if unknown
+                    else []
+                ),
+            }
+        ]
+    }
+
+
+def _law_gateway():
+    def retrieve(_context, _args):
+        return {
+            "kind": "retrieve_laws",
+            "statement": "已检索工资给付相关依据。",
+            "evidence": [
+                {
+                    "source_id": "civil-code-675",
+                    "source": "民法典",
+                    "article": "第675条",
+                    "snippet": "依据《民法典》第675条，应按约处理工资给付争议。",
+                    "legal_validity": "effective",
+                }
+            ],
+            "retrieval": {"query": "工资给付", "requested_k": 4, "returned_count": 1},
+        }
+
+    return ToolGateway(wrapper_overrides={"retrieve_laws": retrieve})
+
+
+def _law_gateway_with_empty_fanout():
+    """V2-G2 适配：对服务端扇出检索（query=issue.question 完整疑问句）返回空证据，
+    使会话保持 MISSING_EVIDENCE → replan → planner 决策仍被真正调用（保留全链路验证语义）；
+    对 planner 带具体短检索词的调用返回有效证据。"""
+
+    def retrieve(_context, args):
+        query = getattr(args, "query", None) or ""
+        is_fanout = len(query) > 8 or "？" in query or "?" in query
+        if is_fanout:
+            return {
+                "kind": "retrieve_laws",
+                "statement": "检索无有效法条依据。",
+                "evidence": [],
+                "retrieval": {"query": query, "requested_k": 4, "returned_count": 0},
+            }
+        return {
+            "kind": "retrieve_laws",
+            "statement": "已检索工资给付相关依据。",
+            "evidence": [
+                {
+                    "source_id": "civil-code-675",
+                    "source": "民法典",
+                    "article": "第675条",
+                    "snippet": "依据《民法典》第675条，应按约处理工资给付争议。",
+                    "legal_validity": "effective",
+                }
+            ],
+            "retrieval": {"query": query, "requested_k": 4, "returned_count": 1},
+        }
+
+    return ToolGateway(wrapper_overrides={"retrieve_laws": retrieve})
+
+
+@dataclass(frozen=True)
+class _Final:
+    answer: str | None
+    reason_code: str
+
+
+def _finalize(state, draft, verification):
+    from agent.verifier import render_verified
+
+    return _Final(answer=render_verified(state, draft, verification), reason_code="READY")
+
+
+def test_real_agent_service_runs_adapters_controller_gateway_writer_verifier_and_storage(db):
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    transport = _AgentTransport(
+        issue_payload=_issue_payload(),
+        planner_payload={
+            "kind": "tool_call",
+            "issue_id": "placeholder",
+            "tool_name": "retrieve_laws",
+            "args": {"query": "工资给付", "k": 4},
+        },
+    )
+
+    # The Planner must reference the server-derived Issue ID, so obtain it only
+    # from the Planner input produced by the real adapter rather than hard-code it.
+    original_invoke = transport.invoke
+
+    def dynamic_invoke(messages):
+        if "Planner" in messages[0].content:
+            planner_input = json.loads(messages[1].content)
+            transport.planner_payload["issue_id"] = planner_input["issues"][0]["issue_id"]
+        return original_invoke(messages)
+
+    transport.invoke = dynamic_invoke
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_law_gateway_with_empty_fanout(),
+    )
+
+    assert result.outcome == "completed"
+    assert result.answer.startswith("已确认事实：\n")
+    assert "可执行建议与风险提示：\n依据《民法典》第675条" in result.answer
+    assert result.run_id is not None
+    assert db.get(AgentRun, result.run_id).status == "completed"
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 1
+    assert len(transport.calls) == 3
+
+
+def test_disconnect_after_verification_keeps_checkpoint_and_writes_no_assistant(db):
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    transport = _AgentTransport(
+        issue_payload=_issue_payload(),
+        planner_payload={
+            "kind": "tool_call",
+            "issue_id": "placeholder",
+            "tool_name": "retrieve_laws",
+            "args": {"query": "工资给付", "k": 4},
+        },
+    )
+    original_invoke = transport.invoke
+
+    def dynamic_invoke(messages):
+        if "Planner" in messages[0].content:
+            planner_input = json.loads(messages[1].content)
+            transport.planner_payload["issue_id"] = planner_input["issues"][0]["issue_id"]
+        return original_invoke(messages)
+
+    transport.invoke = dynamic_invoke
+    finalized = [False]
+
+    def finalizer(state, draft, verification):
+        finalized[0] = True
+        return _finalize(state, draft, verification)
+
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_bootstrap(conversation.id),
+        finalizer=finalizer,
+        llm=transport,
+        gateway=_law_gateway(),
+        cancelled=lambda: finalized[0],
+    )
+
+    assert (result.outcome, result.reason_code) == ("failed", "CLIENT_DISCONNECTED")
+    assert result.run_id is not None
+    assert db.get(AgentRun, result.run_id).status == "drafting"
+    assert db.query(AgentStep).filter_by(agent_run_id=result.run_id).count() > 0
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+
+
+def test_real_agent_service_returns_clarification_without_assistant_message(db):
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=_AgentTransport(
+            issue_payload=_issue_payload(unknown=True),
+            planner_payload={"kind": "finish_research", "summary": "交给确定性评估"},
+        ),
+        gateway=_law_gateway(),
+    )
+
+    assert result.outcome == "clarification"
+    assert result.prompt == "工资支付日是什么？"
+    assert result.issue_id is not None
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+
+
+def test_real_agent_service_resumes_same_run_without_new_user_or_agent_run(db):
+    from agent.controller import _DEFAULT_RUN_LOCKS, resume_with_user_fact
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    transport = _AgentTransport(
+        issue_payload=_issue_payload(unknown=True),
+        planner_payload={"kind": "finish_research", "summary": "交给确定性评估"},
+    )
+    first = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_law_gateway(),
+    )
+    assert first.outcome == "clarification" and first.run_id is not None
+
+    resumed = resume_with_user_fact(
+        db=db,
+        run_locks=_DEFAULT_RUN_LOCKS,
+        run_id=first.run_id,
+        expected_version=first.state_version,
+        user_id=user.id,
+        conversation_id=conversation.id,
+        answer="每月5日支付工资",
+    )
+    transport.planner_payload = {
+        "kind": "tool_call",
+        "issue_id": "placeholder",
+        "tool_name": "retrieve_laws",
+        "args": {"query": "工资给付", "k": 4},
+    }
+    original_invoke = transport.invoke
+
+    def dynamic_invoke(messages):
+        if "Planner" in messages[0].content:
+            planner_input = json.loads(messages[1].content)
+            transport.planner_payload["issue_id"] = planner_input["issues"][0]["issue_id"]
+        return original_invoke(messages)
+
+    transport.invoke = dynamic_invoke
+    completed = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_bootstrap(conversation.id),
+        finalizer=_finalize,
+        run_id=resumed.run_id,
+        llm=transport,
+        gateway=_law_gateway(),
+    )
+
+    assert completed.outcome == "completed"
+    assert completed.run_id == first.run_id
+    assert db.query(AgentRun).filter_by(conversation_id=conversation.id).count() == 1
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="user").count() == 0
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 1
+
+
+def test_chat_live_agent_selection_bootstraps_once_and_never_prepares_fast_path(db, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import main
+    from agent.chat_integration import AgentPublicResult
+    from agent.gate import AgentGateDecision
+    from auth import get_current_user
+
+    user, conversation = _owner_conversation(db)
+    bootstrap = _bootstrap(conversation.id)
+    calls = []
+    monkeypatch.setattr(main, "setup_logging", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(main.settings, "agent_enabled", True)
+    monkeypatch.setattr(main.settings, "agent_traffic_percent", 100)
+    monkeypatch.setattr(main, "_bootstrap_only", lambda *a, **k: calls.append("bootstrap") or bootstrap)
+    monkeypatch.setattr(
+        main,
+        "decide_gate",
+        lambda actual: AgentGateDecision(mode="agent_path", complexity="complex", reason_codes=("MULTI_STAGE",)),
+    )
+    monkeypatch.setattr(
+        main,
+        "_prepare_fast_path_only",
+        lambda actual: pytest.fail("Fast Path must not prepare after Agent selection"),
+    )
+    monkeypatch.setattr(
+        main,
+        "execute_agent_request",
+        lambda **kwargs: AgentPublicResult(
+            outcome="completed",
+            run_id="run-live",
+            conversation_id=conversation.id,
+            state_version=4,
+            answer="已验证答案",
+            reason_code="READY",
+        ),
+    )
+    main.app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=user.id)
+    try:
+        with TestClient(main.app) as client:
+            response = client.post(
+                "/api/chat",
+                json={"content": bootstrap.raw_query, "conversation_id": conversation.id},
+            )
+    finally:
+        main.app.dependency_overrides.clear()
+
+    events = [
+        json.loads(line[6:])
+        for line in response.text.splitlines()
+        if line.startswith("data: ") and line[6:] != "[DONE]"
+    ]
+    assert response.status_code == 200
+    assert calls == ["bootstrap"]
+    assert [event["type"] for event in events] == [
+        "agent_status",
+        "verification",
+        "token",
+        "final",
+    ]
+    assert events[-1]["conversation_id"] == conversation.id
+
+
+def test_forbidden_agent_failure_never_calls_fast_path_fallback(db, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import main
+    from agent.chat_integration import AgentPublicResult
+    from agent.gate import AgentGateDecision
+    from auth import get_current_user
+
+    user, conversation = _owner_conversation(db)
+    bootstrap = _bootstrap(conversation.id)
+    monkeypatch.setattr(main, "setup_logging", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(main.settings, "agent_enabled", True)
+    monkeypatch.setattr(main.settings, "agent_traffic_percent", 100)
+    monkeypatch.setattr(main, "_bootstrap_only", lambda *a, **k: bootstrap)
+    monkeypatch.setattr(
+        main,
+        "decide_gate",
+        lambda actual: AgentGateDecision(mode="agent_path", complexity="complex", reason_codes=("MULTI_STAGE",)),
+    )
+    monkeypatch.setattr(
+        main,
+        "_prepare_fast_path_only",
+        lambda actual: pytest.fail("Policy failure must not enter Fast Path"),
+    )
+    monkeypatch.setattr(
+        main,
+        "execute_agent_request",
+        lambda **kwargs: AgentPublicResult(
+            outcome="failed",
+            run_id="run-policy",
+            conversation_id=conversation.id,
+            state_version=2,
+            reason_code="PLANNER_POLICY_VIOLATION",
+        ),
+    )
+    main.app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=user.id)
+    try:
+        with TestClient(main.app) as client:
+            response = client.post(
+                "/api/chat",
+                json={"content": bootstrap.raw_query, "conversation_id": conversation.id},
+            )
+    finally:
+        main.app.dependency_overrides.clear()
+
+    assert '"type": "error"' in response.text
+    assert "PLANNER_POLICY_VIOLATION" in response.text
+    assert '"type": "restart"' not in response.text
+
+
+def test_fallback_to_fast_path_requires_allowlist_and_prepares_same_bootstrap_once(monkeypatch):
+    import main
+
+    bootstrap = _bootstrap(17)
+    prepared = {"conv_id": 17}
+    calls = []
+    monkeypatch.setattr(
+        main,
+        "_prepare_fast_path_only",
+        lambda actual: calls.append(actual) or prepared,
+    )
+
+    assert main.fallback_to_fast_path(bootstrap, "TOOL_TIMEOUT") is prepared
+    assert prepared["agent_fallback_reason"] == "TOOL_TIMEOUT"
+    assert calls == [bootstrap]
+    with pytest.raises(ValueError, match="not eligible"):
+        main.fallback_to_fast_path(bootstrap, "PLANNER_POLICY_VIOLATION")
+    assert calls == [bootstrap]
+
+
+@pytest.mark.parametrize(
+    ("planner_payload", "expected_outcome", "expected_reason"),
+    [
+        ("not-json", "fallback", "PLANNER_PARSE_ERROR"),
+        (
+            {"kind": "stop", "reason": "done", "budgets": {"max_steps": 999}},
+            "failed",
+            "PLANNER_POLICY_VIOLATION",
+        ),
+    ],
+)
+def test_real_agent_service_allows_only_technical_planner_fallback(
+    db, planner_payload, expected_outcome, expected_reason
+):
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=_AgentTransport(issue_payload=_issue_payload(), planner_payload=planner_payload),
+        gateway=_law_gateway_with_empty_fanout(),
+    )
+
+    assert (result.outcome, result.reason_code) == (expected_outcome, expected_reason)
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+
+
+def test_malformed_issue_output_fails_closed_without_fast_fallback(db):
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=_AgentTransport(issue_payload={"issues": []}, planner_payload={"kind": "stop", "reason": "unused"}),
+        gateway=_law_gateway(),
+    )
+
+    assert (result.outcome, result.reason_code) == ("failed", "ISSUE_DECOMPOSITION_INVALID")
+    assert db.query(AgentRun).filter_by(conversation_id=conversation.id).count() == 0
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+
+
+@pytest.mark.parametrize(
+    ("failure", "expected_outcome", "expected_reason"),
+    [
+        (ValueError("invalid runtime wiring"), "failed", "AGENT_EXECUTION_FAILURE"),
+        ("unavailable", "fallback", "TOOL_UNAVAILABLE"),
+    ],
+)
+def test_runtime_construction_only_falls_back_for_named_unavailability(
+    db, monkeypatch, failure, expected_outcome, expected_reason
+):
+    import agent.service as service
+    from agent.runtime import RuntimeUnavailable
+
+    user, conversation = _owner_conversation(db)
+    raised = RuntimeUnavailable("no configured model") if failure == "unavailable" else failure
+    monkeypatch.setattr(service, "build_agent_runtime", lambda **kwargs: (_ for _ in ()).throw(raised))
+
+    result = service.execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_bootstrap(conversation.id),
+        finalizer=_finalize,
+    )
+
+    assert (result.outcome, result.reason_code) == (expected_outcome, expected_reason)
+
+
+# ---------------------------------------------------------------------------
+# T2（2026-09-09）：回喂预算持久化及版本传递——真实持久化路径集成测试。
+# 缺陷（F1）：_coverage_research_loop 原地自增 verifier_research_returns 未保存，
+# persist_agent_final_once 的 durable equality guard 正确拒绝 → AGENT_FINALIZATION_CONFLICT。
+# ---------------------------------------------------------------------------
+
+
+def _two_issue_payload() -> dict:
+    """两个争点，事实均确认（无 unknown_facts，不触发澄清）。
+
+    facts quote 必须是用户请求原文的逐字片段（build_initial_agent_state 校验），
+    因此配套 _two_issue_bootstrap 提供包含两个片段的 raw_query。
+    """
+    return {
+        "issues": [
+            {
+                "question": "借款到期后应当如何返还？",
+                "facts": [{"quote": "借款本金为一万元，约定到期返还"}],
+                "unknown_facts": [],
+            },
+            {
+                "question": "拖欠的工资应当如何支付？",
+                "facts": [{"quote": "公司拖欠工资"}],
+                "unknown_facts": [],
+            },
+        ]
+    }
+
+
+def _two_issue_bootstrap(conversation_id: int) -> RequestBootstrap:
+    query = "借款本金为一万元，约定到期返还，且公司拖欠工资，应当如何主张权利？"
+    return RequestBootstrap(
+        conv_id=conversation_id,
+        summary="",
+        recent=[],
+        recent_messages=[],
+        image=None,
+        user_text=query,
+        image_rel=None,
+        thumb_rel=None,
+        image_description="",
+        raw_query=query,
+        supplement_text=query,
+        intent="legal_query",
+        is_exam=False,
+        has_options=False,
+        contract_mode=False,
+        contract_text=None,
+        client_truncated=False,
+    )
+
+
+class _TwoIssueLawGateway:
+    """扇出检索替身：按 query 关键词返回各争点专属的生效成文法证据。"""
+
+    def __init__(self) -> None:
+        self.queries: list[str] = []
+
+    def retrieve(self, _context, args):
+        query = getattr(args, "query", "") or ""
+        self.queries.append(query)
+        if "借款" in query:
+            evidence = {
+                "source_id": "civil-code-675",
+                "source": "民法典",
+                "article": "第675条",
+                "snippet": "依据《民法典》第675条，借款人应当按照约定的期限返还借款。",
+                "legal_validity": "effective",
+            }
+        else:
+            evidence = {
+                "source_id": "labor-law-50",
+                "source": "劳动法",
+                "article": "第50条",
+                "snippet": "依据《劳动法》第50条，工资应当以货币形式按月支付给劳动者本人。",
+                "legal_validity": "effective",
+            }
+        return {
+            "kind": "retrieve_laws",
+            "statement": "已检索相关依据。",
+            "evidence": [evidence],
+            "retrieval": {"query": query, "requested_k": 4, "returned_count": 1},
+        }
+
+    def as_gateway(self) -> ToolGateway:
+        return ToolGateway(wrapper_overrides={"retrieve_laws": self.retrieve})
+
+
+class _CoverageLoopTransport:
+    """脚本替身：首轮 draft 只绑定第一个争点；coverage 回喂渲染按模式响应。
+
+    issue_id/evidence_id 均从实际输入 payload 提取（服务端生成，不猜测）；
+    coverage 渲染以 messages 是否携带 feedback 系统消息区分（结构判断，非调用序号）。
+    feedback_mode（负例注入）：
+    - "complete"：补齐全部争点（正常重写成功路径）；
+    - "invalid_evidence"：重写引用不存在的证据 ID → writer UNKNOWN_EVIDENCE_ID FAIL_SAFE；
+    - "still_deficient"：重写仍只绑第一个争点 → verifier 按预算耗尽 FAIL_SAFE；
+    - "overconfident_full"：首轮即全覆盖且含过度自信表述 → verifier REWRITE（OVERCONFIDENT_WORDING）。
+    """
+
+    def __init__(self, issue_payload: dict, *, feedback_mode: str = "complete") -> None:
+        self.issue_payload = issue_payload
+        self.feedback_mode = feedback_mode
+        self.calls: list[tuple[str, int]] = []
+
+    def invoke(self, messages):
+        system = messages[0].content
+        if "争点分解器" in system:
+            self.calls.append(("issue", len(messages)))
+            return SimpleNamespace(content=json.dumps(self.issue_payload, ensure_ascii=False))
+        if "Planner" in system:
+            self.calls.append(("planner", len(messages)))
+            return SimpleNamespace(
+                content=json.dumps({"kind": "finish_research", "summary": "扇出检索已完成"}, ensure_ascii=False)
+            )
+        payload = json.loads(messages[1].content)
+        has_feedback = len(messages) > 2
+        self.calls.append(("writer_with_feedback" if has_feedback else "writer", len(messages)))
+        if not has_feedback:
+            if self.feedback_mode == "overconfident_full":
+                targets = payload["issues"]  # 首轮即全覆盖：绕过 coverage 缺口，直击 REWRITE 裁决
+            else:
+                targets = payload["issues"][:1]  # 首轮：只绑第一个争点，制造 coverage 缺口
+        elif self.feedback_mode == "still_deficient":
+            targets = payload["issues"][:1]  # 顽固替身：回喂后仍只绑第一个
+        else:
+            targets = payload["issues"]  # complete / invalid_evidence：覆盖全部（后者引用非法 ID）
+        claims = []
+        for issue in targets:
+            evidence = issue["evidence"][0]
+            source, _, article = evidence["source_ref"].partition("#")
+            evidence_ids = [evidence["evidence_id"]]
+            text = f"依据《{source}》{article}，应当依法履行相应义务。"
+            if self.feedback_mode == "overconfident_full" and issue is targets[0]:
+                text = f"依据《{source}》{article}，一定应当依法履行相应义务。"
+            if has_feedback and self.feedback_mode == "invalid_evidence" and issue is targets[-1]:
+                # 负例注入：最后一个争点的重写引用不存在的证据 ID → UNKNOWN_EVIDENCE_ID
+                evidence_ids = ["ev-ghost-does-not-exist"]
+                text = "引用不存在的证据，应当被 writer 拒绝。"
+            claims.append(
+                {
+                    "local_id": f"claim-{issue['issue_id']}",
+                    "issue_id": issue["issue_id"],
+                    "text": text,
+                    "evidence_ids": evidence_ids,
+                    "fact_ids": [],
+                    "section": "conclusion",
+                }
+            )
+        return SimpleNamespace(content=json.dumps({"claims": claims, "missing_information": []}, ensure_ascii=False))
+
+
+def test_coverage_rewrite_attempt_is_persisted_before_recall_and_completes(db):
+    """首稿缺一个绑定 → coverage 回喂前 CAS 保存预算 attempt → 重写 PASS → 真实终稿落盘。
+
+    验收：DB COMPLETED、assistant 恰一条、重载预算为 1、attempt 版本小于终稿版本、
+    外部返回版本与 DB 一致、writer 恰好两次（首轮 + 一次回喂）。
+    """
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    transport = _CoverageLoopTransport(_two_issue_payload())
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_two_issue_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+
+    assert result.outcome == "completed", f"unexpected failure: {result.reason_code}"
+    assert result.run_id is not None
+    stored_run = db.get(AgentRun, result.run_id)
+    assert stored_run.status == "completed"
+    reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
+    assert reloaded.verifier_research_returns == 1
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 1
+    writer_calls = [kind for kind, _ in transport.calls if kind in ("writer", "writer_with_feedback")]
+    assert writer_calls == ["writer", "writer_with_feedback"]
+    attempts = db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").all()
+    assert len(attempts) == 1
+    assert attempts[0].reason_code == "EVIDENCE_COVERAGE_DEFICIENT"
+    assert attempts[0].state_version < stored_run.state_version
+    assert result.state_version == stored_run.state_version
+
+
+def test_coverage_attempt_storage_failure_stops_without_recall(db, monkeypatch):
+    from agent.service import execute_agent_request
+
+    """attempt 保存失败（数据库故障）→ writer 不再被调用、不 completed、返回存储失败。"""
+    import agent.service as service
+
+    user, conversation = _owner_conversation(db)
+    transport = _CoverageLoopTransport(_two_issue_payload())
+
+    def broken_compare_and_save(*args, **kwargs):
+        raise OSError("simulated database failure during attempt save")
+
+    monkeypatch.setattr(service, "compare_and_save", broken_compare_and_save)
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_two_issue_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+
+    assert (result.outcome, result.reason_code) == ("failed", "AGENT_STORAGE_FAILURE")
+    # 保存失败发生在首次外呼之后：只有首轮 writer，没有回喂渲染
+    assert [kind for kind, _ in transport.calls if kind.startswith("writer")] == ["writer"]
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+    assert db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").count() == 0
+    stored_run = db.get(AgentRun, result.run_id)
+    reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
+    assert reloaded.verifier_research_returns == 0  # 保存失败零落盘（repository 已 rollback）
+
+
+def test_coverage_rewrite_invalid_evidence_keeps_budget_and_writes_no_assistant(db):
+    from agent.service import execute_agent_request
+
+    """重写生成非法证据 ID → writer FAIL_SAFE → 无 assistant；已用预算经重载可见保留。"""
+    user, conversation = _owner_conversation(db)
+    transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="invalid_evidence")
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_two_issue_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+
+    assert (result.outcome, result.reason_code) == ("failed", "EVIDENCE_COVERAGE_DEFICIENT")
+    assert [kind for kind, _ in transport.calls if kind.startswith("writer")] == ["writer", "writer_with_feedback"]
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+    stored_run = db.get(AgentRun, result.run_id)
+    # T3：writer FAIL_SAFE 后 verifier 终态失败 → FAILED 终态与原因落盘（重载可见）
+    assert stored_run.status == "failed"
+    assert stored_run.last_error_code == "EVIDENCE_COVERAGE_DEFICIENT"
+    failure_step = db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="failure").one_or_none()
+    assert failure_step is not None
+    assert failure_step.reason_code == "EVIDENCE_COVERAGE_DEFICIENT"
+    assert failure_step.result_summary == "VERIFIER:RESEARCH_MORE"
+    reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
+    assert reloaded.verifier_research_returns == 1  # 已用预算保留，不复活
+    assert reloaded.status is AgentStatus.FAILED
+    assert result.state_version == stored_run.state_version
+    attempts = db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").all()
+    assert len(attempts) == 1
+    assert attempts[0].state_version < stored_run.state_version
+
+
+def test_coverage_rewrite_verifier_crash_reports_saved_version_and_keeps_budget(db, monkeypatch):
+    """重写后 verifier 异常 → 技术失败，但公开版本必须是已保存的 attempt 版本（非过时旧值）。"""
+    from agent.service import execute_agent_request
+    from agent.verifier import DeterministicVerifier
+
+    real_verify = DeterministicVerifier.verify
+    verify_calls = [0]
+
+    def flaky_verify(self, state, draft):
+        verify_calls[0] += 1
+        if verify_calls[0] >= 2:  # 首轮正常（RESEARCH_MORE）；重写后崩溃
+            raise RuntimeError("simulated verifier crash after coverage rewrite")
+        return real_verify(self, state, draft)
+
+    monkeypatch.setattr(DeterministicVerifier, "verify", flaky_verify)
+    user, conversation = _owner_conversation(db)
+    transport = _CoverageLoopTransport(_two_issue_payload())
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_two_issue_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+
+    # VERIFIER_TECHNICAL_FAILURE 按既有 routing_metrics 分类为技术 fallback（与原实现同码同函数）
+    assert (result.outcome, result.reason_code) == ("fallback", "VERIFIER_TECHNICAL_FAILURE")
+    stored_run = db.get(AgentRun, result.run_id)
+    # T3：attempt 已落盘后的 verify 异常 → 先 attempt(v+1) 再 FAILED 终态(v+2)，公开版本跟随
+    assert stored_run.status == "failed"
+    assert stored_run.last_error_code == "VERIFIER_TECHNICAL_FAILURE"
+    assert result.state_version == stored_run.state_version
+    attempts = db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").all()
+    assert len(attempts) == 1
+    assert attempts[0].state_version < result.state_version
+    reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
+    assert reloaded.verifier_research_returns == 1  # 已用预算经重载可见保留
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+
+
+def test_coverage_rewrite_still_deficient_fails_by_budget_without_loop(db):
+    from agent.service import execute_agent_request
+
+    """重写仍缺绑定 → verifier 按预算耗尽判 FAIL_SAFE；不无限循环（writer 恰两次）。"""
+    user, conversation = _owner_conversation(db)
+    transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="still_deficient")
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_two_issue_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+
+    assert (result.outcome, result.reason_code) == ("failed", "EVIDENCE_COVERAGE_DEFICIENT")
+    assert [kind for kind, _ in transport.calls if kind.startswith("writer")] == ["writer", "writer_with_feedback"]
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+    reloaded = LegalAgentState.model_validate_json(db.get(AgentRun, result.run_id).state_json)
+    assert reloaded.verifier_research_returns == 1
+
+
+def test_disconnect_before_coverage_attempt_saves_nothing_and_writes_no_assistant(db):
+    from agent.service import execute_agent_request
+
+    """取消发生在重写保存/外呼前 → 按既有断连契约无 assistant；attempt 未落盘。"""
+    user, conversation = _owner_conversation(db)
+    transport = _CoverageLoopTransport(_two_issue_payload())
+    original_invoke = transport.invoke
+
+    def invoke_then_disconnect(messages):
+        response = original_invoke(messages)
+        if transport.calls[-1][0] == "writer":
+            disconnected[0] = True  # 首轮 writer 完成后断连（重写保存与外呼之前）
+        return response
+
+    disconnected = [False]
+    transport.invoke = invoke_then_disconnect
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_two_issue_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+        cancelled=lambda: disconnected[0],
+    )
+
+    assert (result.outcome, result.reason_code) == ("failed", "CLIENT_DISCONNECTED")
+    assert [kind for kind, _ in transport.calls if kind == "writer_with_feedback"] == []
+    assert db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").count() == 0
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+    reloaded = LegalAgentState.model_validate_json(db.get(AgentRun, result.run_id).state_json)
+    assert reloaded.verifier_research_returns == 0
+
+
+def test_agent_request_rejects_foreign_run_without_state_writes(db):
+    """跨用户 run_id → OWNERSHIP_FAILURE 且零状态写入（所有权约束在 service 边界生效）。"""
+    from agent.service import execute_agent_request
+
+    owner, owner_conversation = _owner_conversation(db)
+    transport = _CoverageLoopTransport(_two_issue_payload())
+    first = execute_agent_request(
+        db=db,
+        user_id=owner.id,
+        settings=_settings(),
+        bootstrap=_two_issue_bootstrap(owner_conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+    assert first.outcome == "completed"
+    completed_run = db.get(AgentRun, first.run_id)
+    completed_state_json = completed_run.state_json
+    completed_version = completed_run.state_version
+
+    stranger, stranger_conversation = _owner_conversation(db)
+    replay = execute_agent_request(
+        db=db,
+        user_id=stranger.id,
+        settings=_settings(),
+        bootstrap=_two_issue_bootstrap(stranger_conversation.id),
+        finalizer=_finalize,
+        run_id=first.run_id,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+
+    assert (replay.outcome, replay.reason_code) == ("failed", "OWNERSHIP_FAILURE")
+    assert db.query(Message).filter_by(conversation_id=stranger_conversation.id, role="assistant").count() == 0
+    final_run = db.get(AgentRun, first.run_id)
+    assert (final_run.state_json, final_run.state_version) == (completed_state_json, completed_version)
+
+
+def test_overconfident_rewrite_verdict_persisted_as_unimplemented(db):
+    """verifier REWRITE（未实现的修复能力）→ 不增加循环，FAILED 终态与 verdict 阶段落盘。"""
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="overconfident_full")
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_two_issue_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+
+    assert (result.outcome, result.reason_code) == ("failed", "OVERCONFIDENT_WORDING")
+    # 首轮即全覆盖（无 coverage 缺口）：不进回喂循环，无 attempt checkpoint
+    assert [kind for kind, _ in transport.calls if kind.startswith("writer")] == ["writer"]
+    assert db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").count() == 0
+    stored_run = db.get(AgentRun, result.run_id)
+    assert stored_run.status == "failed"
+    assert stored_run.last_error_code == "OVERCONFIDENT_WORDING"
+    failure_step = db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="failure").one_or_none()
+    assert failure_step is not None
+    assert failure_step.reason_code == "OVERCONFIDENT_WORDING"
+    assert failure_step.result_summary == "VERIFIER:REWRITE"
+    reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
+    assert reloaded.status is AgentStatus.FAILED
+    assert reloaded.verifier_research_returns == 0  # 未消耗回喂预算
+    assert result.state_version == stored_run.state_version
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+
+
+def test_failure_persistence_storage_error_keeps_original_reason(db, monkeypatch):
+    """FAILED 落盘时存储故障 → 不伪报（状态仍 drafting）、返回原失败码、attempt 保留。"""
+    import agent.service as service
+    from agent.service import execute_agent_request
+
+    real_compare_and_save = service.compare_and_save
+
+    def failing_on_failed_state(*args, **kwargs):
+        if kwargs.get("state") is not None and kwargs["state"].status is AgentStatus.FAILED:
+            raise OSError("simulated database failure during failure persistence")
+        return real_compare_and_save(*args, **kwargs)
+
+    monkeypatch.setattr(service, "compare_and_save", failing_on_failed_state)
+    user, conversation = _owner_conversation(db)
+    transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="invalid_evidence")
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_two_issue_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+
+    # attempt 保存成功（真实状态），FAILED 保存失败被吞 → 公开返回仍是原业务失败码
+    assert (result.outcome, result.reason_code) == ("failed", "EVIDENCE_COVERAGE_DEFICIENT")
+    stored_run = db.get(AgentRun, result.run_id)
+    assert stored_run.status == "drafting"  # FAILED 未落盘，不伪报已落盘
+    reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
+    assert reloaded.verifier_research_returns == 1  # attempt 预算保留
+    assert db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").count() == 1
+    assert db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="failure").count() == 0
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+
+
+_MULTI_ISSUE_QUERY = "公司拖欠工资且未签合同，现在要解除劳动关系，能否主张补偿"
+_MULTI_ISSUE_QUOTES = ["公司拖欠工资", "未签合同", "解除劳动关系", "主张补偿"]
+
+
+def _multi_issue_bootstrap(conversation_id: int) -> RequestBootstrap:
+    return RequestBootstrap(
+        conv_id=conversation_id,
+        summary="",
+        recent=[],
+        recent_messages=[],
+        image=None,
+        user_text=_MULTI_ISSUE_QUERY,
+        image_rel=None,
+        thumb_rel=None,
+        image_description="",
+        raw_query=_MULTI_ISSUE_QUERY,
+        supplement_text=_MULTI_ISSUE_QUERY,
+        intent="legal_query",
+        is_exam=False,
+        has_options=False,
+        contract_mode=False,
+        contract_text=None,
+        client_truncated=False,
+    )
+
+
+def _multi_issue_payload(n_issues: int) -> dict:
+    """n 个 issue，每个都带 unknown_facts（fact.quote 必须是 raw_query 原文片段）。"""
+    return {
+        "issues": [
+            {
+                "question": f"争点{i}的法律依据是什么？",
+                "facts": [{"quote": _MULTI_ISSUE_QUOTES[i]}],
+                "unknown_facts": [{"statement": f"缺失事实{i}", "why_outcome_changes": f"影响争点{i}的结论"}],
+            }
+            for i in range(n_issues)
+        ]
+    }
+
+
+class _MultiIssueTransport:
+    """多 issue 假 transport：issue 分解返回 n 个 issue；planner 交确定性评估；draft 返回合法 claims。
+
+    `planner_call_limit`：**护栏**（2026-09-10 自审补）。补检索若退化为无界重入，
+    planner 会被反复调用——若不设上限，测试表现为**挂死**（实测 >300s 未返回、段错误），
+    在 CI 里既慢又难定位。设上限后，无界循环必然撞上护栏 → 抛出带计数的断言错误，
+    使测试**快速、带信息地变红**，而不是超时挂死。默认 50 远高于合法路径用量（实测 0）。
+    """
+
+    def __init__(self, n_issues: int, planner_call_limit: int = 50) -> None:
+        self.issue_payload = _multi_issue_payload(n_issues)
+        self.n_issues = n_issues
+        self.planner_calls = 0  # 供终止性断言用（不得空转）
+        self.planner_call_limit = planner_call_limit
+
+    def invoke(self, messages):
+        system = messages[0].content
+        if "争点分解器" in system:
+            return SimpleNamespace(content=json.dumps(self.issue_payload, ensure_ascii=False))
+        if "Planner" in system:
+            self.planner_calls += 1
+            assert self.planner_calls <= self.planner_call_limit, (
+                f"planner 被调用 {self.planner_calls} 次，超护栏 {self.planner_call_limit}"
+                " —— 补检索疑似无界重入（不是挂死在超时里，是护栏主动报错）"
+            )
+            return SimpleNamespace(content=json.dumps({"kind": "finish_research", "summary": "交给确定性评估"}))
+        # draft 渲染：为每个 issue 产出一条绑定其证据的 claim
+        payload = json.loads(messages[1].content)
+        claims = []
+        for issue in payload["issues"]:
+            evidence_ids = [e["evidence_id"] for e in issue.get("evidence", [])]
+            if not evidence_ids:
+                continue
+            claims.append(
+                {
+                    "local_id": f"claim-{issue['issue_id'][:8]}",
+                    "issue_id": issue["issue_id"],
+                    "text": "依据《民法典》第675条处理。",
+                    "evidence_ids": evidence_ids[:1],
+                    "fact_ids": [],
+                }
+            )
+        return SimpleNamespace(content=json.dumps({"claims": claims}, ensure_ascii=False))
+
+
+def test_clarify_budget_exhaustion_must_not_skip_unretrieved_issues(db):
+    """回归（2026-09-10 实测复现，对照线上 probe-15 C01 现场）：
+
+    缺陷：扇出每轮只推进一步、被澄清 return 打断；而 `_handle_evaluation` 的
+    CLARIFY_BUDGET_EXHAUSTED 分支无条件转 DRAFTING、**不检查是否还有 issue 从未检索**。
+    当 issue 数 > 澄清预算 + 1 时，尾部 issue 必然漏检 → 进 DRAFTING 时无证据绑定 →
+    verifier 判 EVIDENCE_COVERAGE_DEFICIENT → 回喂被拒 → agent 失败、用户拿到空终稿。
+
+    正确行为：转入 DRAFTING 之前必须保证每个 issue 都至少有过一次成功检索
+    （与 `_deterministic_finish_gate` 闸门 B 的 `_every_issue_has_evidence` 口径一致）。
+    """
+    from agent.controller import _DEFAULT_RUN_LOCKS, resume_with_user_fact
+    from agent.service import execute_agent_request
+
+    n_issues = 4  # > max_clarifications(2) + 1
+    user = User(username="skip-issue-owner", password_hash="x")
+    db.add(user)
+    db.commit()
+    conversation = Conversation(user_id=user.id, title="", summary="", message_count=1)
+    db.add(conversation)
+    db.commit()
+
+    transport = _MultiIssueTransport(n_issues)
+    gateway = _law_gateway()
+    settings = SimpleNamespace(
+        agent_max_steps=16,
+        agent_max_tool_calls=10,
+        agent_max_replans=3,
+        agent_max_clarifications=2,
+        agent_max_verifier_research_returns=1,
+    )
+
+    run_id: str | None = None
+    version: int | None = None
+    for turn in range(1, 9):
+        if run_id is None:
+            result = execute_agent_request(
+                db=db,
+                user_id=user.id,
+                settings=settings,
+                bootstrap=_multi_issue_bootstrap(conversation.id),
+                finalizer=_finalize,
+                llm=transport,
+                gateway=gateway,
+            )
+        else:
+            resumed = resume_with_user_fact(
+                db=db,
+                run_locks=_DEFAULT_RUN_LOCKS,
+                run_id=run_id,
+                expected_version=version,
+                user_id=user.id,
+                conversation_id=conversation.id,
+                answer=f"事实补充：第{turn}轮",
+            )
+            version = resumed.new_state_version
+            result = execute_agent_request(
+                db=db,
+                user_id=user.id,
+                settings=settings,
+                bootstrap=_multi_issue_bootstrap(conversation.id),
+                finalizer=_finalize,
+                llm=transport,
+                gateway=gateway,
+                run_id=run_id,  # 必须复用同一 run（真实服务端由 chat 接口传入）
+            )
+        if result.run_id:
+            run_id = result.run_id
+        if result.state_version is not None:
+            version = result.state_version
+        if result.outcome != "clarification":
+            break
+
+    run = db.get(AgentRun, run_id)
+    state = LegalAgentState.model_validate_json(run.state_json)
+    retrieved = {obs.issue_id for obs in state.observations if obs.status == "succeeded" and obs.evidence_ids}
+    missing = [issue.issue_id for issue in state.issues if issue.issue_id not in retrieved]
+    assert not missing, (
+        f"转入 {state.status} 时仍有 issue 从未被检索：{missing}；"
+        f"clarifications={state.clarifications}/{state.budgets.max_clarifications}"
+    )
+
+
+def _all_empty_gateway():
+    """所有检索一律返回空证据（含 planner 短查询）→ 每个 issue 永远拿不到证据。
+
+    用于验证补检索的**终止性**：补齐动作不能因"永远没有证据"而无界重试。
+    """
+
+    def retrieve(_context, args):
+        query = getattr(args, "query", None) or ""
+        return {
+            "kind": "retrieve_laws",
+            "statement": "检索无有效法条依据。",
+            "evidence": [],
+            "retrieval": {"query": query, "requested_k": 4, "returned_count": 0},
+        }
+
+    return ToolGateway(wrapper_overrides={"retrieve_laws": retrieve})
+
+
+def test_backfill_retrieval_terminates_when_retriever_returns_no_evidence(db):
+    """回归（2026-09-10 边界自审，锁死终止性）：
+
+    上一版补检索修复（以 `_every_issue_has_evidence` 为循环条件）在"检索器持续返回
+    空命中"时**不收敛**：该函数恒为 False → `_handle_evaluation` 的 backfill 分支被
+    无限重入 → 单轮实测 297 次 planner 调用、300 次评估，终态停在**非终态** planning，
+    仅靠 step 预算被迫中断（把"快速确定性失败"劣化成"长时间空转 + 非终态"）。
+
+    本测试锁死正确语义：每个缺证据 issue 都已**发起过**检索后，补检索必须让路，
+    run 必须抵达**终态**且 planner 调用次数有界（不得空转）。
+    """
+    from agent.controller import _DEFAULT_RUN_LOCKS, resume_with_user_fact
+    from agent.service import execute_agent_request
+
+    n_issues = 4
+    user = User(username="backfill-terminate-owner", password_hash="x")
+    db.add(user)
+    db.commit()
+    conversation = Conversation(user_id=user.id, title="", summary="", message_count=1)
+    db.add(conversation)
+    db.commit()
+
+    transport = _MultiIssueTransport(n_issues)
+    settings = SimpleNamespace(
+        agent_max_steps=16,
+        agent_max_tool_calls=10,
+        agent_max_replans=3,
+        agent_max_clarifications=2,
+        agent_max_verifier_research_returns=1,
+    )
+
+    run_id: str | None = None
+    version: int | None = None
+    for turn in range(1, 9):
+        if run_id is None:
+            result = execute_agent_request(
+                db=db,
+                user_id=user.id,
+                settings=settings,
+                bootstrap=_multi_issue_bootstrap(conversation.id),
+                finalizer=_finalize,
+                llm=transport,
+                gateway=_all_empty_gateway(),
+            )
+        else:
+            resumed = resume_with_user_fact(
+                db=db,
+                run_locks=_DEFAULT_RUN_LOCKS,
+                run_id=run_id,
+                expected_version=version,
+                user_id=user.id,
+                conversation_id=conversation.id,
+                answer=f"事实补充：第{turn}轮",
+            )
+            version = resumed.new_state_version
+            result = execute_agent_request(
+                db=db,
+                user_id=user.id,
+                settings=settings,
+                bootstrap=_multi_issue_bootstrap(conversation.id),
+                finalizer=_finalize,
+                llm=transport,
+                gateway=_all_empty_gateway(),
+                run_id=run_id,
+            )
+        if result.run_id:
+            run_id = result.run_id
+        if result.state_version is not None:
+            version = result.state_version
+        if result.outcome != "clarification":
+            break
+
+    run = db.get(AgentRun, run_id)
+    state = LegalAgentState.model_validate_json(run.state_json)
+
+    # 1) 必须抵达终态（不得停在 planning 这类"仍在推进"的状态）
+    assert state.status in {
+        AgentStatus.FAILED,
+        AgentStatus.DRAFTING,
+        AgentStatus.COMPLETED,
+        AgentStatus.REFUSED,
+        AgentStatus.STOPPED,
+    }, f"补检索未收敛：终态停在非终态 {state.status}"
+
+    # 2) planner 调用必须有界（每个 issue 至多补一次检索，不允许空转）
+    assert transport.planner_calls <= n_issues + 1, (
+        f"planner 被空转调用 {transport.planner_calls} 次（上限 {n_issues + 1}）—— 补检索存在无界重入"
+    )
+
+    # 3) 终止依据：每个 issue 都留下过 retrieve_laws 动作指纹（试过了，不是没试）
+    from agent.state_machine import action_fingerprint
+    from tools.contracts import RetrieveLawsInput
+
+    for issue in state.issues:
+        attempted = any(
+            fp == action_fingerprint(issue.issue_id, "retrieve_laws", RetrieveLawsInput(query=issue.question, k=4))
+            for fp in state.action_fingerprints
+        )
+        assert attempted, f"issue {issue.issue_id} 从未发起过检索，补检索提前放弃"

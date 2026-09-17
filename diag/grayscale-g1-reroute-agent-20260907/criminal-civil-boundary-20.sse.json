@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "卖家所在地或合同履行地在哪里",
+  "issue_id": "issue_12f58dcb6d68cdae7b83e4c4"
+ }
+]

@@ -1,0 +1,177 @@
+# case=C10 mode=rag-full-facts status=200 started=2026-09-08T14:49:24
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "1"}
+
+data: {"content": ". 案情"}
+
+data: {"content": "与争议焦点："}
+
+data: {"content": "卖家"}
+
+data: {"content": "收钱后失联"}
+
+data: {"content": "，"}
+
+data: {"content": "聊天中承认无"}
+
+data: {"content": "货且拉黑"}
+
+data: {"content": "买家"}
+
+data: {"content": "，涉嫌虚构事实"}
+
+data: {"content": "骗取30,"}
+
+data: {"content": "000元"}
+
+data: {"content": "。核心"}
+
+data: {"content": "争议在于该行为"}
+
+data: {"content": "属于"}
+
+data: {"content": "民事违约还是刑事"}
+
+data: {"content": "诈骗。\n2"}
+
+data: {"content": ". 法律依据"}
+
+data: {"content": "：根据《刑事诉讼"}
+
+data: {"content": "法》第一百一十条"}
+
+data: {"content": "规定，被害人对"}
+
+data: {"content": "侵犯其财产权"}
+
+data: {"content": "利的犯罪事实有权向"}
+
+data: {"content": "公安机关报案"}
+
+data: {"content": "或控告；第一百一"}
+
+data: {"content": "十二条规定，认为"}
+
+data: {"content": "有犯罪事实需要追究"}
+
+data: {"content": "刑事责任时应当立案"}
+
+data: {"content": "。"}
+
+data: {"content": "\n3. "}
+
+data: {"content": "逐项"}
+
+data: {"content": "论证：首先，"}
+
+data: {"content": "民事起诉（如"}
+
+data: {"content": "依据《民事诉讼法》"}
+
+data: {"content": "第一百"}
+
+data: {"content": "二十六条）需"}
+
+data: {"content": "明确被告住址，"}
+
+data: {"content": "目前"}
+
+data: {"content": "您不知对方住址"}
+
+data: {"content": "，法院"}
+
+data: {"content": "立案存在障碍。"}
+
+data: {"content": "其次，对方“"}
+
+data: {"content": "收钱前发"}
+
+data: {"content": "虚假"}
+
+data: {"content": "视频、收钱"}
+
+data: {"content": "后失联"}
+
+data: {"content": "并承认没货"}
+
+data: {"content": "”的行为"}
+
+data: {"content": "具有非法占有目的"}
+
+data: {"content": "和欺骗性质，"}
+
+data: {"content": "涉案"}
+
+data: {"content": "金额30,"}
+
+data: {"content": "000元"}
+
+data: {"content": "通常"}
+
+data: {"content": "已达到诈骗罪立案标准"}
+
+data: {"content": "。结合您找到"}
+
+data: {"content": "另外三名买家"}
+
+data: {"content": "，可形成证据"}
+
+data: {"content": "链证明其针对"}
+
+data: {"content": "不特定多数人实施"}
+
+data: {"content": "欺诈，符合刑事"}
+
+data: {"content": "犯罪特征"}
+
+data: {"content": "。因此，报警"}
+
+data: {"content": "是更优选择"}
+
+data: {"content": "。公安机关可依《"}
+
+data: {"content": "刑事诉讼法》"}
+
+data: {"content": "第一百一十条接受报案"}
+
+data: {"content": "，若审查认为"}
+
+data: {"content": "有犯罪事实需"}
+
+data: {"content": "追究刑责，"}
+
+data: {"content": "将"}
+
+data: {"content": "依法立案侦查。"}
+
+data: {"content": "\n4"}
+
+data: {"content": ". 结论与"}
+
+data: {"content": "风险：建议优先"}
+
+data: {"content": "立即报警。若"}
+
+data: {"content": "警方认定属经济"}
+
+data: {"content": "纠纷不予立案，"}
+
+data: {"content": "您可"}
+
+data: {"content": "凭《不予立案"}
+
+data: {"content": "通知书》"}
+
+data: {"content": "向法院提起民事诉讼，"}
+
+data: {"content": "但"}
+
+data: {"content": "需解决被告身份"}
+
+data: {"content": "及送达问题。"}
+
+data: {"conversation_id": 2226, "sources": [{"source": "民事诉讼法", "article": "第二十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第三十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第六十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第六十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百零三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百四十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百五十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百七十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第二百条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第二百三十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "刑事诉讼法", "article": "第一百七十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "行政诉讼法", "article": "第五十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "行政诉讼法", "article": "第五十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "刑事诉讼法", "article": "第一百七十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "刑事诉讼法", "article": "第一百八十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "监察法", "article": "第五十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "刑事诉讼法", "article": "第一百一十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民事诉讼法", "article": "第一百二十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "刑事诉讼法", "article": "第一百一十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "刑事诉讼法", "article": "第一百八十一条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

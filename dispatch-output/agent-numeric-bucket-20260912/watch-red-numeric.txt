@@ -1,0 +1,113 @@
+FFF                                                                      [100%]
+================================== FAILURES ===================================
+___________________ test_numeric_violation_bucket_own_issue ___________________
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x000002689169A890>
+
+    def test_numeric_violation_bucket_own_issue(caplog):
+        """② 漏绑：数字在本争点其它事实里，claim 没引对应 fact_id。"""
+        import logging as _logging
+    
+        response = response_claim(text="权利受损日期为2023年8月1日，故应适用相应时效。")
+        with caplog.at_level(_logging.INFO, logger="legal.agent"):
+            result = EvidenceBoundedWriter(RecordingGenerator(response)).render(state())
+    
+        assert result.status is WriterStatus.FAIL_SAFE
+        assert result.reason_code == "UNSUPPORTED_NUMERIC_TOKEN"
+>       buckets = _numeric_violation(caplog)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_agent_writer.py:293: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x000002689169A890>
+
+    def _numeric_violation(caplog):
+        summary = _writer_summaries(caplog)[-1].agent_writer_summary
+>       return summary["numeric_violation"]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'numeric_violation'
+
+tests\test_agent_writer.py:280: KeyError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+------------------------------ Captured log call ------------------------------
+WARNING  legal.agent:writer.py:497 writer_render_summary
+WARNING  legal.agent:writer.py:497 writer_render_summary
+_________________ test_numeric_violation_bucket_other_issues __________________
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x00000268916F70D0>
+
+    def test_numeric_violation_bucket_other_issues(caplog):
+        """③ 跨争点：数字属于别的争点（模型无权引用，任何提示词都救不了）。"""
+        import logging as _logging
+    
+        response = response_claim(
+            issue_id="issue-b", evidence_ids=["ev-b"], text="权利受损日期为2023年8月1日，故应适用相应时效。"
+        )
+        with caplog.at_level(_logging.INFO, logger="legal.agent"):
+            EvidenceBoundedWriter(RecordingGenerator(response)).render(state())
+    
+>       buckets = _numeric_violation(caplog)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_agent_writer.py:314: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x00000268916F70D0>
+
+    def _numeric_violation(caplog):
+        summary = _writer_summaries(caplog)[-1].agent_writer_summary
+>       return summary["numeric_violation"]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'numeric_violation'
+
+tests\test_agent_writer.py:280: KeyError
+------------------------------ Captured log call ------------------------------
+WARNING  legal.agent:writer.py:497 writer_render_summary
+WARNING  legal.agent:writer.py:497 writer_render_summary
+____________________ test_numeric_violation_bucket_nowhere ____________________
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x00000268917D6450>
+
+    def test_numeric_violation_bucket_nowhere(caplog):
+        """① 编造：数字在可引用来源与未决事实里都查不到。"""
+        import logging as _logging
+    
+        response = response_claim(text="劳动者已在本单位工作四年，故应支付四个月工资。")
+        with caplog.at_level(_logging.INFO, logger="legal.agent"):
+            result = EvidenceBoundedWriter(RecordingGenerator(response)).render(state())
+    
+        assert result.status is WriterStatus.FAIL_SAFE
+>       buckets = _numeric_violation(caplog)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_agent_writer.py:328: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x00000268917D6450>
+
+    def _numeric_violation(caplog):
+        summary = _writer_summaries(caplog)[-1].agent_writer_summary
+>       return summary["numeric_violation"]
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       KeyError: 'numeric_violation'
+
+tests\test_agent_writer.py:280: KeyError
+------------------------------ Captured log call ------------------------------
+WARNING  legal.agent:writer.py:497 writer_render_summary
+WARNING  legal.agent:writer.py:497 writer_render_summary
+============================== warnings summary ===============================
+tests/test_agent_writer.py::test_numeric_violation_bucket_own_issue
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_writer.py::test_numeric_violation_bucket_own_issue - ...
+FAILED tests/test_agent_writer.py::test_numeric_violation_bucket_other_issues
+FAILED tests/test_agent_writer.py::test_numeric_violation_bucket_nowhere - Ke...
+3 failed, 32 deselected, 1 warning in 20.26s

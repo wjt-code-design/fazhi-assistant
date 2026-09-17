@@ -1,0 +1,68 @@
+import json
+
+import httpx
+import pytest
+
+from budget_guard import BudgetGuard
+
+
+def request(model="qwen3.8-flash", host="dashscope.aliyuncs.com"):
+    return httpx.Request("POST", f"https://{host}/v1/chat/completions", json={"model": model})
+
+
+def test_reservation_blocks_before_dispatch_and_restart(tmp_path):
+    path = tmp_path / "ledger.jsonl"
+    guard = BudgetGuard(path, "3")
+    guard.reserve(request())
+    with pytest.raises(RuntimeError):
+        guard.reserve(request())
+    with pytest.raises(FileExistsError):
+        BudgetGuard(path)
+    assert len(path.read_text().splitlines()) == 1
+
+
+def test_usage_settlement_and_unknown_retains_reservation(tmp_path):
+    guard = BudgetGuard(tmp_path / "ledger.jsonl")
+    ticket = guard.reserve(request())
+    response = httpx.Response(200, json={"usage": {"prompt_tokens": 1000, "completion_tokens": 2000}})
+    guard.finish(ticket, response)
+    assert str(guard.charged) == "0.0062"
+    ticket = guard.reserve(request())
+    guard.failed(ticket, TimeoutError("secret-provider-detail"))
+    assert str(guard.charged) == "2.0062"
+    with pytest.raises(RuntimeError):
+        guard.reserve(request())
+    assert "secret-provider-detail" not in guard.path.read_text()
+
+
+def test_unapproved_model_rejected_and_sse_usage_counted(tmp_path):
+    guard = BudgetGuard(tmp_path / "ledger.jsonl")
+    with pytest.raises(RuntimeError):
+        guard.reserve(request("unpriced-model"))
+    ticket = guard.reserve(request())
+    usage = {"usage": {"prompt_tokens": 1000, "completion_tokens": 1000}}
+    response = httpx.Response(200, content="data: " + json.dumps(usage) + "\n\ndata: [DONE]\n\n",
+                              headers={"content-type": "text/event-stream"})
+    guard.finish(ticket, response)
+    assert str(guard.charged) == "0.0035"
+
+
+def test_installed_guard_runs_before_http_dispatch_and_preserves_stream(tmp_path, monkeypatch):
+    guard = BudgetGuard(tmp_path / "ledger.jsonl", "2")
+    monkeypatch.setattr(httpx.Client, "send", httpx.Client.send)
+    monkeypatch.setattr(httpx.AsyncClient, "send", httpx.AsyncClient.send)
+    guard.install()
+    calls = []
+
+    def upstream(req):
+        assert '"event": "reserved"' in guard.path.read_text()
+        calls.append(req)
+        return httpx.Response(200, content='data: {"choices":[]}\n\ndata: [DONE]\n\n',
+                              headers={"content-type": "text/event-stream"})
+
+    with httpx.Client(transport=httpx.MockTransport(upstream)) as client:
+        response = client.send(request(), stream=True)
+        assert list(response.iter_lines()) == ['data: {"choices":[]}', '', 'data: [DONE]', '']
+        with pytest.raises(RuntimeError):
+            client.send(request())
+    assert len(calls) == 1  # Missing usage retains full reservation and blocks the next network call.

@@ -1,0 +1,19 @@
+{
+ "run_id": "gate5-dev-run-16-qwen38-b2verify",
+ "kind": "B2 取证轮（预登记）—— 修复环在真实链路被触发的独立可验证证据",
+ "preregistered_at_local": "2026-09-10 21:45",
+ "context": "独立验收回执 §C.1 判 B2 悬置：run-15 的服务日志未落盘，实现者引用自己的观察不满足独立性。本轮以**落盘日志**补证。",
+ "setup_gates": [
+  "服务必须重启且启动时刻晚于全部源码改动（auth.py 21:38 / runtime.py 等 20:2x）",
+  "uvicorn stdout/stderr **重定向到落盘文件**（本轮回执针对的正是日志不落盘问题）",
+  "前置哨兵：/healthz 三真 + admin/stats 的 llm_model=qwen3.8-flash + 伪造 resume 得 404"
+ ],
+ "case_choice": "C07（run-15 轮中唯一触发过修复环的题——其分解当轮出现覆盖缺口）",
+ "falsifiable_criteria": {
+  "confirmed_if": "落盘日志出现 ≥1 条 msg=issue_decomposition_repair 且 agent_repair_stage ∈ {detected, repaired}",
+  "not_triggered_note": "若 C07 本轮分解无缺陷 ⇒ 修复环不触发属**正确行为**，B2 **保持悬置**（不判失败）：触发依赖模型输出确有缺陷，本判据只能'证实'不能'证伪'；离线接线证据（t8-wiring-verification 场景 1）继续作为唯一支持",
+  "failure_if": "出现 agent_pre_run_failure 且 detail 含 verbatim 且**无** repair 事件（= 第三处修复环未接线的旧症状）"
+ },
+ "also_recorded": ["C07 的 agent_completed / error_codes / issues 数 / 两层 judge", "步骤数与生效预算（max_steps=29）"],
+ "red_lines": ["单题运行（C07），预估 1 次付费会话", "不 commit / 不 stash / 不 checkout", "不改冻结物", "失败或 unknown 不重跑"]
+}

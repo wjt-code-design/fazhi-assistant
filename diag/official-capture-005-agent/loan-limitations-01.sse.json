@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "债务人是否自愿履行或放弃时效抗辩",
+  "issue_id": "issue_1ff0f609f61c69639b8c0601"
+ }
+]

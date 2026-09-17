@@ -1,0 +1,729 @@
+"""Evidence-bounded drafting boundary for the legal agent.
+
+The generator is untrusted. It receives a compact allowlisted payload and may
+only propose structured claims. Stable provenance identifiers and all support
+decisions are derived and checked by this module.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import json
+import logging
+import re
+import unicodedata
+from collections.abc import Mapping, Sequence
+from enum import StrEnum
+from typing import Any, Literal, Protocol
+
+from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
+
+from prompts import AGENT_WRITER_SYSTEM
+
+from .schemas import Fact, LegalAgentState, LegalValidity, SourceType
+
+DraftSection = Literal["conclusion", "issue_analysis", "risk"]
+_MAX_EVIDENCE_SNIPPET = 1200
+
+
+class WriterStatus(StrEnum):
+    READY = "READY"
+    FAIL_SAFE = "FAIL_SAFE"
+
+
+class WriterFact(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    fact_id: str = Field(min_length=1)
+    statement: str = Field(min_length=1)
+    source: SourceType
+    source_ref: str = Field(min_length=1)
+    confidence: float = Field(ge=0, le=1)
+
+
+class WriterEvidence(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    evidence_id: str = Field(min_length=1)
+    source_ref: str = Field(min_length=1)
+    source_type: SourceType
+    snippet: str = Field(min_length=1, max_length=_MAX_EVIDENCE_SNIPPET)
+    legal_validity: LegalValidity
+
+
+class WriterIssue(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    issue_id: str = Field(min_length=1)
+    question: str = Field(min_length=1)
+    facts: tuple[WriterFact, ...] = ()
+    evidence: tuple[WriterEvidence, ...] = ()
+    unknown_facts: tuple[str, ...] = ()
+
+
+class WriterPayload(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    issues: tuple[WriterIssue, ...]
+    resolved_conflict_ids: tuple[str, ...] = ()
+
+
+class DraftClaim(BaseModel):
+    """Server-accepted claim ledger entry; never parsed directly from the model."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    claim_id: str = Field(min_length=1)
+    issue_id: str = Field(min_length=1)
+    text: str = Field(min_length=1)
+    evidence_ids: tuple[str, ...]
+    fact_ids: tuple[str, ...]
+    section: DraftSection
+
+
+class DraftClaimCheck(BaseModel):
+    """Immutable service-authored audit record, not a model support verdict."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    claim: str = Field(min_length=1)
+    supported: bool
+    evidence_ids: tuple[str, ...] = ()
+    rationale: str = Field(min_length=1)
+
+
+class DraftAnswer(BaseModel):
+    """Structured draft. Rendering resolves only the accepted Claim ledger."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True, strict=True)
+
+    conclusion: tuple[DraftClaim, ...] = ()
+    issue_analysis: tuple[DraftClaim, ...] = ()
+    risks: tuple[DraftClaim, ...] = ()
+    missing_information: tuple[str, ...] = ()
+    claim_checks: tuple[DraftClaimCheck, ...] = ()
+
+
+class WriterResult(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    status: WriterStatus
+    draft: DraftAnswer | None = None
+    reason_code: str
+    dropped_claim_ids: tuple[str, ...] = ()
+
+
+class DraftGenerator(Protocol):
+    # 2026-09-10 mypy 修复：协议原先缺 `feedback`，而 `_render_once` 已按
+    # `71e5f23`（错误回喂重试）传该关键字 ⇒ 协议落后于实现（新实现照协议写会在回喂路径炸）。
+    def generate(self, *, payload: WriterPayload, system_prompt: str, feedback: str | None = None) -> object: ...
+
+
+class _GeneratedClaim(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    local_id: str = Field(min_length=1)
+    issue_id: str = Field(min_length=1)
+    text: str = Field(min_length=1)
+    evidence_ids: list[str]
+    fact_ids: list[str]
+    section: DraftSection
+
+    @model_validator(mode="after")
+    def unique_references(self) -> _GeneratedClaim:
+        if len(self.evidence_ids) != len(set(self.evidence_ids)):
+            raise ValueError("duplicate evidence reference")
+        if len(self.fact_ids) != len(set(self.fact_ids)):
+            raise ValueError("duplicate fact reference")
+        return self
+
+
+class _GeneratedDraft(BaseModel):
+    model_config = ConfigDict(extra="forbid", strict=True)
+
+    claims: list[_GeneratedClaim]
+    missing_information: list[str]
+
+    @model_validator(mode="after")
+    def unique_local_references(self) -> _GeneratedDraft:
+        local_ids = [claim.local_id for claim in self.claims]
+        if len(local_ids) != len(set(local_ids)):
+            raise ValueError("duplicate local claim id")
+        if len(self.missing_information) != len(set(self.missing_information)):
+            raise ValueError("duplicate missing information")
+        return self
+
+
+class _WriterFailure(ValueError):
+    def __init__(self, reason_code: str) -> None:
+        self.reason_code = reason_code
+        super().__init__(reason_code)
+
+
+def _normalize_text(text: str) -> str:
+    return " ".join(unicodedata.normalize("NFKC", text).split())
+
+
+def _canonical_hash(namespace: str, payload: Mapping[str, object]) -> str:
+    canonical = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    return f"{namespace}_{hashlib.sha256(canonical.encode('utf-8')).hexdigest()}"
+
+
+def derive_fact_id(issue_id: str, fact: Fact) -> str:
+    return _canonical_hash(
+        "fact",
+        {
+            "issue_id": issue_id,
+            "statement": _normalize_text(fact.statement),
+            "source": fact.source.value,
+            "source_ref": fact.source_ref,
+            "confidence": float(fact.confidence),
+        },
+    )
+
+
+def derive_claim_id(
+    issue_id: str,
+    text: str,
+    evidence_ids: Sequence[str],
+    fact_ids: Sequence[str],
+) -> str:
+    return _canonical_hash(
+        "claim",
+        {
+            "issue_id": issue_id,
+            "text": _normalize_text(text),
+            "evidence_ids": sorted(evidence_ids),
+            "fact_ids": sorted(fact_ids),
+        },
+    )
+
+
+def _evidence_payload_order(evidence) -> tuple:
+    """V2-W4（2026-09-09）：payload 证据确定性重排序——生效成文法优先。
+
+    原按 evidence_id（内容哈希）排序使有效法条证据随机沉底，模型倾向只绑前部
+    证据（run-11 C02 实证：金标法条在证据表中但 draft 未绑定）。排序只影响模型
+    输入分布，不影响任何校验：claim_id 绑定校验与顺序无关，同一次运行内
+    state_digest 保持一致。回退方式：build_writer_payload 排序 key 改回
+    lambda item: item.evidence_id 即可。
+    """
+    effective_statute = is_effective_statute(evidence)
+    return (0 if effective_statute else 1, evidence.source_ref, evidence.evidence_id)
+
+
+def is_effective_statute(evidence) -> bool:
+    """单一真源（T5 审查收敛）：该证据是否可作"生效成文法"绑定（STATUTE 且 EFFECTIVE）。
+
+    service 分流/回喂构造与本模块共享同一谓词；verifier.py 因冻结保留原实现（行为一致）。
+    None（证据表中无此 id）→ False。
+    """
+    return (
+        evidence is not None
+        and evidence.source_type is SourceType.STATUTE
+        and evidence.legal_validity is LegalValidity.EFFECTIVE
+    )
+
+
+def issue_is_deficient(issue_id: str, claims: Sequence[Any], evidence_by_id: Mapping[str, Any]) -> bool:
+    """该 issue 是否**缺绑定**：无 claim，或其 claims 均未绑定（STATUTE 且 EFFECTIVE）证据。
+
+    **单一真源（F5，2026-09-10 代码审查收敛）**：`service._deficient_issue_ids`（重写分流）与
+    `coverage_feedback_payload`（回喂构造）原各有一份**同义实现**——复制漂移会导致"该重写的不重写 /
+    不该重写的重写"这种**静默分流错误**。此处收敛为一份；两处**证据来源仍各自保留**
+    （service 用 `state.evidence` 全局视图、writer 用 per-issue 证据视图），只统一**谓词**。
+    `verifier.py` 因冻结保留原实现（口径一致，执行书 T0 红线）。
+    """
+    issue_claims = [claim for claim in claims if claim.issue_id == issue_id]
+    if not issue_claims:
+        return True
+    return not any(
+        is_effective_statute(evidence_by_id.get(evidence_id))
+        for claim in issue_claims
+        for evidence_id in claim.evidence_ids
+    )
+
+
+def build_writer_payload(state: LegalAgentState) -> WriterPayload:
+    issue_ids = [issue.issue_id for issue in state.issues]
+    if not issue_ids or len(issue_ids) != len(set(issue_ids)):
+        raise _WriterFailure("STATE_INTEGRITY_FAILURE")
+
+    evidence_payloads: dict[str, dict[str, Any]] = {}
+    evidence_by_id = {}
+    for evidence in state.evidence:
+        payload = evidence.model_dump(mode="json")
+        existing = evidence_payloads.get(evidence.evidence_id)
+        if existing is not None and existing != payload:
+            raise _WriterFailure("STATE_INTEGRITY_FAILURE")
+        evidence_payloads[evidence.evidence_id] = payload
+        evidence_by_id[evidence.evidence_id] = evidence
+
+    linked_by_issue: dict[str, set[str]] = {issue_id: set() for issue_id in issue_ids}
+    for observation in state.observations:
+        if observation.issue_id not in linked_by_issue:
+            raise _WriterFailure("STATE_INTEGRITY_FAILURE")
+        if not set(observation.evidence_ids).issubset(evidence_by_id):
+            raise _WriterFailure("STATE_INTEGRITY_FAILURE")
+        if observation.status != "succeeded":
+            continue
+        linked_by_issue[observation.issue_id].update(observation.evidence_ids)
+
+    conflict_ids: set[str] = set()
+    for conflict in state.conflicts:
+        if conflict.conflict_id in conflict_ids:
+            raise _WriterFailure("STATE_INTEGRITY_FAILURE")
+        conflict_ids.add(conflict.conflict_id)
+        if conflict.issue_id not in linked_by_issue:
+            raise _WriterFailure("STATE_INTEGRITY_FAILURE")
+        if not set(conflict.evidence_ids).issubset(evidence_by_id):
+            raise _WriterFailure("STATE_INTEGRITY_FAILURE")
+
+    issues: list[WriterIssue] = []
+    seen_fact_payloads: dict[str, dict[str, object]] = {}
+    for issue in state.issues:
+        facts: list[WriterFact] = []
+        for fact in issue.facts:
+            if fact.source is SourceType.INFERENCE:
+                continue
+            fact_id = derive_fact_id(issue.issue_id, fact)
+            payload = fact.model_dump(mode="json")
+            existing = seen_fact_payloads.get(fact_id)
+            if existing is not None and existing != payload:
+                raise _WriterFailure("STATE_INTEGRITY_FAILURE")
+            seen_fact_payloads[fact_id] = payload
+            facts.append(
+                WriterFact(
+                    fact_id=fact_id,
+                    statement=fact.statement,
+                    source=fact.source,
+                    source_ref=fact.source_ref,
+                    confidence=float(fact.confidence),
+                )
+            )
+        linked_evidence = tuple(
+            WriterEvidence(
+                evidence_id=evidence.evidence_id,
+                source_ref=evidence.source_ref,
+                source_type=evidence.source_type,
+                snippet=evidence.snippet[:_MAX_EVIDENCE_SNIPPET],
+                legal_validity=evidence.legal_validity,
+            )
+            for evidence in sorted(
+                (evidence_by_id[evidence_id] for evidence_id in linked_by_issue[issue.issue_id]),
+                key=_evidence_payload_order,
+            )
+        )
+        issues.append(
+            WriterIssue(
+                issue_id=issue.issue_id,
+                question=issue.question,
+                facts=tuple(facts),
+                evidence=linked_evidence,
+                unknown_facts=tuple(item.statement for item in issue.unknown_facts),
+            )
+        )
+
+    resolved_conflicts = tuple(sorted(conflict.conflict_id for conflict in state.conflicts if conflict.resolved))
+    return WriterPayload(issues=tuple(issues), resolved_conflict_ids=resolved_conflicts)
+
+
+def coverage_feedback_payload(state: LegalAgentState, draft: DraftAnswer) -> str | None:
+    """V2-W1：构造定向 coverage 回喂文本；无可修复缺陷时返回 None。
+
+    缺陷口径与 verifier 一致（verifier.py 判定逻辑一行不改，此处只做"可修复性"
+    复刻计算）：issue 无 claim，或其 claims 均未绑定（STATUTE 且 EFFECTIVE）证据。
+    critical 未 resolved 的 conflict 缺陷 writer 无法修复，不纳入，避免无效外呼
+    （LongCat 单请求实测最高 ~960s）。
+    """
+    try:
+        payload = build_writer_payload(state)
+    except _WriterFailure:
+        return None
+    claims = [*draft.conclusion, *draft.issue_analysis, *draft.risks]
+    deficient_issues: list[WriterIssue] = []
+    for issue in payload.issues:
+        # 证据视图 = 该 issue 自己的证据列表（与 service 的全局视图不同，见 issue_is_deficient 文档）
+        evidence_by_id = {evidence.evidence_id: evidence for evidence in issue.evidence}
+        if issue_is_deficient(issue.issue_id, claims, evidence_by_id):
+            deficient_issues.append(issue)
+    if not deficient_issues:
+        return None
+    lines = [
+        "以下争点缺少绑定生效成文法证据（legal_validity=effective 的 STATUTE 证据）的 claim。"
+        "请为每个争点至少新增一个 claim，其 evidence_ids 必须引用该争点证据列表中标注"
+        "[生效成文法]的证据；issue_id/evidence_id/fact_id 必须逐字使用输入中的标识，"
+        "数字只能来自输入事实与证据片段："
+    ]
+    for issue in deficient_issues:
+        evidence_desc = (
+            "、".join(
+                f"{evidence.evidence_id}({evidence.source_ref})[生效成文法]"
+                if is_effective_statute(evidence)
+                else f"{evidence.evidence_id}({evidence.source_ref})"
+                for evidence in issue.evidence
+            )
+            or "（本争点当前无可用证据）"
+        )
+        lines.append(f"- {issue.issue_id}（{issue.question}）：可用证据：{evidence_desc}")
+    return "\n".join(lines)
+
+
+_ARTICLE_CITATION_RE = re.compile(
+    r"《([^》]{1,24}?)》\s*(第[零〇○一二两三四五六七八九十百千万亿0-9０-９]+条"
+    r"(?:之[零〇○一二两三四五六七八九十百千万亿0-9０-９]+)?)"
+)
+_HASH_CITATION_RE = re.compile(
+    r"([^\s《》#]{1,24}?(?:法|典|条例|规定|办法))#\s*"
+    r"(第[零〇○一二两三四五六七八九十百千万亿0-9０-９]+条"
+    r"(?:之[零〇○一二两三四五六七八九十百千万亿0-9０-９]+)?)"
+)
+_UNBRACKETED_CITATION_RE = re.compile(
+    r"(?<![《\w])([一-龥]{1,20}?(?:法|典|条例|规定|办法))\s*"
+    r"(第[零〇○一二两三四五六七八九十百千万亿0-9０-９]+条"
+    r"(?:之[零〇○一二两三四五六七八九十百千万亿0-9０-９]+)?)"
+)
+_CONTINUATION_CITATION_RE = re.compile(
+    r"《[^》]{1,24}?》\s*"
+    r"第[零〇○一二两三四五六七八九十百千万亿0-9０-９]+条"
+    r"(?:之[零〇○一二两三四五六七八九十百千万亿0-9０-９]+)?\s*"
+    r"(?:[、，,和及与]|（[^（）]*）|\([^()]*\)|\s)+\s*"
+    r"第[零〇○一二两三四五六七八九十百千万亿0-9０-９]+条"
+    r"(?:之[零〇○一二两三四五六七八九十百千万亿0-9０-９]+)?"
+)
+_NUMBER_VALUE = r"(?:\d[\d,]*(?:\.\d+)?|[零〇○一二两三四五六七八九十百千万亿]+)"
+_DATE_RE = re.compile(rf"({_NUMBER_VALUE})年({_NUMBER_VALUE})月({_NUMBER_VALUE})日")
+_PERCENT_RE = re.compile(rf"(?:百分之({_NUMBER_VALUE})|({_NUMBER_VALUE})\s*[%％])")
+_AMOUNT_RE = re.compile(rf"(?:人民币\s*)?({_NUMBER_VALUE})\s*(万|亿)?元")
+_DURATION_RE = re.compile(rf"({_NUMBER_VALUE})(?:个)?(年|月|日|天|小时|分钟|秒)")
+_ASCII_NUMBER_RE = re.compile(r"(?<![A-Za-z0-9])\d[\d,]*(?:\.\d+)?")
+
+_CN_DIGITS = {
+    "零": 0,
+    "〇": 0,
+    "○": 0,
+    "一": 1,
+    "二": 2,
+    "两": 2,
+    "三": 3,
+    "四": 4,
+    "五": 5,
+    "六": 6,
+    "七": 7,
+    "八": 8,
+    "九": 9,
+}
+_CN_UNITS = {"十": 10, "百": 100, "千": 1000, "万": 10_000, "亿": 100_000_000}
+
+
+def _canonical_number(value: str) -> str:
+    normalized = unicodedata.normalize("NFKC", value).replace(",", "").replace("两", "二")
+    if re.fullmatch(r"\d+(?:\.\d+)?", normalized):
+        return normalized.lstrip("0") or "0"
+    if not any(character in _CN_UNITS for character in normalized):
+        digits = "".join(str(_CN_DIGITS[character]) for character in normalized)
+        return str(int(digits or "0"))
+    total = section = current = 0
+    for character in normalized:
+        if character in _CN_DIGITS:
+            current = _CN_DIGITS[character]
+            continue
+        unit = _CN_UNITS[character]
+        if unit < 10_000:
+            section += (current or 1) * unit
+        else:
+            section = (section + current) * unit
+            total += section
+            section = 0
+        current = 0
+    return str(total + section + current)
+
+
+def _canonical_article(article: str) -> tuple[str, str]:
+    body = article[1 : article.index("条")]
+    tail = article.split("之", 1)[1] if "之" in article else ""
+    return _canonical_number(body), _canonical_number(tail) if tail else ""
+
+
+def canonical_citations(text: str) -> set[tuple[str, str, str]]:
+    """Extract deterministic law/article keys without loading the retrieval stack."""
+
+    citations: set[tuple[str, str, str]] = set()
+    normalized = unicodedata.normalize("NFKC", text)
+    for pattern in (_ARTICLE_CITATION_RE, _HASH_CITATION_RE, _UNBRACKETED_CITATION_RE):
+        for match in pattern.finditer(normalized):
+            source = match.group(1).strip()
+            if source.startswith("中华人民共和国"):
+                source = source[len("中华人民共和国") :]
+            source = re.sub(r"（[^）]*）\s*$", "", source).strip()
+            article, tail = _canonical_article(match.group(2))
+            citations.add((source, article, tail))
+    return citations
+
+
+def has_noncanonical_citation(text: str) -> bool:
+    normalized = unicodedata.normalize("NFKC", text)
+    return (
+        _UNBRACKETED_CITATION_RE.search(normalized) is not None
+        or _CONTINUATION_CITATION_RE.search(normalized) is not None
+    )
+
+
+def _zero_per_issue(payload: Any) -> dict[str, dict[str, int]]:
+    return {issue.issue_id: {"proposed": 0, "accepted": 0, "dropped": 0} for issue in payload.issues}
+
+
+def log_writer_summary(
+    reason_code: str,
+    *,
+    payload: Any,
+    generated: Any,
+    accepted: Sequence[Any],
+    dropped: Sequence[str],
+    per_issue: Mapping[str, Mapping[str, int]],
+    failing_issue_id: str | None = None,
+    has_feedback: bool = False,
+) -> None:
+    """逐次 writer 渲染的可归因摘要（**只记标识与计数，不含草稿文本**）。
+
+    动机（2026-09-12 归因轮）：真实 C01 终态 4/4 争点 `claims == 0`，而归档无法区分
+    「模型压根没产出 claim」与「产出后因 `evidence_ids` 为空被静默丢弃」；
+    而真实失败是循环内 `_fail("NON_CANONICAL_CITATION")`，归档只留下 stage 字符串，
+    既不知是哪条 claim、哪个争点触发，也不知是首稿还是 coverage 回喂那次。
+    本摘要把这三件事都记下来，使下一次失败可直接归因。
+
+    字段已在 `observability._ACCOUNT_FIELDS` 登记（未登记会被 JSON formatter 静默丢弃）。
+    """
+    logging.getLogger("legal.agent").log(
+        logging.INFO if reason_code == "DRAFT_VALIDATED" else logging.WARNING,
+        "writer_render_summary",
+        extra={
+            "agent_writer_summary": {
+                "reason": reason_code,
+                "has_feedback": has_feedback,
+                "claims_proposed": None if generated is None else len(generated.claims),
+                "claims_accepted": len(accepted),
+                "claims_dropped": len(dropped),
+                "per_issue": [{"issue_id": issue_id, **counts} for issue_id, counts in sorted(per_issue.items())],
+                "failing_issue_id": failing_issue_id,
+            }
+        },
+    )
+
+
+def numeric_tokens(text: str) -> set[str]:
+    normalized = unicodedata.normalize("NFKC", text)
+    occupied = [False] * len(normalized)
+    tokens: set[str] = set()
+
+    def collect(pattern: re.Pattern[str], token_builder) -> None:
+        for match in pattern.finditer(normalized):
+            if any(occupied[match.start() : match.end()]):
+                continue
+            tokens.add(token_builder(match))
+            occupied[match.start() : match.end()] = [True] * (match.end() - match.start())
+
+    for pattern in (_ARTICLE_CITATION_RE, _UNBRACKETED_CITATION_RE):
+        for match in pattern.finditer(normalized):
+            occupied[match.start() : match.end()] = [True] * (match.end() - match.start())
+    collect(
+        _DATE_RE,
+        lambda match: "date:" + "-".join(_canonical_number(match.group(index)) for index in (1, 2, 3)),
+    )
+    collect(
+        _PERCENT_RE,
+        lambda match: f"percentage:{_canonical_number(match.group(1) or match.group(2))}",
+    )
+    collect(
+        _AMOUNT_RE,
+        lambda match: f"amount:{_canonical_number(match.group(1))}:{match.group(2) or '元'}",
+    )
+    collect(
+        _DURATION_RE,
+        lambda match: f"duration:{_canonical_number(match.group(1))}:{match.group(2)}",
+    )
+    for match in _ASCII_NUMBER_RE.finditer(normalized):
+        if not any(occupied[match.start() : match.end()]):
+            tokens.add(f"number:{_canonical_number(match.group(0))}")
+    return tokens
+
+
+def has_unsupported_numeric_token(text: str, bound_source_text: str) -> bool:
+    return not numeric_tokens(text).issubset(numeric_tokens(bound_source_text))
+
+
+class EvidenceBoundedWriter:
+    def __init__(self, generator: DraftGenerator) -> None:
+        self._generator = generator
+
+    def render(self, state: LegalAgentState) -> WriterResult:
+        try:
+            payload = build_writer_payload(state)
+        except _WriterFailure as exc:
+            return self._fail(exc.reason_code)
+
+        first = self._render_once(payload, state)
+        if first.status is WriterStatus.READY or first.reason_code is None:
+            return first
+        # 错误回喂重试一次（2026-09-08）：fail 码（coverage/绑定/数字逸出/格式）回给模型修正，
+        # 盲重试同 prompt 无效；仍失败才 fail-safe 拦截（不弱化任何校验）。
+        return self._render_once(payload, state, feedback=first.reason_code)
+
+    def render_for_coverage(self, state: LegalAgentState, feedback: str) -> WriterResult:
+        """V2-W1：编排层 coverage 回喂入口——带定向 feedback 直接渲染一次。
+
+        与 render() 的通用错误回喂不同：调用方（service 编排层）在 verifier 判
+        RESEARCH_MORE 后自增预算并调用本方法，不做首轮无反馈渲染。
+        """
+        try:
+            payload = build_writer_payload(state)
+        except _WriterFailure as exc:
+            return self._fail(exc.reason_code)
+        return self._render_once(payload, state, feedback=feedback)
+
+    def _render_once(self, payload: WriterPayload, state: LegalAgentState, feedback: str | None = None) -> WriterResult:
+        has_feedback = feedback is not None
+        # 先声明，保证任何一条失败路径（含前置失败）都能记到完整上下文。
+        generated: Any = None
+        accepted: list[DraftClaim] = []
+        dropped: list[str] = []
+        per_issue: dict[str, dict[str, int]] = _zero_per_issue(payload)
+        current_issue: str | None = None
+
+        def _fail_here(reason_code: str, failing_issue_id: str | None = None) -> WriterResult:
+            """失败统一出口（前置 + 循环内）：先记可归因摘要，再返回 FAIL_SAFE。
+
+            failing_issue_id 缺省取当前正在校验的 claim 所属争点，因此循环内任意一条
+            失败都会带出「是哪个争点触发的」。
+            """
+            log_writer_summary(
+                reason_code,
+                payload=payload,
+                generated=generated,
+                accepted=accepted,
+                dropped=dropped,
+                per_issue=per_issue,
+                failing_issue_id=failing_issue_id if failing_issue_id is not None else current_issue,
+                has_feedback=has_feedback,
+            )
+            return self._fail(reason_code)
+
+        try:
+            raw = self._generator.generate(payload=payload, system_prompt=AGENT_WRITER_SYSTEM, feedback=feedback)
+        except Exception:
+            return _fail_here("GENERATOR_FAILURE")
+        if isinstance(raw, BaseModel):
+            raw = raw.model_dump(mode="python")
+        try:
+            generated = _GeneratedDraft.model_validate(raw)
+        except (TypeError, ValidationError, ValueError):
+            return _fail_here("MALFORMED_GENERATOR_OUTPUT")
+
+        issues = {issue.issue_id: issue for issue in payload.issues}
+        evidence_issues: dict[str, set[str]] = {}
+        evidence_by_id: dict[str, WriterEvidence] = {}
+        fact_issue: dict[str, str] = {}
+        fact_by_id: dict[str, WriterFact] = {}
+        unknown_statements: set[str] = set()
+        for issue in payload.issues:
+            unknown_statements.update(issue.unknown_facts)
+            for evidence in issue.evidence:
+                evidence_issues.setdefault(evidence.evidence_id, set()).add(issue.issue_id)
+                evidence_by_id[evidence.evidence_id] = evidence
+            for fact in issue.facts:
+                fact_issue[fact.fact_id] = issue.issue_id
+                fact_by_id[fact.fact_id] = fact
+
+        if not set(generated.missing_information).issubset(unknown_statements):
+            return _fail_here("UNKNOWN_MISSING_INFORMATION")
+
+        seen_claim_ids: set[str] = set()
+        for proposed in generated.claims:
+            if proposed.issue_id not in issues:
+                return _fail_here("UNKNOWN_ISSUE_ID", proposed.issue_id)
+            current_issue = proposed.issue_id
+            per_issue[proposed.issue_id]["proposed"] += 1
+            claim_id = derive_claim_id(
+                proposed.issue_id,
+                proposed.text,
+                proposed.evidence_ids,
+                proposed.fact_ids,
+            )
+            if claim_id in seen_claim_ids:
+                return _fail_here("CLAIM_HASH_COLLISION")
+            seen_claim_ids.add(claim_id)
+
+            for evidence_id in proposed.evidence_ids:
+                if evidence_id not in evidence_by_id:
+                    if any(item.evidence_id == evidence_id for item in state.evidence):
+                        return _fail_here("CROSS_ISSUE_EVIDENCE")
+                    return _fail_here("UNKNOWN_EVIDENCE_ID")
+                if proposed.issue_id not in evidence_issues[evidence_id]:
+                    return _fail_here("CROSS_ISSUE_EVIDENCE")
+                evidence = evidence_by_id[evidence_id]
+                if (
+                    evidence.source_type is SourceType.STATUTE
+                    and evidence.legal_validity is not LegalValidity.EFFECTIVE
+                ):
+                    return _fail_here("INVALID_STATUTE_EVIDENCE")
+            for fact_id in proposed.fact_ids:
+                if fact_id not in fact_by_id:
+                    if any(fact_id == fact.fact_id for issue in payload.issues for fact in issue.facts):
+                        return _fail_here("CROSS_ISSUE_FACT")
+                    return _fail_here("UNKNOWN_FACT_ID")
+                if fact_issue[fact_id] != proposed.issue_id:
+                    return _fail_here("CROSS_ISSUE_FACT")
+
+            bound_fact_text = "\n".join(fact_by_id[fact_id].statement for fact_id in proposed.fact_ids)
+            bound_evidence_text = "\n".join(
+                evidence_by_id[evidence_id].source_ref + "\n" + evidence_by_id[evidence_id].snippet
+                for evidence_id in proposed.evidence_ids
+            )
+            bound_numeric_text = "\n".join((bound_fact_text, bound_evidence_text))
+            if has_unsupported_numeric_token(proposed.text, bound_numeric_text):
+                return _fail_here("UNSUPPORTED_NUMERIC_TOKEN")
+            if has_noncanonical_citation(proposed.text):
+                return _fail_here("NON_CANONICAL_CITATION")
+            if not canonical_citations(proposed.text).issubset(canonical_citations(bound_evidence_text)):
+                return _fail_here("UNSUPPORTED_CITATION")
+            if not proposed.evidence_ids:
+                dropped.append(claim_id)
+                per_issue[proposed.issue_id]["dropped"] += 1
+                continue
+            per_issue[proposed.issue_id]["accepted"] += 1
+            accepted.append(
+                DraftClaim(
+                    claim_id=claim_id,
+                    issue_id=proposed.issue_id,
+                    text=_normalize_text(proposed.text),
+                    evidence_ids=tuple(sorted(proposed.evidence_ids)),
+                    fact_ids=tuple(sorted(proposed.fact_ids)),
+                    section=proposed.section,
+                )
+            )
+
+        draft = DraftAnswer(
+            conclusion=tuple(claim for claim in accepted if claim.section == "conclusion"),
+            issue_analysis=tuple(claim for claim in accepted if claim.section == "issue_analysis"),
+            risks=tuple(claim for claim in accepted if claim.section == "risk"),
+            missing_information=tuple(generated.missing_information),
+        )
+        log_writer_summary(
+            "DRAFT_VALIDATED",
+            payload=payload,
+            generated=generated,
+            accepted=accepted,
+            dropped=dropped,
+            per_issue=per_issue,
+            has_feedback=has_feedback,
+        )
+        return WriterResult(
+            status=WriterStatus.READY,
+            draft=draft,
+            reason_code="DRAFT_VALIDATED",
+            dropped_claim_ids=tuple(dropped),
+        )
+
+    @staticmethod
+    def _fail(reason_code: str) -> WriterResult:
+        return WriterResult(status=WriterStatus.FAIL_SAFE, reason_code=reason_code)

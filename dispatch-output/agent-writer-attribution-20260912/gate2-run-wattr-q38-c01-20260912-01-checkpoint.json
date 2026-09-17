@@ -1,0 +1,92 @@
+{
+ "run": "wattr-q38-c01-20260912-01",
+ "targets": [
+  "C01"
+ ],
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "9805f9a7-f97b-4dfa-993f-6c2360484bc2",
+      "state_version": 4,
+      "conv_id": 1
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "工作四年",
+      "月平均工资 12,000 元"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "UNSUPPORTED_NUMERIC_TOKEN"
+     ],
+     "clar_meta": {
+      "run_id": "9805f9a7-f97b-4dfa-993f-6c2360484bc2",
+      "state_version": 8,
+      "conv_id": 1
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "双方劳动合同中是否有约定因绩效不佳可无偿解除的条款"
+    },
+    {
+     "round": 2,
+     "prompt": "用户工作年限及离职前12个月平均工资数额"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r1-f3",
+    "C01-r2-f3"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "双方劳动合同中是否有约定因绩效不佳可无偿解除的条款",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "UNSUPPORTED_NUMERIC_TOKEN"
+   ],
+   "conv_id": 1,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 64.3
+  }
+ }
+}

@@ -1,0 +1,6 @@
+[WATCH-IT-FAIL OK] (a) 模型没产 claim: AssertionError: writer 必须留下 agent_writer_summary 诊断，否则 claims=0 不可归因
+assert []
+[WATCH-IT-FAIL OK] (b) 产出后被丢弃: IndexError: list index out of range
+[WATCH-IT-FAIL OK] 失败原因+争点: IndexError: list index out of range
+.
+1 passed in 0.44s

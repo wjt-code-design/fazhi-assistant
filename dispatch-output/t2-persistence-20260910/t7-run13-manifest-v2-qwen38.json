@@ -1,0 +1,96 @@
+{
+ "run_id": "gate5-dev-run-13-qwen38",
+ "kind": "pre-registered paid run (T7) — v2：模型切换后重登记（代码候选未变）",
+ "preregistered_at_utc": "2026-09-10T07:20:35+00:00",
+ "supersedes": {
+  "run": "gate5-dev-run-13",
+  "manifest": "dispatch-output/t2-persistence-20260910/t7-run13-manifest.json",
+  "reason": "Owner 指示本轮改用阿里云百炼 qwen3.8-flash，暂不用 LongCat。原 manifest 登记的模型为 LongCat-2.0（+qwen3.6-flash），与本轮实际条件不符；不改名会导致「跑的条件与预登记不符」——即 run-12 同类问题。原 manifest 原样保留留痕。",
+  "note": "gate5-dev-run-13 从未启动（无 claim/checkpoint/产物），故未被污染，可安全弃用其名。"
+ },
+ "model_condition": {
+  "changed": true,
+  "from": ["LongCat-2.0 (provider=aliyun, env LLM_BASE_URL)"],
+  "to": ["qwen3.8-flash (provider=dashscope, 阿里云百炼 compatible-mode)"],
+  "config_source": "backend/.env LLM_MODELS_JSON（单 entry：key=agent_text_q38f）",
+  "verified_in_process": {
+   "method": "GET /api/admin/stats → registry.config()['model']",
+   "observed": "qwen3.8-flash",
+   "at": "2026-09-10T07:2x UTC"
+  },
+  "smoke_test": "1 次最小外呼 SMOKE_OK，1.1s（dispatch-output/t2-persistence-20260910/smoke_qwen38_20260910.py 日志）",
+  "model_id_evidence": "docs/gate5-formal-dev-20260908.md:143 —— 『key 实测 /v1/models 命中 qwen3.6-flash/qwen3.8-flash』",
+  "disable_thinking": true,
+  "backup": "backend/.env.bak-20260910-pre-qwen38（还原 LongCat 即从该备份恢复 LLM_MODELS_JSON）"
+ },
+ "comparability_caveat": {
+  "severity": "必须写进验收报告",
+  "statement": "本轮为 qwen3.8-flash 模型域，**不可与 run-8/9/10/11 的 LongCat 基线直接对照**；handoff §6.6 的判定基线表与 full_closure 0/10 属另一模型域。",
+  "evidence": [
+   "docs/gate5-formal-dev-20260908.md:163 —— 『qwen3.6-flash 替换只是把 LLM 质量失败换了分布』",
+   "docs/gate5-formal-dev-20260908.md:162 —— 『失败分布向 EVIDENCE_COVERAGE_DEFICIENT 迁移』",
+   "docs/gate5-formal-dev-20260908.md:161 —— 『planner 切 qwen 后 PLANNER_PARSE_ERROR 仅 3/5→2/5，未消除』",
+   "docs/gate5-formal-dev-20260908.md:167-168 —— 『qwen 分流保留（Owner 授权方向，作为后续候选模型基线之一）』",
+   "backend/agent/runtime.py:672 注释 —— 『2026-09-08 模型决策：换回 LongCat-2.0 全链（qwen 实验证明失败分布迁移、与模型强弱关系不大）』"
+  ],
+  "authorization": "Owner 于 2026-09-10 15:16 指示『用阿里云百炼平台的 qwen3.8-flash 跑，暂时先不用 longcat』；与其此前授权的 qwen 分流方向一致。"
+ },
+ "candidate_unchanged": {
+  "statement": "**代码候选零改动**：本次仅改 backend/.env（非候选文件）。候选仍为「脏工作树 + 哈希锚定」，与 candidate-manifest-20260910.json 完全一致。",
+  "git_head": "ebe82e2bda26185236d50afd780cfb48c7c5e946",
+  "controller_py_sha256": "35f8e9c2592f27cf15e64b0b6c7ea6e536692709598f004f56b72a4a87b01fa0",
+  "anchor_manifest": "dispatch-output/t2-persistence-20260910/candidate-manifest-20260910.json"
+ },
+ "objective_v2": {
+  "original": "T7：验证 C01 修复（尾部 issue 漏检 → EVIDENCE_COVERAGE_DEFICIENT → 整轮失败 这条链路被切断）",
+  "current": "**建立 qwen3.8-flash 域的失败分布基线**（10 题全量），并观测该域下修复是否可被检验。",
+  "not_claimed": [
+   "本轮 **不构成 C01 修复的验证**——C01 在本域欠分解（见 decomposition_evidence），触发条件不出现；",
+   "本轮 **不得与 run-8/9/10/11 的 LongCat 基线并列对照**，也不得据此声称质量提升；",
+   "本轮 **不等于** full_closure 的真实改善；"
+  ],
+  "fix_validation_status": "C01 修复的验证**已完成且存档**，在 LongCat 域：`probe-c01-verify2-20260910`（issues=4、4/4 覆盖、`backfill_retrieval` 指纹在案）。见同目录 `probe-c01-verify2-evidence-20260910.md`。"
+ },
+ "decomposition_evidence": {
+  "why_it_matters": "C01 缺陷触发条件 = issue 数 > 澄清预算(2)+1，即 ≥4；分解少于 4 个则本缺陷不可能出现。",
+  "frozen_requirement": "frozen-cases-v1.json: C01 required_issues=4（C02=4、C03=5）",
+  "observed": [
+   {"model": "LongCat-2.0", "c01_issues": "3–4（probe-15=4 / 进程内=3 / probe-2=4）"},
+   {"model": "qwen3.8-flash", "disable_thinking": true, "c01_issues": 1},
+   {"model": "qwen3.8-flash", "disable_thinking": false, "c01_issues": 2}
+  ],
+  "conclusion": "qwen3.8-flash 作 decomposer 会**系统性欠分解** C01（1–2 vs 需求 4）⇒ C01 在 qwen 域**不是修复的有效检验载体**。thinking 开关不是原因（关=1、开=2）。",
+  "historical_precedent": "docs/gate5-formal-dev-20260908.md:144 —— 『角色分流：**decomposer 保留 LongCat-2.0**；planner 与 writer 按实验分档切换』。即上一次切 qwen 时**特意未换 decomposer**；本次观察与该先例一致。",
+  "artifact": "进程内分解诊断（内存插桩、不改候选、不写库）：dispatch-output/t2-persistence-20260910/diagnose_decomposer_20260910.py 及其 .log"
+ },
+ "gate_status": {
+  "note": "换模型后原闸门结论不适用（模型域变了）。",
+  "probe_longcat": "probe-c01-verify2-20260910 ✅ 通过（issues=4、4/4 覆盖、backfill_retrieval 指纹在案）——**仅对 LongCat 域有效**",
+  "probe_qwen": "probe-c01-qwen38-20260910 ⚠️ **判为空过**（不构成验证）：`errors=[]`、`agent_completed=True`，但 DB 侧 issues=**1**（<4）、`backfill_retrieval` **未出现** ⇒ 触发条件未出现、修复分支未执行。若按 §6.3 原判据会被误记为『通过』——**被本轮新立的硬判据拦下**。",
+  "amended_criterion": "判定探针/逐题是否构成修复验证样本：必须先确认该 run 的 issue 数 ≥ 4（读 backend/app.db 的 agent_runs.state_json；sessions JSON 无此字段）。issue 数 < 4 记为『非验证样本』，不得计为通过。"
+ },
+ "service": {
+  "host": "127.0.0.1",
+  "port": 8001,
+  "agent_enabled": true,
+  "agent_max_steps": 16,
+  "workdir": "backend/",
+  "env_note": "启动需 NO_PROXY=127.0.0.1,localhost（否则沙箱代理劫持 localhost → runner 502 登录失败，见 handoff §12.5）",
+  "agent_enabled_verified": "非付费哨兵：伪造 agent_run_id 得 404（穿过 503 门）⇒ 已生效"
+ },
+ "runner_command": "python scripts/gate2_runner.py --run gate5-dev-run-13-qwen38 --all --base-url http://127.0.0.1:8001",
+ "expected_output": "release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-13-qwen38-sessions.json",
+ "case_list": ["C01","C02","C03","C04","C05","C06","C07","C08","C09","C10"],
+ "judge_command": "python scripts/gate5_judge.py ../release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-13-qwen38-sessions.json",
+ "red_lines": [
+  "不 commit / 不 stash / 不 reset（候选 = 脏工作树）",
+  "不修改冻结物（verifier/chat_integration/state_machine/repository/prompts/gate5_judge/frozen-*/hidden-*/历史 sessions）",
+  "不跑 gate2-run-12（旧候选记录）",
+  "共享数据库 / 服务端口 / 付费账户禁止并发",
+  "unknown_server_state 的题未经人工确认不得重跑",
+  "不得把本轮结果与 LongCat 基线并列宣称提升",
+  "不得宣称生产级质量或统计显著提升"
+ ],
+ "budget_note": "原计划 1（探针）+10（run-13）=11 题。实际支出：失败探针 1 次分解外呼 + 分解诊断 1 次外呼 + LongCat 成功探针 1 题 + qwen 闸门探针 1 题 + run-13 10 题 ≈ 13 题当量（qwen 单调用 1.1s，墙钟成本远低于 LongCat）。",
+ "notes": "本文件为换模型后的重登记，取代 t7-run13-manifest.json 的运行参数；原文件保留留痕。无 hidden-case 内容进入仓库。"
+}

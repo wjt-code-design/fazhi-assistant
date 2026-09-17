@@ -1,0 +1,15 @@
+{
+ "mode": "agent",
+ "execution_id": "eval010-agent-retry-penalty-a10",
+ "case_set_sha256": "ccff0cacb14b536a7d0f0b2b2e129e224077069bf392ce19ac3502df69e60cda",
+ "allow_case_set_mismatch": true,
+ "controls": {
+  "timeout_seconds": 90,
+  "total_timeout_seconds": 3600,
+  "max_retries": 1,
+  "concurrency": 1,
+  "cache_policy": "disabled",
+  "max_output_tokens": 4096,
+  "max_tool_calls": 8
+ }
+}

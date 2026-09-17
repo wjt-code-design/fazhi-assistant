@@ -1,0 +1,163 @@
+{
+ "ts": "20260804-020041",
+ "summary": {
+  "n": 10,
+  "pass_rate": 0.8,
+  "mean_judge": 1.6,
+  "mean_difflib": 0.46,
+  "possible_cache_collisions": 0,
+  "note": "judge 为主（>=1 通过）；difflib 仅辅助不设阈值；temp=0 定 judge；ids_overlap 记录改写对/原文重合供审计，collide 打标不做硬断言（ids 重合本身合法）"
+ },
+ "rows": [
+  {
+   "id": 1,
+   "question": "劳动合同试用期最长多久？",
+   "judge_score": 2,
+   "difflib_ratio": 0.577,
+   "ids_overlap_p1p2": 0.714,
+   "ids_overlap_p1_orig": 1.0,
+   "ids_overlap_p2_orig": 0.714,
+   "possible_cache_collision": false,
+   "pass": true,
+   "answer_lens": [
+    289,
+    300
+   ]
+  },
+  {
+   "id": 2,
+   "question": "网购七天无理由退货有法律依据吗？",
+   "judge_score": 2,
+   "difflib_ratio": 0.578,
+   "ids_overlap_p1p2": 0.714,
+   "ids_overlap_p1_orig": 0.5,
+   "ids_overlap_p2_orig": 0.333,
+   "possible_cache_collision": false,
+   "pass": true,
+   "answer_lens": [
+    311,
+    298
+   ]
+  },
+  {
+   "id": 3,
+   "question": "民事权利的诉讼时效是几年？",
+   "judge_score": 2,
+   "difflib_ratio": 0.616,
+   "ids_overlap_p1p2": 0.333,
+   "ids_overlap_p1_orig": 0.5,
+   "ids_overlap_p2_orig": 0.5,
+   "possible_cache_collision": false,
+   "pass": true,
+   "answer_lens": [
+    296,
+    298
+   ]
+  },
+  {
+   "id": 5,
+   "question": "醉酒驾驶会被吊销驾照吗？",
+   "judge_score": 2,
+   "difflib_ratio": 0.427,
+   "ids_overlap_p1p2": 1.0,
+   "ids_overlap_p1_orig": 1.0,
+   "ids_overlap_p2_orig": 1.0,
+   "possible_cache_collision": false,
+   "pass": true,
+   "answer_lens": [
+    304,
+    296
+   ]
+  },
+  {
+   "id": 10,
+   "question": "遗产的法定继承顺序是什么？",
+   "judge_score": 2,
+   "difflib_ratio": 0.452,
+   "ids_overlap_p1p2": 0.5,
+   "ids_overlap_p1_orig": 0.333,
+   "ids_overlap_p2_orig": 0.333,
+   "possible_cache_collision": false,
+   "pass": true,
+   "answer_lens": [
+    295,
+    258
+   ]
+  },
+  {
+   "id": 11,
+   "question": "正当防卫明显超过必要限度造成重大损害怎么处理？",
+   "judge_score": 0,
+   "difflib_ratio": 0.065,
+   "ids_overlap_p1p2": 0.333,
+   "ids_overlap_p1_orig": 0.714,
+   "ids_overlap_p2_orig": 0.333,
+   "possible_cache_collision": false,
+   "pass": false,
+   "answer_lens": [
+    267,
+    100
+   ]
+  },
+  {
+   "id": 12,
+   "question": "盗窃公私财物数额较大的处几年有期徒刑？",
+   "judge_score": 2,
+   "difflib_ratio": 0.653,
+   "ids_overlap_p1p2": 1.0,
+   "ids_overlap_p1_orig": 1.0,
+   "ids_overlap_p2_orig": 1.0,
+   "possible_cache_collision": false,
+   "pass": true,
+   "answer_lens": [
+    195,
+    154
+   ]
+  },
+  {
+   "id": 18,
+   "question": "在道路上醉酒驾驶机动车构成什么罪？",
+   "judge_score": 2,
+   "difflib_ratio": 0.422,
+   "ids_overlap_p1p2": 0.714,
+   "ids_overlap_p1_orig": 0.5,
+   "ids_overlap_p2_orig": 0.5,
+   "possible_cache_collision": false,
+   "pass": true,
+   "answer_lens": [
+    316,
+    309
+   ]
+  },
+  {
+   "id": 25,
+   "question": "注册商标的有效期是多少年？",
+   "judge_score": 2,
+   "difflib_ratio": 0.788,
+   "ids_overlap_p1p2": 0.714,
+   "ids_overlap_p1_orig": 0.714,
+   "ids_overlap_p2_orig": 1.0,
+   "possible_cache_collision": false,
+   "pass": true,
+   "answer_lens": [
+    182,
+    143
+   ]
+  },
+  {
+   "id": 28,
+   "question": "未成年人的父母是其监护人吗？",
+   "judge_score": 0,
+   "difflib_ratio": 0.018,
+   "ids_overlap_p1p2": 0.091,
+   "ids_overlap_p1_orig": 0.091,
+   "ids_overlap_p2_orig": 0.5,
+   "possible_cache_collision": false,
+   "pass": false,
+   "answer_lens": [
+    72,
+    261
+   ]
+  }
+ ]
+}

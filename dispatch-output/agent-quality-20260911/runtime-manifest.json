@@ -1,0 +1,33 @@
+{
+  "model": "qwen3.8-flash",
+  "role": "agent_text_q38f",
+  "stream_usage": true,
+  "max_steps": 16,
+  "max_tool_calls": 10,
+  "max_replans": 3,
+  "max_clarifications": 2,
+  "max_verifier_research_returns": 1,
+  "sdk_max_retries": 3,
+  "rerank_enabled": true,
+  "rerank_model": "BAAI/bge-reranker-v2-m3",
+  "embedding_provider": "local",
+  "budget_cny": "20",
+  "outbound_request_limit": 60,
+  "files": {
+    "backend\\agent\\chat_integration.py": "f05c43c33b7d1e53e80bce69af4d4e78bee4c9a799a893aedef571f5bd4139f9",
+    "backend\\agent\\controller.py": "155afd1eacd6b8111caaf8eec2828751494b0010de555ce26afad60b5d0d3416",
+    "backend\\agent\\evaluator.py": "1b66d3b39f1b2e8f339d5f2e66b050fcf01728b2380e05fad12c145a3d288e3e",
+    "backend\\agent\\gate.py": "a373c1b1b78549f0c5d8946ba117c5aaeaec0f5c6a248c57a9a909129a2303a6",
+    "backend\\agent\\planner.py": "d39e52c7681bb1d894e4de0b0eb304d6ddc6fc1d26433685b8bbd7064b800908",
+    "backend\\agent\\repository.py": "57c1c00dc00df76cb290c36e0a4b6d5a2aa0720a2bbf9656c0d43ae592af4fe7",
+    "backend\\agent\\runtime.py": "ab17e572c06d1ed755440d43913a1163c19447520c820102b45d95066d530b79",
+    "backend\\agent\\schemas.py": "61c71449d78fea33e293377231e32437f385784f38da7959f5b6575acfc8d844",
+    "backend\\agent\\service.py": "24b4e3d8c8e22de4ba7243deb66d23b62f2868bbe2d054a659b6b98da9698864",
+    "backend\\agent\\state_machine.py": "9de7c35f3543e749aaac1c034ac652fc73e2d5ee7c4ec90bf96ff2c4ff51c0bb",
+    "backend\\agent\\verifier.py": "47b37a0a421eaa2c8a5d8ce5e8a369d77010a4f9df515aea7e0cd8002c679a2a",
+    "backend\\agent\\writer.py": "dd0b4f0f0a6a2d24bfd3eb87e13933c1ac7f6cf4e886b11baa2d9ad2d41e7ccd",
+    "backend\\agent\\__init__.py": "5154965ed3c928e100a45459b58d383b7ce65f5bf8e36fd744dea077827659c3",
+    "backend\\llm_registry.py": "3ae8a687bb4e556637a7a50b335dcedb2839e17f158e0adf5eb9656a69aacccf",
+    "backend\\main.py": "c09485a968755189c2821f67ab0bb5d97c4e4db6cd2596eb7436f38d1ff80ec8"
+  }
+}

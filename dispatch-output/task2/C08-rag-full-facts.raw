@@ -1,0 +1,161 @@
+# case=C08 mode=rag-full-facts status=200 started=2026-09-08T14:48:52
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"type": "step", "steps": [{"label": "解析合同", "detail": "识别 1 个条款"}, {"label": "匹配法条", "detail": "定位 8 条法条依据"}, {"label": "风险初判", "detail": "总体风险等级：低"}]}
+
+data: {"content": "①【结论】"}
+
+data: {"content": "\n建议"}
+
+data: {"content": "暂缓"}
+
+data: {"content": "签署或立即主张"}
+
+data: {"content": "免责。总体风险"}
+
+data: {"content": "等级："}
+
+data: {"content": "高。依据《"}
+
+data: {"content": "民法典》第六百"}
+
+data: {"content": "九"}
+
+data: {"content": "十三条，债权人未在"}
+
+data: {"content": "法定期间内主张"}
+
+data: {"content": "权利，保证责任"}
+
+data: {"content": "可能已消灭。"}
+
+data: {"content": "\n\n②"}
+
+data: {"content": "【风险清单】"}
+
+data: {"content": "\nR"}
+
+data: {"content": "_1 | "}
+
+data: {"content": "条款位置"}
+
+data: {"content": "：保证期间约定"}
+
+data: {"content": "缺失 | 严重"}
+
+data: {"content": "度：极高 |"}
+
+data: {"content": " 原文"}
+
+data: {"content": "摘录：“合同没"}
+
+data: {"content": "写保证期间"}
+
+data: {"content": "”、“承担保证责任"}
+
+data: {"content": "” |"}
+
+data: {"content": " 法条依据"}
+
+data: {"content": "：根据《民法典"}
+
+data: {"content": "》"}
+
+data: {"content": "第六百九十二条"}
+
+data: {"content": "、"}
+
+data: {"content": "第六百九十三条"}
+
+data: {"content": " | 修改建议"}
+
+data: {"content": "：若"}
+
+data: {"content": "未过除斥"}
+
+data: {"content": "期间可协商解除"}
+
+data: {"content": "；若已过则"}
+
+data: {"content": "需书面确认债务"}
+
+data: {"content": "存续状态。\n\n"}
+
+data: {"content": "③【解读"}
+
+data: {"content": "】\n"}
+
+data: {"content": "本案为典型的一般"}
+
+data: {"content": "保证或连带责任保证"}
+
+data: {"content": "纠纷"}
+
+data: {"content": "。核心争议在于"}
+
+data: {"content": "“"}
+
+data: {"content": "保证期间”。因"}
+
+data: {"content": "合同未约定，"}
+
+data: {"content": "依法"}
+
+data: {"content": "为主债务履行期"}
+
+data: {"content": "届满之日起六个月（"}
+
+data: {"content": "2"}
+
+data: {"content": "023年"}
+
+data: {"content": "8月至20"}
+
+data: {"content": "24年2"}
+
+data: {"content": "月"}
+
+data: {"content": "）。债权人在2"}
+
+data: {"content": "02"}
+
+data: {"content": "4年1月"}
+
+data: {"content": "通过微信催收，"}
+
+data: {"content": "若"}
+
+data: {"content": "认定为有效主张，"}
+
+data: {"content": "则"}
+
+data: {"content": "保证期间中断或"}
+
+data: {"content": "重新计算，担保"}
+
+data: {"content": "责任尚未免除；"}
+
+data: {"content": "但若"}
+
+data: {"content": "仅视为一般催告"}
+
+data: {"content": "而未在诉讼/"}
+
+data: {"content": "仲裁中固定证据"}
+
+data: {"content": "，存在被认定"}
+
+data: {"content": "未有效行使权利"}
+
+data: {"content": "的风险"}
+
+data: {"content": "。需注意区分“"}
+
+data: {"content": "保证期间”与"}
+
+data: {"content": "“诉讼时效”。"}
+
+data: {"conversation_id": 2222, "sources": [{"source": "民法典", "article": "第六百六十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百六十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百七十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百七十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百八十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百八十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百八十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百九十三条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

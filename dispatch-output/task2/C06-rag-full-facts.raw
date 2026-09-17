@@ -1,0 +1,303 @@
+# case=C06 mode=rag-full-facts status=200 started=2026-09-08T14:48:17
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "存在"}
+
+data: {"content": "法律不确定性。"}
+
+data: {"content": "关于"}
+
+data: {"content": "“"}
+
+data: {"content": "材料涨价”是否"}
+
+data: {"content": "构成不可抗力或情"}
+
+data: {"content": "势"}
+
+data: {"content": "变更，司法实践中"}
+
+data: {"content": "对"}
+
+data: {"content": "商业风险与不可"}
+
+data: {"content": "预见性的认定存在"}
+
+data: {"content": "分歧。以下结合"}
+
+data: {"content": "案情逐项分析："}
+
+data: {"content": "\n\n"}
+
+data: {"content": "① 案情与"}
+
+data: {"content": "争议"}
+
+data: {"content": "焦点\n本案核心"}
+
+data: {"content": "在于：1."}
+
+data: {"content": " 装修公司以“"}
+
+data: {"content": "材料涨价”"}
+
+data: {"content": "为由要求加价并"}
+
+data: {"content": "停工是否合法；"}
+
+data: {"content": "2. "}
+
+data: {"content": "双方已签署柜"}
+
+data: {"content": "体变更及顺延"}
+
+data: {"content": "协议"}
+
+data: {"content": "后，工期延误"}
+
+data: {"content": "五十天（远超"}
+
+data: {"content": "约定的七天）的"}
+
+data: {"content": "违约责任"}
+
+data: {"content": "归属。\n\n"}
+
+data: {"content": "②"}
+
+data: {"content": " 法律依据\n1"}
+
+data: {"content": ". 《"}
+
+data: {"content": "民法典》第五百零"}
+
+data: {"content": "九条：当事人"}
+
+data: {"content": "应当按照约定全面履行"}
+
+data: {"content": "自己的义务，遵循"}
+
+data: {"content": "诚信原则。"}
+
+data: {"content": "\n2. 《"}
+
+data: {"content": "民法典》第五百七"}
+
+data: {"content": "十七条：当事人一方"}
+
+data: {"content": "不履行合同义务或者"}
+
+data: {"content": "履行合同义务不符合约定的"}
+
+data: {"content": "，应当承担继续履行"}
+
+data: {"content": "、采取"}
+
+data: {"content": "补救措施或者赔偿"}
+
+data: {"content": "损失等违约责任。"}
+
+data: {"content": "\n3. 《"}
+
+data: {"content": "民法典》第五百八"}
+
+data: {"content": "十五条：当事人可以"}
+
+data: {"content": "约定一方"}
+
+data: {"content": "违约时应当根据"}
+
+data: {"content": "违约情况向对方"}
+
+data: {"content": "支付一定数额的"}
+
+data: {"content": "违约金。\n4"}
+
+data: {"content": ". 《民法典"}
+
+data: {"content": "》第五百六十三条"}
+
+data: {"content": "：在"}
+
+data: {"content": "履行期限届满前"}
+
+data: {"content": "，"}
+
+data: {"content": "当事人一方明确表示或者"}
+
+data: {"content": "以自己的行为表明不履行"}
+
+data: {"content": "主要债务的，"}
+
+data: {"content": "当事人可以解除合同"}
+
+data: {"content": "。\n\n③"}
+
+data: {"content": " 逐项论证\n"}
+
+data: {"content": "1. "}
+
+data: {"content": "关于“材料涨价"}
+
+data: {"content": "必须"}
+
+data: {"content": "加钱”："}
+
+data: {"content": "合同约定为固定总价"}
+
+data: {"content": "且"}
+
+data: {"content": "未约定调价机制"}
+
+data: {"content": "，根据《民法典"}
+
+data: {"content": "》第五百零"}
+
+data: {"content": "九条，装修公司"}
+
+data: {"content": "作为专业机构，"}
+
+data: {"content": "应"}
+
+data: {"content": "自行承担市场价格波动的"}
+
+data: {"content": "商业风险。其"}
+
+data: {"content": "单方面提出加价缺乏"}
+
+data: {"content": "合同依据，若"}
+
+data: {"content": "强行停工则违反"}
+
+data: {"content": "全面履行义务。"}
+
+data: {"content": "\n2. "}
+
+data: {"content": "关于工期延误："}
+
+data: {"content": "双方"}
+
+data: {"content": "虽就柜体"}
+
+data: {"content": "变更签署了"}
+
+data: {"content": "顺延七天的协议"}
+
+data: {"content": "，但这"}
+
+data: {"content": "仅是对特定变更"}
+
+data: {"content": "事项的"}
+
+data: {"content": "合理补偿。现"}
+
+data: {"content": "实际延误已达五十"}
+
+data: {"content": "天，远超"}
+
+data: {"content": "七天范围。除非"}
+
+data: {"content": "装修公司能证明这"}
+
+data: {"content": "多出的四十多天"}
+
+data: {"content": "是由于你方其他"}
+
+data: {"content": "原因（如未及时"}
+
+data: {"content": "确认方案、未"}
+
+data: {"content": "按时付款等）"}
+
+data: {"content": "导致"}
+
+data: {"content": "，否则该延误"}
+
+data: {"content": "属于装修公司单方违约"}
+
+data: {"content": "。\n"}
+
+data: {"content": "3. 关于"}
+
+data: {"content": "停工行为：装修公司"}
+
+data: {"content": "以"}
+
+data: {"content": "不加价即停工"}
+
+data: {"content": "的行为"}
+
+data: {"content": "，实质上构成了拒绝"}
+
+data: {"content": "履行主要债务。"}
+
+data: {"content": "根据"}
+
+data: {"content": "《民法典》第五百"}
+
+data: {"content": "六十三条，若"}
+
+data: {"content": "其明确拒绝继续"}
+
+data: {"content": "施工"}
+
+data: {"content": "，你方有权"}
+
+data: {"content": "主张"}
+
+data: {"content": "解除合同。\n\n"}
+
+data: {"content": "④ 结论与"}
+
+data: {"content": "风险"}
+
+data: {"content": "\n建议立即书面"}
+
+data: {"content": "发函催告其在"}
+
+data: {"content": "合理期限内复工，"}
+
+data: {"content": "并保留证据。"}
+
+data: {"content": "若其"}
+
+data: {"content": "坚持停工，你可"}
+
+data: {"content": "依据《民法典》"}
+
+data: {"content": "第五百七十七条和"}
+
+data: {"content": "五百八十五条追究其"}
+
+data: {"content": "逾期完工的违约责任"}
+
+data: {"content": "，并要求"}
+
+data: {"content": "赔偿因延期造成的"}
+
+data: {"content": "实际损失（如"}
+
+data: {"content": "在外租房费用）。"}
+
+data: {"content": "若合同"}
+
+data: {"content": "目的无法实现，"}
+
+data: {"content": "可考虑"}
+
+data: {"content": "解除装修合同并"}
+
+data: {"content": "索赔。注意："}
+
+data: {"content": "需核实你是否存在"}
+
+data: {"content": "其他配合迟延的情形"}
+
+data: {"content": "，以免被认定为"}
+
+data: {"content": "混合过错。"}
+
+data: {"conversation_id": 2218, "sources": [{"source": "民法典", "article": "第四百八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百零二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百零九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百二十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百六十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百七十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百八十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百九十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百一十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第二十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第三十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第三十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第三十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第四十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第七十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第一百八十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第一百八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第一百八十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "公司法", "article": "第五十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第八百零三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第八百零五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第八百零四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百九十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "建筑法", "article": "第七十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百七十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百七十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "建筑法", "article": "第四十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "建筑法", "article": "第九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第八百条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

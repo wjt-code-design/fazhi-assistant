@@ -1,0 +1,379 @@
+// 同源部署（2026-08-08，手机端上线）：生产走相对路径 /api/*，由 Caddy 反代到 backend:8000
+// （免跨域、免 CORS、免注入 NEXT_PUBLIC_API_URL）；开发（next dev）仍直连 localhost:8000。
+import { parseSSEFrames } from "./sse";
+import { coverageFromFinalEvent } from "./coverage";
+import type {
+  ConversationItem,
+  ConversationDetail,
+  Stats,
+  UserRow,
+  ConvRow,
+  QaCandidate,
+  KnowledgeHit,
+  AuditRow,
+  ChunkPreviewResult,
+  QaDecisionResult,
+  LlmSwitchResult,
+  LlmStatusResult,
+  KnowledgeAddResult,
+} from "./types";
+
+export const API_URL =
+  process.env.NEXT_PUBLIC_API_URL ||
+  (process.env.NODE_ENV === "development" ? "http://localhost:8000" : "");
+
+const TOKEN_KEY = "alh_token";
+
+export function getToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export function setToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  if (token) localStorage.setItem(TOKEN_KEY, token);
+  else localStorage.removeItem(TOKEN_KEY);
+}
+
+export class ApiError extends Error {
+  status: number;
+  constructor(status: number, message: string) {
+    super(message);
+    this.status = status;
+  }
+}
+
+async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
+  const headers: Record<string, string> = {
+    ...(options.headers as Record<string, string>),
+  };
+  const token = getToken();
+  if (token) headers["Authorization"] = `Bearer ${token}`;
+  // FormData 由浏览器自动设置 multipart 边界，不能手动写 Content-Type
+  if (!(options.body instanceof FormData)) {
+    headers["Content-Type"] = "application/json";
+  }
+
+  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  if (res.status === 401) {
+    // token 过期/失效：清本地凭据并回登录页，避免静默失效（对抗审计 2026-08-07）
+    setToken(null);
+    if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+      window.location.href = "/login";
+    }
+    throw new ApiError(401, "登录已过期，请重新登录");
+  }
+  if (!res.ok) {
+    let detail = `请求失败（HTTP ${res.status}）`;
+    try {
+      const data = await res.json();
+      if (data.detail) {
+        detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+      }
+    } catch {
+      /* 忽略解析错误，使用默认提示 */
+    }
+    throw new ApiError(res.status, detail);
+  }
+  const text = await res.text();
+  return text ? (JSON.parse(text) as T) : ({} as T);
+}
+
+export const api = {
+  get: <T>(path: string) => request<T>(path),
+  post: <T>(path: string, body?: unknown) =>
+    request<T>(path, {
+      method: "POST",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  patch: <T>(path: string, body?: unknown) =>
+    request<T>(path, {
+      method: "PATCH",
+      body: body === undefined ? undefined : JSON.stringify(body),
+    }),
+  delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),
+  upload: <T>(path: string, formData: FormData) =>
+    request<T>(path, { method: "POST", body: formData }),
+};
+
+// ==================== 流式问答（多轮 + 多模态） ====================
+export interface ChatPayload {
+  conversationId?: number | null;
+  content?: string;
+  image?: string; // data URL
+  truncated?: boolean; // 客户端已截断（文件上传超长）——穿透给合同评估/analysis_runs
+  agentRunId?: string;
+  agentStateVersion?: number;
+}
+export interface ChatMeta {
+  conversation_id?: number;
+  sources?: { source: string; article: string }[];
+  agent_run_id?: string;
+  agent_state_version?: number;
+  agent_event?: "clarification" | "final" | "error";
+  error_code?: string; // 后端 `{type:"error", code}` 的 reason_code（B3 映射用）
+  prompt?: string; // clarification 的完整提示文本（B1 争点候选解析源；仅当是 string 才带）
+  // T1（2026-09-16）：final 事件的结构化覆盖（partial 顶部提示；full → 无提示）
+  coverage_status?: "full" | "partial";
+  uncovered_issues?: { issue_id: string; reason_code: string }[];
+}
+
+// 文件→文本（合同评估/普通问答输入，二期）：复用后端 knowledge_service 解析
+export interface ChatFileResult {
+  file_name: string;
+  ext: string;
+  chars: number;
+  truncated: boolean;
+  text: string;
+}
+export function chatFile(file: File): Promise<ChatFileResult> {
+  const fd = new FormData();
+  fd.append("file", file);
+  return api.upload<ChatFileResult>("/api/chat/file", fd);
+}
+
+// 合同评估分析进度（SSE step 事件）：确定性骨架已完成的步骤回放
+export interface AnalysisStep {
+  label: string;
+  detail: string;
+}
+
+export async function streamChat(
+  payload: ChatPayload,
+  onChunk: (text: string) => void,
+  onMeta: (meta: ChatMeta) => void,
+  onError: (msg: string) => void,
+  onSteps?: (steps: AnalysisStep[]) => void,
+  onRestart?: () => void
+): Promise<void> {
+  const token = getToken();
+  const body: Record<string, unknown> = {};
+  if (payload.content !== undefined) body.content = payload.content;
+  if (payload.conversationId != null) body.conversation_id = payload.conversationId;
+  if (payload.image) body.image = payload.image;
+  if (payload.truncated) body.truncated = payload.truncated;
+  if (payload.agentRunId) body.agent_run_id = payload.agentRunId;
+  if (payload.agentStateVersion !== undefined) body.agent_state_version = payload.agentStateVersion;
+
+  // 无数据看门狗（对抗审计 v2 #2）：SSE 挂起（pending reader.read / fetch）时 UI 永久卡死。
+  // 180s 无任何数据帧 → abort，走提前退出路径，让调用方 finally 必然执行、UI 恢复。
+  // 2026-09-13 从 60s 放宽：Agent 长任务（8 争点分解+修复实测 62-63s，分解期不发帧）在
+  // 60s 窗口内被误杀，澄清事件被拦截。180s = 普通 RAG（约 20-30s）的 6 倍余量，仍能防挂死。
+  const controller = new AbortController();
+  const IDLE_TIMEOUT = 180_000;
+  let idle: ReturnType<typeof setTimeout> | null = null;
+  const kick = () => {
+    if (idle) clearTimeout(idle);
+    idle = setTimeout(() => {
+      controller.abort();
+      onError("连接超时，已中断");
+    }, IDLE_TIMEOUT);
+  };
+  kick();
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}/api/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } catch (err) {
+    if (controller.signal.aborted) return; // 看门狗已 abort 并回调 onError
+    throw err;
+  }
+
+  if (!res.ok || !res.body) {
+    if (idle) clearTimeout(idle);
+    if (res.status === 401) {
+      // token 过期/失效：清凭据并回登录页（对抗审计 2026-08-07）
+      setToken(null);
+      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+        window.location.href = "/login";
+      }
+      onError("登录已过期，请重新登录");
+      return;
+    }
+    let detail = `请求失败（HTTP ${res.status}）`;
+    try {
+      const d = await res.json();
+      if (d.detail) detail = d.detail;
+    } catch {
+      /* ignore */
+    }
+    onError(detail);
+    return;
+  }
+
+  const reader = res.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  while (true) {
+    let r: ReadableStreamReadResult<Uint8Array>;
+    try {
+      r = await reader.read();
+    } catch (err) {
+      if (controller.signal.aborted) break; // 看门狗已 abort 并回调 onError，正常退出
+      throw err;
+    }
+    if (r.done) break;
+    kick(); // 收到数据帧，重置无数据看门狗
+    buffer += decoder.decode(r.value, { stream: true });
+    // 帧切分与过滤逻辑抽为纯函数 lib/sse.ts（T0.3 单测锁定，行为零变更）
+    const { frames, rest } = parseSSEFrames(buffer);
+    buffer = rest;
+    for (const raw of frames) {
+      try {
+        const p = JSON.parse(raw);
+        if (p.error) onError(p.error);
+        else if (p.type === "error") {
+          onError(p.message || "Agent 无法安全完成本次请求");
+          onMeta({
+            conversation_id: p.conversation_id,
+            sources: p.sources,
+            agent_event: "error",
+            error_code: typeof p.code === "string" ? p.code : undefined,
+          });
+        }
+        else if (p.type === "clarification" && typeof p.prompt === "string") {
+          onChunk(p.prompt);
+          onMeta({
+            conversation_id: p.conversation_id,
+            agent_run_id: p.run_id,
+            agent_state_version: p.state_version,
+            agent_event: "clarification",
+            prompt: p.prompt, // B1：候选解析源（纯透传，前端 scope.ts 决定是否用）
+          });
+        }
+        else if (p.type === "final") {
+          onMeta({
+            conversation_id: p.conversation_id,
+            agent_event: "final",
+            // T1：结构化覆盖（full/partial + 未覆盖列表），随 token 一起驱动顶部提示；
+            // 未知形态归 undefined 的判定收口在 coverage.coverageFromFinalEvent（纯函数可测）
+            ...coverageFromFinalEvent(p),
+          });
+        }
+        else if (typeof p.content === "string") onChunk(p.content);
+        else if (p.type === "step" && Array.isArray(p.steps) && onSteps) onSteps(p.steps);
+        else if (p.type === "restart" && onRestart) onRestart();
+        if (p.conversation_id !== undefined || p.sources !== undefined) {
+          onMeta({ conversation_id: p.conversation_id, sources: p.sources });
+        }
+      } catch {
+        /* ignore malformed chunk */
+      }
+    }
+  }
+  if (idle) clearTimeout(idle);
+}
+
+// ==================== 会话 ====================
+export const convApi = {
+  list: () => api.get<ConversationItem[]>("/api/conversations"),
+  detail: (id: number) => api.get<ConversationDetail>(`/api/conversations/${id}`),
+  create: () => api.post<{ id: number }>("/api/conversations"),
+  rename: (id: number, title: string) =>
+    api.patch<ConversationItem>(`/api/conversations/${id}?title=${encodeURIComponent(title)}`),
+  remove: (id: number) => api.delete<{ ok?: boolean }>(`/api/conversations/${id}`),
+};
+
+// ==================== 语音转写（WAV，来自 lib/recorder.ts） ====================
+export const transcribeApi = {
+  post: (blob: Blob, filename = "audio.wav") => {
+    const fd = new FormData();
+    fd.append("file", blob, filename);
+    return api.upload<{ text: string }>("/api/chat/transcribe", fd);
+  },
+};
+
+// ==================== 管理员扩展 ====================
+export const adminApi = {
+  stats: () => api.get<Stats>("/api/admin/stats"),
+  users: () => api.get<UserRow[]>("/api/admin/users"),
+  addKnowledge: (b: {
+    title: string;
+    article: string;
+    content: string;
+    effective_from?: string;
+    effective_to?: string;
+    status?: string;
+  }) => api.post<KnowledgeAddResult>("/api/admin/knowledge", b),
+  knowledgeTest: (query: string) => api.post<KnowledgeHit[]>("/api/admin/knowledge/test", { query }),
+  previewChunk: (text: string) =>
+    api.post<ChunkPreviewResult>("/api/admin/knowledge/preview-chunk", { text }),
+  qaCandidates: (status?: string) =>
+    api.get<QaCandidate[]>(
+      `/api/admin/qa/candidates${status ? `?status=${encodeURIComponent(status)}` : ""}`
+    ),
+  qaDecision: (id: number, decision: "approved" | "rejected") =>
+    api.post<QaDecisionResult>(`/api/admin/qa/${id}/decision`, { decision }),
+  llmSwitch: (b: { model?: string }) =>
+    api.post<LlmSwitchResult>("/api/admin/llm", b),
+  llmStatus: () => api.get<LlmStatusResult>("/api/admin/llm-status"),
+  audit: (limit?: number) =>
+    api.get<AuditRow[]>(`/api/admin/audit${limit ? `?limit=${encodeURIComponent(String(limit))}` : ""}`),
+};
+
+export const feedbackApi = {
+  post: (b: {
+    conversation_id?: number | null;
+    question: string;
+    answer: string;
+    rating: "up" | "down";
+    correction?: string;
+  }) => api.post<{ id: number }>("/api/feedback", b),
+};
+
+// ==================== 法条（法条悬浮卡 / 速查面板，P1） ====================
+export interface LawDetail {
+  source: string;
+  article: string;
+  content: string;
+  status?: string;
+  effective_from?: string;
+  effective_to?: string;
+}
+export interface LawItem {
+  source: string;
+  article: string;
+  preview: string;
+  content: string;
+  status?: string;
+}
+export const lawApi = {
+  detail: (source: string, article: string) =>
+    api.get<LawDetail>(`/api/law?source=${encodeURIComponent(source)}&article=${encodeURIComponent(article)}`),
+  search: (q: string) => api.get<LawItem[]>(`/api/law/search?q=${encodeURIComponent(q)}`),
+};
+
+// ==================== 受鉴权媒体（历史图片，Blob 缓存） ====================
+// 上限 + 超限 revoke 最旧（对抗审计 v2 #9）：blob URL 不 revoke 会占内存，会话内图片多时无界增长
+const mediaCache = new Map<string, string>();
+const MEDIA_CACHE_MAX = 40;
+export async function loadMediaSrc(ref: string): Promise<string | null> {
+  if (!ref) return null;
+  const hit = mediaCache.get(ref);
+  if (hit) return hit;
+  const token = getToken();
+  const res = await fetch(`${API_URL}/api/media/${ref}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) return null;
+  const blob = await res.blob();
+  const url = URL.createObjectURL(blob);
+  if (mediaCache.size >= MEDIA_CACHE_MAX) {
+    const oldestRef = mediaCache.keys().next().value; // Map 保持插入序，首个为最旧
+    if (oldestRef) {
+      const oldUrl = mediaCache.get(oldestRef)!;
+      URL.revokeObjectURL(oldUrl);
+      mediaCache.delete(oldestRef);
+    }
+  }
+  mediaCache.set(ref, url);
+  return url;
+}

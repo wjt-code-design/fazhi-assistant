@@ -1,0 +1,731 @@
+--- backend/agent/service.py.before
++++ backend/agent/service.py
+@@ -2,6 +2,7 @@
+ 
+ from __future__ import annotations
+ 
++import logging
+ from collections.abc import Callable
+ from typing import Any, NamedTuple, Protocol, cast
+ 
+@@ -26,7 +27,7 @@
+     RuntimeUnavailable,
+     build_agent_runtime,
+ )
+-from .schemas import AgentStatus
++from .schemas import AgentStatus, LegalAgentState
+ from .state_machine import BudgetExceeded, register_verifier_research_return, transition
+ from .verifier import VerificationResult, VerificationVerdict
+ from .writer import WriterStatus, coverage_feedback_payload, is_effective_statute, issue_is_deficient
+@@ -117,6 +118,7 @@
+     state: Any
+     state_version: int
+     failure_reason: str | None  # None=循环正常结束；否则为应返回的公开失败码
++    stage_reason: str | None = None
+ 
+ 
+ def _deficient_issue_ids(state: Any, draft: Any) -> set[str]:
+@@ -168,15 +170,10 @@
+     state_version: int,
+     public_reason: str,
+     stage_reason: str,
+-) -> int:
+-    """V2-T3（2026-09-09）F3：终稿阶段业务失败持久化（DRAFTING → FAILED + failure step）。
+-
+-    仅用于已有、归属和版本已确认的 DRAFTING 业务失败；CLIENT_DISCONNECTED、CAS 冲突、
+-    存储故障不套用（断连保留无 assistant 契约，冲突不覆盖新状态，存储故障不伪报已落盘）。
+-    - steps 预算耗尽的防御沿用 controller._persist_failure 模式：直接置 FAILED，不再递增；
+-    - 保存失败返回原 state_version（调用方按原失败码返回，不改变公开失败语义）。
+-    返回应向公开结果报告的 state_version（保存成功为 v+1，否则原值）。
+-    """
++) -> AgentPublicResult:
++    """保存终稿阶段失败；存储/CAS 故障优先公开报告，原业务原因仅作诊断。"""
++    run_id, conversation_id = saved_record.id, saved_record.conversation_id
++    result_reason = public_reason
+     try:
+         try:
+             failed_state = transition(state, AgentStatus.FAILED)
+@@ -195,11 +192,27 @@
+                 last_error_code=public_reason,
+             ),
+         )
+-        return state_version + 1
+-    except RunVersionConflict:
+-        return state_version
+-    except Exception:
+-        return state_version
++        state_version += 1
++    except Exception as exc:
++        result_reason = (
++            "AGENT_FINALIZATION_CONFLICT" if isinstance(exc, RunVersionConflict) else "AGENT_STORAGE_FAILURE"
++        )
++        logging.getLogger("legal.agent").warning(
++            "agent_failure_persistence_failed",
++            extra={
++                "agent_run_id": run_id,
++                "agent_conversation_id": conversation_id,
++                "agent_failure_detail": {
++                    "reason_code": result_reason,
++                    "original_reason": public_reason,
++                    "stage": stage_reason,
++                    "error_class": type(exc).__name__,
++                },
++            },
++        )
++    return _failure_or_fallback(
++        result_reason, run_id=run_id, conversation_id=conversation_id, state_version=state_version
++    )
+ 
+ 
+ def _coverage_research_loop(
+@@ -267,9 +280,13 @@
+         state = next_state
+         state_version = state_version + 1
+         try:
++            if cancelled is not None and cancelled():
++                return _CoverageLoopOutcome(verification, draft, state, state_version, "CLIENT_DISCONNECTED")
+             rerendered = runtime.writer.render_for_coverage(state, feedback)
+             if rerendered.status is not WriterStatus.READY or rerendered.draft is None:
+-                break
++                return _CoverageLoopOutcome(
++                    verification, draft, state, state_version, None, f"WRITER:{rerendered.reason_code}"
++                )
+             draft = rerendered.draft
+             verification = runtime.verifier.verify(state, draft)
+         except Exception:
+@@ -352,6 +369,14 @@
+         return _failure_or_fallback("OWNERSHIP_FAILURE", run_id=active_run_id, conversation_id=bootstrap.conv_id)
+     state_version = cast(int, saved_record.state_version)
+     state = controller_result.state
++    # Do not combine a controller snapshot with a version belonging to another writer.
++    if LegalAgentState.model_validate_json(cast(str, saved_record.state_json)) != state:
++        return _failure_or_fallback(
++            "AGENT_FINALIZATION_CONFLICT",
++            run_id=active_run_id,
++            conversation_id=bootstrap.conv_id,
++            state_version=state_version,
++        )
+     if cancelled is not None and cancelled():
+         return _failure_or_fallback(
+             "CLIENT_DISCONNECTED",
+@@ -396,26 +421,19 @@
+ 
+     writer_result = runtime.writer.render(state)
+     if writer_result.status is not WriterStatus.READY or writer_result.draft is None:
+-        # V2-T3 F3：writer 失败落 FAILED 终态与原因（重载可见）；保存失败不影响公开失败码
+-        failure_version = _persist_drafting_failure(
++        return _persist_drafting_failure(
+             db,
+             saved_record=saved_record,
+             state=state,
+             state_version=state_version,
+             public_reason=writer_result.reason_code,
+             stage_reason=f"WRITER:{writer_result.reason_code}",
+-        )
+-        return _failure_or_fallback(
+-            writer_result.reason_code,
+-            run_id=active_run_id,
+-            conversation_id=bootstrap.conv_id,
+-            state_version=failure_version,
+         )
+     draft = writer_result.draft
+     try:
+         verification = runtime.verifier.verify(state, draft)
+     except Exception:
+-        failure_version = _persist_drafting_failure(
++        return _persist_drafting_failure(
+             db,
+             saved_record=saved_record,
+             state=state,
+@@ -423,12 +441,7 @@
+             public_reason="VERIFIER_TECHNICAL_FAILURE",
+             stage_reason="VERIFIER:EXCEPTION",
+         )
+-        return _failure_or_fallback(
+-            "VERIFIER_TECHNICAL_FAILURE",
+-            run_id=active_run_id,
+-            conversation_id=bootstrap.conv_id,
+-            state_version=failure_version,
+-        )
++    stage_reason = f"VERIFIER:{verification.verdict.value}"
+     if verification.verdict is not VerificationVerdict.PASS:
+         # V2-T2：RESEARCH_MORE（EVIDENCE_COVERAGE_DEFICIENT 且 budget 未耗尽）→
+         # 先 CAS 保存预算 attempt，再定向回喂 writer 重渲染一轮；重渲染后 verify
+@@ -447,11 +460,10 @@
+                 state_version=state_version,
+             )
+         if loop.failure_reason is not None:
+-            failure_version = loop.state_version
+             if loop.failure_reason == "VERIFIER_TECHNICAL_FAILURE":
+                 # V2-T3 F3：attempt 已落盘后的 verify 异常属业务技术失败 → FAILED 落盘。
+                 # 断连/冲突/存储失败分支不套用失败保存（保留各自契约）。
+-                failure_version = _persist_drafting_failure(
++                return _persist_drafting_failure(
+                     db,
+                     saved_record=saved_record,
+                     state=loop.state,
+@@ -463,26 +475,21 @@
+                 loop.failure_reason,
+                 run_id=active_run_id,
+                 conversation_id=bootstrap.conv_id,
+-                state_version=failure_version,
++                state_version=loop.state_version,
+             )
+         verification, draft = loop.verification, loop.draft
+         state, state_version = loop.state, loop.state_version
++        stage_reason = loop.stage_reason or f"VERIFIER:{verification.verdict.value}"
+     if verification.verdict is not VerificationVerdict.PASS:
+         # V2-T3 F3：verifier 终态失败（RESEARCH_MORE 预算耗尽/FAIL_SAFE/REWRITE）落 FAILED。
+         # REWRITE 为未实现的修复能力：不增加循环，stage 明确记录 verdict 以便后续诊断。
+-        failure_version = _persist_drafting_failure(
++        return _persist_drafting_failure(
+             db,
+             saved_record=saved_record,
+             state=state,
+             state_version=state_version,
+             public_reason=verification.reason_code,
+-            stage_reason=f"VERIFIER:{verification.verdict.value}",
+-        )
+-        return _failure_or_fallback(
+-            verification.reason_code,
+-            run_id=active_run_id,
+-            conversation_id=bootstrap.conv_id,
+-            state_version=failure_version,
++            stage_reason=stage_reason,
+         )
+     if cancelled is not None and cancelled():
+         return _failure_or_fallback(
+@@ -494,19 +501,13 @@
+     try:
+         finalized = finalizer(state, draft, verification)
+     except Exception:
+-        failure_version = _persist_drafting_failure(
++        return _persist_drafting_failure(
+             db,
+             saved_record=saved_record,
+             state=state,
+             state_version=state_version,
+             public_reason="VERIFIER_TECHNICAL_FAILURE",
+             stage_reason="FINALIZER:EXCEPTION",
+-        )
+-        return _failure_or_fallback(
+-            "VERIFIER_TECHNICAL_FAILURE",
+-            run_id=active_run_id,
+-            conversation_id=bootstrap.conv_id,
+-            state_version=failure_version,
+         )
+     if finalized.answer is None:
+         reason_code = (
+@@ -514,19 +515,13 @@
+             if finalized.reason_code == "FINAL_GATE_TECHNICAL_FAILURE"
+             else finalized.reason_code
+         )
+-        failure_version = _persist_drafting_failure(
++        return _persist_drafting_failure(
+             db,
+             saved_record=saved_record,
+             state=state,
+             state_version=state_version,
+             public_reason=reason_code,
+             stage_reason=f"FINALIZER:{finalized.reason_code}",
+-        )
+-        return _failure_or_fallback(
+-            reason_code,
+-            run_id=active_run_id,
+-            conversation_id=bootstrap.conv_id,
+-            state_version=failure_version,
+         )
+     if cancelled is not None and cancelled():
+         return _failure_or_fallback(
+--- backend/agent/runtime.py.before
++++ backend/agent/runtime.py
+@@ -24,52 +24,13 @@
+ from tools.gateway import ToolGateway
+ 
+ from .controller import AgentController, SQLAlchemyControllerRepository
+-from .planner import PlannerParseError
++from .planner import PlannerParseError, PlannerUnavailable
+ from .schemas import AgentBudgets, Fact, LegalAgentState, LegalIssue, SourceType, UnknownFact
+ from .verifier import DeterministicVerifier
+ from .writer import EvidenceBoundedWriter, WriterPayload
+ 
+ _MAX_QUERY_CHARS = 20_000
+ _MAX_ISSUES = 8
+-
+-# V2-T8（2026-09-10）：预算上限必须装得下**契约允许的最大分解**，而不是一个魔数。
+-#
+-# 现象（同候选、10 题、三个模型实测）：`steps ≈ 7 + 2 × 争点数`——每个争点一次定向检索
+-# = 一个 tool_call + 一个 tool_result，即 2 步。固定 `max_steps=16` **在 4 个争点时已被用满**
+-# （C02 实测 16 步后失败），而冻结题 C03–C09 要求 **5 个争点**（需 17–18 步）
+-# ⇒ **即使分解完全正确，也必然 AGENT_BUDGET_EXCEEDED**。
+-#
+-# 处理：由 `build_agent_runtime`（唯一生产装配点）按 `_MAX_ISSUES` 求下限、与 settings 的
+-# 算子下限取大。上限因此**恒定**（可跨 run 比较），且**不覆盖调用方显式传入的预算**——
+-# controller 仍原样快照它拿到的 budgets，"显式小预算"的语义（含其停机测试）保持不变。
+-# 定性：预算是**防失控**的上限，不是"限制正确工作量"的配额。
+-# 有界：`_MAX_ISSUES=8` ⇒ `max_steps ≤ 7 + 2×8 + 6 = 29 ≤ settings 的 le=32`；
+-# `max_duplicate_attempts_per_issue` 仍逐 issue 兜底 ⇒ fail-closed 不弱化。
+-#
+-# slack 由 3 上调为 6（2026-09-10 验证轮实测修正）：原拟合式 `7+2N` 给出"5 争点需 17 步"，
+-# 而实测 **19 步**（C08，7m23s 轮）⇒ 拟合低估约 2，真实趋势更接近 `8+2N`。
+-# 若 slack 保持 3，契约允许的 8 争点约需 26 步 = **恰好等于上限、零余量** ⇒ 上调到 6（上限 29）。
+-_BUDGET_FIXED_STEPS = 7
+-_BUDGET_STEPS_PER_ISSUE = 2
+-_BUDGET_STEP_SLACK = 6
+-_BUDGET_TOOL_SLACK = 3
+-
+-
+-def _fit_budgets_to_max_decomposition(budgets: AgentBudgets) -> AgentBudgets:
+-    """把预算上限抬到"装得下契约允许的最大分解"（幂等、只放宽、结果恒定）。
+-
+-    `max_tool_calls` 必须一并抬高：8 个争点要 8 次检索，而默认 10 次只剩 2 次余量——
+-    只抬 `max_steps` 会在**下一个天花板**上撞回来。
+-    """
+-    required_steps = _BUDGET_FIXED_STEPS + _BUDGET_STEPS_PER_ISSUE * _MAX_ISSUES + _BUDGET_STEP_SLACK
+-    required_tools = _MAX_ISSUES + _BUDGET_TOOL_SLACK
+-    return budgets.model_copy(
+-        update={
+-            "max_steps": max(budgets.max_steps, required_steps),
+-            "max_tool_calls": max(budgets.max_tool_calls, required_tools),
+-        }
+-    )
+-
+ 
+ _SERVER_OWNED_ISSUE_FIELDS = frozenset(
+     {
+@@ -580,7 +541,7 @@
+ 
+         采用规则 = **Pareto 严格改进**：候选必须在**两类缺陷上都不变差、且至少一类严格变少**才被采纳。
+         （首版只比对覆盖缺口 ⇒ 可能采纳"覆盖缺口减少但新增非逐字引用"的结果，把成功改成失败；
+-        自审发现后改为两轴同时约束。）⇒ 本机制在结构上不可能让结果变差（零回归）。
++        自审发现后改为两轴同时约束。）候选还必须通过与初始状态相同的组装校验。
+         """
+         raw = self.decompose(bootstrap)
+         if not self._fact_repair:
+@@ -599,9 +560,7 @@
+                 repaired = _IssueEnvelope.model_validate(candidate)
+             except Exception as exc:  # noqa: BLE001
+                 # 修复失败不得掩盖"首次调用已成功"这一事实：记录后保留原结果。
+-                _log_decomposition_repair(
+-                    "repair_failed", len(proposal.issues), defects, detail=f"{type(exc).__name__}: {exc}"
+-                )
++                _log_decomposition_repair("repair_failed", len(proposal.issues), defects, detail=type(exc).__name__)
+                 break
+             after = _fact_defects(bootstrap.raw_query, repaired)
+             # 采纳准则（2026-09-11 深潜审查修正）：**非逐字引用是下游致命项**——
+@@ -617,6 +576,11 @@
+             strictly_better = len(after["uncovered"]) < len(defects["uncovered"]) or bool(defects["non_verbatim"])
+             pareto_better = viable and coverage_ok and strictly_better
+             if pareto_better:
++                try:
++                    _assemble_initial_state(candidate, bootstrap)
++                except (ValueError, AdapterPolicyViolation) as exc:
++                    _log_decomposition_repair("repair_failed", len(proposal.issues), defects, detail=type(exc).__name__)
++                    break
+                 _log_decomposition_repair("repaired", len(repaired.issues), after)
+                 return candidate
+             _log_decomposition_repair("repair_ineffective", len(repaired.issues), after)
+@@ -631,6 +595,15 @@
+     budgets: AgentBudgets | None = None,
+ ) -> LegalAgentState:
+     raw = decomposer.decompose_with_fact_repair(bootstrap)
++    try:
++        return _assemble_initial_state(raw, bootstrap, budgets)
++    except ValidationError:
++        raise IssueDecompositionError("issue decomposition contains invalid normalized fields") from None
++
++
++def _assemble_initial_state(
++    raw: object, bootstrap: RequestBootstrap, budgets: AgentBudgets | None = None
++) -> LegalAgentState:
+     if _contains_key(raw, _SERVER_OWNED_ISSUE_FIELDS):
+         raise AdapterPolicyViolation("Issue output contains server-owned fields")
+     try:
+@@ -783,11 +756,15 @@
+         last_exc: Exception | None = None
+         for _attempt in range(2):
+             try:
+-                raw = _response_text(self._invoke_planner(messages))
++                response = self._invoke_planner(messages)
++            except Exception:
++                raise PlannerUnavailable("planner transport is unavailable") from None
++            try:
++                raw = _response_text(response)
+                 return _strict_json(raw)
+-            except Exception as exc:  # noqa: BLE001 保留首次原始错误供最终 raise
++            except ValueError as exc:
+                 last_exc = exc
+-        raise PlannerParseError(f"planner output is unavailable or malformed: {last_exc}") from last_exc
++        raise PlannerParseError("planner output is malformed") from last_exc
+ 
+ 
+ class LLMDraftGenerator:
+@@ -887,8 +864,6 @@
+         max_duplicate_attempts_per_issue=2,
+         max_verifier_research_returns=settings.agent_max_verifier_research_returns,
+     )
+-    # V2-T8：确保上限装得下契约允许的最大分解（否则"分解做对了"反而会 BudgetExceeded）。
+-    budgets = _fit_budgets_to_max_decomposition(budgets)
+     bound_gateway = gateway or ToolGateway()
+     # 2026-09-08 模型决策：换回 LongCat-2.0 全链（qwen 实验证明失败分布迁移、与模型强弱关系
+     # 不大，见 docs/gate5-formal-dev-20260908.md 附 C）；错误回喂重试（71e5f23）与模型无关，
+--- backend/agent/controller.py.before
++++ backend/agent/controller.py
+@@ -26,7 +26,7 @@
+ from tools.gateway import ToolGateway
+ 
+ from .evaluator import EvaluationDecision, EvaluationOutcome, EvidenceEvaluator
+-from .planner import Planner, PlannerParseError, PlannerPolicyViolation, parse_plan_decision
++from .planner import Planner, PlannerParseError, PlannerPolicyViolation, PlannerUnavailable, parse_plan_decision
+ from .repository import CheckpointMetadata, RunVersionConflict, compare_and_save, load_owned_run
+ from .schemas import (
+     AgentBudgets,
+@@ -491,6 +491,8 @@
+                     policies=self._gateway.policies,
+                     issue_ids=issue_ids,
+                 )
++            except PlannerUnavailable:
++                return self._persist_failure(run, reason_code="AGENT_EXECUTION_FAILURE")
+             except PlannerPolicyViolation:
+                 return self._persist_failure(run, reason_code="PLANNER_POLICY_VIOLATION")
+             except PlannerParseError as exc:
+@@ -508,6 +510,8 @@
+                         policies=self._gateway.policies,
+                         issue_ids=issue_ids,
+                     )
++                except PlannerUnavailable:
++                    return self._persist_failure(run, reason_code="AGENT_EXECUTION_FAILURE")
+                 except PlannerPolicyViolation:
+                     return self._persist_failure(run, reason_code="PLANNER_POLICY_VIOLATION")
+                 except PlannerParseError:
+--- backend/agent/planner.py.before
++++ backend/agent/planner.py
+@@ -44,6 +44,10 @@
+ 
+ class PlannerParseError(ValueError):
+     """Ordinary malformed or unknown Planner output."""
++
++
++class PlannerUnavailable(RuntimeError):
++    """Transport failed; output-repair retries cannot resolve this failure."""
+ 
+ 
+ class PlannerPolicyViolation(PermissionError):
+--- backend/tests/test_agent_chat_integration.py.before
++++ backend/tests/test_agent_chat_integration.py
+@@ -981,7 +981,7 @@
+     failure_step = db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="failure").one_or_none()
+     assert failure_step is not None
+     assert failure_step.reason_code == "EVIDENCE_COVERAGE_DEFICIENT"
+-    assert failure_step.result_summary == "VERIFIER:RESEARCH_MORE"
++    assert failure_step.result_summary == "WRITER:UNKNOWN_EVIDENCE_ID"
+     reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
+     assert reloaded.verifier_research_returns == 1  # 已用预算保留，不复活
+     assert reloaded.status is AgentStatus.FAILED
+@@ -1163,16 +1163,29 @@
+     assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+ 
+ 
+-def test_failure_persistence_storage_error_keeps_original_reason(db, monkeypatch):
+-    """FAILED 落盘时存储故障 → 不伪报（状态仍 drafting）、返回原失败码、attempt 保留。"""
++@pytest.mark.parametrize("conflict", [False, True])
++def test_failure_persistence_reports_storage_error_or_conflict(db, monkeypatch, caplog, conflict):
++    """保存失败公开报告真实故障，保留预算及并发赢家，日志不泄露异常原文。"""
+     import agent.service as service
+     from agent.service import execute_agent_request
++    from observability import _JsonFormatter
+ 
+     real_compare_and_save = service.compare_and_save
++    winner_versions = []
+ 
+     def failing_on_failed_state(*args, **kwargs):
+         if kwargs.get("state") is not None and kwargs["state"].status is AgentStatus.FAILED:
+-            raise OSError("simulated database failure during failure persistence")
++            if not conflict:
++                raise OSError("secret-database-credentials")
++            winner = LegalAgentState.model_validate_json(kwargs["run"].state_json)
++            real_compare_and_save(
++                args[0],
++                run=kwargs["run"],
++                expected_version=kwargs["expected_version"],
++                state=winner,
++                status=winner.status.value,
++            )
++            winner_versions.append(kwargs["expected_version"] + 1)
+         return real_compare_and_save(*args, **kwargs)
+ 
+     monkeypatch.setattr(service, "compare_and_save", failing_on_failed_state)
+@@ -1188,14 +1201,136 @@
+         gateway=_TwoIssueLawGateway().as_gateway(),
+     )
+ 
+-    # attempt 保存成功（真实状态），FAILED 保存失败被吞 → 公开返回仍是原业务失败码
+-    assert (result.outcome, result.reason_code) == ("failed", "EVIDENCE_COVERAGE_DEFICIENT")
++    expected = "AGENT_FINALIZATION_CONFLICT" if conflict else "AGENT_STORAGE_FAILURE"
++    assert (result.outcome, result.reason_code) == ("failed", expected)
+     stored_run = db.get(AgentRun, result.run_id)
+     assert stored_run.status == "drafting"  # FAILED 未落盘，不伪报已落盘
+     reloaded = LegalAgentState.model_validate_json(stored_run.state_json)
+     assert reloaded.verifier_research_returns == 1  # attempt 预算保留
+     assert db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="coverage_rewrite_attempt").count() == 1
+     assert db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="failure").count() == 0
++    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
++    assert stored_run.state_version == (winner_versions[0] if conflict else result.state_version)
++    if conflict:
++        assert result.state_version + 1 == stored_run.state_version
++    records = [record for record in caplog.records if record.getMessage() == "agent_failure_persistence_failed"]
++    assert len(records) == 1
++    logged = _JsonFormatter().format(records[0])
++    assert "EVIDENCE_COVERAGE_DEFICIENT" in logged
++    assert "WRITER:UNKNOWN_EVIDENCE_ID" in logged
++    assert expected in logged
++    assert "secret-database-credentials" not in logged
++
++
++@pytest.mark.parametrize("feedback_first", [False, True])
++def test_planner_transport_error_is_not_retried_as_bad_output(db, feedback_first):
++    from agent.service import execute_agent_request
++
++    class UnavailablePlanner(_CoverageLoopTransport):
++        def invoke(self, messages):
++            if "Planner" in messages[0].content:
++                self.calls.append(("planner", len(messages)))
++                if feedback_first and sum(kind == "planner" for kind, _ in self.calls) == 1:
++                    return SimpleNamespace(content='{"kind":"invalid-decision"}')
++                raise TimeoutError("secret-provider-details")
++            return super().invoke(messages)
++
++    def no_laws(_context, args):
++        return {
++            "kind": "retrieve_laws",
++            "statement": "未命中依据",
++            "evidence": [],
++            "retrieval": {"query": args.query, "requested_k": 4, "returned_count": 0},
++        }
++
++    user, conversation = _owner_conversation(db)
++    transport = UnavailablePlanner(_two_issue_payload())
++    result = execute_agent_request(
++        db=db,
++        user_id=user.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(conversation.id),
++        finalizer=_finalize,
++        llm=transport,
++        gateway=ToolGateway(wrapper_overrides={"retrieve_laws": no_laws}),
++    )
++    assert sum(kind == "planner" for kind, _ in transport.calls) == (2 if feedback_first else 1)
++    assert result.reason_code == "AGENT_EXECUTION_FAILURE"
++    stored = db.get(AgentRun, result.run_id)
++    assert stored.status == "failed"
++    assert stored.last_error_code == "AGENT_EXECUTION_FAILURE"
++    assert result.state_version == stored.state_version
++    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
++
++
++def test_service_rejects_controller_snapshot_replaced_before_reload(db, monkeypatch):
++    from agent.controller import AgentController
++    from agent.repository import compare_and_save, load_owned_run
++    from agent.service import execute_agent_request
++
++    real_run = AgentController.run
++    winner_json = []
++
++    def run_then_advance(self, run_id, bootstrap):
++        original = real_run(self, run_id, bootstrap)
++        saved = load_owned_run(db, run_id=run_id, user_id=user.id, conversation_id=conversation.id)
++        winner = original.state.model_copy(update={"verifier_research_returns": 1})
++        compare_and_save(db, run=saved, expected_version=saved.state_version, state=winner, status=winner.status.value)
++        winner_json.append(winner.model_dump_json())
++        return original
++
++    monkeypatch.setattr(AgentController, "run", run_then_advance)
++    user, conversation = _owner_conversation(db)
++    transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="invalid_evidence")
++    result = execute_agent_request(
++        db=db,
++        user_id=user.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(conversation.id),
++        finalizer=_finalize,
++        llm=transport,
++        gateway=_TwoIssueLawGateway().as_gateway(),
++    )
++    assert result.reason_code == "AGENT_FINALIZATION_CONFLICT"
++    stored = db.get(AgentRun, result.run_id)
++    assert stored.state_json == winner_json[0]
++    assert result.state_version == stored.state_version
++    assert not any(kind.startswith("writer") for kind, _ in transport.calls)
++    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
++
++
++def test_disconnect_after_coverage_reservation_stops_recall(db, monkeypatch):
++    import agent.service as service
++
++    real_save = service.compare_and_save
++    disconnected = False
++
++    def save_then_disconnect(*args, **kwargs):
++        nonlocal disconnected
++        saved = real_save(*args, **kwargs)
++        if kwargs["checkpoint"].decision == "coverage_rewrite_attempt":
++            disconnected = True
++        return saved
++
++    monkeypatch.setattr(service, "compare_and_save", save_then_disconnect)
++    user, conversation = _owner_conversation(db)
++    transport = _CoverageLoopTransport(_two_issue_payload())
++    result = service.execute_agent_request(
++        db=db,
++        user_id=user.id,
++        settings=_settings(),
++        bootstrap=_two_issue_bootstrap(conversation.id),
++        finalizer=_finalize,
++        llm=transport,
++        gateway=_TwoIssueLawGateway().as_gateway(),
++        cancelled=lambda: disconnected,
++    )
++    assert result.reason_code == "CLIENT_DISCONNECTED"
++    assert [kind for kind, _ in transport.calls if kind.startswith("writer")] == ["writer"]
++    stored = db.get(AgentRun, result.run_id)
++    assert stored.status == "drafting"
++    assert LegalAgentState.model_validate_json(stored.state_json).verifier_research_returns == 1
++    assert stored.state_version == result.state_version
+     assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+ 
+ 
+--- backend/tests/test_agent_runtime.py.before
++++ backend/tests/test_agent_runtime.py
+@@ -1,5 +1,5 @@
+ import json
+-from dataclasses import dataclass
++from dataclasses import dataclass, replace
+ 
+ import pytest
+ 
+@@ -111,6 +111,16 @@
+     "payload",
+     [
+         {"issues": []},
++        {"issues": [{"question": "   ", "facts": [], "unknown_facts": []}]},
++        {
++            "issues": [
++                {
++                    "question": "争点",
++                    "facts": [],
++                    "unknown_facts": [{"statement": "  ", "why_outcome_changes": "必要事实"}],
++                }
++            ]
++        },
+         {"issues": [{"question": "同一争点", "facts": [], "unknown_facts": []}] * 2},
+         {
+             "issues": [
+@@ -263,9 +273,12 @@
+     agent_max_verifier_research_returns = 1
+ 
+ 
+-def test_runtime_factory_builds_real_components_and_snapshots_budgets():
++@pytest.mark.parametrize("max_steps,max_tools", [(3, 1), (16, 10), (32, 20)])
++def test_runtime_factory_builds_real_components_and_snapshots_budgets(max_steps, max_tools):
+     transport = RecordingTransport(valid_issue_json())
+     settings = SettingsSnapshot()
++    settings.agent_max_steps = max_steps
++    settings.agent_max_tool_calls = max_tools
+ 
+     runtime = build_agent_runtime(db=object(), user_id=9, settings=settings, llm=transport)
+     snapped = runtime.budgets.model_copy(deep=True)
+@@ -277,8 +290,8 @@
+     #   手算依据：契约允许 8 个争点；观测趋势 steps ≈ 8 + 2N ⇒ 8 争点约需 24–26 步，上限取 29；
+     #             工具预算 = 8 次检索 + 3 次查询余量 = 11。
+     assert runtime.budgets == AgentBudgets(
+-        max_steps=29,
+-        max_tool_calls=11,
++        max_steps=max_steps,
++        max_tool_calls=max_tools,
+         max_replans=3,
+         max_clarifications=2,
+         max_duplicate_attempts_per_issue=2,
+@@ -652,6 +665,27 @@
+     assert [issue.question for issue in state.issues] == ["争点1是否成立？", "争点2是否成立？"]
+ 
+ 
++@pytest.mark.parametrize("defect", ["duplicate_question", "untrusted_source", "blank_question", "blank_unknown"])
++def test_fact_repair_preserves_valid_original_when_candidate_cannot_assemble(defect):
++    request = bootstrap(_QUERY)
++    candidate = json.loads(_issue_json("公司拖欠我两个月工资", "在昨天口头解除劳动合同"))
++    if defect == "duplicate_question":
++        candidate["issues"][1]["question"] = "  " + candidate["issues"][0]["question"] + "  "
++    elif defect == "untrusted_source":
++        # raw_query can include framing that belongs to neither trusted input source.
++        request = replace(request, user_text="公司拖欠我两个月工资")
++    elif defect == "blank_question":
++        candidate["issues"][1]["question"] = "   "
++    else:
++        candidate["issues"][1]["unknown_facts"] = [{"statement": "  ", "why_outcome_changes": "必要事实"}]
++    transport = RecordingTransport(_issue_json("公司拖欠我两个月工资"), json.dumps(candidate))
++
++    state = build_initial_agent_state(request, decomposer=LLMIssueDecomposer(transport))
++
++    assert len(transport.calls) == 2
++    assert [issue.question for issue in state.issues] == ["争点1是否成立？"]
++
++
+ def test_issue_decomposer_keeps_original_when_repair_does_not_reduce_gap():
+     """修复无效（缺口未变小）→ 保留**原**结果，不采纳更差输出（零回归保证）。"""
+     same = _issue_json("公司拖欠我两个月工资")
+@@ -764,9 +798,7 @@
+             build_initial_agent_state(bootstrap(_QUERY), decomposer=LLMIssueDecomposer(transport))
+     assert len(transport.calls) == 2, "修复环必须恰好触发一次"
+     stages = [getattr(r, "agent_repair_stage", "") for r in caplog.records]
+-    assert "repaired" not in stages, (
+-        f"残留非逐字引用的候选不得打 repaired（假象）；实际 stages={stages}"
+-    )
++    assert "repaired" not in stages, f"残留非逐字引用的候选不得打 repaired（假象）；实际 stages={stages}"
+     assert "repair_ineffective" in stages
+ 
+ 
+@@ -831,32 +863,3 @@
+         "agent_fallback_reason",
+     ):
+         assert field in _ACCOUNT_FIELDS, f"{field} 未登记 ⇒ 会被静默丢弃"
+-
+-
+-def test_budgets_fit_contract_max_decomposition_and_never_narrow():
+-    """V2-T8 预算上限：必须装得下契约允许的**最大分解**，且从不收紧、幂等、有界。
+-
+-    **期望值全部独立手算，不引用实现常量与函数**（CONTRIBUTING：期望值来自独立来源）：
+-      · 契约允许 8 个争点；冻结实测「5 争点 = **19 步**」（run-15 C08），线性趋势 ≈ 8 + 2N
+-        ⇒ 8 争点约需 **24–26 步** ⇒ 上限下界取 **26**；
+-      · 工具预算 = 8 次检索 + 查询余量 ⇒ 下界取 **11**；
+-      · 上界受 settings 的 `le=32` 防失控约束。
+-
+-    watch-it-fail：加固前装配层直接用 settings 的 16 步 ⇒ 5 争点（需 19 步）必然 AGENT_BUDGET_EXCEEDED。
+-    """
+-    from agent.runtime import _fit_budgets_to_max_decomposition
+-
+-    base = AgentBudgets(max_steps=16, max_tool_calls=10)
+-    fitted = _fit_budgets_to_max_decomposition(base)
+-
+-    assert fitted.max_steps >= 26, "必须装得下契约允许的最大分解（8 争点按实测趋势约需 24–26 步）"
+-    assert fitted.max_steps >= 19, "冻结题实测 5 争点需 19 步，必须覆盖"
+-    assert fitted.max_steps <= 32, "不得突破 settings 的 le=32 防失控上限"
+-    assert fitted.max_tool_calls >= 11, "工具预算必须同步抬高（8 次检索 + 余量），否则会在下一个天花板撞回来"
+-
+-    assert _fit_budgets_to_max_decomposition(fitted) == fitted, "必须幂等（上限恒定 ⇒ 跨 run 可比）"
+-
+-    higher = AgentBudgets(max_steps=30, max_tool_calls=10)
+-    raised = _fit_budgets_to_max_decomposition(higher)
+-    assert raised.max_steps == 30, "算子调高下限时不得收紧"
+-    assert raised.max_tool_calls >= 11, "抬高后仍须满足契约下界"
+--- backend/tests/test_agent_gate.py.before
++++ backend/tests/test_agent_gate.py
+@@ -231,8 +231,7 @@
+     # Task 7 must snapshot these runtime values into AgentBudgets; old schema defaults are not rollout sources.
+     # agent_max_steps=16 为 03a2f14（gate4 F1 根因修正）批准值：两轮澄清第二轮 checkpoint
+     # steps=8 已耗尽预算触发 BudgetExceeded→409，故 8→16；此处陈旧期待 8 同步修正（T5）。
+-    # V2-T8（2026-09-10）确认 16 保持不变：它是**算子下限**，装不下契约允许的最大分解（8 争点
+-    # 需 26 步）这件事由装配层 agent.runtime._fit_budgets_to_max_decomposition 兜，不靠改这里。
++    # 配置是硬上限；复杂任务必须在耗尽时停止，装配层不得自动提高预算。
+     assert (
+         settings.agent_max_steps,
+         settings.agent_max_tool_calls,

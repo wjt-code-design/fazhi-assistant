@@ -1,0 +1,573 @@
+"""One bounded, request-scoped Legal Agent execution service."""
+
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import Any, NamedTuple, Protocol, cast
+
+from request_bootstrap import RequestBootstrap
+from routing_metrics import is_technical_fallback_reason
+from tools.gateway import ToolGateway
+
+from .chat_integration import AgentFinalizationConflict, AgentOutcome, AgentPublicResult, persist_agent_final_once
+from .controller import ControllerResult
+from .repository import (
+    CheckpointMetadata,
+    RunVersionConflict,
+    compare_and_save,
+    create_run,
+    load_owned_run,
+)
+from .runtime import (
+    AdapterPolicyViolation,
+    IssueDecompositionError,
+    IssueDecompositionUnavailable,
+    LLMTransport,
+    RuntimeUnavailable,
+    build_agent_runtime,
+)
+from .schemas import AgentStatus
+from .state_machine import BudgetExceeded, register_verifier_research_return, transition
+from .verifier import VerificationResult, VerificationVerdict
+from .writer import WriterStatus, coverage_feedback_payload, is_effective_statute, issue_is_deficient
+
+
+class FinalizationResult(Protocol):
+    answer: str | None
+    reason_code: str
+
+
+def _log_pre_run_failure(reason_code: str, conversation_id: int, exc: Exception) -> None:
+    """run 创建前失败的唯一可观测点（003 已知限制 2 的可诊断性修复）。
+
+    只记录 reason code 与异常摘要——不记录用户消息、模型原始输出或环境变量。
+    """
+    import logging
+
+    logging.getLogger("legal.agent").warning(
+        "agent_pre_run_failure",
+        extra={
+            "agent_pre_run_reason": reason_code,
+            "agent_conversation_id": conversation_id,
+            "agent_failure_detail": f"{type(exc).__name__}: {exc}"[:300],
+        },
+    )
+
+
+Finalizer = Callable[..., FinalizationResult]
+CancellationCheck = Callable[[], bool]
+
+
+def _result(
+    outcome: AgentOutcome,
+    reason_code: str,
+    *,
+    run_id: str | None = None,
+    conversation_id: int | None = None,
+    state_version: int = 0,
+    answer: str | None = None,
+    prompt: str | None = None,
+    issue_id: str | None = None,
+) -> AgentPublicResult:
+    return AgentPublicResult(
+        outcome=outcome,
+        run_id=run_id,
+        conversation_id=conversation_id,
+        state_version=state_version,
+        answer=answer,
+        prompt=prompt,
+        issue_id=issue_id,
+        reason_code=reason_code,
+    )
+
+
+def _failure_or_fallback(
+    reason_code: str,
+    *,
+    run_id: str | None = None,
+    conversation_id: int | None = None,
+    state_version: int = 0,
+) -> AgentPublicResult:
+    return _result(
+        "fallback" if is_technical_fallback_reason(reason_code) else "failed",
+        reason_code,
+        run_id=run_id,
+        conversation_id=conversation_id,
+        state_version=state_version,
+    )
+
+
+def _saved_failure_reason(db: Any, *, run_id: str, user_id: int, conversation_id: int) -> str:
+    record = load_owned_run(
+        db,
+        run_id=run_id,
+        user_id=user_id,
+        conversation_id=conversation_id,
+    )
+    if record is None:
+        return "OWNERSHIP_FAILURE"
+    return cast(str | None, record.last_error_code) or cast(str | None, record.degraded_reason) or "AGENT_FAILED"
+
+
+class _CoverageLoopOutcome(NamedTuple):
+    """Coverage 回喂循环的显式结果：state/version 必须显式传出，不靠修改调用者不可见的局部变量。"""
+
+    verification: VerificationResult
+    draft: Any
+    state: Any
+    state_version: int
+    failure_reason: str | None  # None=循环正常结束；否则为应返回的公开失败码
+
+
+def _deficient_issue_ids(state: Any, draft: Any) -> set[str]:
+    """缺绑定 issue 集合。**谓词单一真源**见 `writer.issue_is_deficient`（F5，2026-09-10 审查收敛）。
+
+    本处只提供**证据视图**：用 `state.evidence`（全局）；writer 侧用 per-issue 证据视图。
+    原先两处各有一份同义谓词实现——复制漂移会造成"该重写的不重写／不该重写的重写"这类**静默分流错误**。
+    verifier.py 因冻结保留原实现（口径一致，执行书 T0 红线）。
+    """
+    claims = [*draft.conclusion, *draft.issue_analysis, *draft.risks]
+    evidence_by_id = {evidence.evidence_id: evidence for evidence in state.evidence}
+    return {issue.issue_id for issue in state.issues if issue_is_deficient(issue.issue_id, claims, evidence_by_id)}
+
+
+def _rewrite_worth_attempting(state: Any, draft: Any) -> bool:
+    """V2-T3（2026-09-09）修复分流（教学手册第四课）：writer 只能修"证据已齐但 claim 未绑定"。
+
+    - 存在未解决 critical conflict → writer 无法解除 conflict，重写必仍 deficient：不外呼；
+    - 任一缺绑定 issue 没有成功 observation 链接的生效成文法证据 → writer 创造不了法条：不外呼；
+    - 仅当全部缺绑定 issue 均有可用证据（纯 binding 缺口）才允许消耗重写预算。
+    与 verifier 的差异口径：本判定只做"可修复性"预判，不改变任何 verifier 裁决。
+    """
+    if any(conflict.critical and not conflict.resolved for conflict in state.conflicts):
+        return False
+    deficient = _deficient_issue_ids(state, draft)
+    if not deficient:
+        return False
+    evidence_by_id = {evidence.evidence_id: evidence for evidence in state.evidence}
+    linked_by_issue: dict[str, set[str]] = {}
+    for observation in state.observations:
+        if observation.status != "succeeded":
+            continue
+        linked_by_issue.setdefault(observation.issue_id, set()).update(observation.evidence_ids)
+    for issue_id in deficient:
+        has_usable = any(
+            is_effective_statute(evidence_by_id.get(evidence_id))
+            for evidence_id in linked_by_issue.get(issue_id, set())
+        )
+        if not has_usable:
+            return False
+    return True
+
+
+def _persist_drafting_failure(
+    db: Any,
+    *,
+    saved_record: Any,
+    state: Any,
+    state_version: int,
+    public_reason: str,
+    stage_reason: str,
+) -> int:
+    """V2-T3（2026-09-09）F3：终稿阶段业务失败持久化（DRAFTING → FAILED + failure step）。
+
+    仅用于已有、归属和版本已确认的 DRAFTING 业务失败；CLIENT_DISCONNECTED、CAS 冲突、
+    存储故障不套用（断连保留无 assistant 契约，冲突不覆盖新状态，存储故障不伪报已落盘）。
+    - steps 预算耗尽的防御沿用 controller._persist_failure 模式：直接置 FAILED，不再递增；
+    - 保存失败返回原 state_version（调用方按原失败码返回，不改变公开失败语义）。
+    返回应向公开结果报告的 state_version（保存成功为 v+1，否则原值）。
+    """
+    try:
+        try:
+            failed_state = transition(state, AgentStatus.FAILED)
+        except BudgetExceeded:
+            failed_state = state.model_copy(update={"status": AgentStatus.FAILED})
+        compare_and_save(
+            db,
+            run=saved_record,
+            expected_version=state_version,
+            state=failed_state,
+            status=AgentStatus.FAILED.value,
+            checkpoint=CheckpointMetadata(
+                decision="failure",
+                reason_code=public_reason,
+                result_code=stage_reason,
+                last_error_code=public_reason,
+            ),
+        )
+        return state_version + 1
+    except RunVersionConflict:
+        return state_version
+    except Exception:
+        return state_version
+
+
+def _coverage_research_loop(
+    runtime: Any,
+    db: Any,
+    saved_record: Any,
+    state: Any,
+    state_version: int,
+    verification: VerificationResult,
+    draft: Any,
+    cancelled: CancellationCheck | None = None,
+) -> _CoverageLoopOutcome:
+    """V2-T2（2026-09-09）：coverage 回喂循环——先 CAS 保存预算 attempt，再外呼重写。
+
+    修复 F1：原实现原地自增 state.verifier_research_returns 且不落盘；回喂成功后
+    persist_agent_final_once 的 durable equality guard 正确拒绝（数据库 DRAFTING 计数=0
+    vs 内存计数=1）→ AGENT_FINALIZATION_CONFLICT。现顺序：
+    register_verifier_research_return 构造 next_state（不原地改旧快照）
+    → compare_and_save（CAS：v→v+1，持久化 next_state 与 attempt checkpoint）
+    → 保存成功才外呼 render_for_coverage → verifier 验证同一 state 与新 draft；
+    后续终稿保存与公开返回值使用保存后的新版本。
+    - 保存失败（版本冲突 / 数据库故障）不外呼：返回现有冲突 / 存储失败语义；
+    - 保存与外呼前检查断连：按既有契约无 assistant 写入，不擅自重新生成；
+    - register 的 BudgetExceeded（并发超限防御路径）视为预算耗尽，停止回喂；
+    - 重渲染 FAIL_SAFE / 仍 deficient → 原样返回，外层按 verifier 原因码兜底；
+    - verifier 判定逻辑与 feedback 构造一行不改。
+    """
+    while (
+        verification.verdict is VerificationVerdict.RESEARCH_MORE
+        and state.verifier_research_returns < state.budgets.max_verifier_research_returns
+    ):
+        if cancelled is not None and cancelled():
+            return _CoverageLoopOutcome(verification, draft, state, state_version, "CLIENT_DISCONNECTED")
+        if not _rewrite_worth_attempting(state, draft):
+            # V2-T3 修复分流：conflict 驱动或缺有效证据的 deficient，writer 修不了 → 零无效外呼
+            break
+        feedback = coverage_feedback_payload(state, draft)
+        if feedback is None:
+            break
+        try:
+            next_state = register_verifier_research_return(state)
+        except BudgetExceeded:
+            break
+        try:
+            saved_record = compare_and_save(
+                db,
+                run=saved_record,
+                expected_version=state_version,
+                state=next_state,
+                status=next_state.status.value,
+                checkpoint=CheckpointMetadata(
+                    decision="coverage_rewrite_attempt",
+                    reason_code="EVIDENCE_COVERAGE_DEFICIENT",
+                    result_code="ATTEMPT_RESERVED",
+                ),
+            )
+        except RunVersionConflict:
+            # 输家不外呼、不重读新版本强行覆盖；按现有冲突语义返回。
+            return _CoverageLoopOutcome(verification, draft, state, state_version, "AGENT_FINALIZATION_CONFLICT")
+        except Exception:
+            # repository 已 rollback；不在坏事务上继续外呼。
+            return _CoverageLoopOutcome(verification, draft, state, state_version, "AGENT_STORAGE_FAILURE")
+        # CAS 成功 ⇒ 数据库版本必为 expected_version+1；显式计算，不依赖
+        # Session expire_on_commit 语义（refresh 后重读在部分配置下不可假设）。
+        state = next_state
+        state_version = state_version + 1
+        try:
+            rerendered = runtime.writer.render_for_coverage(state, feedback)
+            if rerendered.status is not WriterStatus.READY or rerendered.draft is None:
+                break
+            draft = rerendered.draft
+            verification = runtime.verifier.verify(state, draft)
+        except Exception:
+            # attempt 已保存：失败结果必须携带已保存的新版本（外层 catch 拿不到它），
+            # 不得让过时版本号逃逸到公开返回值。
+            return _CoverageLoopOutcome(verification, draft, state, state_version, "VERIFIER_TECHNICAL_FAILURE")
+    return _CoverageLoopOutcome(verification, draft, state, state_version, None)
+
+
+def execute_agent_request(
+    *,
+    db: Any,
+    user_id: int,
+    settings: Any,
+    bootstrap: RequestBootstrap,
+    finalizer: Finalizer,
+    run_id: str | None = None,
+    llm: LLMTransport | None = None,
+    gateway: ToolGateway | None = None,
+    cancelled: CancellationCheck | None = None,
+) -> AgentPublicResult:
+    """Execute or resume one bounded Agent run and persist PASS before returning it."""
+    try:
+        runtime = build_agent_runtime(
+            db=db,
+            user_id=user_id,
+            settings=settings,
+            llm=llm,
+            gateway=gateway,
+        )
+    except RuntimeUnavailable:
+        return _failure_or_fallback("TOOL_UNAVAILABLE", conversation_id=bootstrap.conv_id)
+    except Exception:
+        return _failure_or_fallback("AGENT_EXECUTION_FAILURE", conversation_id=bootstrap.conv_id)
+
+    if run_id is None:
+        try:
+            initial_state = runtime.build_initial_state(bootstrap)
+        except AdapterPolicyViolation as exc:
+            _log_pre_run_failure("PLANNER_POLICY_VIOLATION", bootstrap.conv_id, exc)
+            return _failure_or_fallback("PLANNER_POLICY_VIOLATION", conversation_id=bootstrap.conv_id)
+        except IssueDecompositionError as exc:
+            _log_pre_run_failure("ISSUE_DECOMPOSITION_INVALID", bootstrap.conv_id, exc)
+            return _failure_or_fallback("ISSUE_DECOMPOSITION_INVALID", conversation_id=bootstrap.conv_id)
+        except IssueDecompositionUnavailable as exc:
+            _log_pre_run_failure("PLANNER_PARSE_ERROR", bootstrap.conv_id, exc)
+            return _failure_or_fallback("PLANNER_PARSE_ERROR", conversation_id=bootstrap.conv_id)
+        try:
+            record = create_run(
+                db,
+                user_id=user_id,
+                conversation_id=bootstrap.conv_id,
+                state=initial_state,
+            )
+        except (PermissionError, ValueError):
+            return _failure_or_fallback("OWNERSHIP_FAILURE", conversation_id=bootstrap.conv_id)
+        active_run_id = cast(str, record.id)
+    else:
+        active_run_id = run_id
+
+    try:
+        controller_result: ControllerResult = runtime.controller.run(active_run_id, bootstrap)
+    except PermissionError:
+        return _failure_or_fallback("OWNERSHIP_FAILURE", run_id=active_run_id, conversation_id=bootstrap.conv_id)
+    except Exception:
+        import logging
+
+        logging.getLogger("legal.agent").exception(
+            "agent_execution_failure_diagnostic", extra={"agent_run_id": active_run_id}
+        )
+        return _failure_or_fallback("AGENT_EXECUTION_FAILURE", run_id=active_run_id, conversation_id=bootstrap.conv_id)
+
+    saved_record = load_owned_run(
+        db,
+        run_id=active_run_id,
+        user_id=user_id,
+        conversation_id=bootstrap.conv_id,
+    )
+    if saved_record is None:
+        return _failure_or_fallback("OWNERSHIP_FAILURE", run_id=active_run_id, conversation_id=bootstrap.conv_id)
+    state_version = cast(int, saved_record.state_version)
+    state = controller_result.state
+    if cancelled is not None and cancelled():
+        return _failure_or_fallback(
+            "CLIENT_DISCONNECTED",
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=state_version,
+        )
+
+    if state.status is AgentStatus.WAITING_USER:
+        evaluation = controller_result.evaluation
+        issue_id = evaluation.issue_id if evaluation is not None else None
+        if not controller_result.pending_question or evaluation is None or not issue_id:
+            return _failure_or_fallback(
+                "AGENT_STATE_INTEGRITY_FAILURE",
+                run_id=active_run_id,
+                conversation_id=bootstrap.conv_id,
+                state_version=state_version,
+            )
+        return _result(
+            "clarification",
+            evaluation.reason_code,
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=state_version,
+            prompt=controller_result.pending_question,
+            issue_id=issue_id,
+        )
+
+    if state.status is not AgentStatus.DRAFTING:
+        reason_code = _saved_failure_reason(
+            db,
+            run_id=active_run_id,
+            user_id=user_id,
+            conversation_id=bootstrap.conv_id,
+        )
+        return _failure_or_fallback(
+            reason_code,
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=state_version,
+        )
+
+    writer_result = runtime.writer.render(state)
+    if writer_result.status is not WriterStatus.READY or writer_result.draft is None:
+        # V2-T3 F3：writer 失败落 FAILED 终态与原因（重载可见）；保存失败不影响公开失败码
+        failure_version = _persist_drafting_failure(
+            db,
+            saved_record=saved_record,
+            state=state,
+            state_version=state_version,
+            public_reason=writer_result.reason_code,
+            stage_reason=f"WRITER:{writer_result.reason_code}",
+        )
+        return _failure_or_fallback(
+            writer_result.reason_code,
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=failure_version,
+        )
+    draft = writer_result.draft
+    try:
+        verification = runtime.verifier.verify(state, draft)
+    except Exception:
+        failure_version = _persist_drafting_failure(
+            db,
+            saved_record=saved_record,
+            state=state,
+            state_version=state_version,
+            public_reason="VERIFIER_TECHNICAL_FAILURE",
+            stage_reason="VERIFIER:EXCEPTION",
+        )
+        return _failure_or_fallback(
+            "VERIFIER_TECHNICAL_FAILURE",
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=failure_version,
+        )
+    if verification.verdict is not VerificationVerdict.PASS:
+        # V2-T2：RESEARCH_MORE（EVIDENCE_COVERAGE_DEFICIENT 且 budget 未耗尽）→
+        # 先 CAS 保存预算 attempt，再定向回喂 writer 重渲染一轮；重渲染后 verify
+        # 异常按技术失败兜底；保存失败按冲突/存储失败兜底且不外呼。
+        try:
+            loop = _coverage_research_loop(
+                runtime, db, saved_record, state, state_version, verification, draft, cancelled
+            )
+        except Exception:
+            # 此处仅可能收到 attempt 保存之前的异常（断连检查/feedback 构造），
+            # state_version 未被保存推进，仍准确；保存后的异常在 helper 内携带新版本返回。
+            return _failure_or_fallback(
+                "VERIFIER_TECHNICAL_FAILURE",
+                run_id=active_run_id,
+                conversation_id=bootstrap.conv_id,
+                state_version=state_version,
+            )
+        if loop.failure_reason is not None:
+            failure_version = loop.state_version
+            if loop.failure_reason == "VERIFIER_TECHNICAL_FAILURE":
+                # V2-T3 F3：attempt 已落盘后的 verify 异常属业务技术失败 → FAILED 落盘。
+                # 断连/冲突/存储失败分支不套用失败保存（保留各自契约）。
+                failure_version = _persist_drafting_failure(
+                    db,
+                    saved_record=saved_record,
+                    state=loop.state,
+                    state_version=loop.state_version,
+                    public_reason=loop.failure_reason,
+                    stage_reason="VERIFIER:EXCEPTION_AFTER_ATTEMPT",
+                )
+            return _failure_or_fallback(
+                loop.failure_reason,
+                run_id=active_run_id,
+                conversation_id=bootstrap.conv_id,
+                state_version=failure_version,
+            )
+        verification, draft = loop.verification, loop.draft
+        state, state_version = loop.state, loop.state_version
+    if verification.verdict is not VerificationVerdict.PASS:
+        # V2-T3 F3：verifier 终态失败（RESEARCH_MORE 预算耗尽/FAIL_SAFE/REWRITE）落 FAILED。
+        # REWRITE 为未实现的修复能力：不增加循环，stage 明确记录 verdict 以便后续诊断。
+        failure_version = _persist_drafting_failure(
+            db,
+            saved_record=saved_record,
+            state=state,
+            state_version=state_version,
+            public_reason=verification.reason_code,
+            stage_reason=f"VERIFIER:{verification.verdict.value}",
+        )
+        return _failure_or_fallback(
+            verification.reason_code,
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=failure_version,
+        )
+    if cancelled is not None and cancelled():
+        return _failure_or_fallback(
+            "CLIENT_DISCONNECTED",
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=state_version,
+        )
+    try:
+        finalized = finalizer(state, draft, verification)
+    except Exception:
+        failure_version = _persist_drafting_failure(
+            db,
+            saved_record=saved_record,
+            state=state,
+            state_version=state_version,
+            public_reason="VERIFIER_TECHNICAL_FAILURE",
+            stage_reason="FINALIZER:EXCEPTION",
+        )
+        return _failure_or_fallback(
+            "VERIFIER_TECHNICAL_FAILURE",
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=failure_version,
+        )
+    if finalized.answer is None:
+        reason_code = (
+            "VERIFIER_TECHNICAL_FAILURE"
+            if finalized.reason_code == "FINAL_GATE_TECHNICAL_FAILURE"
+            else finalized.reason_code
+        )
+        failure_version = _persist_drafting_failure(
+            db,
+            saved_record=saved_record,
+            state=state,
+            state_version=state_version,
+            public_reason=reason_code,
+            stage_reason=f"FINALIZER:{finalized.reason_code}",
+        )
+        return _failure_or_fallback(
+            reason_code,
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=failure_version,
+        )
+    if cancelled is not None and cancelled():
+        return _failure_or_fallback(
+            "CLIENT_DISCONNECTED",
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=state_version,
+        )
+    try:
+        persist_agent_final_once(
+            db,
+            user_id=user_id,
+            conversation_id=bootstrap.conv_id,
+            run_id=active_run_id,
+            expected_version=state_version,
+            state=state,
+            answer=finalized.answer,
+            verification=verification,
+        )
+    except AgentFinalizationConflict:
+        return _failure_or_fallback(
+            "AGENT_FINALIZATION_CONFLICT",
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=state_version,
+        )
+    except Exception:
+        return _failure_or_fallback(
+            "AGENT_STORAGE_FAILURE",
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=state_version,
+        )
+    return _result(
+        "completed",
+        "READY",
+        run_id=active_run_id,
+        conversation_id=bootstrap.conv_id,
+        state_version=state_version + 1,
+        answer=finalized.answer,
+    )
+
+
+__all__ = ["execute_agent_request"]

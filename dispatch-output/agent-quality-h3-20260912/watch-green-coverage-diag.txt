@@ -1,0 +1,264 @@
+F.                                                                       [100%]
+================================== FAILURES ===================================
+______ test_coverage_gate_terminal_failure_logs_per_issue_binding_facts _______
+
+db = <sqlalchemy.orm.session.Session object at 0x000002BF76FCF550>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x000002BF76FF4D50>
+
+    def test_coverage_gate_terminal_failure_logs_per_issue_binding_facts(db, caplog):
+        """覆盖率闸门终态失败必须留下**可归因**的诊断：每争点的 claim 数与生效成文法绑定数。
+    
+        动机（2026-09-12 H3 C01 付费运行）：终态只落了 `VERIFIER:FAIL_SAFE` 与原因码，而
+        「该争点**没有 claim**」与「有 claim 但**未绑定生效成文法**」在归档里完全同形，
+        导致一次真实失败无法归因（见 dispatch-output/agent-quality-h3-20260912/
+        h3-diagnosis-coverage-gate.md）。此断言锁住两者的可区分性。
+        """
+        import logging as _logging
+    
+        from agent.service import execute_agent_request
+    
+        user, conversation = _owner_conversation(db)
+        # still_deficient 替身：首轮与回喂渲染都只绑第一个争点 → 第二个争点完全没有 claim。
+        transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="still_deficient")
+        with caplog.at_level(_logging.INFO, logger="legal.agent"):
+>           result = execute_agent_request(
+                db=db,
+                user_id=user.id,
+                settings=_settings(),
+                bootstrap=_two_issue_bootstrap(conversation.id),
+                finalizer=_finalize,
+                llm=transport,
+                gateway=_TwoIssueLawGateway().as_gateway(),
+            )
+
+tests\test_agent_chat_integration.py:941: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+db = <sqlalchemy.orm.session.Session object at 0x000002BF76FCF550>, user_id = 1
+settings = namespace(agent_max_steps=8, agent_max_tool_calls=10, agent_max_replans=3, agent_max_clarifications=2, agent_max_verifier_research_returns=1)
+bootstrap = RequestBootstrap(conv_id=1, summary='', recent=[], recent_messages=[], image=None, user_text='借款本金为一万元，约定到期返还，且公司拖欠工资，...ntent='legal_query', is_exam=False, has_options=False, contract_mode=False, contract_text=None, client_truncated=False)
+finalizer = <function _finalize at 0x000002BF7C6A8FE0>, run_id = None
+llm = <tests.test_agent_chat_integration._CoverageLoopTransport object at 0x000002BF7700DA90>
+gateway = <tools.gateway.ToolGateway object at 0x000002BF770E3C10>
+cancelled = None
+
+    def execute_agent_request(
+        *,
+        db: Any,
+        user_id: int,
+        settings: Any,
+        bootstrap: RequestBootstrap,
+        finalizer: Finalizer,
+        run_id: str | None = None,
+        llm: LLMTransport | None = None,
+        gateway: ToolGateway | None = None,
+        cancelled: CancellationCheck | None = None,
+    ) -> AgentPublicResult:
+        """Execute or resume one bounded Agent run and persist PASS before returning it."""
+        try:
+            runtime = build_agent_runtime(
+                db=db,
+                user_id=user_id,
+                settings=settings,
+                llm=llm,
+                gateway=gateway,
+            )
+        except RuntimeUnavailable:
+            return _failure_or_fallback("TOOL_UNAVAILABLE", conversation_id=bootstrap.conv_id)
+        except Exception:
+            return _failure_or_fallback("AGENT_EXECUTION_FAILURE", conversation_id=bootstrap.conv_id)
+    
+        if run_id is None:
+            try:
+                initial_state = runtime.build_initial_state(bootstrap)
+            except AdapterPolicyViolation as exc:
+                _log_pre_run_failure("PLANNER_POLICY_VIOLATION", bootstrap.conv_id, exc)
+                return _failure_or_fallback("PLANNER_POLICY_VIOLATION", conversation_id=bootstrap.conv_id)
+            except IssueDecompositionError as exc:
+                _log_pre_run_failure("ISSUE_DECOMPOSITION_INVALID", bootstrap.conv_id, exc)
+                return _failure_or_fallback("ISSUE_DECOMPOSITION_INVALID", conversation_id=bootstrap.conv_id)
+            except IssueDecompositionUnavailable as exc:
+                _log_pre_run_failure("PLANNER_PARSE_ERROR", bootstrap.conv_id, exc)
+                return _failure_or_fallback("PLANNER_PARSE_ERROR", conversation_id=bootstrap.conv_id)
+            try:
+                record = create_run(
+                    db,
+                    user_id=user_id,
+                    conversation_id=bootstrap.conv_id,
+                    state=initial_state,
+                )
+            except (PermissionError, ValueError):
+                return _failure_or_fallback("OWNERSHIP_FAILURE", conversation_id=bootstrap.conv_id)
+            active_run_id = cast(str, record.id)
+        else:
+            active_run_id = run_id
+    
+        try:
+            controller_result: ControllerResult = runtime.controller.run(active_run_id, bootstrap)
+        except PermissionError:
+            return _failure_or_fallback("OWNERSHIP_FAILURE", run_id=active_run_id, conversation_id=bootstrap.conv_id)
+        except Exception:
+            import logging
+    
+            logging.getLogger("legal.agent").exception(
+                "agent_execution_failure_diagnostic", extra={"agent_run_id": active_run_id}
+            )
+            return _failure_or_fallback("AGENT_EXECUTION_FAILURE", run_id=active_run_id, conversation_id=bootstrap.conv_id)
+    
+        saved_record = load_owned_run(
+            db,
+            run_id=active_run_id,
+            user_id=user_id,
+            conversation_id=bootstrap.conv_id,
+        )
+        if saved_record is None:
+            return _failure_or_fallback("OWNERSHIP_FAILURE", run_id=active_run_id, conversation_id=bootstrap.conv_id)
+        state_version = cast(int, saved_record.state_version)
+        state = controller_result.state
+        # Do not combine a controller snapshot with a version belonging to another writer.
+        if LegalAgentState.model_validate_json(cast(str, saved_record.state_json)) != state:
+            return _failure_or_fallback(
+                "AGENT_FINALIZATION_CONFLICT",
+                run_id=active_run_id,
+                conversation_id=bootstrap.conv_id,
+                state_version=state_version,
+            )
+        if cancelled is not None and cancelled():
+            return _failure_or_fallback(
+                "CLIENT_DISCONNECTED",
+                run_id=active_run_id,
+                conversation_id=bootstrap.conv_id,
+                state_version=state_version,
+            )
+    
+        if state.status is AgentStatus.WAITING_USER:
+            evaluation = controller_result.evaluation
+            issue_id = evaluation.issue_id if evaluation is not None else None
+            if not controller_result.pending_question or evaluation is None or not issue_id:
+                return _failure_or_fallback(
+                    "AGENT_STATE_INTEGRITY_FAILURE",
+                    run_id=active_run_id,
+                    conversation_id=bootstrap.conv_id,
+                    state_version=state_version,
+                )
+            return _result(
+                "clarification",
+                evaluation.reason_code,
+                run_id=active_run_id,
+                conversation_id=bootstrap.conv_id,
+                state_version=state_version,
+                prompt=controller_result.pending_question,
+                issue_id=issue_id,
+            )
+    
+        if state.status is not AgentStatus.DRAFTING:
+            reason_code = _saved_failure_reason(
+                db,
+                run_id=active_run_id,
+                user_id=user_id,
+                conversation_id=bootstrap.conv_id,
+            )
+            return _failure_or_fallback(
+                reason_code,
+                run_id=active_run_id,
+                conversation_id=bootstrap.conv_id,
+                state_version=state_version,
+            )
+    
+        writer_result = runtime.writer.render(state)
+        if writer_result.status is not WriterStatus.READY or writer_result.draft is None:
+            return _persist_drafting_failure(
+                db,
+                saved_record=saved_record,
+                state=state,
+                state_version=state_version,
+                public_reason=writer_result.reason_code,
+                stage_reason=f"WRITER:{writer_result.reason_code}",
+            )
+        draft = writer_result.draft
+        try:
+            verification = runtime.verifier.verify(state, draft)
+        except Exception:
+            return _persist_drafting_failure(
+                db,
+                saved_record=saved_record,
+                state=state,
+                state_version=state_version,
+                public_reason="VERIFIER_TECHNICAL_FAILURE",
+                stage_reason="VERIFIER:EXCEPTION",
+            )
+        stage_reason = f"VERIFIER:{verification.verdict.value}"
+        if verification.verdict is not VerificationVerdict.PASS:
+            # V2-T2：RESEARCH_MORE（EVIDENCE_COVERAGE_DEFICIENT 且 budget 未耗尽）→
+            # 先 CAS 保存预算 attempt，再定向回喂 writer 重渲染一轮；重渲染后 verify
+            # 异常按技术失败兜底；保存失败按冲突/存储失败兜底且不外呼。
+            try:
+                loop = _coverage_research_loop(
+                    runtime, db, saved_record, state, state_version, verification, draft, cancelled
+                )
+            except Exception:
+                # 此处仅可能收到 attempt 保存之前的异常（断连检查/feedback 构造），
+                # state_version 未被保存推进，仍准确；保存后的异常在 helper 内携带新版本返回。
+                return _failure_or_fallback(
+                    "VERIFIER_TECHNICAL_FAILURE",
+                    run_id=active_run_id,
+                    conversation_id=bootstrap.conv_id,
+                    state_version=state_version,
+                )
+            if loop.failure_reason is not None:
+                if loop.failure_reason == "VERIFIER_TECHNICAL_FAILURE":
+                    # V2-T3 F3：attempt 已落盘后的 verify 异常属业务技术失败 → FAILED 落盘。
+                    # 断连/冲突/存储失败分支不套用失败保存（保留各自契约）。
+                    return _persist_drafting_failure(
+                        db,
+                        saved_record=saved_record,
+                        state=loop.state,
+                        state_version=loop.state_version,
+                        public_reason=loop.failure_reason,
+                        stage_reason="VERIFIER:EXCEPTION_AFTER_ATTEMPT",
+                    )
+                return _failure_or_fallback(
+                    loop.failure_reason,
+                    run_id=active_run_id,
+                    conversation_id=bootstrap.conv_id,
+                    state_version=loop.state_version,
+                )
+            verification, draft = loop.verification, loop.draft
+            state, state_version = loop.state, loop.state_version
+            stage_reason = loop.stage_reason or f"VERIFIER:{verification.verdict.value}"
+        if verification.verdict is not VerificationVerdict.PASS:
+            # V2-T3 F3：verifier 终态失败（RESEARCH_MORE 预算耗尽/FAIL_SAFE/REWRITE）落 FAILED。
+            # REWRITE 为未实现的修复能力：不增加循环，stage 明确记录 verdict 以便后续诊断。
+            #
+            # 可归因诊断（2026-09-12）：DB 里只留 verdict 与原因码，两种缺口（无 claim / 有 claim
+            # 未绑生效成文法）同形。这里把逐争点事实写进结构化日志；字段已在 observability 白名单登记。
+            facts = _coverage_issue_facts(state, draft)
+>           logging.getLogger("legal.agent").warning(
+            ^^^^^^^
+                "coverage_gate_terminal_failure",
+                extra={
+                    "verdict": verification.verdict.value,
+                    "agent_run_id": active_run_id,
+                    "agent_conversation_id": bootstrap.conv_id,
+                    "agent_issue_count": len(state.issues),
+                    "agent_coverage_gap_count": sum(1 for row in facts if row["deficient"]),
+                    "agent_coverage_issues": facts,
+                },
+            )
+E           UnboundLocalError: cannot access local variable 'logging' where it is not associated with a value
+
+agent\service.py:522: UnboundLocalError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+============================== warnings summary ===============================
+tests/test_agent_chat_integration.py::test_coverage_gate_terminal_failure_logs_per_issue_binding_facts
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_chat_integration.py::test_coverage_gate_terminal_failure_logs_per_issue_binding_facts
+1 failed, 1 passed, 31 deselected, 1 warning in 17.61s

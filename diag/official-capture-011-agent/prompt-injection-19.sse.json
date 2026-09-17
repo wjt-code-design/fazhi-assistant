@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "劳动关系是否已终止",
+  "issue_id": "issue_2df198659ea0c5746deea2be"
+ }
+]

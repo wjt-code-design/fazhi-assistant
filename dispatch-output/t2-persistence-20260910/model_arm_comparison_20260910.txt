@@ -1,0 +1,29 @@
+多模型臂对比（同候选 / 同 10 题 / 唯一变量 = 模型 id）
+应有争点(冻结题 required_issues) 合计 = 47 个
+  qwen3.8-flash  run=gate5-dev-run-13-qwen38  窗口起点=2026-09-10 07:22:46
+  qwen3.6-flash  run=gate5-dev-modelarm-qwen36  窗口起点=2026-09-10 07:34:01
+题号映射：会话首条用户消息 ⨯ 冻结题 initial_question 逐字匹配（非位置切分）
+
+case 应有   | qwen3.8-flash             | qwen3.6-flash             
+          | iss/cov/bf  err          | iss/cov/bf  err          
+----------------------------------------------------------------
+C01  4    | 1/1/- -                  | 3/3/- NON_CANONICAL_CITAT
+C02  4    | 4/4/Y EVIDENCE_COVERAGE_D| 4/4/Y -                  
+C03  5    | 3/3/- -                  | 4/4/Y -                  
+C04  5    | 1/1/- UNSUPPORTED_NUMERIC| 2/2/- CROSS_ISSUE_EVIDENC
+C05  5    | 1/1/- -                  | 2/2/- CROSS_ISSUE_EVIDENC
+C06  5    | 3/3/- -                  | 3/3/- NON_CANONICAL_CITAT
+C07  5    | 1/1/- -                  | 无记录                      
+C08  5    | 1/1/- UNSUPPORTED_NUMERIC| 2/2/- UNSUPPORTED_NUMERIC
+C09  5    | 2/2/- -                  | 2/2/- -                  
+C10  4    | 1/1/- -                  | 2/2/- -                  
+
+指标              qwen3.8-flash       qwen3.6-flash       
+争点总数            18（缺62%）            24（缺49%）            
+agent_completed 7/10                4/10                
+backfill 触发     1/10                2/10                
+两层 judge        mechanical=7  full_closure=0/10mechanical=4  full_closure=0/10
+
+错误码分布（题次）：
+  qwen3.8-flash  (无错误码)=7, UNSUPPORTED_NUMERIC_TOKEN=2, EVIDENCE_COVERAGE_DEFICIENT=1
+  qwen3.6-flash  (无错误码)=4, NON_CANONICAL_CITATION=2, CROSS_ISSUE_EVIDENCE=2, ISSUE_DECOMPOSITION_INVALID=1, UNSUPPORTED_NUMERIC_TOKEN=1

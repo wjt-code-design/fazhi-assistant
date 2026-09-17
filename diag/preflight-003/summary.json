@@ -1,0 +1,19 @@
+{
+ "http_status": 200,
+ "elapsed_s": 43.8,
+ "event_types": [
+  "agent_status",
+  "clarification"
+ ],
+ "agent_status": [
+  "waiting_user"
+ ],
+ "content_chars": 0,
+ "error_codes": [],
+ "final": [],
+ "clarification": [
+  {
+   "issue_id": "issue_29e49e8570c72c05a6633afb"
+  }
+ ]
+}

@@ -1,0 +1,361 @@
+# case=C09 mode=rag-initial status=200 started=2026-09-08T14:48:56
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "存在"}
+
+data: {"content": "法律不确定性。"}
+
+data: {"content": "健身房突然"}
+
+data: {"content": "关门导致"}
+
+data: {"content": "合同无法继续履行"}
+
+data: {"content": "，虽然"}
+
+data: {"content": "合同中写有“"}
+
+data: {"content": "概"}
+
+data: {"content": "不退款”，但该"}
+
+data: {"content": "条款属于典型的格式"}
+
+data: {"content": "条款，且"}
+
+data: {"content": "因经营者违约导致"}
+
+data: {"content": "合同目的无法实现"}
+
+data: {"content": "，消费者通常有权"}
+
+data: {"content": "要求解除合同并退还"}
+
+data: {"content": "剩余费用。\n\n"}
+
+data: {"content": "1"}
+
+data: {"content": ". 案情与"}
+
+data: {"content": "争议焦点\n"}
+
+data: {"content": "本案核心在于："}
+
+data: {"content": "健身房单方停止服务"}
+
+data: {"content": "构成根本违约，"}
+
+data: {"content": "其"}
+
+data: {"content": "预先拟定的“"}
+
+data: {"content": "概不"}
+
+data: {"content": "退款”格式条款"}
+
+data: {"content": "是否有效"}
+
+data: {"content": "，以及消费者能否"}
+
+data: {"content": "据此主张退费。"}
+
+data: {"content": "\n\n2. "}
+
+data: {"content": "法律依据\n根据《"}
+
+data: {"content": "民法典》第四百"}
+
+data: {"content": "九十六条，格式"}
+
+data: {"content": "条款是"}
+
+data: {"content": "当事人为了重复使用"}
+
+data: {"content": "而"}
+
+data: {"content": "预先拟定，并在"}
+
+data: {"content": "订立合同时未与"}
+
+data: {"content": "对方协商的条款"}
+
+data: {"content": "。提供格式条款"}
+
+data: {"content": "的一方"}
+
+data: {"content": "未履行提示或者说明"}
+
+data: {"content": "义务，致使"}
+
+data: {"content": "对方没有注意或者"}
+
+data: {"content": "理解与其有重大"}
+
+data: {"content": "利害关系的条款的"}
+
+data: {"content": "，对方可以主张"}
+
+data: {"content": "该条款不成为"}
+
+data: {"content": "合同的内容。\n"}
+
+data: {"content": "根据《民法典》"}
+
+data: {"content": "第四百九十七条"}
+
+data: {"content": "，提供格式条款"}
+
+data: {"content": "一方不合理"}
+
+data: {"content": "地免除或者减轻"}
+
+data: {"content": "其责任、加重"}
+
+data: {"content": "对方责任、限制"}
+
+data: {"content": "对方主要权利的，"}
+
+data: {"content": "该"}
+
+data: {"content": "格式条款无效。"}
+
+data: {"content": "\n根据《消费者权益"}
+
+data: {"content": "保护法》第二十六条"}
+
+data: {"content": "，经营者不得以"}
+
+data: {"content": "格式条款、通知"}
+
+data: {"content": "、声明、店"}
+
+data: {"content": "堂告示等方式，"}
+
+data: {"content": "作出排除或者限制"}
+
+data: {"content": "消费者权利、减轻"}
+
+data: {"content": "或者免除经营者责任"}
+
+data: {"content": "、加重"}
+
+data: {"content": "消费者责任等对"}
+
+data: {"content": "消费者不公平、不合理"}
+
+data: {"content": "的规定。格式条款"}
+
+data: {"content": "、通知"}
+
+data: {"content": "、声明、店"}
+
+data: {"content": "堂告示"}
+
+data: {"content": "等含有前款所列"}
+
+data: {"content": "内容的，其内容"}
+
+data: {"content": "无效。\n根据"}
+
+data: {"content": "《民法典"}
+
+data: {"content": "》第五百六十三条"}
+
+data: {"content": "，当事人一方迟延履行"}
+
+data: {"content": "债务"}
+
+data: {"content": "或者有其他违约行为"}
+
+data: {"content": "致使不能实现合同"}
+
+data: {"content": "目的的，当事人可以"}
+
+data: {"content": "解除合同。\n"}
+
+data: {"content": "根据《民法典》"}
+
+data: {"content": "第五百七十七条"}
+
+data: {"content": "，当事人一方不"}
+
+data: {"content": "履行合同义务或者履行合同"}
+
+data: {"content": "义务不符合约定的，"}
+
+data: {"content": "应当承担继续履行、"}
+
+data: {"content": "采取补救措施或者"}
+
+data: {"content": "赔偿损失等违约责任"}
+
+data: {"content": "。\n\n3."}
+
+data: {"content": " 逐项论证"}
+
+data: {"content": "\n首先，“概"}
+
+data: {"content": "不退款”"}
+
+data: {"content": "条款属于健身房为了"}
+
+data: {"content": "重复使用而预先"}
+
+data: {"content": "拟"}
+
+data: {"content": "定的格式条款。"}
+
+data: {"content": "该条款单方面排"}
+
+data: {"content": "除了"}
+
+data: {"content": "消费者在合同解除"}
+
+data: {"content": "后的主要权利（"}
+
+data: {"content": "即"}
+
+data: {"content": "请求返还剩余价款"}
+
+data: {"content": "的权利），同时免"}
+
+data: {"content": "除了健身房因自身"}
+
+data: {"content": "原因导致合同终止"}
+
+data: {"content": "的责任。依据《"}
+
+data: {"content": "民法典》第四百"}
+
+data: {"content": "九十七条及《"}
+
+data: {"content": "消费者权益保护法》第二"}
+
+data: {"content": "十六条，此类"}
+
+data: {"content": "排除或限制消费者"}
+
+data: {"content": "权利"}
+
+data: {"content": "、免除经营者责任的"}
+
+data: {"content": "格式条款依法无效"}
+
+data: {"content": "。因此"}
+
+data: {"content": "，即使合同中有"}
+
+data: {"content": "此约定，也不"}
+
+data: {"content": "产生法律效力。\n"}
+
+data: {"content": "其次，健身房突然"}
+
+data: {"content": "关门导致消费者无法"}
+
+data: {"content": "继续使用"}
+
+data: {"content": "健身服务，属于"}
+
+data: {"content": "“其他违约行为"}
+
+data: {"content": "致使"}
+
+data: {"content": "不能实现合同目的"}
+
+data: {"content": "”。依据《民法典"}
+
+data: {"content": "》第五百六十三条"}
+
+data: {"content": "，消费者有权单方"}
+
+data: {"content": "解除合同。\n最后"}
+
+data: {"content": "，合同解除后"}
+
+data: {"content": "，对于尚未实际"}
+
+data: {"content": "履行的部分，消费者"}
+
+data: {"content": "有权要求恢复原"}
+
+data: {"content": "状或赔偿损失"}
+
+data: {"content": "。依据《民法典"}
+
+data: {"content": "》第五百七十七条"}
+
+data: {"content": "，健身房应承担违约责任"}
+
+data: {"content": "。"}
+
+data: {"content": "通常情况下，法院会"}
+
+data: {"content": "支持扣除已消费"}
+
+data: {"content": "天数对应的费用后"}
+
+data: {"content": "，退还剩余预"}
+
+data: {"content": "付款。\n\n4"}
+
+data: {"content": ". 结论"}
+
+data: {"content": "与风险\n结论"}
+
+data: {"content": "：您有很大概率"}
+
+data: {"content": "可以通过法律途径要"}
+
+data: {"content": "回剩余费用。“"}
+
+data: {"content": "概不退款”"}
+
+data: {"content": "条款无效，健身房"}
+
+data: {"content": "违约"}
+
+data: {"content": "导致合同解除，"}
+
+data: {"content": "应退还未履行"}
+
+data: {"content": "部分的款项。\n"}
+
+data: {"content": "风险：若健身房"}
+
+data: {"content": "已"}
+
+data: {"content": "无财产可供执行"}
+
+data: {"content": "，即便"}
+
+data: {"content": "胜诉也可能面临"}
+
+data: {"content": "执行难的问题。"}
+
+data: {"content": "建议"}
+
+data: {"content": "尽快收集合同、"}
+
+data: {"content": "付款凭证、健身房"}
+
+data: {"content": "关门的证据（"}
+
+data: {"content": "如"}
+
+data: {"content": "现场照片、公告"}
+
+data: {"content": "、聊天记录等），"}
+
+data: {"content": "向当地"}
+
+data: {"content": "市场监管部门投诉或"}
+
+data: {"content": "向法院"}
+
+data: {"content": "提起诉讼。"}
+
+data: {"conversation_id": 2223, "sources": [{"source": "民法典", "article": "第四百九十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第四百九十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "消费者权益保护法", "article": "第二十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "消费者权益保护法", "article": "第八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "消费者权益保护法", "article": "第十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "消费者权益保护法", "article": "第二十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "消费者权益保护法", "article": "第二十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "消费者权益保护法", "article": "第二十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "消费者权益保护法", "article": "第二十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "消费者权益保护法", "article": "第二十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "消费者权益保护法", "article": "第四十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "消费者权益保护法", "article": "第四十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "消费者权益保护法", "article": "第四十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "消费者权益保护法", "article": "第五十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第四百八十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百零二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百零九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百二十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百六十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百七十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百八十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百九十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百一十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百六十六条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百四十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百五十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百六十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百六十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第九百七十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百八十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百三十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百六十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百五十二条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

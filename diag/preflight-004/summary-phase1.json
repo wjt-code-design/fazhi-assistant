@@ -1,0 +1,24 @@
+{
+ "rag_smoke": {
+  "http": 200,
+  "types_head": [
+   "status",
+   null,
+   null,
+   null
+  ],
+  "content_chars": 644,
+  "pass": true
+ },
+ "image_e2e": {
+  "http": 200,
+  "answer_head": "红色\n\n> 注：该问题较复杂，本回答仅供参考。",
+  "content_chars": 23,
+  "pass": true
+ },
+ "voice_e2e": {
+  "http": 200,
+  "text": "嗯。",
+  "pass": true
+ }
+}

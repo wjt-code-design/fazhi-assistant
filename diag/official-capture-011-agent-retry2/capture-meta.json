@@ -1,0 +1,15 @@
+{
+ "mode": "agent",
+ "execution_id": "eval011-agent-retry2-20260907",
+ "case_set_sha256": "b06047ac84e419cdca27e40e0129d5c7279c82e8aeb9f3faf314b76f9066f41b",
+ "allow_case_set_mismatch": true,
+ "controls": {
+  "timeout_seconds": 90,
+  "total_timeout_seconds": 3600,
+  "max_retries": 1,
+  "concurrency": 1,
+  "cache_policy": "disabled",
+  "max_output_tokens": 4096,
+  "max_tool_calls": 8
+ }
+}

@@ -1,0 +1,9 @@
+{
+ "run": "quality-q38-c01-20260911-01",
+ "targets": [
+  "C01"
+ ],
+ "started_at": "2026-09-11T14:07:48.603948+00:00",
+ "pid": 10708,
+ "protocol_version": "v1"
+}

@@ -1,0 +1,38 @@
+============================= test session starts =============================
+platform win32 -- Python 3.11.0, pytest-9.1.1, pluggy-1.6.0
+rootdir: C:\Users\33393\Desktop\ai-legal-helper\backend
+configfile: pyproject.toml
+plugins: anyio-4.14.2, cov-7.1.0
+collected 1 item
+
+tests\test_agent_chat_integration.py F                                   [100%][safe-delete][SAFE_DELETE_FAIL_CLOSED] {"target": "\\\\?\\C:\\Users\\33393\\AppData\\Local\\Temp\\pytest-of-33393\\garbage-0d746c59-af53-4136-b2df-4e02fede4852", "reason": "trash-failed", "detail": "[Errno 53] 找不到网络路径。: '\\\\\\\\?\\\\C:\\\\Users\\\\33393\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-33393\\\\garbage-0d746c59-af53-4136-b2df-4e02fede4852'"}
+
+
+================================== FAILURES ===================================
+____ test_backfill_retrieval_terminates_when_retriever_returns_no_evidence ____
+tests\test_agent_chat_integration.py:1445: in test_backfill_retrieval_terminates_when_retriever_returns_no_evidence
+    assert transport.planner_calls <= n_issues + 1, (
+E   AssertionError: planner 被空转调用 54 次（上限 5）—— 补检索存在无界重入
+E   assert 54 <= (4 + 1)
+E    +  where 54 = <tests.test_agent_chat_integration._MultiIssueTransport object at 0x000001FD58479890>.planner_calls
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+------------------------------ Captured log call ------------------------------
+WARNING  legal.agent:controller.py:489 planner_schema_failure
+============================== warnings summary ===============================
+tests/test_agent_chat_integration.py::test_backfill_retrieval_terminates_when_retriever_returns_no_evidence
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+venv\Lib\site-packages\_pytest\pathlib.py:95
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\_pytest\pathlib.py:95: PytestWarning: (rm_rf) error removing \\?\C:\Users\33393\AppData\Local\Temp\pytest-of-33393\garbage-0d746c59-af53-4136-b2df-4e02fede4852
+  <class 'OSError'>: [Errno 53] 找不到网络路径。: '\\\\?\\C:\\Users\\33393\\AppData\\Local\\Temp\\pytest-of-33393\\garbage-0d746c59-af53-4136-b2df-4e02fede4852'
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_chat_integration.py::test_backfill_retrieval_terminates_when_retriever_returns_no_evidence
+======================= 1 failed, 2 warnings in 23.64s ========================

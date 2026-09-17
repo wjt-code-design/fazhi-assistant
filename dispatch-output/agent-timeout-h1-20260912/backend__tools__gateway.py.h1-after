@@ -1,0 +1,288 @@
+"""One explicit, typed, read-only gateway for Planner tool calls.
+
+Timeouts stop waiting for a synchronous read but cannot forcibly stop its Python
+thread; the underlying read may finish later. Timeouts are therefore observable
+and are never retried automatically.
+"""
+
+from __future__ import annotations
+
+import time
+from collections.abc import Callable, Mapping
+from concurrent.futures import Future, ThreadPoolExecutor
+from concurrent.futures import TimeoutError as FutureTimeoutError
+from dataclasses import dataclass, replace
+from threading import Condition, Lock
+from typing import Any, cast
+
+from pydantic import BaseModel
+
+from agent.schemas import Observation, ToolCallDecision
+from agent.state_machine import action_fingerprint
+
+from .clarification import ask_user
+from .contract import analyze_contract
+from .contracts import (
+    AskUserInput,
+    AskUserOutput,
+    ContractInput,
+    ContractOutput,
+    DuplicateToolCall,
+    LookupArticleInput,
+    LookupArticleOutput,
+    RetrieveLawsInput,
+    RetrieveLawsOutput,
+    RetrieveMemoryInput,
+    RetrieveMemoryOutput,
+    ToolAuthorizationError,
+    ToolContext,
+    ToolName,
+    ToolOutput,
+    UnknownTool,
+)
+from .exact_article import lookup_article
+from .legal_retrieval import retrieve_laws
+from .memory import retrieve_memory
+
+ToolWrapper = Callable[[ToolContext, BaseModel], BaseModel]
+_OWNERSHIP_FIELDS = frozenset({"user_id", "conversation_id", "run_id", "law_as_of"})
+
+
+class BoundedExecutor:
+    """Thread pool with a hard bound over running and queued work."""
+
+    def __init__(self, *, max_workers: int, max_outstanding: int, thread_name_prefix: str) -> None:
+        if max_workers < 1:
+            raise ValueError("max_workers must be positive")
+        if max_outstanding < max_workers:
+            raise ValueError("max_outstanding must be at least max_workers")
+        self._executor = ThreadPoolExecutor(max_workers=max_workers, thread_name_prefix=thread_name_prefix)
+        self._max_outstanding = max_outstanding
+        self._outstanding = 0
+        self._closed = False
+        self._condition = Condition()
+
+    @property
+    def outstanding(self) -> int:
+        with self._condition:
+            return self._outstanding
+
+    def try_submit(self, fn: ToolWrapper, *args: Any) -> Future[BaseModel] | None:
+        with self._condition:
+            if self._closed or self._outstanding >= self._max_outstanding:
+                return None
+            self._outstanding += 1
+            try:
+                future = self._executor.submit(fn, *args)
+            except Exception:
+                self._outstanding -= 1
+                self._condition.notify_all()
+                raise
+        future.add_done_callback(lambda _future: self._release_capacity())
+        return future
+
+    def _release_capacity(self) -> None:
+        with self._condition:
+            self._outstanding -= 1
+            self._condition.notify_all()
+
+    def wait_for_idle(self, timeout: float | None = None) -> bool:
+        with self._condition:
+            return self._condition.wait_for(lambda: self._outstanding == 0, timeout=timeout)
+
+    def shutdown(self, *, wait: bool = True) -> None:
+        with self._condition:
+            self._closed = True
+        self._executor.shutdown(wait=wait, cancel_futures=True)
+
+
+# Process/service infrastructure only: no user, run, fingerprint, or business state.
+_DEFAULT_EXECUTOR = BoundedExecutor(
+    max_workers=4,
+    max_outstanding=8,
+    thread_name_prefix="legal-tool",
+)
+
+
+def shutdown_default_executor(*, wait: bool = True) -> None:
+    """Service-lifecycle seam; individual Gateway instances never own this pool."""
+
+    _DEFAULT_EXECUTOR.shutdown(wait=wait)
+
+
+@dataclass(frozen=True)
+class ToolPolicy:
+    input_model: type[BaseModel]
+    output_model: type[BaseModel]
+    wrapper: ToolWrapper
+    timeout_seconds: float
+    retry_count: int
+    read_only: bool
+    max_calls_per_run: int
+
+
+_POLICIES: dict[str, ToolPolicy] = {
+    # 15.0 ≠ 历史 8.0：实测 SiliconFlow rerank 单次真实耗时 11.86s / 5.82s（均 HTTP 200），
+    # 即内层依赖延迟 1.5–2.5 倍于旧的 8s 外层等待上限，旧值下 TOOL_TIMEOUT 是稳定预期而非
+    # 边界情况。15s 取值依据：本地检索段实测 2.14s + rerank 上限 12s + 收尾余量 < 15s，
+    # 保证内层先于外层结束。内层对应上限见 retrieval._RERANK_ATTEMPT_TIMEOUT_S，
+    # 二者必须满足 _RERANK_ATTEMPT_TIMEOUT_S < 本值（由 tests/test_retrieval_rerank.py 断言）。
+    "retrieve_laws": ToolPolicy(
+        RetrieveLawsInput, RetrieveLawsOutput, cast(ToolWrapper, retrieve_laws), 15.0, 0, True, 6
+    ),
+    "lookup_article": ToolPolicy(
+        LookupArticleInput, LookupArticleOutput, cast(ToolWrapper, lookup_article), 5.0, 0, True, 6
+    ),
+    "analyze_contract": ToolPolicy(
+        ContractInput, ContractOutput, cast(ToolWrapper, analyze_contract), 12.0, 0, True, 2
+    ),
+    "retrieve_memory": ToolPolicy(
+        RetrieveMemoryInput, RetrieveMemoryOutput, cast(ToolWrapper, retrieve_memory), 3.0, 0, True, 4
+    ),
+    "ask_user": ToolPolicy(AskUserInput, AskUserOutput, cast(ToolWrapper, ask_user), 1.0, 0, True, 3),
+}
+
+
+def _contains_ownership_field(value: Any) -> bool:
+    if isinstance(value, Mapping):
+        return bool(_OWNERSHIP_FIELDS.intersection(value)) or any(
+            _contains_ownership_field(item) for item in value.values()
+        )
+    if isinstance(value, (list, tuple)):
+        return any(_contains_ownership_field(item) for item in value)
+    return False
+
+
+def _with_wait_deadline(context: ToolContext, timeout_seconds: float) -> ToolContext:
+    """Stamp the caller's wait budget onto the tool context as a monotonic deadline.
+
+    Wrappers cannot be interrupted once running, but they *can* decline to start new
+    remote work after this instant. Using ``time.monotonic()`` (not ``perf_counter``)
+    keeps the value comparable with the clock the retrieval layer reads.
+    """
+    if timeout_seconds <= 0:
+        return context
+    return context.model_copy(update={"tool_deadline_monotonic": time.monotonic() + timeout_seconds})
+
+
+class ToolGateway:
+    """Explicit allowlist plus per-instance, per-run defense-in-depth ledger.
+
+    The ledger is intentionally not durable. Controllers must continue to use
+    ``LegalAgentState`` as the persisted budget and fingerprint source of truth.
+    """
+
+    def __init__(
+        self,
+        *,
+        executor: BoundedExecutor | None = None,
+        wrapper_overrides: Mapping[str, ToolWrapper] | None = None,
+        policy_overrides: Mapping[str, Mapping[str, Any]] | None = None,
+    ) -> None:
+        unknown_overrides = (set(wrapper_overrides or {}) | set(policy_overrides or {})) - set(_POLICIES)
+        if unknown_overrides:
+            raise UnknownTool(f"cannot override non-allowlisted tools: {sorted(unknown_overrides)}")
+        policies = dict(_POLICIES)
+        for name, wrapper in (wrapper_overrides or {}).items():
+            policies[name] = replace(policies[name], wrapper=wrapper)
+        for name, overrides in (policy_overrides or {}).items():
+            allowed = {"timeout_seconds", "retry_count", "max_calls_per_run"}
+            unexpected = set(overrides) - allowed
+            if unexpected:
+                raise ValueError(f"unsupported policy overrides for {name}: {sorted(unexpected)}")
+            policies[name] = replace(policies[name], **overrides)
+        self._policies = policies
+        self._fingerprints: set[tuple[str, str]] = set()
+        self._call_counts: dict[tuple[str, str], int] = {}
+        self._ledger_lock = Lock()
+        self._executor = executor or _DEFAULT_EXECUTOR
+
+    @property
+    def policies(self) -> Mapping[str, ToolPolicy]:
+        return dict(self._policies)
+
+    def execute(self, context: ToolContext, decision: ToolCallDecision) -> Observation:
+        tool_name = cast(ToolName, decision.tool_name)
+        policy = self._policies.get(tool_name)
+        if policy is None:
+            raise UnknownTool(f"tool is not allowlisted: {decision.tool_name}")
+
+        raw_args = decision.args.model_dump(mode="python")
+        if _contains_ownership_field(raw_args):
+            raise ToolAuthorizationError("model arguments must not contain server-owned context fields")
+        typed_args = policy.input_model.model_validate(raw_args)
+
+        fingerprint = action_fingerprint(decision.issue_id, decision.tool_name, typed_args)
+        ledger_key = (context.run_id, fingerprint)
+        count_key = (context.run_id, tool_name)
+        started = time.perf_counter()
+        with self._ledger_lock:
+            if ledger_key in self._fingerprints:
+                raise DuplicateToolCall(f"duplicate action for issue {decision.issue_id}: {decision.tool_name}")
+            attempted_count = self._call_counts.get(count_key, 0) + 1
+            if attempted_count > policy.max_calls_per_run:
+                return Observation(
+                    issue_id=decision.issue_id,
+                    tool_name=tool_name,
+                    status="failed",
+                    statement="工具调用次数已达到本次运行上限。",
+                    error_code="TOOL_CALL_LIMIT_EXCEEDED",
+                    duration_ms=0,
+                )
+            future = self._executor.try_submit(
+                policy.wrapper, _with_wait_deadline(context, policy.timeout_seconds), typed_args
+            )
+            if future is None:
+                return Observation(
+                    issue_id=decision.issue_id,
+                    tool_name=tool_name,
+                    status="failed",
+                    statement="工具执行容量已满，请稍后重试。",
+                    error_code="TOOL_BUSY",
+                    duration_ms=int((time.perf_counter() - started) * 1000),
+                )
+            self._fingerprints.add(ledger_key)
+            self._call_counts[count_key] = attempted_count
+        try:
+            raw_output = future.result(timeout=policy.timeout_seconds)
+            output = cast(ToolOutput, policy.output_model.model_validate(raw_output))
+            return Observation(
+                issue_id=decision.issue_id,
+                tool_name=tool_name,
+                status="succeeded",
+                statement=str(output.statement),
+                output=output,
+                duration_ms=int((time.perf_counter() - started) * 1000),
+            )
+        except FutureTimeoutError:
+            # Running synchronous calls cannot be stopped, but queued calls must
+            # not begin after their caller has already received a timeout.
+            future.cancel()
+            return Observation(
+                issue_id=decision.issue_id,
+                tool_name=tool_name,
+                status="failed",
+                statement="工具在限定时间内未返回；底层同步读取可能仍在结束中。",
+                error_code="TOOL_TIMEOUT",
+                duration_ms=int((time.perf_counter() - started) * 1000),
+            )
+        except Exception:
+            return Observation(
+                issue_id=decision.issue_id,
+                tool_name=tool_name,
+                status="failed",
+                statement="工具执行失败，未产生可用结果。",
+                error_code="TOOL_EXECUTION_ERROR",
+                duration_ms=int((time.perf_counter() - started) * 1000),
+            )
+
+
+__all__ = [
+    "BoundedExecutor",
+    "DuplicateToolCall",
+    "ToolAuthorizationError",
+    "ToolGateway",
+    "ToolPolicy",
+    "UnknownTool",
+    "shutdown_default_executor",
+]

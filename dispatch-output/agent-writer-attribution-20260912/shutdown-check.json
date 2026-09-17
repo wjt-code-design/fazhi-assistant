@@ -1,0 +1,27 @@
+{
+  "serve_pid": "22160",
+  "listeners_18111": 0,
+  "reserved": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "closed": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7
+  ],
+  "pending": [],
+  "round_cny": 0.0167091,
+  "cumulative_cny": 0.0546805,
+  "remaining_cny": 19.9453195,
+  "note": "runner finished; all reservations closed; 临时放宽期内不做累计扣减"
+}

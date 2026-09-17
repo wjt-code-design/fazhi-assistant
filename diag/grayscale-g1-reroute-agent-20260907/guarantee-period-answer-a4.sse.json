@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "该约定是否属于保证期间约定不明，需要结合合同其他条款及交易习惯判断。",
+  "issue_id": "issue_15f55d2a7420eaa2091ba36c"
+ }
+]

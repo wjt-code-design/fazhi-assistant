@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "债权人是否知道或应当知道其权利受到损害及债务人身份",
+  "issue_id": "issue_eed7b70c9a694a2ac85b4429"
+ }
+]

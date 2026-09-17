@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "合同标的的性质和交易习惯",
+  "issue_id": "issue_220560d847ef34fd560daf41"
+ }
+]

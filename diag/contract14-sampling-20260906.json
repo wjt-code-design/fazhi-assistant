@@ -1,0 +1,128 @@
+{
+ "n": 15,
+ "shapes": {
+  "envelope_ok": 15
+ },
+ "failures": [
+  {
+   "i": 0,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"甲方版本（违约金按合同总价20%）和乙方版本（违约金按实际损失）哪个风险更高？\",\n      \"facts\": [\n        {\"qu",
+   "tail": "come_changes\": \"强势方可能更有能力选择对自己有利的版本，影响最终的风险分配\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 1,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"按合同总价20%的违约金与按实际损失的违约金，哪种方式对合同双方的风险更高？\",\n      \"facts\": [\n        {\"quo",
+   "tail": "际损失，增加乙方风险；对于小额合同，20%的违约金可能不足以弥补甲方实际损失，增加甲方风险\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 2,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"甲方版本写违约金按合同总价20%，乙方版本写按实际损失，两版哪个风险更高？\",\n      \"facts\": [\n        {\"quot",
+   "tail": "outcome_changes\": \"这取决于合同的具体条款、行业惯例、双方议价能力等因素\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 3,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"违约金按合同总价20%与按实际损失相比，对甲方而言哪个风险更高？\",\n      \"facts\": [\n        {\"quote\": \"",
+   "tail": "    \"why_outcome_changes\": \"固定比例可能减少举证争议，降低风险\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 4,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"甲方版本违约金按合同总价20%与乙方版本按实际损失相比，哪个版本风险更高？\",\n      \"facts\": [\n        {\"quot",
+   "tail": "ome_changes\": \"不同类型的违约可能导致不同的实际损失，影响两种条款的风险比较\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 5,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"在合同中，违约金按合同总价20%与按实际损失计算相比，哪个版本对合同双方的风险更高？\",\n      \"facts\": [\n        {",
+   "tail": ": \"如果实际损失可能远高于合同总价的20%，则按实际损失的条款对违约方风险更高；反之亦然\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 6,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"甲方版本(违约金按合同总价20%)与乙方版本(违约金按实际损失)哪个风险更高？\",\n      \"facts\": [\n        {\"qu",
+   "tail": "es\": \"某些违约情形下实际损失可能远高于合同总价的20%，而另一些情形下可能低于此比例\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 7,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"甲方版本约定的违约金按合同总价20%计算，与乙方版本约定的按实际损失计算相比，哪一方风险更高？\",\n      \"facts\": [\n    ",
+   "tail": "t\": \"实际损失如何计算\", \"why_outcome_changes\": \"影响乙方版本违约金的具体金额\"}\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 8,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"违约金按合同总价20%与按实际损失计算，哪种方式对甲方风险更高？\",\n      \"facts\": [\n        {\"quote\": \"",
+   "tail": "\": \"某些行业或特定类型合同可能有关于违约金的特殊规定或惯例，影响条款的合法性和可执行性\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 9,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"固定比例违约金与按实际损失计算违约金在法律风险上有何不同？\",\n      \"facts\": [\n        {\"quote\": \"甲方版",
+   "tail": "\"why_outcome_changes\": \"影响对20%比例是否合理以及实际损失的评估\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 10,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"违约金按合同总价20%与按实际损失相比，哪种条款对合同当事人风险更高？\",\n      \"facts\": [\n        {\"quote\"",
+   "tail": "ome_changes\": \"如果守约方难以证明实际损失，按合同总价20%的条款可能更有利\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 11,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"甲方版本写违约金按合同总价20%，乙方版本写按实际损失，两版哪个风险更高？\",\n      \"facts\": [\n        {\n    ",
+   "tail": "y_outcome_changes\": \"法律对过高违约金可能有调整规定，影响最终风险分配\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 12,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"甲方版本(违约金按合同总价20%)和乙方版本(违约金按实际损失)哪个风险更高？\",\n      \"facts\": [\n        {\"qu",
+   "tail": "  \"why_outcome_changes\": \"市场价格波动大可能导致实际损失难以预估\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 13,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"违约金按合同总价20%的风险有哪些？\",\n      \"facts\": [\n        {\"quote\": \"甲方版本写违约金按合同总价2",
+   "tail": "y_outcome_changes\": \"法律可能对过高的违约金进行调整，影响最终风险分配\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  },
+  {
+   "i": 14,
+   "step": "envelope_ok",
+   "fenced": true,
+   "env_err": null,
+   "head": "```json\n{\n  \"issues\": [\n    {\n      \"question\": \"合同违约金条款中，按合同总价20%与按实际损失计算，哪种表述对签约方风险更高？\",\n      \"facts\": [\n        {\n  ",
+   "tail": "y_outcome_changes\": \"法律可能对过高违约金有调整规定，影响最终责任承担\"\n        }\n      ]\n    }\n  ]\n}\n```"
+  }
+ ]
+}

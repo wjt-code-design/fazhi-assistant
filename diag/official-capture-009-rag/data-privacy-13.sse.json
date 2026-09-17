@@ -1,0 +1,581 @@
+[
+ {
+  "type": "status",
+  "msg": "正在思考…"
+ },
+ {
+  "content": "①"
+ },
+ {
+  "content": "案情"
+ },
+ {
+  "content": "与争议焦点\n"
+ },
+ {
+  "content": "用户手机号被App"
+ },
+ {
+  "content": "提供给贷款中介，"
+ },
+ {
+  "content": "现有证据为来电"
+ },
+ {
+  "content": "录音，核心争议"
+ },
+ {
+  "content": "焦点为：1"
+ },
+ {
+  "content": ".用户是否有权"
+ },
+ {
+  "content": "要求App删除其"
+ },
+ {
+  "content": "手机号信息；2"
+ },
+ {
+  "content": ".用户是否有权"
+ },
+ {
+  "content": "主张损害赔偿，现有"
+ },
+ {
+  "content": "录音证据是否足以"
+ },
+ {
+  "content": "支持诉求"
+ },
+ {
+  "content": "。\n\n②法律"
+ },
+ {
+  "content": "依据\n1."
+ },
+ {
+  "content": "  关于删除权"
+ },
+ {
+  "content": "：《"
+ },
+ {
+  "content": "网络安全法》第四"
+ },
+ {
+  "content": "十五条；"
+ },
+ {
+  "content": "\n2.  "
+ },
+ {
+  "content": "关于损害赔偿：《"
+ },
+ {
+  "content": "个人信息保护法》第六"
+ },
+ {
+  "content": "十九条；\n3"
+ },
+ {
+  "content": ".  若"
+ },
+ {
+  "content": "用户属于App"
+ },
+ {
+  "content": "消费者，可"
+ },
+ {
+  "content": "补充适用《消费者权益"
+ },
+ {
+  "content": "保护法》第五十条"
+ },
+ {
+  "content": "。\n\n③逐"
+ },
+ {
+  "content": "项论证\n第一"
+ },
+ {
+  "content": "，关于要求删除"
+ },
+ {
+  "content": "手机号的问题。手机号"
+ },
+ {
+  "content": "属于用户"
+ },
+ {
+  "content": "个人信息，App未经"
+ },
+ {
+  "content": "用户同意向贷款"
+ },
+ {
+  "content": "中介提供其"
+ },
+ {
+  "content": "个人信息，违反了"
+ },
+ {
+  "content": "个人信息处理规则。"
+ },
+ {
+  "content": "根据《网络安全法"
+ },
+ {
+  "content": "》第四十五条，"
+ },
+ {
+  "content": "个人发现网络运营"
+ },
+ {
+  "content": "者违反法律、"
+ },
+ {
+  "content": "行政法规的规定或者双方的"
+ },
+ {
+  "content": "约定收集、使用"
+ },
+ {
+  "content": "其个人信息的，"
+ },
+ {
+  "content": "有权要求网络运营"
+ },
+ {
+  "content": "者删除其个人信息"
+ },
+ {
+  "content": "。因此，用户"
+ },
+ {
+  "content": "有权直接要求App"
+ },
+ {
+  "content": "删除其留存"
+ },
+ {
+  "content": "及泄露"
+ },
+ {
+  "content": "的手机号信息，"
+ },
+ {
+  "content": "App应当及时采取"
+ },
+ {
+  "content": "删除措施。\n"
+ },
+ {
+  "content": "第二，关于要求"
+ },
+ {
+  "content": "损害赔偿的问题。App"
+ },
+ {
+  "content": "作为个人信息处理者"
+ },
+ {
+  "content": "，未经允许泄露"
+ },
+ {
+  "content": "用户手机号，侵害"
+ },
+ {
+  "content": "了用户的个人信息权益"
+ },
+ {
+  "content": "。根据《个人信息"
+ },
+ {
+  "content": "保护法》第六十九条"
+ },
+ {
+  "content": "，处理个人信息侵害"
+ },
+ {
+  "content": "个人信息权益造成损害"
+ },
+ {
+  "content": "的，个人信息处理"
+ },
+ {
+  "content": "者不能证明自己"
+ },
+ {
+  "content": "没有过错的，"
+ },
+ {
+  "content": "应当承担损害赔偿责任"
+ },
+ {
+  "content": "，即适用过错"
+ },
+ {
+  "content": "推定原则，"
+ },
+ {
+  "content": "举证责任在App"
+ },
+ {
+  "content": "方。用户需要"
+ },
+ {
+  "content": "证明两点：一是"
+ },
+ {
+  "content": "App存在泄露其"
+ },
+ {
+  "content": "手机号的行为，二是"
+ },
+ {
+  "content": "自身存在损害"
+ },
+ {
+  "content": "后果。用户持有的"
+ },
+ {
+  "content": "来电录音若能够"
+ },
+ {
+  "content": "证明贷款中介获取"
+ },
+ {
+  "content": "了其手机号，且"
+ },
+ {
+  "content": "能合理推断信息"
+ },
+ {
+  "content": "来源于该App（"
+ },
+ {
+  "content": "例如录音中贷款"
+ },
+ {
+  "content": "中介提及信息来自"
+ },
+ {
+  "content": "该App，或"
+ },
+ {
+  "content": "用户仅在该App"
+ },
+ {
+  "content": "留存过该手机号"
+ },
+ {
+  "content": "等），即可"
+ },
+ {
+  "content": "作为初步证据证明"
+ },
+ {
+  "content": "泄露行为。损害"
+ },
+ {
+  "content": "后果包括因信息"
+ },
+ {
+  "content": "泄露导致的骚扰困扰"
+ },
+ {
+  "content": "、误工损失"
+ },
+ {
+  "content": "等，若损失"
+ },
+ {
+  "content": "难以确定，可"
+ },
+ {
+  "content": "依据《个人信息保护法"
+ },
+ {
+  "content": "》第六十九条第二款"
+ },
+ {
+  "content": "，由法院"
+ },
+ {
+  "content": "根据实际情况确定赔偿数额"
+ },
+ {
+  "content": "。此外，若"
+ },
+ {
+  "content": "用户是该App的"
+ },
+ {
+  "content": "消费者，还可依据"
+ },
+ {
+  "content": "《消费者权益保护法》"
+ },
+ {
+  "content": "第五十条，要求"
+ },
+ {
+  "content": "App承担停止"
+ },
+ {
+  "content": "侵害、赔偿损失"
+ },
+ {
+  "content": "等责任。\n\n"
+ },
+ {
+  "content": "④结论与风险"
+ },
+ {
+  "content": "\n1.  "
+ },
+ {
+  "content": "用户可以要求App删除"
+ },
+ {
+  "content": "其手机号信息，"
+ },
+ {
+  "content": "法律依据充分；"
+ },
+ {
+  "content": "\n2.  "
+ },
+ {
+  "content": "用户可以主张损害赔偿，"
+ },
+ {
+  "content": "现有来电"
+ },
+ {
+  "content": "录音可作为初步证据"
+ },
+ {
+  "content": "，但能否得到"
+ },
+ {
+  "content": "支持需结合录音"
+ },
+ {
+  "content": "内容、是否有其他"
+ },
+ {
+  "content": "佐证（如"
+ },
+ {
+  "content": "仅在该App留存"
+ },
+ {
+  "content": "过该手机号、"
+ },
+ {
+  "content": "无其他泄露"
+ },
+ {
+  "content": "渠道等）综合"
+ },
+ {
+  "content": "判断，若证据"
+ },
+ {
+  "content": "不足以证明信息泄露"
+ },
+ {
+  "content": "来源是App，"
+ },
+ {
+  "content": "或者无法证明存在"
+ },
+ {
+  "content": "实际损害，可能存在"
+ },
+ {
+  "content": "败诉风险。"
+ },
+ {
+  "content": "建议用户尽可能"
+ },
+ {
+  "content": "补充证据"
+ },
+ {
+  "content": "，如留存通话"
+ },
+ {
+  "content": "记录、证明未在其他平台泄露"
+ },
+ {
+  "content": "过该手机号等"
+ },
+ {
+  "content": "，以增强诉求"
+ },
+ {
+  "content": "的证明力。"
+ },
+ {
+  "sources": [
+   {
+    "source": "民法典",
+    "article": "第一千一百六十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百六十六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百六十七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百七十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百九十一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千二百一十三条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第二百零九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第二百三十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第四百零六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千零四十二条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百二十七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百六十一条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "个人信息保护法",
+    "article": "第六十九条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第九百六十二条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "网络安全法",
+    "article": "第四十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "消费者权益保护法",
+    "article": "第五十条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百六十七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "数据安全法",
+    "article": "第三十三条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "民法典",
+    "article": "第一千一百九十五条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "商业银行法",
+    "article": "第八十二条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "国家赔偿法",
+    "article": "第六条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   },
+   {
+    "source": "数据安全法",
+    "article": "第四十七条",
+    "effective_from": "",
+    "effective_to": "",
+    "status": "现行"
+   }
+  ]
+ }
+]

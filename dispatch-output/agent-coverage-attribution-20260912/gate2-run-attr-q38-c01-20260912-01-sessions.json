@@ -1,0 +1,88 @@
+{
+ "run": "attr-q38-c01-20260912-01",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "6b18d873-fece-4cc8-90d2-f048d96f763b",
+      "state_version": 4,
+      "conv_id": 1
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "6b18d873-fece-4cc8-90d2-f048d96f763b",
+      "state_version": 8,
+      "conv_id": 1
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动合同中是否约定了无需支付补偿的情形"
+    },
+    {
+     "round": 2,
+     "prompt": "解除是否符合《劳动合同法》第39条规定的即时解除条件（如严重违纪）"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "劳动合同中是否约定了无需支付补偿的情形",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "解除是否符合《劳动合同法》第39条规定的即时解除条件（如严重违纪）",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 1,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 75.1
+  }
+ }
+}

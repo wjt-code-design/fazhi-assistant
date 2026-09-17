@@ -1,0 +1,163 @@
+﻿FEEEFFFF                                                                 [100%]
+=================================== ERRORS ====================================
+_________ ERROR at setup of test_t2_answered_fact_not_returned_again __________
+
+    @pytest.fixture()
+    def shared_module():
+        """共享事实投放模块（单一实现）。red 阶段该模块不存在 → 本组测试整体失败（接口缺失红）。"""
+        spec = importlib.util.spec_from_file_location(
+            "harness_fact_reveal", REPO / "backend/scripts/harness_fact_reveal.py"
+        )
+        if spec is None or spec.loader is None:
+            pytest.fail("harness_fact_reveal 模块缺失：单一事实投放入口未实现")
+        mod = importlib.util.module_from_spec(spec)
+>       spec.loader.exec_module(mod)
+
+tests\test_harness_fact_reveal.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+<frozen importlib._bootstrap_external>:936: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1073: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x000002993001A690>
+path = 'C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\scripts\\harness_fact_reveal.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\scripts\\harness_fact_reveal.py'
+
+<frozen importlib._bootstrap_external>:1130: FileNotFoundError
+____________ ERROR at setup of test_t3_unmatched_schema_is_correct ____________
+
+    @pytest.fixture()
+    def shared_module():
+        """共享事实投放模块（单一实现）。red 阶段该模块不存在 → 本组测试整体失败（接口缺失红）。"""
+        spec = importlib.util.spec_from_file_location(
+            "harness_fact_reveal", REPO / "backend/scripts/harness_fact_reveal.py"
+        )
+        if spec is None or spec.loader is None:
+            pytest.fail("harness_fact_reveal 模块缺失：单一事实投放入口未实现")
+        mod = importlib.util.module_from_spec(spec)
+>       spec.loader.exec_module(mod)
+
+tests\test_harness_fact_reveal.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+<frozen importlib._bootstrap_external>:936: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1073: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x00000299300A55D0>
+path = 'C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\scripts\\harness_fact_reveal.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\scripts\\harness_fact_reveal.py'
+
+<frozen importlib._bootstrap_external>:1130: FileNotFoundError
+_____ ERROR at setup of test_t8_both_runners_share_same_reveal_semantics ______
+
+    @pytest.fixture()
+    def shared_module():
+        """共享事实投放模块（单一实现）。red 阶段该模块不存在 → 本组测试整体失败（接口缺失红）。"""
+        spec = importlib.util.spec_from_file_location(
+            "harness_fact_reveal", REPO / "backend/scripts/harness_fact_reveal.py"
+        )
+        if spec is None or spec.loader is None:
+            pytest.fail("harness_fact_reveal 模块缺失：单一事实投放入口未实现")
+        mod = importlib.util.module_from_spec(spec)
+>       spec.loader.exec_module(mod)
+
+tests\test_harness_fact_reveal.py:39: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+<frozen importlib._bootstrap_external>:936: in exec_module
+    ???
+<frozen importlib._bootstrap_external>:1073: in get_code
+    ???
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+self = <_frozen_importlib_external.SourceFileLoader object at 0x000002993004C210>
+path = 'C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\scripts\\harness_fact_reveal.py'
+
+>   ???
+E   FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\scripts\\harness_fact_reveal.py'
+
+<frozen importlib._bootstrap_external>:1130: FileNotFoundError
+================================== FAILURES ===================================
+_________________ test_t1_round2_fact_not_revealed_on_round1 __________________
+
+    def test_t1_round2_fact_not_revealed_on_round1():
+        """T1：第一轮 prompt 同时命中 r1 与 r2 关键词时，只能返回 r1 事实。"""
+        text, ids = GATE2._match_facts("C05", C05_PROMPT_HITS_R12)
+>       assert "C05-r2-f1" not in ids, f"第一轮泄露第二轮事实: {ids}"
+E       AssertionError: 第一轮泄露第二轮事实: ['C05-r1-f1', 'C05-r2-f1', 'C05-r2-f3']
+E       assert 'C05-r2-f1' not in ['C05-r1-f1', 'C05-r2-f1', 'C05-r2-f3']
+
+tests\test_harness_fact_reveal.py:46: AssertionError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+_________________ test_t4_six_sections_do_not_mean_full_pass __________________
+
+    def test_t4_six_sections_do_not_mean_full_pass():
+        """T4：六段式标题齐全但缺必需法条 → 机械诊断可过、完整闭环必败。"""
+        final = _six_final("依据《民法典》第七百二十二条，承租人迟延支付租金……")
+>       out = _judge.judge_case("C05", _res(final), required_laws=C05_LAWS)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: judge_case() got an unexpected keyword argument 'required_laws'
+
+tests\test_gate5_judge_layers.py:46: TypeError
+_______________ test_t5_unbound_claims_cannot_pass_full_closure _______________
+
+    def test_t5_unbound_claims_cannot_pass_full_closure():
+        """T5：有法条清单、有实质性结论，但 claim_evidence_bindings 为空 → 完整闭环必败。"""
+        final = _six_final("依据《民法典》第五百七十七条、《民法典》第七百二十二条，应承担违约责任。")
+>       out = _judge.judge_case("C05", _res(final), required_laws=C05_LAWS, evidence_ids=None)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: judge_case() got an unexpected keyword argument 'required_laws'
+
+tests\test_gate5_judge_layers.py:58: TypeError
+________________ test_t6_unexercised_redlines_give_not_proven _________________
+
+    def test_t6_unexercised_redlines_give_not_proven():
+        """T6：基础扫描无命中但注入/更正等场景未触发 → formal_redline_verdict 必须 NOT_PROVEN。"""
+        final = _six_final("依据《民法典》第五百七十七条。")
+>       out = _judge.judge_case("C05", _res(final), required_laws=C05_LAWS, exercised_redline_scenarios=())
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: judge_case() got an unexpected keyword argument 'required_laws'
+
+tests\test_gate5_judge_layers.py:68: TypeError
+_____________ test_t7_c05_historical_rerun_mechanical_yes_full_no _____________
+
+    def test_t7_c05_historical_rerun_mechanical_yes_full_no():
+        """T7：历史 C05（run-6）离线重判——机械分可通过，完整闭环失败，理由含适用项。"""
+        sessions = json.loads(
+            (REPO / "release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-6-sessions.json")
+            .read_text(encoding="utf-8")
+        )
+        res = sessions["results"]["C05"]
+>       out = _judge.judge_case("C05", res, required_laws=C05_LAWS)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: judge_case() got an unexpected keyword argument 'required_laws'
+
+tests\test_gate5_judge_layers.py:81: TypeError
+============================== warnings summary ===============================
+tests/test_harness_fact_reveal.py::test_t1_round2_fact_not_revealed_on_round1
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_harness_fact_reveal.py::test_t1_round2_fact_not_revealed_on_round1 - AssertionError: 第一轮泄露第二轮事实: ['C05-r1-f1', 'C05-r2-f1', 'C05-r2-f3']
+assert 'C05-r2-f1' not in ['C05-r1-f1', 'C05-r2-f1', 'C05-r2-f3']
+FAILED tests/test_gate5_judge_layers.py::test_t4_six_sections_do_not_mean_full_pass - TypeError: judge_case() got an unexpected keyword argument 'required_laws'
+FAILED tests/test_gate5_judge_layers.py::test_t5_unbound_claims_cannot_pass_full_closure - TypeError: judge_case() got an unexpected keyword argument 'required_laws'
+FAILED tests/test_gate5_judge_layers.py::test_t6_unexercised_redlines_give_not_proven - TypeError: judge_case() got an unexpected keyword argument 'required_laws'
+FAILED tests/test_gate5_judge_layers.py::test_t7_c05_historical_rerun_mechanical_yes_full_no - TypeError: judge_case() got an unexpected keyword argument 'required_laws'
+ERROR tests/test_harness_fact_reveal.py::test_t2_answered_fact_not_returned_again - FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\scripts\\harness_fact_reveal.py'
+ERROR tests/test_harness_fact_reveal.py::test_t3_unmatched_schema_is_correct - FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\scripts\\harness_fact_reveal.py'
+ERROR tests/test_harness_fact_reveal.py::test_t8_both_runners_share_same_reveal_semantics - FileNotFoundError: [Errno 2] No such file or directory: 'C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\scripts\\harness_fact_reveal.py'
+5 failed, 1 warning, 3 errors in 31.69s

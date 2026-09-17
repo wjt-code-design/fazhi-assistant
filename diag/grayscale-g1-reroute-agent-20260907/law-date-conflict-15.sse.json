@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "合同约定的履行期限及实际违约行为发生的时间",
+  "issue_id": "issue_bbe49a3baae05cd2538228ce"
+ }
+]

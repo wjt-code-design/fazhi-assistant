@@ -1,0 +1,343 @@
+# case=C04 mode=rag-initial status=200 started=2026-09-08T14:47:17
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "1"}
+
+data: {"content": ". 案情"}
+
+data: {"content": "与争议焦点\n"}
+
+data: {"content": "用户"}
+
+data: {"content": "已支付10"}
+
+data: {"content": "万元购房款，"}
+
+data: {"content": "卖家"}
+
+data: {"content": "因涨价拒绝履行"}
+
+data: {"content": "交房义务。争议"}
+
+data: {"content": "焦点在于：用户"}
+
+data: {"content": "能否直接拿回"}
+
+data: {"content": "2"}
+
+data: {"content": "0万元（即"}
+
+data: {"content": "主张"}
+
+data: {"content": "双倍返还定金或"}
+
+data: {"content": "赔偿额），还是"}
+
+data: {"content": "只能拿回本金"}
+
+data: {"content": "及法定违约赔偿"}
+
+data: {"content": "。\n\n2"}
+
+data: {"content": ". 法律依据\n"}
+
+data: {"content": "根据"}
+
+data: {"content": "《民法典》第五百"}
+
+data: {"content": "九十七条：“因"}
+
+data: {"content": "出卖人未取得"}
+
+data: {"content": "处分权致使标的物"}
+
+data: {"content": "所有权不能转移的"}
+
+data: {"content": "，买受人可以解除合同"}
+
+data: {"content": "并请求出卖人"}
+
+data: {"content": "承担违约责任。”以及"}
+
+data: {"content": "《民法典》第五百"}
+
+data: {"content": "八十五条关于违约金"}
+
+data: {"content": "的规定（虽未"}
+
+data: {"content": "提供具体条文号"}
+
+data: {"content": "，但属合同法"}
+
+data: {"content": "基本"}
+
+data: {"content": "规则，结合上下文"}
+
+data: {"content": "买卖合同章节逻辑）。"}
+
+data: {"content": "同时"}
+
+data: {"content": "，需区分“"}
+
+data: {"content": "定金”"}
+
+data: {"content": "与“预付款"}
+
+data: {"content": "/"}
+
+data: {"content": "房款”。若"}
+
+data: {"content": "适用定金罚则"}
+
+data: {"content": "，依据《民法典"}
+
+data: {"content": "》第五百"}
+
+data: {"content": "八十七条（常识"}
+
+data: {"content": "性引用，若"}
+
+data: {"content": "严格限于提供条文"}
+
+data: {"content": "则指出第五百九"}
+
+data: {"content": "十七条为"}
+
+data: {"content": "解除及违约责任基础"}
+
+data: {"content": "）。\n\n3."}
+
+data: {"content": " 逐项论证\n"}
+
+data: {"content": "首先，用户支付的"}
+
+data: {"content": "“十万元”"}
+
+data: {"content": "性质"}
+
+data: {"content": "至关重要。如果这"}
+
+data: {"content": "10万元明确"}
+
+data: {"content": "约定"}
+
+data: {"content": "为“定金”，"}
+
+data: {"content": "且符合"}
+
+data: {"content": "定金合同要件，"}
+
+data: {"content": "根据定金罚则"}
+
+data: {"content": "，收受定金的一方"}
+
+data: {"content": "不履行"}
+
+data: {"content": "债务或者履行债务"}
+
+data: {"content": "不符合"}
+
+data: {"content": "约定，致使不能"}
+
+data: {"content": "实现合同目的的，"}
+
+data: {"content": "应当"}
+
+data: {"content": "双倍返还定金。"}
+
+data: {"content": "此时，用户可"}
+
+data: {"content": "要求返还20"}
+
+data: {"content": "万元"}
+
+data: {"content": "（10万"}
+
+data: {"content": "原金+1"}
+
+data: {"content": "0万"}
+
+data: {"content": "惩罚）。\n其次"}
+
+data: {"content": "，如果"}
+
+data: {"content": "这10万元"}
+
+data: {"content": "仅视为“预"}
+
+data: {"content": "付款”"}
+
+data: {"content": "或部分房款，"}
+
+data: {"content": "而非"}
+
+data: {"content": "法律意义上的“定金"}
+
+data: {"content": "”，则"}
+
+data: {"content": "卖家无权直接没收"}
+
+data: {"content": "，"}
+
+data: {"content": "必须全额返还1"}
+
+data: {"content": "0万元本金。"}
+
+data: {"content": "在此基础上"}
+
+data: {"content": "，用户可以主张卖家"}
+
+data: {"content": "违约造成的实际损失"}
+
+data: {"content": "或"}
+
+data: {"content": "合同约定的违约金。若"}
+
+data: {"content": "合同约定的"}
+
+data: {"content": "违约金或实际损失"}
+
+data: {"content": "（"}
+
+data: {"content": "如房价上涨差价"}
+
+data: {"content": "）达到10"}
+
+data: {"content": "万元"}
+
+data: {"content": "，加上返还的"}
+
+data: {"content": "10万元本金"}
+
+data: {"content": "，用户总共可能"}
+
+data: {"content": "获得"}
+
+data: {"content": "约20万元的"}
+
+data: {"content": "利益覆盖。\n"}
+
+data: {"content": "然而，直接“"}
+
+data: {"content": "拿回20"}
+
+data: {"content": "万元"}
+
+data: {"content": "”并非必然结果"}
+
+data: {"content": "。若未约定"}
+
+data: {"content": "定金，且"}
+
+data: {"content": "用户无法证明实际"}
+
+data: {"content": "损失高达10"}
+
+data: {"content": "万元，"}
+
+data: {"content": "法院通常仅支持"}
+
+data: {"content": "返还"}
+
+data: {"content": "10万元本金"}
+
+data: {"content": "及适当利息或"}
+
+data: {"content": "较低比例的违约金。"}
+
+data: {"content": "此外"}
+
+data: {"content": "，根据《民法典"}
+
+data: {"content": "》第五百"}
+
+data: {"content": "九十七条，因"}
+
+data: {"content": "卖家原因导致所有权"}
+
+data: {"content": "不能转移，用户"}
+
+data: {"content": "有权解除合同并请求"}
+
+data: {"content": "违约责任"}
+
+data: {"content": "。\n\n4."}
+
+data: {"content": " 结论"}
+
+data: {"content": "与风险\n存在"}
+
+data: {"content": "法律不确定性。是否能"}
+
+data: {"content": "拿回20"}
+
+data: {"content": "万元取决于：\n"}
+
+data: {"content": "1. 1"}
+
+data: {"content": "0万元是否被"}
+
+data: {"content": "明确认定为“定金"}
+
+data: {"content": "”。"}
+
+data: {"content": "若是，可主张"}
+
+data: {"content": "双倍返还即2"}
+
+data: {"content": "0万元。\n"}
+
+data: {"content": "2. 若非"}
+
+data: {"content": "定金，用户需"}
+
+data: {"content": "举证实际损失或"}
+
+data: {"content": "高额"}
+
+data: {"content": "违约金约定。若"}
+
+data: {"content": "损失"}
+
+data: {"content": "不足10万元"}
+
+data: {"content": "，"}
+
+data: {"content": "则只能拿回"}
+
+data: {"content": "1"}
+
+data: {"content": "0万元本金加"}
+
+data: {"content": "少量赔偿，无法"}
+
+data: {"content": "达到20万元"}
+
+data: {"content": "总额"}
+
+data: {"content": "。\n建议用户"}
+
+data: {"content": "核查"}
+
+data: {"content": "合同中对这1"}
+
+data: {"content": "0万元的"}
+
+data: {"content": "定性（是“"}
+
+data: {"content": "定金”"}
+
+data: {"content": "还是“首付/"}
+
+data: {"content": "预付款”），"}
+
+data: {"content": "并收集房价上涨"}
+
+data: {"content": "的证据以主张差价"}
+
+data: {"content": "损失。"}
+
+data: {"conversation_id": 2213, "sources": [{"source": "民法典", "article": "第六百四十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百四十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百二十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百二十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第五百九十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第九百五十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第六百三十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第四百三十八条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第四百五十五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "刑法", "article": "第一百七十三条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

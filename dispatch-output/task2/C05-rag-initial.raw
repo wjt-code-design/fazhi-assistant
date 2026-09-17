@@ -1,0 +1,307 @@
+# case=C05 mode=rag-initial status=200 started=2026-09-08T14:47:36
+data: {"type": "status", "msg": "正在思考…"}
+
+data: {"content": "存在"}
+
+data: {"content": "法律不确定性"}
+
+data: {"content": "。房东"}
+
+data: {"content": "的行为"}
+
+data: {"content": "可能涉及违法，"}
+
+data: {"content": "但"}
+
+data: {"content": "具体需结合租赁合同"}
+
+data: {"content": "中关于“逾期"}
+
+data: {"content": "支付租金”的"}
+
+data: {"content": "约定及当地司法"}
+
+data: {"content": "实践判断。\n\n"}
+
+data: {"content": "1"}
+
+data: {"content": ". 案情与"}
+
+data: {"content": "争议焦点\n"}
+
+data: {"content": "您因晚交"}
+
+data: {"content": "两天房租被"}
+
+data: {"content": "房东换锁并"}
+
+data: {"content": "扣押金"}
+
+data: {"content": "。争议焦点在于"}
+
+data: {"content": "："}
+
+data: {"content": "房东是否有权直接"}
+
+data: {"content": "采取“换锁"}
+
+data: {"content": "”（限制"}
+
+data: {"content": "使用租赁物）"}
+
+data: {"content": "和“扣"}
+
+data: {"content": "押金”（没收"}
+
+data: {"content": "保证金）的措施，"}
+
+data: {"content": "以及该行为是否符合"}
+
+data: {"content": "法定或约定的解除"}
+
+data: {"content": "/"}
+
+data: {"content": "违约责任条件。\n\n"}
+
+data: {"content": "2."}
+
+data: {"content": " 法律依据\n根据"}
+
+data: {"content": "《民法典》第七"}
+
+data: {"content": "百二十二条，"}
+
+data: {"content": "承租人无正当理由"}
+
+data: {"content": "未支付或者迟延"}
+
+data: {"content": "支付租金的"}
+
+data: {"content": "，出租人可以请求"}
+
+data: {"content": "承租人在合理"}
+
+data: {"content": "期限内支付；承租人"}
+
+data: {"content": "逾期不支付的，"}
+
+data: {"content": "出租人可以解除合同。"}
+
+data: {"content": "\n"}
+
+data: {"content": "同时，《民法典》"}
+
+data: {"content": "第五百"}
+
+data: {"content": "七十七条规定，"}
+
+data: {"content": "当事人一方不履行合同"}
+
+data: {"content": "义务或者履行合同义务"}
+
+data: {"content": "不符合约定的"}
+
+data: {"content": "，应当承担继续履行"}
+
+data: {"content": "、采取补救措施"}
+
+data: {"content": "或者赔偿"}
+
+data: {"content": "损失等违约责任。"}
+
+data: {"content": "\n\n3. "}
+
+data: {"content": "逐项论证"}
+
+data: {"content": "\n首先，关于"}
+
+data: {"content": "“"}
+
+data: {"content": "换锁”。房东"}
+
+data: {"content": "单方面"}
+
+data: {"content": "换锁实质上限制了"}
+
+data: {"content": "您对租赁物的占有"}
+
+data: {"content": "和使用。依据《"}
+
+data: {"content": "民法典》"}
+
+data: {"content": "第七百二十二条"}
+
+data: {"content": "，即便"}
+
+data: {"content": "您存在迟延支付"}
+
+data: {"content": "租金的情形，房东"}
+
+data: {"content": "也应当先履行"}
+
+data: {"content": "“请求在合理"}
+
+data: {"content": "期限内支付”"}
+
+data: {"content": "的前置程序。"}
+
+data: {"content": "仅在"}
+
+data: {"content": "您“逾期不"}
+
+data: {"content": "支付"}
+
+data: {"content": "”的情况下，房东"}
+
+data: {"content": "才"}
+
+data: {"content": "享有合同解除权"}
+
+data: {"content": "。在合同未被"}
+
+data: {"content": "依法解除前，"}
+
+data: {"content": "房东"}
+
+data: {"content": "直接换锁剥夺"}
+
+data: {"content": "您的使用权，缺乏"}
+
+data: {"content": "明确法律授权，"}
+
+data: {"content": "且可能"}
+
+data: {"content": "构成对您合法占有"}
+
+data: {"content": "权的侵害"}
+
+data: {"content": "。除非合同中明确"}
+
+data: {"content": "约定“逾期X"}
+
+data: {"content": "日即可单方换"}
+
+data: {"content": "锁并"}
+
+data: {"content": "收回房屋”，否则"}
+
+data: {"content": "该行为存在较高"}
+
+data: {"content": "法律风险。\n"}
+
+data: {"content": "其次，关于“"}
+
+data: {"content": "扣押金”。"}
+
+data: {"content": "押金通常用于担保"}
+
+data: {"content": "合同履行或抵扣欠"}
+
+data: {"content": "付费用。若"}
+
+data: {"content": "合同未约定“"}
+
+data: {"content": "晚"}
+
+data: {"content": "交两天即没收"}
+
+data: {"content": "全部押金”，房东"}
+
+data: {"content": "直接全额扣除押金"}
+
+data: {"content": "可能属于"}
+
+data: {"content": "过度主张权利。"}
+
+data: {"content": "您"}
+
+data: {"content": "仅需承担迟延履行的"}
+
+data: {"content": "违约责任（如支付"}
+
+data: {"content": "少量违约金或滞纳金"}
+
+data: {"content": "），而非必然丧失"}
+
+data: {"content": "全部"}
+
+data: {"content": "押金。房东应"}
+
+data: {"content": "就其实际损失"}
+
+data: {"content": "或与"}
+
+data: {"content": "合同约定的违约金数额进行"}
+
+data: {"content": "举证。"}
+
+data: {"content": "\n\n4. "}
+
+data: {"content": "结论与风险\n"}
+
+data: {"content": "房东直接换锁"}
+
+data: {"content": "并"}
+
+data: {"content": "全额扣押金的行为"}
+
+data: {"content": "可能不合法。"}
+
+data: {"content": "建议您：\n1"}
+
+data: {"content": ". 立即书面"}
+
+data: {"content": "通知房东要求恢复"}
+
+data: {"content": "门锁"}
+
+data: {"content": "并说明情况；"}
+
+data: {"content": "\n2. "}
+
+data: {"content": "保留晚"}
+
+data: {"content": "交租金的支付"}
+
+data: {"content": "凭证及沟通记录"}
+
+data: {"content": "；\n3."}
+
+data: {"content": " 若房东拒绝"}
+
+data: {"content": "返还钥匙或押金"}
+
+data: {"content": "，可向法院起诉"}
+
+data: {"content": "要求其排除妨碍、"}
+
+data: {"content": "返还"}
+
+data: {"content": "押金并赔偿因此"}
+
+data: {"content": "造成的损失（如临时"}
+
+data: {"content": "住宿费）。\n注意"}
+
+data: {"content": "：若您长期拖欠"}
+
+data: {"content": "租金且"}
+
+data: {"content": "经催告后仍"}
+
+data: {"content": "不"}
+
+data: {"content": "支付，房东依法"}
+
+data: {"content": "解除合同后，其"}
+
+data: {"content": "收回房屋的行为可能"}
+
+data: {"content": "被视为"}
+
+data: {"content": "合法。"}
+
+data: {"conversation_id": 2215, "sources": [{"source": "民法典", "article": "第七百二十二条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百一十九条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百二十四条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "行政处罚法", "article": "第八十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百一十七条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百三十条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "治安管理处罚法", "article": "第一百零五条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "行政强制法", "article": "第二十一条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "民法典", "article": "第七百二十三条", "effective_from": "", "effective_to": "", "status": "现行"}, {"source": "税收征收管理法", "article": "第三十七条", "effective_from": "", "effective_to": "", "status": "现行"}]}
+
+data: [DONE]
+

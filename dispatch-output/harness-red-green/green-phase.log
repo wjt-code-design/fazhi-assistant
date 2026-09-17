@@ -1,0 +1,8 @@
+﻿........                                                                 [100%]
+============================== warnings summary ===============================
+tests/test_harness_fact_reveal.py::test_t1_round2_fact_not_revealed_on_round1
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+8 passed, 1 warning in 11.66s

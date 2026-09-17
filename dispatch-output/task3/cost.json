@@ -1,0 +1,9 @@
+{
+  "source": "LongCat 开放平台 (api.longcat.chat，LLM_BASE_URL=https://api.longcat.chat/openai，模型 LongCat-2.0)",
+  "period": "2026-09-08",
+  "total_requests": null,
+  "input_tokens": null,
+  "output_tokens": null,
+  "cost_cny": "不可得",
+  "note": "平台账单不可得。核对过程：1) api.longcat.chat 网络可达(HTTP 200)；2) 以 LLM_API_KEY 探测常见账单/用量端点 /v1/dashboard/billing/usage、/v1/usage、/open/api/billing/usage、/open/api/usage、/api/usage 全部返回 404，平台未提供可编程账单查询接口，控制台登录凭证不在审查侧手中；3) 因此无法取得平台侧请求总数与 token 真实明细，无法与服务端台账(run1+run2 请求 47、token_est≈4064，见 docs/gate5-formal-dev-20260908.md §5)直接比对。建议：由持有 LongCat 控制台账号的 Owner 登录官网查看 2026-09-08 用量页后补录。数量级合理性参考：服务端 token_est 仅统计完成生成的请求，与平台计费口径(含失败重试、超长上下文)必然存在偏差。"
+}

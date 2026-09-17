@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "债务人是否在诉讼时效期间内作出过同意履行义务的表示（如部分还款、提供担保、请求延期等）",
+  "issue_id": "issue_eed7b70c9a694a2ac85b4429"
+ }
+]

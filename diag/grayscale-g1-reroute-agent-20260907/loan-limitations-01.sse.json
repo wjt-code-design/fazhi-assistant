@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "债权人何时知道或应当知道权利受到损害",
+  "issue_id": "issue_102a147cd375622ffb9b5192"
+ }
+]

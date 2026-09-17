@@ -1,0 +1,38 @@
+[WATCH-IT-FAIL OK] (a) 模型没产 claim: writer 必须留下 agent_writer_summary 诊断，否则 claims=0 不可归因
+assert []
+F
+================================== FAILURES ===================================
+_______________ test_probe_emission_removed_makes_new_tests_red _______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000016F84759290>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x0000016F84759050>
+
+    def test_probe_emission_removed_makes_new_tests_red(monkeypatch, caplog):
+        monkeypatch.setattr(writer_module, "log_writer_summary", lambda *a, **k: None)
+        for label, fn in TARGETS:
+            try:
+>               fn(caplog)
+
+..\dispatch-output\agent-writer-observability-20260912\probe_watch_it_fail_writer_obs.py:36: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+caplog = <_pytest.logging.LogCaptureFixture object at 0x0000016F84759050>
+
+    def test_writer_summary_shows_dropped_claim_for_missing_evidence(caplog):
+        """(b) 分支：产出了 claim，但因 evidence_ids 为空被丢弃 —— 必须与 (a) 可区分。"""
+        import logging as _logging
+    
+        with caplog.at_level(_logging.INFO, logger="legal.agent"):
+            result = EvidenceBoundedWriter(RecordingGenerator(response_claim(evidence_ids=[], text="一定胜诉"))).render(
+                state()
+            )
+    
+        assert result.status is WriterStatus.READY
+>       summary = _writer_summaries(caplog)[-1].agent_writer_summary
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       IndexError: list index out of range
+
+tests\test_agent_writer.py:238: IndexError
+=========================== short test summary info ===========================
+FAILED ..\dispatch-output\agent-writer-observability-20260912\probe_watch_it_fail_writer_obs.py::test_probe_emission_removed_makes_new_tests_red
+1 failed in 0.48s

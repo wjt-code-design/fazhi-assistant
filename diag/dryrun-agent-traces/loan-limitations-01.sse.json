@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "债权人是否在2021年还款期限届满后的三年内主张过权利",
+  "issue_id": "issue_39c877758c05e5eaa524ffa8"
+ }
+]

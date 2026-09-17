@@ -1,0 +1,8 @@
+.                                                                        [100%]
+============================== warnings summary ===============================
+tests/test_agent_chat_integration.py::test_five_issue_decomposition_reaches_drafting_within_step_budget
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+1 passed, 33 deselected, 1 warning in 10.47s

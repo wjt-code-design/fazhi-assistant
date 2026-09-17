@@ -1,0 +1,14 @@
+{
+ "ts": "20260804-013127",
+ "n": 10,
+ "elapsed_s": 6,
+ "status_dist": {
+  "200": 10
+ },
+ "ok_responses": 10,
+ "server_errors": 0,
+ "timeouts": 0,
+ "healthz_after": "ok",
+ "pass": true,
+ "note": "并发冒烟（非压测）：10 个不同问题并行，验并发下不崩/健康检查仍绿；503=并发门控繁忙属预期降级"
+}

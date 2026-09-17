@@ -1,0 +1,12 @@
+[
+ {
+  "type": "agent_status",
+  "status": "waiting_user"
+ },
+ {
+  "type": "clarification",
+  "state_version": 4,
+  "prompt": "主债务履行期限届满之日是否已经届至",
+  "issue_id": "issue_45a1e3b7ba339b8d002cd2f7"
+ }
+]

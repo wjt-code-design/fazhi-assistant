@@ -1,0 +1,191 @@
+FFFF                                                                     [100%]
+================================== FAILURES ===================================
+_ test_coverage_rewrite_invalid_evidence_keeps_budget_and_writes_no_assistant _
+
+db = <sqlalchemy.orm.session.Session object at 0x0000020F6C2CE090>
+
+    def test_coverage_rewrite_invalid_evidence_keeps_budget_and_writes_no_assistant(db):
+        from agent.service import execute_agent_request
+    
+        """重写生成非法证据 ID → writer FAIL_SAFE → 无 assistant；已用预算经重载可见保留。"""
+        user, conversation = _owner_conversation(db)
+        transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="invalid_evidence")
+        result = execute_agent_request(
+            db=db,
+            user_id=user.id,
+            settings=_settings(),
+            bootstrap=_two_issue_bootstrap(conversation.id),
+            finalizer=_finalize,
+            llm=transport,
+            gateway=_TwoIssueLawGateway().as_gateway(),
+        )
+    
+        assert (result.outcome, result.reason_code) == ("failed", "EVIDENCE_COVERAGE_DEFICIENT")
+        assert [kind for kind, _ in transport.calls if kind.startswith("writer")] == ["writer", "writer_with_feedback"]
+        assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+        stored_run = db.get(AgentRun, result.run_id)
+        # T3：writer FAIL_SAFE 后 verifier 终态失败 → FAILED 终态与原因落盘（重载可见）
+        assert stored_run.status == "failed"
+        assert stored_run.last_error_code == "EVIDENCE_COVERAGE_DEFICIENT"
+        failure_step = db.query(AgentStep).filter_by(agent_run_id=result.run_id, decision="failure").one_or_none()
+        assert failure_step is not None
+        assert failure_step.reason_code == "EVIDENCE_COVERAGE_DEFICIENT"
+>       assert failure_step.result_summary == "WRITER:UNKNOWN_EVIDENCE_ID"
+E       AssertionError: assert 'VERIFIER:RESEARCH_MORE' == 'WRITER:UNKNOWN_EVIDENCE_ID'
+E         
+E         - WRITER:UNKNOWN_EVIDENCE_ID
+E         + VERIFIER:RESEARCH_MORE
+
+tests\test_agent_chat_integration.py:984: AssertionError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+______ test_failure_persistence_reports_storage_error_or_conflict[False] ______
+
+db = <sqlalchemy.orm.session.Session object at 0x0000020F6C320550>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020F6C3208D0>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x0000020F6C2E8550>
+conflict = False
+
+    @pytest.mark.parametrize("conflict", [False, True])
+    def test_failure_persistence_reports_storage_error_or_conflict(db, monkeypatch, caplog, conflict):
+        """保存失败公开报告真实故障，保留预算及并发赢家，日志不泄露异常原文。"""
+        import agent.service as service
+        from agent.service import execute_agent_request
+        from observability import _JsonFormatter
+    
+        real_compare_and_save = service.compare_and_save
+        winner_versions = []
+    
+        def failing_on_failed_state(*args, **kwargs):
+            if kwargs.get("state") is not None and kwargs["state"].status is AgentStatus.FAILED:
+                if not conflict:
+                    raise OSError("secret-database-credentials")
+                winner = LegalAgentState.model_validate_json(kwargs["run"].state_json)
+                real_compare_and_save(
+                    args[0], run=kwargs["run"], expected_version=kwargs["expected_version"],
+                    state=winner, status=winner.status.value,
+                )
+                winner_versions.append(kwargs["expected_version"] + 1)
+            return real_compare_and_save(*args, **kwargs)
+    
+        monkeypatch.setattr(service, "compare_and_save", failing_on_failed_state)
+        user, conversation = _owner_conversation(db)
+        transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="invalid_evidence")
+        result = execute_agent_request(
+            db=db,
+            user_id=user.id,
+            settings=_settings(),
+            bootstrap=_two_issue_bootstrap(conversation.id),
+            finalizer=_finalize,
+            llm=transport,
+            gateway=_TwoIssueLawGateway().as_gateway(),
+        )
+    
+        expected = "AGENT_FINALIZATION_CONFLICT" if conflict else "AGENT_STORAGE_FAILURE"
+>       assert (result.outcome, result.reason_code) == ("failed", expected)
+E       AssertionError: assert ('failed', 'E...GE_DEFICIENT') == ('failed', 'A...RAGE_FAILURE')
+E         
+E         At index 1 diff: 'EVIDENCE_COVERAGE_DEFICIENT' != 'AGENT_STORAGE_FAILURE'
+E         Use -v to get more diff
+
+tests\test_agent_chat_integration.py:1202: AssertionError
+______ test_failure_persistence_reports_storage_error_or_conflict[True] _______
+
+db = <sqlalchemy.orm.session.Session object at 0x0000020F6C3C3610>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020F6C426810>
+caplog = <_pytest.logging.LogCaptureFixture object at 0x0000020F6C47D290>
+conflict = True
+
+    @pytest.mark.parametrize("conflict", [False, True])
+    def test_failure_persistence_reports_storage_error_or_conflict(db, monkeypatch, caplog, conflict):
+        """保存失败公开报告真实故障，保留预算及并发赢家，日志不泄露异常原文。"""
+        import agent.service as service
+        from agent.service import execute_agent_request
+        from observability import _JsonFormatter
+    
+        real_compare_and_save = service.compare_and_save
+        winner_versions = []
+    
+        def failing_on_failed_state(*args, **kwargs):
+            if kwargs.get("state") is not None and kwargs["state"].status is AgentStatus.FAILED:
+                if not conflict:
+                    raise OSError("secret-database-credentials")
+                winner = LegalAgentState.model_validate_json(kwargs["run"].state_json)
+                real_compare_and_save(
+                    args[0], run=kwargs["run"], expected_version=kwargs["expected_version"],
+                    state=winner, status=winner.status.value,
+                )
+                winner_versions.append(kwargs["expected_version"] + 1)
+            return real_compare_and_save(*args, **kwargs)
+    
+        monkeypatch.setattr(service, "compare_and_save", failing_on_failed_state)
+        user, conversation = _owner_conversation(db)
+        transport = _CoverageLoopTransport(_two_issue_payload(), feedback_mode="invalid_evidence")
+        result = execute_agent_request(
+            db=db,
+            user_id=user.id,
+            settings=_settings(),
+            bootstrap=_two_issue_bootstrap(conversation.id),
+            finalizer=_finalize,
+            llm=transport,
+            gateway=_TwoIssueLawGateway().as_gateway(),
+        )
+    
+        expected = "AGENT_FINALIZATION_CONFLICT" if conflict else "AGENT_STORAGE_FAILURE"
+>       assert (result.outcome, result.reason_code) == ("failed", expected)
+E       AssertionError: assert ('failed', 'E...GE_DEFICIENT') == ('failed', 'A...ION_CONFLICT')
+E         
+E         At index 1 diff: 'EVIDENCE_COVERAGE_DEFICIENT' != 'AGENT_FINALIZATION_CONFLICT'
+E         Use -v to get more diff
+
+tests\test_agent_chat_integration.py:1202: AssertionError
+___________ test_disconnect_after_coverage_reservation_stops_recall ___________
+
+db = <sqlalchemy.orm.session.Session object at 0x0000020F6C555AD0>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000020F6C544C10>
+
+    def test_disconnect_after_coverage_reservation_stops_recall(db, monkeypatch):
+        import agent.service as service
+    
+        real_save = service.compare_and_save
+        disconnected = False
+    
+        def save_then_disconnect(*args, **kwargs):
+            nonlocal disconnected
+            saved = real_save(*args, **kwargs)
+            if kwargs["checkpoint"].decision == "coverage_rewrite_attempt":
+                disconnected = True
+            return saved
+    
+        monkeypatch.setattr(service, "compare_and_save", save_then_disconnect)
+        user, conversation = _owner_conversation(db)
+        transport = _CoverageLoopTransport(_two_issue_payload())
+        result = service.execute_agent_request(
+            db=db, user_id=user.id, settings=_settings(),
+            bootstrap=_two_issue_bootstrap(conversation.id), finalizer=_finalize,
+            llm=transport, gateway=_TwoIssueLawGateway().as_gateway(),
+            cancelled=lambda: disconnected,
+        )
+        assert result.reason_code == "CLIENT_DISCONNECTED"
+>       assert [kind for kind, _ in transport.calls if kind.startswith("writer")] == ["writer"]
+E       AssertionError: assert ['writer', 'w...ith_feedback'] == ['writer']
+E         
+E         Left contains one more item: 'writer_with_feedback'
+E         Use -v to get more diff
+
+tests\test_agent_chat_integration.py:1245: AssertionError
+============================== warnings summary ===============================
+tests/test_agent_chat_integration.py::test_coverage_rewrite_invalid_evidence_keeps_budget_and_writes_no_assistant
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_chat_integration.py::test_coverage_rewrite_invalid_evidence_keeps_budget_and_writes_no_assistant
+FAILED tests/test_agent_chat_integration.py::test_failure_persistence_reports_storage_error_or_conflict[False]
+FAILED tests/test_agent_chat_integration.py::test_failure_persistence_reports_storage_error_or_conflict[True]
+FAILED tests/test_agent_chat_integration.py::test_disconnect_after_coverage_reservation_stops_recall
+4 failed, 24 deselected, 1 warning in 24.79s

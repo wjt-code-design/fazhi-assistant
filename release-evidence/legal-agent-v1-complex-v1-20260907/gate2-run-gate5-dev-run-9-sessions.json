@@ -1,0 +1,1143 @@
+{
+ "run": "gate5-dev-run-9",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "ISSUE_DECOMPOSITION_INVALID"
+     ]
+    }
+   ],
+   "asked": [],
+   "answered_fact_ids": [],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "ISSUE_DECOMPOSITION_INVALID"
+   ],
+   "conv_id": null,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 12.0
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "ec285c9e-54fb-4391-bc54-25be44e2fc76",
+      "state_version": 4,
+      "conv_id": 2288
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "ec285c9e-54fb-4391-bc54-25be44e2fc76",
+      "state_version": 8,
+      "conv_id": 2288
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "各时段加班费的具体数额"
+    },
+    {
+     "round": 2,
+     "prompt": "未支付加班费的具体时间段"
+    }
+   ],
+   "answered_fact_ids": [
+    "C02-r1-f2"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "未支付加班费的具体时间段",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2288,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 134.4
+  },
+  "C03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "3b7664ee-be52-4289-852b-62b1c8dd868f",
+      "state_version": 4,
+      "conv_id": 2289
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "公司一直拖延（未签合同）"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "3b7664ee-be52-4289-852b-62b1c8dd868f",
+      "state_version": 8,
+      "conv_id": 2289
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "双方是否存在事实劳动关系"
+    },
+    {
+     "round": 2,
+     "prompt": "是否确实未签订任何形式的书面劳动合同"
+    }
+   ],
+   "answered_fact_ids": [
+    "C03-r1-f1"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "双方是否存在事实劳动关系",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2289,
+   "final_chars": 615,
+   "final_text": "已确认事实：\n- 工作十个月一直没签合同\n- 公司一直拖延（未签合同）\n- 现在主动离职\n- 工作十个月一直没签合同\n- 现在主动离职\n\n尚不确定的事实：\n- 主动离职的具体原因是否为个人原因\n- 申请劳动仲裁的具体时间点\n- 当地司法实践对双倍工资时效的起算标准\n\n核心法律争点：\n- 工作十个月未签劳动合同是否符合支付双倍工资的法定条件\n- 主动离职是否影响双倍工资的追索权\n- 主张双倍工资是否已超过法定仲裁时效\n\n法律依据：\n- 《劳动合同法》第八十二条\n- 《劳动法》第九十八条\n- 《劳动合同法》第八十七条\n- 《劳动法》第九十七条\n- 《劳动争议调解仲裁法》第二十七条\n- 《劳动争议调解仲裁法》第四十七条\n- 《劳动法》第八十二条\n- 《民法典》第一百九十八条\n\n分情形分析：\n- （无）\n\n可执行建议与风险提示：\n根据《劳动合同法》第八十二条,用人单位自用工之日起超过一个月不满一年未与劳动者订立书面劳动合同的,应当向劳动者每月支付二倍的工资。工作十个月一直没签合同,符合支付双倍工资的法定条件。\n根据《劳动合同法》第八十二条,双倍工资的追索权基于未签劳动合同的事实,主动离职不影响该权利的行使。\n根据《劳动争议调解仲裁法》第二十七条,劳动争议申请仲裁的时效期间为一年,从当事人知道或者应当知道其权利被侵害之日起计算。鉴于缺少申请劳动仲裁的具体时间点和当地司法实践对双倍工资时效的起算标准,无法确定是否超过时效。",
+   "final_excerpt": "已确认事实：\n- 工作十个月一直没签合同\n- 公司一直拖延（未签合同）\n- 现在主动离职\n- 工作十个月一直没签合同\n- 现在主动离职\n\n尚不确定的事实：\n- 主动离职的具体原因是否为个人原因\n- 申请劳动仲裁的具体时间点\n- 当地司法实践",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 172.1
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "8d12fc12-073f-4969-81fb-105ecd8815e5",
+      "state_version": 4,
+      "conv_id": 2290
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "二手房买卖合同合法有效且不存在法定无效或可撤销情形"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "二手房买卖合同合法有效且不存在法定无效或可撤销情形",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2290,
+   "final_chars": 937,
+   "final_text": "由于您明确表示“没有保留这方面的信息”，即无法提供关于款项性质、卖家行为及合同条款的具体事实细节，**根据现有资料无法完整回答**这三个法律争点。\n\n为了协助您进行后续判断，以下依据《民法典》相关规定，列出解决这些争议所需的**关键事实要素**及对应的**法律依据框架**。请您在补充证据后，对照以下逻辑进行分析：\n\n1. 关于“交付的十万元性质是定金还是购房款”\n   * **需核实事实**：双方是否有书面或口头的“定金”约定？收据或转账备注是否注明“定金”？该金额是否超过主合同标的额的20%？\n   * **法律依据**：\n     * 根据《民法典》第五百八十六条，定金合同自实际交付定金时成立，且定金的数额由当事人约定，但不得超过主合同标的额的百分之二十，超过部分不产生定金的效力。\n     * 若未明确约定为“定金”，通常视为预付款（购房款的一部分）。\n\n2. 关于“卖家涨价不卖是否构成违约”\n   * **需核实事实**：合同是否已依法成立并生效？卖家是否存在拒绝履行主要债务的行为？\n   * **法律依据**：\n     * 根据《民法典》第五百零二条，依法成立的合同，自成立时生效。\n     * 根据《民法典》第五百七十七条，当事人一方不履行合同义务或者履行合同义务不符合约定的，应当承担继续履行、采取补救措施或者赔偿损失等违约责任。\n     * 若卖家明确表示或以行为表明不履行（如涨价拒签、拒交），可能构成预期违约或根本违约。\n\n3. 关于“合同中是否约定了违约金条款”\n   * **需核实事实**：书面合同中是否有明确的违约金计算方式或固定金额约定？\n   * **法律依据**：\n     * 根据《民法典》第五百八十五条，当事人可以约定一方违约时应当根据违约情况向对方支付一定数额的违约金，也可以约定因违约产生的损失赔偿额的计算方法。\n     * 若合同未约定违约金，守约方仍可依据《民法典》第五百七十七条主张赔偿实际损失，但不能直接适用“双倍返还定金”或“支付约定违约金”的条款，除非能证明存在定金罚则适用的情形。\n\n**建议**：请补充提供《房屋买卖合同》全文、转账凭证、聊天记录或收据等关键证据，以便进行准确的法律定性分析。",
+   "final_excerpt": "由于您明确表示“没有保留这方面的信息”，即无法提供关于款项性质、卖家行为及合同条款的具体事实细节，**根据现有资料无法完整回答**这三个法律争点。\n\n为了协助您进行后续判断，以下依据《民法典》相关规定，列出解决这些争议所需的**关键事实要素",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 98.4
+  },
+  "C05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "合同写每月5日前付款，没有写晚两天就解除",
+      "7日换锁"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "84c1707b-6de2-40b1-969d-278e8467ccac",
+      "state_version": 4,
+      "conv_id": 2291
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "84c1707b-6de2-40b1-969d-278e8467ccac",
+      "state_version": 8,
+      "conv_id": 2291
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "租赁合同中是否约定晚交房租多久房东有权单方解除合同或采取换锁措施"
+    },
+    {
+     "round": 2,
+     "prompt": "房东换锁时是否采取了断水断电等严重影响租户生存权益的行为"
+    }
+   ],
+   "answered_fact_ids": [
+    "C05-r1-f1",
+    "C05-r1-f3"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "房东换锁时是否采取了断水断电等严重影响租户生存权益的行为",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2291,
+   "final_chars": 913,
+   "final_text": "1. 案情与争议焦点\n本案核心在于：承租人迟延支付租金两天，房东采取换锁、扣押金等私力救济措施是否合法。需结合《民法典》租赁合同章关于解除权、维修义务及违约责任的规定进行判断。\n\n2. 法律依据\n根据《民法典》第七百二十二条，承租人无正当理由未支付或者迟延支付租金的，出租人可以请求承租人在合理期限内支付；承租人逾期不支付的，出租人可以解除合同。\n根据《民法典》第七百一十三条，因维修租赁物影响承租人使用的，应当相应减少租金或者延长租期。\n根据《民法典》第五百七十七条（虽未在提供条文中直接列出，但属合同法基本原则，此处仅依据提供条文分析），当事人一方不履行合同义务或者履行合同义务不符合约定的，应当承担继续履行、采取补救措施或者赔偿损失等违约责任。注：严格依据提供条文，重点看第七百二十二条的程序性要求。\n\n3. 逐项论证\n首先，关于换锁行为。根据《民法典》第七百二十二条，即使承租人迟延交租，出租人也不能直接解除合同或采取强制手段。法律明确要求出租人必须先“请求承租人在合理期限内支付”。只有在承租人“逾期不支付”的情况下，出租人才享有合同解除权。晚交两天通常不构成根本违约，且房东未履行催告并给予合理期限的前置程序，直接换锁属于擅自侵入他人占有或使用空间的行为，缺乏法律依据，存在侵犯承租人使用权的风险。\n其次，关于扣押金。押金通常用于担保合同履行或抵扣违约金、赔偿金。若合同未明确约定“迟延两天即可没收全额押金”，房东单方扣取缺乏直接依据。根据《民法典》第七百二十二条的逻辑，房东应先催告，再视情况解除合同并追究责任。在未完成法定解除程序前，直接扣款可能构成不当得利或违约。\n最后，是否存在法律不确定性。若合同中明确约定“迟延超过一日即视为根本违约，房东有权换锁并没收押金”，该条款效力需结合格式条款规则（如《民法典》第四百九十六条、四百九十七条）审查，若显失公平可能被认定无效。但在无特别约定下，房东行为违法可能性极大。\n\n4. 结论与风险\n房东在未催告并给予合理期限的情况下直接换锁、扣押金，不符合《民法典》第七百二十二条规定的程序，涉嫌违法。承租人可主张恢复原状、赔偿损失。建议通过协商或诉讼解决，避免激化矛盾。",
+   "final_excerpt": "1. 案情与争议焦点\n本案核心在于：承租人迟延支付租金两天，房东采取换锁、扣押金等私力救济措施是否合法。需结合《民法典》租赁合同章关于解除权、维修义务及违约责任的规定进行判断。\n\n2. 法律依据\n根据《民法典》第七百二十二条，承租人无正当理",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 156.4
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "4e86862c-ba50-419f-931f-ae732944de99",
+      "state_version": 4,
+      "conv_id": 2292
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "4e86862c-ba50-419f-931f-ae732944de99",
+      "state_version": 8,
+      "conv_id": 2292
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "业主是否存在未按约支付工程款的情形"
+    },
+    {
+     "round": 2,
+     "prompt": "合同是否约定业主未付款时装修公司有权停工"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "业主是否存在未按约支付工程款的情形",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "合同是否约定业主未付款时装修公司有权停工",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2292,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 161.6
+  },
+  "C07": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "2021年6月30日到期"
+     ],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "45ebe3a1-bca0-493f-828b-db0b2e8a2214",
+      "state_version": 4,
+      "conv_id": 2293
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "借款合同约定的具体还款日期（2021年几月几日）"
+    }
+   ],
+   "answered_fact_ids": [
+    "C07-r1-f1"
+   ],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2293,
+   "final_chars": 517,
+   "final_text": "1. 本案借款的诉讼时效期间是否已经届满\n根据《民事诉讼法》第二百五十条规定，申请执行的期间为二年。本案中，借款合同明确约定2021年6月30日到期，该日期即为最后一期履行期限届满之日。因此，诉讼时效期间应当自2021年6月30日起计算两年，至2023年6月29日届满。若债权人在此期间内未主张权利或提起诉讼/仲裁，则诉讼时效期间可能已经届满。\n\n2. 是否存在诉讼时效中止的法定事由\n根据《民事诉讼法》第二百五十条规定，申请执行时效的中止、中断，适用法律有关诉讼时效中止、中断的规定。但题目提供的法律条文中并未包含关于“诉讼时效中止”的具体法定事由（如不可抗力等）。因此，仅依据现有资料无法完整回答是否存在诉讼时效中止的法定事由，需结合具体案情判断是否有符合法律规定的中止情形。\n\n3. 借款合同是否约定分期履行\n根据《民法典》第一百八十九条规定，当事人约定同一债务分期履行的，诉讼时效期间自最后一期履行期限届满之日起计算。本案中，用户补充信息明确指出“2021年6月30日到期”，这表明借款是一次性到期而非分期履行。因此，可以认定该借款合同未约定分期履行，诉讼时效应从2021年6月30日起算，而非从最后一期履行期限届满之日起算。",
+   "final_excerpt": "1. 本案借款的诉讼时效期间是否已经届满\n根据《民事诉讼法》第二百五十条规定，申请执行的期间为二年。本案中，借款合同明确约定2021年6月30日到期，该日期即为最后一期履行期限届满之日。因此，诉讼时效期间应当自2021年6月30日起计算两年",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 131.7
+  },
+  "C08": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "ISSUE_DECOMPOSITION_INVALID"
+     ]
+    }
+   ],
+   "asked": [],
+   "answered_fact_ids": [],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "ISSUE_DECOMPOSITION_INVALID"
+   ],
+   "conv_id": null,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 28.3
+  },
+  "C09": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "e94b581e-5bd1-47d1-ba84-f2e19ef9bc28",
+      "state_version": 4,
+      "conv_id": 2295
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "e94b581e-5bd1-47d1-ba84-f2e19ef9bc28",
+      "state_version": 8,
+      "conv_id": 2295
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "健身房是否已经进入破产清算程序或经营者是否存在转移资产、跑路等行为"
+    },
+    {
+     "round": 2,
+     "prompt": "该条款是否属于经营者不合理地免除或者减轻其责任、加重消费者责任、限制消费者主要权利的格式条款"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "健身房是否已经进入破产清算程序或经营者是否存在转移资产、跑路等行为",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "该条款是否属于经营者不合理地免除或者减轻其责任、加重消费者责任、限制消费者主要权利的格式条款",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2295,
+   "final_chars": 506,
+   "final_text": "1. 关于“概不退款”条款效力：该条款属于无效格式条款。根据《消费者权益保护法》第二十六条规定，经营者不得以格式条款作出排除或者限制消费者权利、减轻或者免除经营者责任等对消费者不公平、不合理的规定，含有此类内容的格式条款内容无效。同时，根据《民法典》第四百九十七条，提供格式条款一方不合理地免除或者减轻其责任、加重对方责任、限制对方主要权利的，该格式条款无效。健身房单方规定“概不退款”，排除了消费者在合同解除后的主要权利，属于无效条款。\n\n2. 关于健身房关门是否构成根本违约：构成根本违约。根据《民法典》第五百六十三条，当事人一方迟延履行债务或者有其他违约行为致使不能实现合同目的的，当事人可以解除合同。健身房突然关门导致消费者无法继续接受服务，合同目的无法实现，消费者有权主张解除合同并要求退还剩余费用。\n\n3. 关于未消费费用金额及偿付能力：由于您表示没有保留这方面的信息，根据现有资料无法完整回答具体金额及偿付能力。建议您尽快收集并保存以下证据以备维权：\n- 合同或协议原件/电子版；\n- 付款凭证（转账记录、发票、收据）；\n- 剩余课时/次数的截图或账单记录；\n- 健身房关门的公告、现场照片或视频。",
+   "final_excerpt": "1. 关于“概不退款”条款效力：该条款属于无效格式条款。根据《消费者权益保护法》第二十六条规定，经营者不得以格式条款作出排除或者限制消费者权利、减轻或者免除经营者责任等对消费者不公平、不合理的规定，含有此类内容的格式条款内容无效。同时，根据",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 142.4
+  },
+  "C10": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "1a663450-8c1a-4182-8529-82de83897824",
+      "state_version": 4,
+      "conv_id": 2296
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "1a663450-8c1a-4182-8529-82de83897824",
+      "state_version": 9,
+      "conv_id": 2296
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "聊天对象是否确为卖家本人"
+    },
+    {
+     "round": 2,
+     "prompt": "聊天记录是否完整且未经篡改"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "聊天对象是否确为卖家本人",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "聊天记录是否完整且未经篡改",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2296,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 164.4
+  }
+ }
+}

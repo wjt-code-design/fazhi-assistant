@@ -1,0 +1,418 @@
+{
+ "run": "gate5-dev-run-17-holdout-waxis",
+ "results": {
+  "H01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "8ef118f1-e3b1-4c62-add8-6773fd89ed39",
+      "state_version": 4,
+      "conv_id": 2383
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "8ef118f1-e3b1-4c62-add8-6773fd89ed39",
+      "state_version": 8,
+      "conv_id": 2383
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动合同中约定的试用期起止日期与实际用工时间是否一致"
+    },
+    {
+     "round": 2,
+     "prompt": "是否存在提前通知或即时解除的合法事由记录"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "劳动合同中约定的试用期起止日期与实际用工时间是否一致",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "是否存在提前通知或即时解除的合法事由记录",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2383,
+   "final_chars": 1099,
+   "final_text": "已确认事实：\n- 公司口头说我'不符合录用条件'\n- 不肯给书面说明\n- 试用期最后一天\n- 就让我走人\n- 我能要求赔偿吗？\n\n尚不确定的事实：\n- 公司是否有证据证明已告知员工具体的录用条件标准\n- 员工是否实际知晓或确认过相关考核指标\n- 员工在试用期内的工作表现是否有客观评价记录支持‘不符合’结论\n- 当地司法实践对试用期口头解除的容忍度及判赔尺度\n\n核心法律争点：\n- 公司是否履行了书面说明不符合录用条件的法定义务？\n- 试用期最后一天解除劳动合同是否属于程序违法情形？\n- 员工能否基于上述情况主张赔偿金或经济补偿？\n\n法律依据：\n- 《社会保险法》第八十五条\n- 《劳动合同法》第八条\n- 《民法典》第五百七十八条\n- 《行政复议法》第六十六条\n- 《劳动合同法》第三十九条\n- 《劳动合同法》第二十一条\n- 《劳动法》第二十五条\n- 《劳动法》第三十二条\n- 《劳动合同法》第四十条\n- 《劳动合同法》第四十六条\n- 《劳动合同法》第四十七条\n- 《劳动合同法》第八十七条\n- 《劳动争议调解仲裁法》第十六条\n- 《劳动争议调解仲裁法》第九条\n- 《劳动法》第九十一条\n- 《劳动争议调解仲裁法》第四条\n\n分情形分析：\n- （无）\n\n可执行建议与风险提示：\n用人单位招用劳动者时,应当如实告知劳动者工作内容、工作条件、工作地点、职业危害、安全生产状况、劳动报酬,以及劳动者要求了解的其他情况。若公司仅口头说明不符合录用条件且拒绝提供书面说明,可能违反《劳动合同法》第八条关于如实告知及说明的法定义务。此外,《社会保险法》第八十五条规定,用人单位拒不出具终止或者解除劳动关系证明的,依照《中华人民共和国劳动合同法》的规定处理。\n根据《劳动合同法》第二十一条,在试用期解除劳动合同的,应当向劳动者说明理由。结合第三十九条第一款第(一)项,用人单位以“不符合录用条件”为由解除劳动合同需有相应证明。公司在试用期最后一天让员工走人,若未依法履行说明理由程序或缺乏有效证据证明不符合录用条件,可能构成违法解除。依据《劳动合同法》第八十七条,违法解除劳动合同的,应当按照经济补偿标准的二倍向劳动者支付赔偿金。\n若公司行为被认定为违法解除劳动合同或拖欠相关款项,劳动者有权主张赔偿或补偿。依据《劳动争议调解仲裁法》第九条,用人单位违反国家规定拖欠或未足额支付劳动报酬、经济补偿或赔偿金的,劳动者可以向劳动行政部门投诉。同时,《劳动法》第九十一条规定,解除劳动合同后未依照本法规定给予劳动者经济补偿的,由劳动行政部门责令支付劳动者的工资报酬、经济补偿,并可以责令支付赔偿金。员工可据此要求赔偿。",
+   "final_excerpt": "已确认事实：\n- 公司口头说我'不符合录用条件'\n- 不肯给书面说明\n- 试用期最后一天\n- 就让我走人\n- 我能要求赔偿吗？\n\n尚不确定的事实：\n- 公司是否有证据证明已告知员工具体的录用条件标准\n- 员工是否实际知晓或确认过相关考核指标",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 59.4
+  },
+  "H02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "00f8f218-be2b-4f48-a30a-4af929c5abaf",
+      "state_version": 4,
+      "conv_id": 2384
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "00f8f218-be2b-4f48-a30a-4af929c5abaf",
+      "state_version": 8,
+      "conv_id": 2384
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "用户的实际工资是否显著高于最低工资基数。"
+    },
+    {
+     "round": 2,
+     "prompt": "用户辞职时是否明确告知公司其辞职原因是因为社保缴纳问题。"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "用户的实际工资是否显著高于最低工资基数。",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "用户辞职时是否明确告知公司其辞职原因是因为社保缴纳问题。",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2384,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 43.1
+  },
+  "H03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "456ad4d5-4b5c-4ef0-9e34-f30a488de356",
+      "state_version": 4,
+      "conv_id": 2385
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "UNSUPPORTED_NUMERIC_TOKEN"
+     ],
+     "clar_meta": {
+      "run_id": "456ad4d5-4b5c-4ef0-9e34-f30a488de356",
+      "state_version": 8,
+      "conv_id": 2385
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "借条中是否明确约定了逾期还款的违约责任或逾期利率"
+    },
+    {
+     "round": 2,
+     "prompt": "双方是否有特别约定‘先本后息’或其他还款抵充顺序"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "借条中是否明确约定了逾期还款的违约责任或逾期利率",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "双方是否有特别约定‘先本后息’或其他还款抵充顺序",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "UNSUPPORTED_NUMERIC_TOKEN"
+   ],
+   "conv_id": 2385,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 57.2
+  },
+  "H04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "33656947-15c7-4ac3-82f1-ab92cc178226",
+      "state_version": 4,
+      "conv_id": 2386
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "CROSS_ISSUE_EVIDENCE"
+     ],
+     "clar_meta": {
+      "run_id": "33656947-15c7-4ac3-82f1-ab92cc178226",
+      "state_version": 8,
+      "conv_id": 2386
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "水管老化程度及爆裂的具体原因鉴定结果"
+    },
+    {
+     "round": 2,
+     "prompt": "租赁合同中关于房屋设施维护责任的约定内容"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "水管老化程度及爆裂的具体原因鉴定结果",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "租赁合同中关于房屋设施维护责任的约定内容",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "CROSS_ISSUE_EVIDENCE"
+   ],
+   "conv_id": 2386,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 50.6
+  },
+  "H05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "ac585c28-ba74-465e-8b3e-787d26d37481",
+      "state_version": 4,
+      "conv_id": 2387
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "NON_CANONICAL_CITATION"
+     ],
+     "clar_meta": {
+      "run_id": "ac585c28-ba74-465e-8b3e-787d26d37481",
+      "state_version": 8,
+      "conv_id": 2387
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "商品详情页、合同或聊天记录中关于“实木”的具体定义及承诺范围"
+    },
+    {
+     "round": 2,
+     "prompt": "是否存在第三方质检报告证明该家具确认为贴皮密度板"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "商品详情页、合同或聊天记录中关于“实木”的具体定义及承诺范围",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "是否存在第三方质检报告证明该家具确认为贴皮密度板",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "NON_CANONICAL_CITATION"
+   ],
+   "conv_id": 2387,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 92.0
+  }
+ }
+}

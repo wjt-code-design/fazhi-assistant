@@ -1,0 +1,249 @@
+{
+ "schema": "gate1-law-existence/v1",
+ "collection": "legal_provisions_cos",
+ "rows": [
+  {
+   "id": "劳动法:36",
+   "found": true,
+   "article_actual": "第三十六条",
+   "evidence_id": "a918a812-9835-432c-bf39-9e39d2f44a93",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "劳动法"
+  },
+  {
+   "id": "劳动法:44",
+   "found": true,
+   "article_actual": "第四十四条",
+   "evidence_id": "c72b1112-2b91-4e83-96ae-d9675e084089",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "劳动法"
+  },
+  {
+   "id": "劳动合同法:10",
+   "found": true,
+   "article_actual": "第十条",
+   "evidence_id": "2251bb00-289c-4466-b25b-c79af5e67305",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "劳动合同法"
+  },
+  {
+   "id": "劳动合同法:40",
+   "found": true,
+   "article_actual": "第四十条",
+   "evidence_id": "0eccdb12-e0c9-42b8-8b63-5812bb207340",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "劳动合同法"
+  },
+  {
+   "id": "劳动合同法:47",
+   "found": true,
+   "article_actual": "第四十七条",
+   "evidence_id": "71c66edf-f652-4b13-ae95-94a1676c9e4b",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "劳动合同法"
+  },
+  {
+   "id": "劳动合同法:82",
+   "found": true,
+   "article_actual": "第八十二条",
+   "evidence_id": "1368ff98-262e-4074-ada3-ed7cf831e3cc",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "劳动合同法"
+  },
+  {
+   "id": "民法典:195",
+   "found": true,
+   "article_actual": "第一百九十五条",
+   "evidence_id": "56869fb6-3ce7-42d7-9af7-e2cff26688ac",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:497",
+   "found": true,
+   "article_actual": "第四百九十七条",
+   "evidence_id": "9685c94e-54e7-47fa-9f86-6edd1dcd0685",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:686",
+   "found": true,
+   "article_actual": "第六百八十六条",
+   "evidence_id": "73255640-052d-4d1a-ba9c-d9043ea8426a",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:695",
+   "found": true,
+   "article_actual": "第六百九十五条",
+   "evidence_id": "4a3976f7-629a-4481-bed9-4b186eed1215",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "劳动合同法:43",
+   "found": true,
+   "article_actual": "第四十三条",
+   "evidence_id": "57483633-ba11-4395-90a4-f50b3300b0f6",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "劳动合同法"
+  },
+  {
+   "id": "劳动合同法:87",
+   "found": true,
+   "article_actual": "第八十七条",
+   "evidence_id": "12b15d0e-a6c6-44b5-a0dc-a5eaab484692",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "劳动合同法"
+  },
+  {
+   "id": "民法典:586",
+   "found": true,
+   "article_actual": "第五百八十六条",
+   "evidence_id": "60a44cc5-077d-4104-b9c4-ea1b9a6e7704",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:587",
+   "found": true,
+   "article_actual": "第五百八十七条",
+   "evidence_id": "7ec2c2da-63ac-470c-afe9-8725bac49f52",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:588",
+   "found": true,
+   "article_actual": "第五百八十八条",
+   "evidence_id": "1a375cc4-50a5-4b6f-945e-cbd514e6ba9f",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:577",
+   "found": true,
+   "article_actual": "第五百七十七条",
+   "evidence_id": "6d025aa1-0f8c-4ec3-a978-a74932df3696",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:722",
+   "found": true,
+   "article_actual": "第七百二十二条",
+   "evidence_id": "70f47da7-fa88-44ca-ad77-a8f96084ed16",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:509",
+   "found": true,
+   "article_actual": "第五百零九条",
+   "evidence_id": "e780dc0a-a039-4fa8-9533-096386103c5b",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:543",
+   "found": true,
+   "article_actual": "第五百四十三条",
+   "evidence_id": "a65e6cf4-59c1-4ec5-8a9a-e419fc7acace",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:188",
+   "found": true,
+   "article_actual": "第一百八十八条",
+   "evidence_id": "2ae4243e-3781-4b10-a794-588885c8f58a",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:675",
+   "found": true,
+   "article_actual": "第六百七十五条",
+   "evidence_id": "e83d9e98-bd0c-47b6-932e-128a6d243b58",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:692",
+   "found": true,
+   "article_actual": "第六百九十二条",
+   "evidence_id": "3846b03e-023a-4993-96ab-ad117f839f3e",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:693",
+   "found": true,
+   "article_actual": "第六百九十三条",
+   "evidence_id": "8daa30c5-ed95-46f6-8e3a-2a25644f03f3",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "民法典:496",
+   "found": true,
+   "article_actual": "第四百九十六条",
+   "evidence_id": "f02f4df4-b24d-4cf7-a989-958bbfa632bc",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "民法典"
+  },
+  {
+   "id": "消费者权益保护法:26",
+   "found": true,
+   "article_actual": "第二十六条",
+   "evidence_id": "c0bdc499-c06c-4113-b023-9c97eb722af5",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "消费者权益保护法"
+  },
+  {
+   "id": "刑法:266",
+   "found": true,
+   "article_actual": "第二百六十六条",
+   "evidence_id": "46fa3cd8-c51a-480c-86ed-b980de41e4be",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "刑法"
+  },
+  {
+   "id": "劳动争议调解仲裁法:27",
+   "found": true,
+   "article_actual": "第二十七条",
+   "evidence_id": "6739b37f-a69c-4faa-9c14-d409100895e8",
+   "count": 1,
+   "status": "现行",
+   "source_actual": "劳动争议调解仲裁法"
+  }
+ ]
+}

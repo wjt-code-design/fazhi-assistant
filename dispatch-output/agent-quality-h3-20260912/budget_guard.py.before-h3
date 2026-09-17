@@ -1,0 +1,119 @@
+"""Evaluation-only HTTP guard; count every SDK attempt before sending it."""
+import json
+import os
+import threading
+import time
+from decimal import Decimal
+from pathlib import Path
+
+import httpx
+
+
+class BudgetGuard:
+    def __init__(self, path, limit="20"):
+        self.path = Path(path)
+        self.path.touch(exist_ok=False)  # Never silently restart a spent budget.
+        self.limit = Decimal(limit)
+        self.charged = Decimal(0)
+        self.calls = 0
+        self.halted = False
+        self.lock = threading.Lock()
+
+    def log(self, **event):
+        with self.path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps({"time": time.time(), **event}, ensure_ascii=False) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())
+
+    def reserve(self, request):
+        body = json.loads(request.content)
+        model = body.get("model")
+        if request.url.scheme != "https":
+            raise RuntimeError("Evaluation requires HTTPS")
+        if request.url.host == "dashscope.aliyuncs.com" and model == "qwen3.8-flash":
+            # Published maximum input + output + thinking, rounded UP at undiscounted rates.
+            amount = Decimal("2")
+        elif request.url.host == "api.siliconflow.cn" and model == "BAAI/bge-reranker-v2-m3":
+            amount = Decimal("0")  # Published free model; paid Pro variant is NOT accepted.
+        else:
+            raise RuntimeError("Unapproved evaluation endpoint or model")
+        with self.lock:
+            if self.halted or self.calls >= 60 or self.charged + amount > self.limit:
+                raise RuntimeError("Evaluation budget or attempt limit reached")
+            self.calls += 1
+            self.charged += amount
+            ticket = (self.calls, model, amount)
+            self.log(event="reserved", call=self.calls, model=model, reserve_cny=str(amount),
+                     accounted_upper_cny=str(self.charged))
+            return ticket
+
+    def finish(self, ticket, response):
+        call, model, reserved = ticket
+        usage = None
+        payloads = []
+        if "text/event-stream" in response.headers.get("content-type", ""):
+            for line in response.text.splitlines():
+                if line.startswith("data: ") and line[6:] != "[DONE]":
+                    try:
+                        payloads.append(json.loads(line[6:]))
+                    except ValueError:
+                        pass
+        else:
+            try:
+                payloads.append(response.json())
+            except ValueError:
+                pass
+        for item in payloads:
+            if isinstance(item, dict) and isinstance(item.get("usage"), dict):
+                usage = item["usage"]
+        charged = reserved
+        if model == "qwen3.8-flash" and response.is_success and usage:
+            inp, out = usage.get("prompt_tokens"), usage.get("completion_tokens")
+            if type(inp) is int and type(out) is int and inp >= 0 and out >= 0:
+                # completion_tokens includes reasoning tokens; do not subtract cached input.
+                charged = (Decimal(inp) * Decimal("0.8") + Decimal(out) * Decimal("2.7")) / 1_000_000
+        with self.lock:
+            if charged > reserved:
+                self.halted = True
+            self.charged += charged - reserved
+            if not response.is_success:
+                self.halted = True
+            self.log(event="finished", call=call, status=response.status_code,
+                     usage=usage, accounted_cny=str(charged), accounted_upper_cny=str(self.charged),
+                     halt=self.halted)
+
+    def failed(self, ticket, exc):
+        with self.lock:
+            self.halted = True  # Keep full reservation; unknown server execution must not be retried.
+            self.log(event="unknown_server_state", call=ticket[0], error_class=type(exc).__name__,
+                     accounted_upper_cny=str(self.charged), halt=True)
+
+    def install(self):
+        sync_send, async_send = httpx.Client.send, httpx.AsyncClient.send
+
+        def guarded_send(client, request, **kwargs):
+            request.read()
+            ticket = self.reserve(request)
+            try:
+                response = sync_send(client, request, **kwargs)
+                response.read()
+                self.finish(ticket, response)
+                return response
+            except Exception as exc:
+                self.failed(ticket, exc)
+                raise
+
+        async def guarded_asend(client, request, **kwargs):
+            await request.aread()
+            ticket = self.reserve(request)
+            try:
+                response = await async_send(client, request, **kwargs)
+                await response.aread()
+                self.finish(ticket, response)
+                return response
+            except Exception as exc:
+                self.failed(ticket, exc)
+                raise
+
+        httpx.Client.send, httpx.AsyncClient.send = guarded_send, guarded_asend
+

@@ -1,0 +1,45 @@
+........................................................................ [ 21%]
+..........................................................F............. [ 43%]
+......................................F................................. [ 65%]
+........................................................................ [ 86%]
+............................................                             [100%][safe-delete][SAFE_DELETE_FAIL_CLOSED] {"target": "\\\\?\\C:\\Users\\33393\\AppData\\Local\\Temp\\pytest-of-33393\\garbage-b009fd93-f842-4427-99c7-601788605f4b", "reason": "trash-failed", "detail": "[Errno 53] 找不到网络路径。: '\\\\\\\\?\\\\C:\\\\Users\\\\33393\\\\AppData\\\\Local\\\\Temp\\\\pytest-of-33393\\\\garbage-b009fd93-f842-4427-99c7-601788605f4b'"}
+
+================================== FAILURES ===================================
+______ test_settings_default_safe_off_and_task_7_budget_snapshot_sources ______
+tests\test_agent_gate.py:243: in test_settings_default_safe_off_and_task_7_budget_snapshot_sources
+    assert (
+E   assert (16, 10, 3, 2, 1) == (8, 10, 3, 2, 1)
+E     
+E     At index 0 diff: 16 != 8
+E     Use -v to get more diff
+_ test_http_resume_failures_bypass_pre_and_emit_no_sse[payload_update1-501-\u56fe\u7247\u7406\u89e3\u5f53\u524d\u4e0d\u53ef\u7528\uff1a\u6240\u914d\u7f6e\u6a21\u578b\u65e0\u89c6\u89c9\u80fd\u529b] _
+tests\test_agent_resume.py:473: in test_http_resume_failures_bypass_pre_and_emit_no_sse
+    assert response.status_code == status
+E   assert 400 == 501
+E    +  where 400 = <Response [400 Bad Request]>.status_code
+============================== warnings summary ===============================
+tests/test_agent_audit_evidence.py::test_agent_audit_evidence_requires_a_named_reviewer_timestamp_and_traceable_per_case_decisions
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+tests/test_agent_chat_integration.py::test_chat_live_agent_selection_bootstraps_once_and_never_prepares_fast_path
+tests/test_agent_chat_integration.py::test_forbidden_agent_failure_never_calls_fast_path_fallback
+tests/test_agent_resume.py::test_http_resume_kill_switch_rejects_before_any_state_change
+tests/test_agent_resume.py::test_http_resume_failures_bypass_pre_and_emit_no_sse[payload_update0-400-\u8bf7\u8f93\u5165\u5bf9 Agent \u8ffd\u95ee\u7684\u56de\u7b54]
+tests/test_agent_resume.py::test_http_resume_failures_bypass_pre_and_emit_no_sse[payload_update1-501-\u56fe\u7247\u7406\u89e3\u5f53\u524d\u4e0d\u53ef\u7528\uff1a\u6240\u914d\u7f6e\u6a21\u578b\u65e0\u89c6\u89c9\u80fd\u529b]
+tests/test_agent_resume.py::test_http_resume_failures_bypass_pre_and_emit_no_sse[payload_update2-404-\u672a\u627e\u5230\u53ef\u6062\u590d\u7684 Agent \u4efb\u52a1]
+tests/test_agent_resume.py::test_http_resume_failures_bypass_pre_and_emit_no_sse[payload_update3-409-Agent \u4efb\u52a1\u5df2\u53d8\u5316\uff0c\u65e0\u6cd5\u6062\u590d]
+tests/test_agent_resume.py::test_ordinary_followup_without_run_id_does_not_query_or_guess_waiting_run
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\httpx\_client.py:690: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+venv\Lib\site-packages\_pytest\pathlib.py:95
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\_pytest\pathlib.py:95: PytestWarning: (rm_rf) error removing \\?\C:\Users\33393\AppData\Local\Temp\pytest-of-33393\garbage-b009fd93-f842-4427-99c7-601788605f4b
+  <class 'OSError'>: [Errno 53] 找不到网络路径。: '\\\\?\\C:\\Users\\33393\\AppData\\Local\\Temp\\pytest-of-33393\\garbage-b009fd93-f842-4427-99c7-601788605f4b'
+    warnings.warn(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_agent_gate.py::test_settings_default_safe_off_and_task_7_budget_snapshot_sources
+FAILED tests/test_agent_resume.py::test_http_resume_failures_bypass_pre_and_emit_no_sse[payload_update1-501-\u56fe\u7247\u7406\u89e3\u5f53\u524d\u4e0d\u53ef\u7528\uff1a\u6240\u914d\u7f6e\u6a21\u578b\u65e0\u89c6\u89c9\u80fd\u529b]
+2 failed, 330 passed, 10 warnings in 54.61s
