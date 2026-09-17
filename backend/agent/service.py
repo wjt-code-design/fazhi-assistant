@@ -163,6 +163,9 @@ _UNCOVERED_REASON_TEXT = {
     "NON_CANONICAL_CITATION": "法条引用格式不规范",
     "ISSUE_CLAIMS_MISSING": "该争点未能形成可核验的结论",
     "INVALID_STATUTE_EVIDENCE": "所引法条非现行有效",
+    # T-A2（entity_precision_check 开关开启时才可能出现）：
+    "SUBJECT_TYPE_MISMATCH": "所引法条与本案主体类型不符",
+    "CLAIM_DIRECTION_REVERSED": "所引法条的责任方向颠倒",
 }
 
 

@@ -62,6 +62,11 @@ class Settings(BaseSettings):
     agent_max_replans: int = Field(default=3, ge=0, le=32)
     agent_max_clarifications: int = Field(default=2, ge=0, le=32)
     agent_max_verifier_research_returns: int = Field(default=1, ge=0, le=32)
+    # T-A2（2026-09-17，执行书 entity-precision）：实体法适用精度校验（verifier 层，
+    # SUBJECT_TYPE_MISMATCH / CLAIM_DIRECTION_REVERSED）。**默认关 = verifier 行为逐字不变**；
+    # 数据源 backend/knowledge_base/law_annotations.json；判据与残余清单见
+    # dispatch-output/ta2-design-20260917/design-prereg.md（D1 选项一）。
+    entity_precision_check: bool = False
 
     # ---- 部门法守卫（R1/R1b，预注册 docs/preregistration-dept-law-filter-r1-20260913.md）----
     # R1：Agent 检索后剔除「他域专属程序法」条文（证据池防跨部门法混入；实体法永不过滤）。

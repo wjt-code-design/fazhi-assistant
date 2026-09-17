@@ -21,6 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from prompts import AGENT_WRITER_SYSTEM
 from settings import settings
 
+from . import entity_precision
 from .schemas import Fact, LegalAgentState, LegalValidity, SourceType
 
 DraftSection = Literal["conclusion", "issue_analysis", "risk"]
@@ -914,6 +915,18 @@ class EvidenceBoundedWriter:
                         proposed.text, bound_evidence_text, payload, proposed.issue_id
                     ),
                 )
+            # T-A2 实体法适用精度（settings.entity_precision_check，默认关=逐字不变）。
+            # 位置与 citation 检查同位：触发后走争点级部分交付/uncovered 流程（同 NUMERIC 形态），
+            # 不进 verifier 终态（service.py:466 非 PASS 即终态失败，会违反 T-A5 P3）。
+            # D1 选项一：仅确定性子集；fail-open 细则见 entity_precision.py docstring。
+            if settings.entity_precision_check:
+                _ep_cited = canonical_citations(proposed.text)
+                _ep_question = payload.issues[0].question if payload.issues else ""
+                _ep_facts = [fact.statement for issue in payload.issues for fact in issue.facts]
+                if entity_precision.direction_reversed(_ep_cited, _ep_question):
+                    return _fail_here("CLAIM_DIRECTION_REVERSED")
+                if entity_precision.subject_type_mismatch(_ep_cited, _ep_facts):
+                    return _fail_here("SUBJECT_TYPE_MISMATCH")
             if not proposed.evidence_ids:
                 dropped.append(claim_id)
                 per_issue[proposed.issue_id]["dropped"] += 1
