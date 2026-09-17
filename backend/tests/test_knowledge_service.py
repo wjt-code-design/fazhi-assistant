@@ -74,17 +74,22 @@ def test_concurrent_add_text_idempotent():
 
 
 # ---------------- 受控沉淀自动收录（2026-08-07） ----------------
-def test_create_candidate_auto_approve(monkeypatch):
-    """有据分 >= 0.89 自动收录（写 qa_pairs + status=approved）；< 0.89 进待审。"""
+def test_create_candidate_auto_approve(monkeypatch, db):
+    """有据分 >= 0.89 自动收录（写 qa_pairs + status=approved）；< 0.89 进待审。
+
+    2026-09-17 修复：此前直接 `database.SessionLocal()` —— 未设 DATABASE_URL 时
+    database.py 回落到真实 backend/app.db，导致**每次全量跑批都写生产裸机库**
+    （归因确证：贡献 3 次写事务，落 qa_candidates；见
+    dispatch-output/pytest-full-20260917/db-write-attribution-report.md）。
+    改用 conftest 的 `db` fixture（tmp_path 建库 + engine/SessionLocal 替换）实现隔离。
+    """
     import retrieval
-    from database import SessionLocal
     from models import QaCandidate
 
     added = []
     monkeypatch.setattr(ks, "add_qa_pair", lambda q, a, e="", fp="": added.append(q))
     monkeypatch.setattr(retrieval, "invalidate", lambda: None)
 
-    db = SessionLocal()
     q1, q2 = f"_auto_{id(object())}", f"_pend_{id(object())}"
     try:
         c1 = ks.create_candidate(db, q1, "答案", 0.95, "证据")
@@ -92,6 +97,7 @@ def test_create_candidate_auto_approve(monkeypatch):
         c2 = ks.create_candidate(db, q2, "答案", 0.70, "证据")
         assert c2.status == "pending" and len(added) == 1
     finally:
+        # 库已隔离到 tmp_path（fixture 负责 close/dispose），此处清理仅为语义完整
+        db.rollback()
         db.query(QaCandidate).filter(QaCandidate.question.in_([q1, q2])).delete(synchronize_session=False)
         db.commit()
-        db.close()
