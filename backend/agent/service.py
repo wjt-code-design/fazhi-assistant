@@ -467,6 +467,18 @@ def execute_agent_request(
         # 保留逐争点可归因诊断：DB 里只留 verdict 与原因码，两种缺口（无 claim / 有 claim
         # 未绑生效成文法）同形。这里把逐争点事实写进结构化日志；字段已在 observability 白名单登记。
         facts = _coverage_issue_facts(state, draft)
+        # 2026-09-18：失败路径补落**被判定 claim 的原文（截断）**。此前非 PASS 时
+        # claim_checks 恒为空 ⇒ 像「绝对免赔额」被字面命中的误伤只能靠猜（E04 归因教训）。
+        # 只落草稿文本（非用户输入原文），截断 120 字符；先例见 agent_planner_raw_tail。
+        claim_checks = [
+            {
+                "claim": str(getattr(c, "claim", ""))[:120],
+                "supported": bool(getattr(c, "supported", False)),
+                "evidence_ids": list(getattr(c, "evidence_ids", ()) or ()),
+                "rationale": str(getattr(c, "rationale", "")),
+            }
+            for c in (getattr(verification, "claim_checks", ()) or ())
+        ]
         logging.getLogger("legal.agent").warning(
             "coverage_gate_terminal_failure",
             extra={
@@ -476,6 +488,7 @@ def execute_agent_request(
                 "agent_issue_count": len(state.issues),
                 "agent_coverage_gap_count": sum(1 for row in facts if row["deficient"]),
                 "agent_coverage_issues": facts,
+                "agent_claim_checks": claim_checks,
             },
         )
         return _persist_drafting_failure(

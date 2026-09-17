@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import hmac
 import json
+import re
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -56,6 +57,47 @@ class VerificationResult(BaseModel):
 
 
 _OVERCONFIDENT_MARKERS = ("一定", "必然", "保证胜诉", "绝对", "100%", "百分之百")
+# ⚠️ 该常量**保留但不再用于判定的裸子串匹配**：
+#   - 下游契约仍引用它：`tests/test_agent_writer.py` 用它校验"脱敏替换词不得含违禁词"
+#     （初版替换词「一定期限/一定比例」命中词表 ⇒ 模型忠实复述反被判过度承诺，1e6/1e8 实测回归）。
+#   - 但拿它做 `marker in text` 会误伤法律/保险专有名词：实测 24 个高频候选中 **19 个**被字面
+#     命中（「绝对免赔额」「一定期限」「必然因果关系」…），其中「绝对免赔额」正是 E04 的
+#     终态失败根因（2026-09-18）。判定的正确形态见 `_is_overconfident`。
+
+# 强断言词：本身就是过度承诺，无条件命中。
+_OVERCONFIDENT_STRONG_MARKERS = ("保证胜诉", "100%", "百分之百")
+# 术语后缀：弱标记 + 下列后缀 = 法律/保险专有名词的构词成分，**一律放行**。
+_OVERCONFIDENT_TERMINOLOGY_RE = re.compile(
+    r"(?:一定|必然|绝对)"
+    r"(?:期限|比例|范围|期间|数额|金额|因果(?:关系)?|结果|免赔(?:额|率)?|责任|权|无效|豁免|不能"
+    r"|法律关系|的|影响|条件|情形|情形|情况)"
+)
+# 断言词：弱标记与下列词搭配 = 真的在打包票。
+# 含**断言助动词**（应当/必须/须/要）——「一定应当依法履行」就是把裁量空间说死，
+# 实测集成测试用它作 REWRITE 负例（2026-09-18 修正时补入，初版漏了这类）。
+_OVERCONFIDENT_ASSERTION_RE = re.compile(
+    r"(?:一定|必然|绝对|必定|肯定会)[^。；;！!？?，,]{0,6}?"
+    r"(?:胜诉|赢|获赔|获得赔偿|拿到赔偿|得到支持|会支持|支持你的|支持我方|支持我们|能赔|可获|成立"
+    r"|适用|认定|构成|承担|享有|驳回|应当|必须|须|要)"
+)
+
+
+def _is_overconfident(text: str) -> bool:
+    """claim 是否含过度承诺措辞（弱标记需搭配断言词，防专有名词误伤）。
+
+    为什么不用 `marker in text`：法律/保险术语里「绝对」「一定」「必然」是构词成分
+    （绝对免赔额 / 一定期限 / 必然因果关系），裸匹配会把合法陈述判成过度承诺，
+    再经 service.py 的 fail-closed 放大成整轮失败（E04，2026-09-18 修正）。
+
+    判定顺序：**术语优先**。文本里只要出现"弱标记+术语后缀"就整段放行（含
+    「在一定期限内适用该规定」这类既是术语又带断言动词的句子）。这是**有意的保守取舍**：
+    误杀会让整轮 fail-closed（用户看到的是失败），漏判最多让一句措辞过关。
+    """
+    if any(marker in text for marker in _OVERCONFIDENT_STRONG_MARKERS):
+        return True
+    if _OVERCONFIDENT_TERMINOLOGY_RE.search(text):
+        return False
+    return bool(_OVERCONFIDENT_ASSERTION_RE.search(text))
 
 
 def _claims(draft: DraftAnswer) -> list[DraftClaim]:
@@ -371,14 +413,16 @@ class DeterministicVerifier:
             )
             return self._result(verdict, unsupported, "EVIDENCE_COVERAGE_DEFICIENT")
 
-        overconfident = sorted(
-            claim.claim_id for claim in claims if any(marker in claim.text for marker in _OVERCONFIDENT_MARKERS)
-        )
+        overconfident = sorted(claim.claim_id for claim in claims if _is_overconfident(claim.text))
         if overconfident:
             return self._result(
                 VerificationVerdict.REWRITE,
                 overconfident,
                 "OVERCONFIDENT_WORDING",
+                # 传 draft/state：让失败路径也能带出被判定 claim 的原文（见 _result 注释）。
+                # 仅观测增强，不改变判定结果。
+                draft=draft,
+                state=state,
             )
 
         return self._result(
@@ -400,9 +444,15 @@ class DeterministicVerifier:
         state: LegalAgentState | None = None,
         covered_issues_exempt: frozenset[str] = frozenset(),
     ) -> VerificationResult:
+        # 2026-09-18：失败路径同样填充 claim_checks（原先仅 PASS 填 ⇒ 非 PASS 时
+        # claim.text 完全丢失，OVERCONFIDENT_WORDING 之类的误伤无法事后归因，
+        # 只能靠猜）。非 PASS 只填**被判定的**那些 claim，supported=False 且
+        # rationale=原因码，便于日志侧定位"是哪个词、在什么上下文里命中"。
+        is_pass = verdict is VerificationVerdict.PASS
+        wanted = set(unsupported_claim_ids)
         return VerificationResult(
             verdict=verdict,
-            unsupported_claim_ids=sorted(set(unsupported_claim_ids)),
+            unsupported_claim_ids=sorted(wanted),
             reason_code=reason_code,
             covered_issues_exempt=covered_issues_exempt,
             draft_digest=draft_digest(draft) if draft is not None else None,
@@ -411,13 +461,14 @@ class DeterministicVerifier:
                 tuple(
                     DraftClaimCheck(
                         claim=claim.text,
-                        supported=True,
+                        supported=is_pass,
                         evidence_ids=claim.evidence_ids,
-                        rationale="deterministic_verifier_pass",
+                        rationale="deterministic_verifier_pass" if is_pass else reason_code,
                     )
                     for claim in _claims(draft)
+                    if is_pass or claim.claim_id in wanted
                 )
-                if verdict is VerificationVerdict.PASS and draft is not None
+                if draft is not None
                 else ()
             ),
         )

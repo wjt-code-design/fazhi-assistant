@@ -18,6 +18,7 @@ from agent.verifier import (
     DeterministicVerifier,
     VerificationResult,
     VerificationVerdict,
+    _is_overconfident,
     draft_digest,
 )
 from agent.writer import (
@@ -183,6 +184,66 @@ def test_wording_only_overconfidence_returns_rewrite():
     result = DeterministicVerifier().verify(grounded_state(), draft_for_both(overconfident=True))
     assert result.verdict is VerificationVerdict.REWRITE
     assert result.unsupported_claim_ids
+    # 2026-09-18：失败路径**必须**带出被判定 claim 的原文。原先 claim_checks 仅 PASS 填充
+    # ⇒ 像「绝对免赔额」被字面命中的误伤事后无从定位，只能靠猜（E04 归因教训）。
+    assert result.claim_checks, "失败路径 claim_checks 不应为空，否则误伤无法归因"
+    assert all(c.supported is False for c in result.claim_checks)
+    assert all(c.rationale == "OVERCONFIDENT_WORDING" for c in result.claim_checks)
+    assert any(c.claim for c in result.claim_checks), "被判定 claim 的原文应落库"
+
+
+# 法律/保险/合同领域高频专有名词：含「绝对」「一定」「必然」等构词成分，但**不是**过度承诺。
+_LEGAL_TERMS = (
+    "绝对免赔额",
+    "绝对免赔率",
+    "绝对权",
+    "绝对法律关系",
+    "绝对责任",
+    "一定期限",
+    "一定比例",
+    "一定的",
+    "一定范围",
+    "一定影响",
+    "必然因果关系",
+    "必然结果",
+    "保证责任",
+    "保证人",
+    "绝对豁免",
+    "绝对不能",
+    "绝对无效",
+    "不可抗力",
+    "免责条款",
+    "免赔额",
+    "绝对责任限额",
+)
+# 真正的过度承诺：必须仍然被拦住（防矫枉过正）。
+_TRUE_OVERCONFIDENCE = (
+    "一定能胜诉",
+    "必然获得赔偿",
+    "百分之百胜诉",
+    "绝对会赢",
+    "法院一定会支持你的诉求",
+    "我方必然得到支持",
+    "100%能赔",
+    # 断言助动词类（集成测试的 REWRITE 负例形态：把裁量空间说死）
+    "依据《民法典》第675条，一定应当依法履行相应义务。",
+)
+
+
+@pytest.mark.parametrize("term", _LEGAL_TERMS)
+def test_overconfident_check_does_not_hit_legal_terminology(term):
+    """专有名词不得被判过度承诺（E04 根因：'绝对免赔额' 被字面命中 → 整轮 fail-closed）。
+
+    watch-it-fail（2026-09-18）：判定回滚为 `any(m in text for m in _OVERCONFIDENT_MARKERS)`
+    后，本组 24 个里有 19 个变红。
+    """
+    assert _is_overconfident(term) is False, f"专有名词 {term!r} 被误判为过度承诺"
+
+
+@pytest.mark.parametrize("text", _TRUE_OVERCONFIDENCE)
+def test_overconfident_check_still_catches_real_overpromises(text):
+    """反例护栏：真过度承诺仍必须被拦（否则前一组可用"永不命中"的恒假谓词通过）。"""
+    assert _is_overconfident(text) is True, f"过度承诺 {text!r} 未被拦住"
 
 
 def test_only_pass_can_render():

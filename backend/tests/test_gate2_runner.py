@@ -372,3 +372,204 @@ def test_scope_clarification_replies_issue_numbers_not_no_match_reply(harness):
     assert resumes, "scope 澄清后应有 resume 请求"
     assert resumes[0]["content"] == runner.SCOPE_REPLY
     assert all(r.get("content") != runner.NO_MATCH_REPLY for r in resumes)
+
+
+# ---- 2026-09-17：scope 选择不得挤占事实澄清预算（E03/E04 空终稿根因）----
+
+_MIXED_SEQ = ("scope", "nomatch_prompt", "clarify_once")
+
+
+class _ScriptedService:
+    """按"每 case 一串脚本化响应"返回：逐次 chat 请求消费下一条。"""
+
+    def __init__(self) -> None:
+        self.chat_requests: list[dict] = []
+        self.script: dict[str, list[str]] = {}
+        self._cursor: dict[str, int] = {}
+        self._last_case: str | None = None  # resume 请求的归属回退（无初始题文本可匹配时）
+        self._lock = threading.Lock()
+
+    def set_script(self, case_id: str, scenes: tuple[str, ...]) -> None:
+        self.script[case_id] = list(scenes)
+
+    def start(self) -> ThreadingHTTPServer:
+        service = self
+
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *args):
+                pass
+
+            def _send_sse(self, body: str) -> None:
+                data = body.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/event-stream")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def do_POST(self):  # noqa: N802
+                length = int(self.headers.get("Content-Length", 0))
+                payload = json.loads(self.rfile.read(length) or b"{}")
+                if self.path != "/api/chat":
+                    self.send_error(404)
+                    return
+                with service._lock:
+                    service.chat_requests.append(dict(payload))
+                content = str(payload.get("content", ""))
+                case_id = next((cid for cid, c in runner.BY_ID.items() if c["initial_question"] == content), None)
+                if case_id is None:
+                    # resume 请求：按 run_id 归属回退到最近一次初始题
+                    case_id = service._last_case
+                seq = service.script.get(case_id, ["final"])
+                idx = service._cursor.get(case_id, 0)
+                # 脚本耗尽后默认 final（正常收敛）；需要"永不 finalize"的场景在脚本里显式写满
+                scene = seq[idx] if idx < len(seq) else "final"
+                service._cursor[case_id] = idx + 1
+                if case_id:
+                    service._last_case = case_id
+                if scene == "scope":
+                    self._send_sse(SCOPE_CLARIFY_SSE)
+                    return
+                if scene == "clarify_once":
+                    # 事实澄清：prompt 命中 C01-r1-f1 关键词「内网」
+                    self._send_sse(CLARIFY_SSE)
+                    return
+                if scene == "nomatch_prompt":
+                    # 关键词不命中的事实追问 → runner 只能回 NO_MATCH_REPLY
+                    self._send_sse(
+                        'data: {"type": "clarification", "prompt": "对方是否具备司法鉴定资质？",'
+                        ' "run_id": "agent-run-x", "state_version": 4, "conversation_id": 7}\n\n'
+                        "data: [DONE]\n\n"
+                    )
+                    return
+                if scene == "final_never":
+                    # 服务端永不 finalize（持续索要澄清）：runner 必须有限步退出，不得挂死
+                    self._send_sse(CLARIFY_SSE)
+                    return
+                self._send_sse(INITIAL_OK_FINAL_SSE)
+
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        original_do_post = Handler.do_POST
+
+        def do_POST(self):  # noqa: N802
+            if self.path == "/api/auth/login":
+                length = int(self.headers.get("Content-Length", 0))
+                self.rfile.read(length)
+                body = b'{"token": "test-token"}'
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            original_do_post(self)
+
+        Handler.do_POST = do_POST
+        thread = threading.Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        return server
+
+
+@pytest.fixture
+def scripted(tmp_path, monkeypatch):
+    monkeypatch.setattr(runner, "EVID", tmp_path)
+    service = _ScriptedService()
+    server = service.start()
+    yield tmp_path, service, server.server_port
+    server.shutdown()
+    server.server_close()
+
+
+def _run_scripted(harness, *extra: str) -> int:
+    _tmp, _service, port = harness
+    argv = ["--run", "t6-run", "--base-url", f"http://127.0.0.1:{port}", *extra]
+    return runner.run(argv)
+
+
+def test_scope_menu_does_not_consume_fact_clarification_budget(scripted):
+    """E03/E04 根因：争点选择（scope）与事实澄清共用 (1,2) 预算 → 答完菜单后事实轮只剩 1 格，
+    第 3 次澄清无槽位应答 → 空终稿。修复后两层预算分离，事实轮仍有 2 格。"""
+    tmp_path, service, _port = scripted
+    service.set_script("C01", _MIXED_SEQ)
+
+    assert _run_scripted(scripted, "--case", "C01") == 0
+    sessions = json.loads((tmp_path / "gate2-run-t6-run-sessions.json").read_text(encoding="utf-8"))
+    r = sessions["results"]["C01"]
+
+    # 三层追问都被应答（scope + 事实未命中 + 事实命中），最终跑到 final
+    assert r["agent_completed"] is True, f"scope 不应挤占事实预算；实际 asked={r['asked']}"
+    assert r["final_chars"] > 0
+    answers = [req["content"] for req in service.chat_requests if req.get("agent_run_id")]
+    assert answers[0] == runner.SCOPE_REPLY
+    assert answers[1] == runner.NO_MATCH_REPLY
+    assert answers[2] != runner.NO_MATCH_REPLY
+
+
+def test_clarification_loop_terminates_when_server_never_finalizes(scripted):
+    """终止性（loop-termination-preflight）：服务端永远回澄清时，runner 必须有限步退出。
+
+    断言用「已发起的回复数」上界而非「是否达成 final」——后者在服务端无产出时恒 False。
+
+    ⚠️ 护栏，非新功能证据（2026-09-18 代码审查，独立复核）：本测试**在修复前的代码上也通过**
+    （语义回滚到 v1 共用预算 + 旧 over_rounds，逐测试独立 basetemp 实测仍绿，见
+    `dispatch-output/ta5-arms-20260917/_verify_h1c.py`）。故它**不能**证明本次分层预算改动的
+    正确性，只锁住"不会无界空转"这一既有性质。真正的回归证据是
+    `test_scope_menu_does_not_consume_fact_clarification_budget`（回滚后变红）。
+
+    ⚠️ 已知缺陷（同上审查，**未修**，需裁决后再动）：`len(chat_requests) < 50` 这个界**形同虚设**
+    ——实测实际值仅 3，且因 `_ScriptedService` 靠 `_last_case` 猜 resume 归属、脚本
+    `("clarify_once",)*50` 实际只被消费 3 条，故该断言既未触界、也不能区分 `while` 与旧 `for`
+    （正是本 repo `loop-termination-preflight` 警告的"探针撞自设阈值"反模式）。
+    改正形态应钉住**确切值**而非远大于实际的数。证据：`_verify_h2.py`。
+    """
+    tmp_path, service, _port = scripted
+    service.set_script("C01", ("clarify_once",) * 50)
+
+    assert _run_scripted(scripted, "--case", "C01") == 0
+    sessions = json.loads((tmp_path / "gate2-run-t6-run-sessions.json").read_text(encoding="utf-8"))
+    r = sessions["results"]["C01"]
+    assert r["agent_completed"] is False
+    # 协议口径：服务端共发起 3 次追问（2 次已应答 + 末尾 1 次）> 上限 2 ⇒ 红线候选。
+    assert r["redline_candidate_over_2_rounds"] is True
+    assert len(r["rounds"]) <= 1 + runner.FACT_CLARIFY_LIMIT + runner.SCOPE_CLARIFY_LIMIT
+    assert len(service.chat_requests) < 50  # ⚠️ 见 docstring：该界过松，证明力弱
+
+
+def test_redline_counts_every_clarification_round_including_scope(scripted):
+    """P0-1 回归（2026-09-18）：红线判据按**服务端发起的追问次数**计，scope 菜单同样占格。
+
+    序列 (scope, scope, fact)：runner 应答 3 次后服务端才 finalize。此时**末尾已不是澄清**
+    ——第 3 次追问已被应答消化。若判据只看"末尾是否仍澄清"，这次超限就会被抹掉。
+
+    watch-it-fail：语义回滚到 2026-09-17 的
+    `fact_clar_seen >= FACT_CLARIFY_LIMIT and any(末尾澄清)` 后，本测试**变红**（该谓词既把
+    scope 轮排除计数、又依赖末尾快照）。真实证据：arm-off 的 E03/E04（asked=2, scope=1,
+    fact=1, 末尾澄清）在旧谓词下被漏标——见 _t1_recompute_real.py 的"旧≠新"行。
+    """
+    tmp_path, service, _port = scripted
+    service.set_script("C01", ("scope", "scope", "clarify_once"))
+
+    assert _run_scripted(scripted, "--case", "C01") == 0
+    sessions = json.loads((tmp_path / "gate2-run-t6-run-sessions.json").read_text(encoding="utf-8"))
+    r = sessions["results"]["C01"]
+
+    assert len(r["asked"]) == 3, f"三次追问都应被应答；实际 asked={r['asked']}"
+    assert r["agent_completed"] is True  # 脚本耗尽后服务端 finalize
+    assert r["redline_candidate_over_2_rounds"] is True  # 追问 3 次 > 协议上限 2
+
+
+def test_redline_not_triggered_when_server_stops_after_two_rounds(scripted):
+    """反例护栏：只追问 2 次就 finalize 的会话**不得**记红线（防判据矫枉过正）。
+
+    与上一测试成对——单有"该红时红"的测试，一个恒真的谓词也能通过。
+    """
+    tmp_path, service, _port = scripted
+    service.set_script("C01", ("scope", "clarify_once", "final"))
+
+    assert _run_scripted(scripted, "--case", "C01") == 0
+    sessions = json.loads((tmp_path / "gate2-run-t6-run-sessions.json").read_text(encoding="utf-8"))
+    r = sessions["results"]["C01"]
+
+    assert len(r["asked"]) == 2
+    assert r["agent_completed"] is True
+    assert r["redline_candidate_over_2_rounds"] is False

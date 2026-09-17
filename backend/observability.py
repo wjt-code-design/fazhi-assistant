@@ -78,6 +78,11 @@ _ACCOUNT_FIELDS = (
     # 用于区分「模型没产出 claim」与「产出后因 evidence_ids 为空被静默丢弃」。
     # 同样只含标识与计数，不含草稿文本。
     "agent_writer_summary",
+    # agent_claim_checks：2026-09-18 verifier **失败路径**的逐 claim 归因字段
+    # （此前 claim_checks 仅 PASS 填充 ⇒ OVERCONFIDENT_WORDING 等误伤无法事后定位，
+    # E04 根因只能靠猜）。含被判定 claim 的**草稿**文本截断 120（非用户输入原文），
+    # 依据同 `agent_planner_raw_tail` 的"原始输出入日志"先例。未登记会被静默丢弃。
+    "agent_claim_checks",
     # R1/R1b 部门法守卫（2026-09-14，预注册 dept-law-filter-r1）：
     #   dept_filter_removed（R1 证据池剔除）与 proc_misroute_detected / proc_misroute_flag
     #   （R1b 终稿串台红线）的可观测字段。query 为 Agent 逐争点检索的聚焦问句（非用户原文）。

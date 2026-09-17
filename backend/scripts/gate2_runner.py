@@ -175,6 +175,25 @@ NO_MATCH_REPLY = "我没有保留这方面的信息。"
 # 评测端确定性应对：选前 5 个争点（不消耗事实投放、不记 unmatched）。
 SCOPE_MARK = "本次请求分解出"
 SCOPE_REPLY = "1,2,3,4,5"
+# 2026-09-17：scope 选择澄清**独立计数**，不占事实澄清的 2 轮协议预算。
+# 根因（E03/E04 空终稿）：二者原先共用 `for round_no in (1, 2)`——答完争点菜单后
+# 事实轮只剩 1 格，第 3 次澄清无槽位应答 → final_chars=0。
+# 终止性（loop-termination-preflight）：两层各自用「是否已尝试」计数，每轮回复恰使
+# 对应计数 +1（scope 回复只增 scope 计数、事实回复只增 fact 计数），故有限步必停；
+# 不依赖"服务端终会 finalize"这一在外部无产出时恒 False 的条件。
+FACT_CLARIFY_LIMIT = 2  # 事实澄清最多 2 轮（**执行预算**）
+SCOPE_CLARIFY_LIMIT = 2  # 防御上限：服务端若持续索要争点选择，最多应答 2 次（**执行预算**）
+# 🚨 判据上限，**与上面两个预算解耦**（2026-09-18 裁决）：
+# 冻结协议 `docs/dispatch-tasks-20260908.md:103`「最多两轮；若两轮后仍出现 clarification 事件，
+# 记为红线候选」。预算是"runner 愿意应答多少轮"（E03/E04 修复后分层，总格数 ≤4），
+# 标尺是"服务端追问了几次"（>2 即红线）。两者混用会让**放宽预算顺带放宽验收闸**。
+CLARIFY_ROUND_LIMIT = 2
+# ⚠️ 口径更正（2026-09-18，删去原先"与 v1 行为逐字一致"的错误表述）：
+# v1 用**单一**预算 `for round_no in (1, 2)`，scope 菜单与事实澄清共占 2 格 ⇒ v1 自身不自洽：
+# 实测首轮 arm-off 为 E01/E02/E05 = (scope 0, fact 2)、E03/E04 = (scope 1, fact 1)。
+# 故不存在"与 v1 一致"的参照物。分层预算的**准确语义**是：
+#   事实轮由 ≤1 恢复为 ≤2；**执行侧总追问轮上限由 2 放宽至 ≤4**（FACT + SCOPE）。
+# 判据侧**不放宽**：已按协议恢复为 CLARIFY_ROUND_LIMIT（见 over_rounds 处注释与 _t1_dual_run.py）。
 
 
 def _facts_from_case_set(base: dict[str, dict], cases: list[dict]) -> dict[str, dict]:
@@ -458,18 +477,37 @@ def run(argv: list[str] | None = None) -> int:
             }
         )
 
-        for round_no in (1, 2):
+        # 2026-09-17：事实澄清与 scope 选择**分层预算**（原先共用一个 2 轮上限，
+        # 导致 scope 菜单吃掉一格 → E03/E04 空终稿）。
+        # 终止性：每次迭代恰使 fact_used 或 scope_used 之一 +1（互斥分支，各带上限），
+        # 故迭代次数上界 = FACT_CLARIFY_LIMIT + SCOPE_CLARIFY_LIMIT。
+        # ⚠️ 口径更正（2026-09-18）：上界**由两个内层 `if … break` 守卫保证，不是由 while
+        # 条件保证**——`or` 条件本身在"某一类耗尽后另一类仍可增"时不会退出，是内层守卫把
+        # 该类请求截停。仅看 `while … or …` 会误以为条件即证明。
+        fact_used = 0
+        scope_used = 0
+        while fact_used < FACT_CLARIFY_LIMIT or scope_used < SCOPE_CLARIFY_LIMIT:
             clar = [e for e in events if e.get("type") == "clarification"]
             if not clar:
                 break
             prompt = clar[0].get("prompt", "")
             conv_id = clar[0].get("conversation_id") if conv_id is None else conv_id
-            asked.append({"round": round_no, "prompt": prompt})
             if SCOPE_MARK in prompt:
+                if scope_used >= SCOPE_CLARIFY_LIMIT:
+                    # scope 预算耗尽仍被索要 → 终态退出（防御，防无界）
+                    break
+                scope_used += 1
+                round_no = scope_used
+                asked.append({"round": round_no, "prompt": prompt})
                 # scope 选择澄清：确定性选前 5 争点（不走事实协议，见 SCOPE_REPLY 注释）
                 answered_facts, matched_ids = [], []
                 reply = SCOPE_REPLY
             else:
+                if fact_used >= FACT_CLARIFY_LIMIT:
+                    break
+                fact_used += 1
+                round_no = fact_used
+                asked.append({"round": round_no, "prompt": prompt})
                 # 评测器纠偏（2026-09-08）：轮次隔离 + 已答去重，由共享模块执行
                 answered_facts, matched_ids, res = _match_facts_tracked(
                     case_id, prompt, current_round=round_no, answered_fact_ids=set(answered)
@@ -511,7 +549,26 @@ def run(argv: list[str] | None = None) -> int:
 
         all_error_codes = [code for r in rounds for code in r.get("error_codes", [])]
         final_text = "".join(str(e.get("content", "")) for e in events if e.get("content"))
-        over_rounds = any(e.get("type") == "clarification" for e in events)  # 第3次澄清=红线候选
+        # 红线候选（在冻结协议内仍无法推进）判定。
+        # 冻结协议原文 `docs/dispatch-tasks-20260908.md:103`：「**最多两轮**；若两轮后仍出现
+        # clarification 事件，记为红线候选（over2）」；验收闸 `docs/gate5-formal-dev-20260908.md:41`
+        # 「R5 最多两轮且不 over2 | 20/20」。
+        #
+        # 语义 = **服务端发起的澄清请求次数 > 2**（即出现第 3 次追问）：
+        #   clar_requests = 已应答的追问轮数(asked) + 末尾那一次尚未应答的追问（若有）。
+        #
+        # ⚠️ 为什么不能只看"末尾是否还有澄清"（v1 原句的写法在 4 格预算下会失效）：
+        # v1 预算只有 2 格 ⇒ 第 3 次澄清必然**未被应答**而停在末尾，故 `any(末尾澄清)` 恰好等于
+        # "出现过第 3 次追问"。分层预算把总格数抬到 4 后，第 3 次澄清**会被应答消化**，
+        # 等循环停下时末尾已是 final ⇒ 只看末尾会把它抹掉。实测 45 个序列里 25 个因此漏标。
+        # 判据必须与"runner 愿意应答多少轮"解耦：预算是执行策略，标尺是判据。
+        #
+        # 2026-09-18 裁决（Owner 授权按推荐执行）：恢复协议口径，替代 2026-09-17 那个
+        # `fact_clar_seen >= FACT_CLARIFY_LIMIT and ...` 谓词——后者把 scope 轮排除计数、
+        # 且依赖末尾快照，实测与 v1 判定相反（放宽闸）。等价性证据：_t1_dual_run.py 双跑真值表。
+        tail_clarification = any(e.get("type") == "clarification" for e in events)
+        clar_requests = len(asked) + (1 if tail_clarification else 0)
+        over_rounds = clar_requests > CLARIFY_ROUND_LIMIT
         # T6：区分"有文本"与"Agent 真实完成"——final 事件带 run_id 才代表终稿已持久化（COMPLETED）。
         agent_completed = any(e.get("type") == "final" and e.get("run_id") for e in events)
         unknown_server_state = any(r.get("status") == 0 for r in rounds)
