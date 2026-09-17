@@ -106,6 +106,17 @@ class Settings(BaseSettings):
     # 只是把交付形态从"空"改为"部分内容 + 显式说明"。默认关 = 行为逐字不变。
     agent_partial_delivery_enabled: bool = False
 
+    # T-H（2026-09-18）：**修正性失败**的至多一次重试（仅在 agent_partial_delivery_enabled 下生效）。
+    # P5 两轮独立盲评均点名 on 臂「过度排除/过度保守」：writer 一次生成引用了 payload 外的
+    # fact_id（UNKNOWN_FACT_ID）或未检索到的法条（UNSUPPORTED_CITATION）→ 该**核心争点整体**
+    # 落入 uncovered（案例1·乙「能否起诉」、案例5·乙「退一赔十」）。
+    # 此前的注释主张「同输入同校验，重试无意义」——不成立：**校验确定性 ≠ 生成确定性**，
+    # 生成是采样的（T3 的 1e9 实证：同分布输入两次结果不同），重试**可能**改变结果。
+    # 边界：仅限 writer 自身可避免的失误（引用错 id / 引用未检索法条 / 数字无来源），
+    # 至多一次；GENERATOR_FAILURE / MALFORMED_* 等技术失败与 ISSUE_CLAIMS_MISSING（已有 T3）不在此列。
+    # 默认关 = 行为逐字不变。
+    agent_writer_corrective_retry_enabled: bool = False
+
     # ---- 多模型配置（可选整体覆盖默认代表表；JSON 数组，元素见 llm_registry.DEFAULT_ROLES 字段） ----
     # 留空则用 llm_registry 内置的 8 代表模型默认表（base_url/api_key 复用上面的 LLM_*）
     llm_models_json: str = ""

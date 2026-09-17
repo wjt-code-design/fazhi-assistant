@@ -398,6 +398,23 @@ def execute_agent_request(
     # 经**函数参数** settings 读取（与既有模式一致：service 不用全局单例）；
     # getattr 兜底兼容未带该字段的注入替身（缺省 = 关 = 行为逐字不变）。
     partial = bool(getattr(settings, "agent_partial_delivery_enabled", False))
+    # T-H（2026-09-18）：修正性失败的至多一次重试（开关默认关 = 行为逐字不变）。
+    # 旧注释「UNKNOWN_*_ID / UNSUPPORTED_* 同输入同校验，重试无意义」不成立：
+    # 校验是确定性的，但**生成是采样的**（T3 的 1e9 实证：同分布输入两次结果不同），
+    # 重试**可能**改变结果。P5 两轮独立盲评均点名 on 臂把核心争点整块排除
+    # （案例1·乙 UNKNOWN_FACT_ID / 案例5·乙 UNSUPPORTED_CITATION）。
+    # 边界：仅 writer 自身可避免的失误（引用错 id / 引用未检索法条 / 数字无来源），
+    # 至多一次；GENERATOR_FAILURE / MALFORMED_* 等技术失败与 ISSUE_CLAIMS_MISSING（已有 T3）不在此列。
+    corrective_enabled = bool(getattr(settings, "agent_writer_corrective_retry_enabled", False))
+    CORRECTIVE_RETRY_CODES = frozenset(
+        {
+            "UNKNOWN_FACT_ID",
+            "UNKNOWN_EVIDENCE_ID",
+            "UNSUPPORTED_CITATION",
+            "UNSUPPORTED_NUMERIC_TOKEN",
+            "NON_CANONICAL_CITATION",
+        }
+    )
     uncovered: list[tuple[str, str]] = []
     for issue in state.issues:
         if cancelled is not None and cancelled():
@@ -408,17 +425,16 @@ def execute_agent_request(
                 state_version=state_version,
             )
         issue_result = runtime.writer.render_issue(state, issue.issue_id)
-        if (
-            partial
-            and issue_result.status is not WriterStatus.READY
-            and issue_result.reason_code == "ISSUE_CLAIMS_MISSING"
-        ):
+        retryable = issue_result.reason_code == "ISSUE_CLAIMS_MISSING" or (
+            corrective_enabled and issue_result.reason_code in CORRECTIVE_RETRY_CODES
+        )
+        if partial and issue_result.status is not WriterStatus.READY and retryable:
             # T3（2026-09-16）：零 claim 是 writer 单次生成的**非确定性抖动**——
             # 1e9 实证同分布输入 r1 写满 5 claim、r2 漏产 2/4 争点（required 条文
             # 87 条已检索归位仍丢失确定性结论）。对 ISSUE_CLAIMS_MISSING 重试**至多一次**
-            # （重采样可改变结果）；确定性校验失败（UNKNOWN_*_ID / CROSS_ISSUE_* /
-            # UNSUPPORTED_* 等）同输入同校验，重试无意义，不在此列。
-            # 重试仍失败 → 落入下方既有 uncovered 兜底，行为不劣于现状。
+            # （重采样可改变结果）；重试仍失败 → 落入下方既有 uncovered 兜底，行为不劣于现状。
+            # T-H（2026-09-18）：同机制扩展到修正性失败（见上方 CORRECTIVE_RETRY_CODES 注释），
+            # 由 agent_writer_corrective_retry_enabled 独立开关控制。
             issue_result = runtime.writer.render_issue(state, issue.issue_id)
         if issue_result.status is not WriterStatus.READY or issue_result.draft is None:
             if not partial:
