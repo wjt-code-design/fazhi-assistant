@@ -1,5 +1,6 @@
 import os
 import sys
+import tempfile
 
 # 在导入任何 backend 模块之前固定测试环境变量（pytest 收集期即生效）：
 # - JWT_SECRET：auth 测试用固定 test secret，不依赖 .env（CI 无 secrets 也能跑）
@@ -14,6 +15,12 @@ os.environ.setdefault("RERANK_ENABLED", "false")
 # 配额总金额度固定 0（未启用）——防本地跑 pytest 时包装对象把扣减写进真实 quota_used.sqlite
 os.environ.setdefault("EMBEDDING_QUOTA_TOTAL", "0")
 os.environ.setdefault("RERANK_QUOTA_TOTAL", "0")
+# 配额库本身也要隔离（2026-09-17）：上面把总额设为 0 只挡住「扣减」，
+# 但 quota_store._connect() 的 `PRAGMA journal_mode=WAL` 与 _ensure() 的
+# `CREATE TABLE ... commit()` 本身就是写——只要有任何一次配额读写，就会改真实
+# backend/data/quota_used.sqlite（且留下 -wal/-shm）。故此处**无条件**指向进程私有临时库
+# （不用 setdefault：开发者 shell 里残留的 QUOTA_DB 会把测试重新指回生产库）。
+os.environ["QUOTA_DB"] = os.path.join(tempfile.gettempdir(), f"fazhi_test_quota_{os.getpid()}.sqlite")
 # 集成测试会创建普通用户；显式开启注册，避免依赖被忽略的本地 .env。
 os.environ.setdefault("FEATURE_SELF_REGISTER", "true")
 
