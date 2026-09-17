@@ -10,8 +10,12 @@ SYSTEM_BASE 内容（改述式泄露）。修复：三套提示词加对抗规�
 提示词一改该锁即失败，防检测特征静默失效。
 """
 
+import re
+from pathlib import Path
+
 from prompts import (
     LEAK_FRAGMENTS,
+    OUTPUT_FORMAT_RULE,
     SYSTEM_BASE,
     SYSTEM_CHEATING,
     SYSTEM_STUDY,
@@ -42,3 +46,62 @@ def test_citation_verify_discipline_locked_in_system_base():
     # 2026-09-07 011：禁止方括号/无书名号变体记法（010 实证 [民法典 第X条] 漏抽教训）
     assert "书名号" in SYSTEM_BASE
     assert "禁止用方括号" in SYSTEM_BASE
+
+
+def test_system_base_rule_numbering_is_sequential():
+    """2026-09-17 审计 S2 修复锁：编号必须从 1 起连续（旧版实为 1..6,7,9,8,10 错序）。"""
+    numbers = [int(m.group(1)) for line in SYSTEM_BASE.split("\n") if (m := re.match(r"^(\d+)\. ", line))]
+    assert numbers == list(range(1, len(numbers) + 1)), f"SYSTEM_BASE 编号错序：{numbers}"
+
+
+def test_rejection_conflict_resolution_locked():
+    """2026-09-17 审计 S2 裁决锁：拒答指令让位于「如实说明缺乏依据」。
+
+    旧版第1条提供整题拒答话术（"根据现有资料无法完整回答"，2026-09-17 基线 msg286
+    实证其出现在真实输出并同时触发旧第9条禁令），与旧第7/9条"严禁拒答/严禁断言"
+    直接冲突。裁决后：冲突句删除、操作性禁令保留（新第9条）、
+    LEAK_FRAGMENTS 同步移除"严禁断言"（同源失效）。
+    """
+    assert "根据现有资料无法完整回答" not in SYSTEM_BASE
+    assert "严禁断言" not in SYSTEM_BASE
+    assert "严禁断言" not in LEAK_FRAGMENTS
+    assert "如实说明哪些部分缺乏依据" in SYSTEM_BASE
+
+
+def test_output_format_rule_no_self_referential_symbols():
+    """2026-09-17 审计 S3 修复锁：格式规则自身不得写出被禁符号。
+
+    旧版为禁 ** 与 $ 而在正文写出它们（自指悖论弱化禁令），已改描述式
+    （"美元符号""星号"）。此锁防回退到字面符号写法。
+    """
+    assert "$" not in OUTPUT_FORMAT_RULE
+    assert "**" not in OUTPUT_FORMAT_RULE
+    assert "¥" not in OUTPUT_FORMAT_RULE
+    assert "美元符号" in OUTPUT_FORMAT_RULE
+    assert "星号" in OUTPUT_FORMAT_RULE
+
+
+def test_system_base_no_literal_markdown_emphasis():
+    """2026-09-17 遗留清理锁：SYSTEM_BASE 正文不得含 ** 星号强调。
+
+    星号是 OUTPUT_FORMAT_RULE 明令禁止的输出排版符号，提示词正文自带 ** 示范
+    会诱导输出（2026-09-17 基线 markdown_star 违规率 34.61%）。原两处
+    （第3条选择题分支、第9条尽力分析句）已改「」强调或去强调。
+    """
+    assert "**" not in SYSTEM_BASE
+
+
+def test_contract_chain_appends_universal_rules():
+    """2026-09-17 合同链补审锁：合同审查/追问链必须拼 OUTPUT_FORMAT_RULE 与 CITATION_SELECTION_RULE。
+
+    两规则自述「所有意图统一」（prompts.py 注释、domain_rules.py:318），主链组装处
+    （main.py Fast Path）均拼接，唯合同链 _contract_messages 两分支漏拼——
+    审计报告高危项。本锁读 main.py 源码断言（不 import main——
+    会经 rag_chain 触发 BGE+Chroma 实例化，同本文件头部约定）。
+    """
+    main_src = (Path(__file__).resolve().parents[1] / "main.py").read_text(encoding="utf-8")
+    start = main_src.index("def _contract_messages")
+    end = main_src.index("\ndef ", start + 1)
+    body = main_src[start:end]
+    assert "sys_text += OUTPUT_FORMAT_RULE" in body, "合同链缺 OUTPUT_FORMAT_RULE"
+    assert "sys_text += CITATION_SELECTION_RULE" in body, "合同链缺 CITATION_SELECTION_RULE"

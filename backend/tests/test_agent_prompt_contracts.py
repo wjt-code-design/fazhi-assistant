@@ -115,3 +115,15 @@ def test_writer_prompt_requires_conditional_claim_when_cannot_conclude() -> None
             f"writer prompt must require conditional analysis ({token!r}); otherwise a "
             "fact-assertion issue yields zero claims and fails the whole run"
         )
+
+
+def test_planner_prompt_pins_ask_user_shape_boundary() -> None:
+    """2026-09-17 审计 S4 修复锁：ask_user 形态边界句必须保留（三段摇摆已统一）。
+
+    校验器事实（planner.parse_plan_decision）：tool_name=="ask_user" 直接拒绝；
+    AskUserDecision 才是合法独立 kind。提示词必须同时写明合法形态与禁止组合，
+    防止后续编辑回退到"一刀切禁止 ask_user"或"暗示可用 ask_user 工具调用"的摇摆表述。
+    """
+    assert "ask_user 的形态边界" in _PLANNER_SYSTEM_PROMPT
+    assert '{"kind":"ask_user"' in _PLANNER_SYSTEM_PROMPT
+    assert "不得作为 tool_call 的 tool_name" in _PLANNER_SYSTEM_PROMPT

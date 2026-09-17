@@ -535,6 +535,10 @@ def _contract_messages(pre: dict, cd: dict) -> list:
             else:
                 history.append(AIMessage(content=content))
         sys_text = SYSTEM_BASE + SYSTEM_CONTRACT_FOLLOWUP
+        # 2026-09-17 合同链补审：两规则自述「所有意图统一」（prompts.py / domain_rules.py:318），
+        # 主链组装处（main.py Fast Path）均拼，唯合同链漏拼——补齐对齐既定意图，非新设计。
+        sys_text += OUTPUT_FORMAT_RULE
+        sys_text += CITATION_SELECTION_RULE
         user_content = (
             f"【合同（分条款）】\n{evidence_block}\n\n"
             f"用户追问：{pre.get('user_text') or ''}\n\n"
@@ -544,6 +548,8 @@ def _contract_messages(pre: dict, cd: dict) -> list:
 
     # 首轮：完整评估报告
     sys_text = SYSTEM_BASE + SYSTEM_CONTRACT_REVIEW
+    sys_text += OUTPUT_FORMAT_RULE
+    sys_text += CITATION_SELECTION_RULE
     sys_text += f"\n（本份合同总体风险等级：{cd['level']}——判定依据：{cd['basis']}）"
     if cd.get("truncated"):
         sys_text += "\n（合同过长已截取前段，末尾请列出'未覆盖条款段'清单，建议用户分段审查）"
