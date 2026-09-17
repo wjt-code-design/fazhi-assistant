@@ -7,9 +7,17 @@
 - 排序路径记录：settings.rerank_enabled 配置 + 本次探测实际观察（rerank 配额耗尽自动降级
   池内余弦精排时，结论适用于降级路径；云 rerank 路径待配额换班后重跑对比）
 
+**口径修正（2026-09-17，A3）——对齐生产真实调用（`agent/controller.py:967`
+`RetrieveLawsInput(query=issue.question, k=4)`）**：
+- `K: 6 → 4`（旧口径 k=6 与生产不符，其 35.85% 结论不可引用）；
+- 补传 `cutoff`（生产传 `context.law_as_of`；探针取当天）——旧口径缺时效过滤。
+- **输出路径改为 `probe-results-k{K}.json`**：原 `evals/probe-results.json` 是
+  **R1-OB 离线验证的冻结输入**（`validate_r1_ob_offline.py` P0 逐字段复现依赖它），
+  **本脚本不再触碰该文件**；可用 `PROBE_OUT_DIR` 覆盖输出目录。
+
 用法（backend venv，仓库根）：
   backend\\venv\\Scripts\\python.exe evals\\retrieval_probe.py
-输出：evals/probe-results.json（UTF-8，机器可读）+ 控制台 ASCII 统计。
+输出：evals/probe-results-k{K}.json（UTF-8，机器可读）+ 控制台 ASCII 统计。
 退出码：探针本身跑完=0（混入是缺陷度量不是脚本报错）；脚本异常≠0。
 """
 from __future__ import annotations
@@ -17,6 +25,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
@@ -32,7 +41,8 @@ load_dotenv(override=True)
 from retrieval import _num_to_cn, retrieve  # noqa: E402  # 复用后端条号中文转换
 from settings import settings  # noqa: E402
 
-K = 6
+K = 4  # 对齐生产真实调用（controller.py:967，k=4）——2026-09-17 口径修正（原 k=6 不合规）
+_CUTOFF = datetime.now().astimezone().date().isoformat()  # 生产口径：cutoff=context.law_as_of（探针取当天）
 
 CASES_PATH = REPO / "evals" / "frozen-cases-v2.json"
 
@@ -69,7 +79,7 @@ def main() -> int:
 
     for cid, q in SUBQUERIES.items():
         case = cases[cid]
-        docs = retrieve(q, k=K)
+        docs = retrieve(q, k=K, cutoff=_CUTOFF)
         meta = [((d.metadata or {}).get("source", ""), (d.metadata or {}).get("article", "")) for d in docs]
         top = [f"{s}#{a}" for s, a in meta]
 
@@ -109,7 +119,10 @@ def main() -> int:
         },
         "per_case": results,
     }
-    (REPO / "evals" / "probe-results.json").write_text(
+    out_dir = Path(os.environ.get("PROBE_OUT_DIR") or (REPO / "evals"))
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"probe-results-k{K}.json"
+    out_path.write_text(
         json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8")
     s = out["summary"]
     print(f"DONE required {s['required_in_topk']}/{s['required_total']} "
