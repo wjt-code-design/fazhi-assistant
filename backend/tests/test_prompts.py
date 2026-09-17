@@ -18,6 +18,7 @@ from prompts import (
     OUTPUT_FORMAT_RULE,
     SYSTEM_BASE,
     SYSTEM_CHEATING,
+    SYSTEM_CONTRACT_REVIEW,
     SYSTEM_STUDY,
 )
 
@@ -105,3 +106,10 @@ def test_contract_chain_appends_universal_rules():
     body = main_src[start:end]
     assert "sys_text += OUTPUT_FORMAT_RULE" in body, "合同链缺 OUTPUT_FORMAT_RULE"
     assert "sys_text += CITATION_SELECTION_RULE" in body, "合同链缺 CITATION_SELECTION_RULE"
+
+
+def test_prompt_expression_refinements_20260917():
+    """2026-09-17 深度审查修复锁（三处表达层精修，watch-it-fail=修复前文本不存在必红）。"""
+    assert "暂缺乏直接条文依据" in SYSTEM_BASE, "第1条缺合法表述示范"
+    assert "R1、R2 编号标记" in SYSTEM_CONTRACT_REVIEW, "合同模板未改 R1/R2 编号"
+    assert "R_n 标记" not in SYSTEM_CONTRACT_REVIEW, "R_n 下划线与格式规则冲突未消除"

@@ -126,4 +126,7 @@ def test_planner_prompt_pins_ask_user_shape_boundary() -> None:
     """
     assert "ask_user 的形态边界" in _PLANNER_SYSTEM_PROMPT
     assert '{"kind":"ask_user"' in _PLANNER_SYSTEM_PROMPT
+    assert '"question"' in _PLANNER_SYSTEM_PROMPT, (
+        "planner ask_user 示例必须含完整 question 字段（省略号会被弱模型照抄进 JSON）"
+    )
     assert "不得作为 tool_call 的 tool_name" in _PLANNER_SYSTEM_PROMPT

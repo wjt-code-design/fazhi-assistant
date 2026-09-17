@@ -89,7 +89,7 @@ _PLANNER_SYSTEM_PROMPT = (
     "完整示例（issue_id 仅为格式演示，必须换成输入中的真实 issue_id）："
     '{"kind":"tool_call","issue_id":"issue_ab12","tool_name":"retrieve_laws",'
     '"args":{"query":"诉讼时效 中断"}}。'
-    'ask_user 的形态边界：它只能作为独立决策 kind（{"kind":"ask_user",…}）输出，'
+    'ask_user 的形态边界：它只能作为独立决策 kind 输出，完整形如 {"kind":"ask_user","question":"您与对方签订合同的具体日期是哪一天？"}，'
     "不得作为 tool_call 的 tool_name（该组合会被校验器直接拒绝）。"
     "澄清边界：ask_user 决策仅用于补足改变法律结论的关键事实，且同一会话最多两轮追问；"
     "两轮后或关键事实确认无法从用户获得时，必须转入条件化分析（finish_research/继续检索后完成分析），"
