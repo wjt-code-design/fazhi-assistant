@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from prompts import AGENT_WRITER_SYSTEM
 from settings import settings
 
-from . import entity_precision
+from . import entity_precision, fee_calc
 from .schemas import Fact, LegalAgentState, LegalValidity, SourceType
 
 DraftSection = Literal["conclusion", "issue_analysis", "risk"]
@@ -414,6 +414,11 @@ _NUMBER_VALUE = r"(?:\d[\d,]*(?:\.\d+)?|[零〇○一二两三四五六七八九
 _DATE_RE = re.compile(rf"({_NUMBER_VALUE})年({_NUMBER_VALUE})月({_NUMBER_VALUE})日")
 _PERCENT_RE = re.compile(rf"(?:百分之({_NUMBER_VALUE})|({_NUMBER_VALUE})\s*[%％])")
 _AMOUNT_RE = re.compile(rf"(?:人民币\s*)?({_NUMBER_VALUE})\s*(万|亿)?元")
+# T-A3（2026-09-17）：口语金额形态——数字+万/亿（后跟 块/名词/句尾，无「元」）。
+# 归一目标：与「N万元」同 token（amount:N:万），消除 T-A0 实证的形态不归一误拒
+# （"5万块/8万开工款/欠货款20万" vs 问题复述"N万元"）。默认不参与收集（loose_amounts=False
+# → 既有调用方行为逐字不变）；numeric_matching_v2 开启时 writer/verifier 消费点显式传 True。
+_AMOUNT_LOOSE_RE = re.compile(rf"({_NUMBER_VALUE})\s*(万|亿)")
 _DURATION_RE = re.compile(rf"({_NUMBER_VALUE})(?:个)?(年|月|日|天|小时|分钟|秒)")
 _ASCII_NUMBER_RE = re.compile(r"(?<![A-Za-z0-9])\d[\d,]*(?:\.\d+)?")
 
@@ -596,7 +601,13 @@ def log_writer_summary(
     )
 
 
-def numeric_tokens(text: str) -> set[str]:
+def numeric_tokens(text: str, *, loose_amounts: bool = False) -> set[str]:
+    """`text` 的数字 token 集（唯一真源）。
+
+    loose_amounts（T-A3，默认 False=旧行为逐字不变）：口语金额「N万/N亿」（无「元」后缀）
+    也产出 amount:N:万 token，与「N万元」同形态——消除 T-A0 实证的形态不归一误拒。
+    开关 `settings.numeric_matching_v2` 开启时 writer/verifier 消费点显式传 True。
+    """
     normalized = unicodedata.normalize("NFKC", text)
     occupied = [False] * len(normalized)
     tokens: set[str] = set()
@@ -640,15 +651,24 @@ def numeric_tokens(text: str) -> set[str]:
         _DURATION_RE,
         lambda match: f"duration:{_canonical_number(match.group(1))}:{match.group(2)}",
     )
+    if loose_amounts:
+        collect(
+            _AMOUNT_LOOSE_RE,
+            lambda match: f"amount:{_canonical_number(match.group(1))}:{match.group(2)}",
+        )
     for match in _ASCII_NUMBER_RE.finditer(normalized):
         if not any(occupied[match.start() : match.end()]):
             tokens.add(f"number:{_canonical_number(match.group(0))}")
     return tokens
 
 
-def unsupported_numeric_tokens(text: str, bound_source_text: str) -> set[str]:
+def unsupported_numeric_tokens(
+    text: str, bound_source_text: str, *, loose_amounts: bool = False
+) -> set[str]:
     """`text` 中不受 `bound_source_text` 支持的数字 token 集合（唯一真源）。"""
-    return numeric_tokens(text) - numeric_tokens(bound_source_text)
+    return numeric_tokens(text, loose_amounts=loose_amounts) - numeric_tokens(
+        bound_source_text, loose_amounts=loose_amounts
+    )
 
 
 def _citable_pool_text(issue: Any) -> str:
@@ -849,6 +869,17 @@ class EvidenceBoundedWriter:
         canonical_missing = tuple(_canon[_normalize_text(m)] for m in dict.fromkeys(generated.missing_information))
 
         seen_claim_ids: set[str] = set()
+        # T-A3 事实数字白名单（numeric_matching_v2，默认关）：全 state 已确认事实 +
+        # 未决事实（**脱敏前原值**，state 层未脱敏）的数字 token——用户陈述过的数字
+        # 不判「无来源」（T-A0 机理 2/3：跨争点事实 + 脱敏副作用）。池外新数字仍拦（防幻觉）。
+        # 并入 T-A3(b) 受控计算放行集（受理费：标的额 → 办法第13条递进公式 → verifier 同口径验算）。
+        fact_allowlist: set[str] = set()
+        if settings.numeric_matching_v2:
+            _ep_fact_texts = [f.statement for issue in state.issues for f in issue.facts] + [
+                u.statement for issue in state.issues for u in issue.unknown_facts
+            ]
+            fact_allowlist = numeric_tokens("\n".join(_ep_fact_texts), loose_amounts=True)
+            fact_allowlist |= fee_calc.controlled_fee_tokens(_ep_fact_texts)
         for proposed in generated.claims:
             if proposed.issue_id not in issues:
                 return _fail_here("UNKNOWN_ISSUE_ID", proposed.issue_id)
@@ -896,7 +927,11 @@ class EvidenceBoundedWriter:
                 for evidence_id in proposed.evidence_ids
             )
             bound_numeric_text = "\n".join((bound_fact_text, bound_evidence_text))
-            unsupported = unsupported_numeric_tokens(proposed.text, bound_numeric_text)
+            unsupported = unsupported_numeric_tokens(
+                proposed.text, bound_numeric_text, loose_amounts=settings.numeric_matching_v2
+            )
+            if unsupported and settings.numeric_matching_v2:
+                unsupported -= fact_allowlist
             if unsupported:
                 # 分桶归因（只记计数）：漏绑 / 跨争点无权引用 / 来自未决事实 / 编造 —— 改法各不相同。
                 numeric_buckets = numeric_violation_buckets(unsupported, proposed, payload)

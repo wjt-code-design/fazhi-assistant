@@ -67,6 +67,11 @@ class Settings(BaseSettings):
     # 数据源 backend/knowledge_base/law_annotations.json；判据与残余清单见
     # dispatch-output/ta2-design-20260917/design-prereg.md（D1 选项一）。
     entity_precision_check: bool = False
+    # T-A3（2026-09-17）：数字匹配 v2——口语金额归一（N万块/N万 ≡ N万元）+ 全 state 事实
+    # 数字白名单（含跨争点事实与脱敏前未决事实原值；池外新数字仍拦，防幻觉边界不变）。
+    # 默认关 = writer/verifier 数字校验行为逐字不变。设计依据 T-A0
+    # （dispatch-output/ta0-numeric-trace-20260917/report.md）。
+    numeric_matching_v2: bool = False
 
     # ---- 部门法守卫（R1/R1b，预注册 docs/preregistration-dept-law-filter-r1-20260913.md）----
     # R1：Agent 检索后剔除「他域专属程序法」条文（证据池防跨部门法混入；实体法永不过滤）。

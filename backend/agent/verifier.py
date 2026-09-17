@@ -9,6 +9,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from settings import settings
+
 from .schemas import LegalAgentState, LegalValidity, SourceType
 from .writer import (
     DraftAnswer,
@@ -195,6 +197,18 @@ def render_verified(
 
 
 class DeterministicVerifier:
+    @staticmethod
+    def _fact_allowlist(state: LegalAgentState) -> set[str]:
+        """T-A3 数字白名单（与 writer 同口径单一真源拆两防线）：事实+未决（原值）+ 受控计算。"""
+        from . import fee_calc
+
+        texts = [f.statement for issue in state.issues for f in issue.facts] + [
+            u.statement for issue in state.issues for u in issue.unknown_facts
+        ]
+        allow = numeric_tokens("\n".join(texts), loose_amounts=True)
+        allow |= fee_calc.controlled_fee_tokens(texts)
+        return allow
+
     def verify(
         self,
         state: LegalAgentState,
@@ -296,7 +310,13 @@ class DeterministicVerifier:
                     )
                 bound_fact_text.append(linked_fact[1].statement)
             bound_numeric_text = "\n".join((*bound_fact_text, *bound_evidence_text))
-            if not numeric_tokens(claim.text).issubset(numeric_tokens(bound_numeric_text)):
+            claim_nums = numeric_tokens(claim.text, loose_amounts=settings.numeric_matching_v2)
+            bound_nums = numeric_tokens(bound_numeric_text, loose_amounts=settings.numeric_matching_v2)
+            unsupported_v = claim_nums - bound_nums
+            if unsupported_v and settings.numeric_matching_v2:
+                # T-A3 同口径验算：事实白名单 + 受控计算（受理费），与 writer 一致（单一真源拆两防线）。
+                unsupported_v -= self._fact_allowlist(state)
+            if unsupported_v:
                 return self._result(
                     VerificationVerdict.FAIL_SAFE,
                     [claim.claim_id],
