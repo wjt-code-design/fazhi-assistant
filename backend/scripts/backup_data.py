@@ -43,15 +43,24 @@ if DB_URL.startswith("sqlite:///"):
 else:
     DB_PATH = os.path.join(BACKEND, "app.db")
 
+# 备份面补全（S4，2026-09-19 实测缺口）：此前整个工具只产出 app.db + chroma_db + chroma_index.json，
+# 而这三件从不进任何备份包 —— quota_used.sqlite 是"谁烧了多少 token"的唯一账本，
+# data/app.db 是 compose 挂进容器的那份库，media/ 是上传件（3.4M / 58 个文件）。
+EXTRA_SQLITE = {
+    "quota_used.sqlite": os.path.join(BACKEND, "data", "quota_used.sqlite"),
+    "data_app.db": os.path.join(BACKEND, "data", "app.db"),
+}
+MEDIA_DIR = os.path.join(BACKEND, "media")
+
 
 def _timestamp() -> str:
     return time.strftime("%Y%m%d_%H%M%S")
 
 
-def backup_sqlite(db_path: str, dest_dir: str) -> str:
+def backup_sqlite(db_path: str, dest_dir: str, dest_name: str = "app.db") -> str:
     """sqlite3 backup API：源库在线备份到单文件（WAL 安全，不复制 -wal/-shm）。"""
     os.makedirs(dest_dir, exist_ok=True)
-    out = os.path.join(dest_dir, "app.db")
+    out = os.path.join(dest_dir, dest_name)
     src = sqlite3.connect(db_path)
     dst = sqlite3.connect(out)
     try:
@@ -101,6 +110,42 @@ def export_chroma_json(dest_dir: str) -> str:
 def _check_env_contract() -> None:
     """CLI 前置守卫：CHROMA_DIR 与本脚本固定目标分歧时拒绝跑（不放 main() 里，理由见 chroma_dir_guard）。"""
     chroma_dir_guard.assert_matches(CHROMA_DIR, "backup_data")
+
+
+def backup_extras(dest_dir: str) -> list:
+    """把 quota 账本 / 容器侧库 / media 也收进同一个备份包。
+
+    缺件**不让整个备份失败**（干净机器上可能就没有 media 或容器侧库），但**逐条说出来**——
+    静默跳过会让人以为包里全都有。返回 [(名字, 状态)]，状态 ∈ ok/skipped/failed。
+    """
+    results = []
+    for name, src in EXTRA_SQLITE.items():
+        if not os.path.exists(src):
+            print(f"[Extras] 跳过（源不存在）：{name} <- {src}")
+            results.append((name, "skipped"))
+            continue
+        try:
+            out_file = backup_sqlite(src, dest_dir, name)
+        except (OSError, sqlite3.Error) as exc:
+            print(f"[Extras] ERROR {name} 备份失败：{exc}")
+            results.append((name, "failed"))
+            continue
+        ok, msg = verify_sqlite(out_file)
+        print(f"[Extras] {name} 备份={'PASS' if ok else f'FAIL（{msg}）'}")
+        results.append((name, "ok" if ok else "failed"))
+    if os.path.isdir(MEDIA_DIR):
+        media_dst = os.path.join(dest_dir, "media")
+        try:
+            shutil.copytree(MEDIA_DIR, media_dst)
+            print(f"[Extras] media 目录复制完成：{media_dst}")
+            results.append(("media", "ok"))
+        except OSError as exc:
+            print(f"[Extras] ERROR media 复制失败：{exc}")
+            results.append(("media", "failed"))
+    else:
+        print(f"[Extras] 跳过（源不存在）：media <- {MEDIA_DIR}")
+        results.append(("media", "skipped"))
+    return results
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -160,6 +205,12 @@ def main(argv: list[str] | None = None) -> int:
                 return 1
     else:
         print(f"[Chroma] ERROR 未找到 chroma_db 目录：{CHROMA_DIR}")
+        return 1
+
+    # ---- 附属产物：quota 账本 / 容器侧库 / media ----
+    extras = backup_extras(out)
+    if any(status == "failed" for _, status in extras):
+        print("ERROR 附属产物备份失败，勿使用该备份包。")
         return 1
 
     print("备份完成。恢复：停后端 → 将备份文件放回对应位置 → 启动后验证检索。")
