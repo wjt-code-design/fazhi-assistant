@@ -433,6 +433,10 @@ class DeterministicVerifier:
                     VerificationVerdict.FAIL_SAFE,
                     [claim.claim_id],
                     "LAW_VERSION_WATERSHED_MISMATCH",
+                    # 带 draft/state：让失败路径落**被判定 claim 的原文**（同 OVERCONFIDENT_WORDING 口径），
+                    # 否则线上只能看见 FAIL_SAFE，分不清是哪句按旧年份答了新时代的法。
+                    draft=draft,
+                    state=state,
                 )
 
         # Writer cannot sign its own support verdict; only Verifier emits checks.

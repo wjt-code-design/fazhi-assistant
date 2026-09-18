@@ -102,6 +102,14 @@ def test_verifier_flag_on_blocks_cross_watershed_draft(monkeypatch: pytest.Monke
     verdict = DeterministicVerifier().verify(state, _draft_for(state), law_as_of=_AS_OF_TODAY)
     assert verdict.verdict is VerificationVerdict.FAIL_SAFE
     assert verdict.reason_code == "LAW_VERSION_WATERSHED_MISMATCH"
+    # 可归因：失败路径必须带出**被判定的那句原文**（2026-09-19 真实运行臂暴露：不带 draft/state 时
+    # 线上日志只剩 verdict=FAIL_SAFE，分不清哪句按旧年份答了新时代的法）。
+    # 刻意不逐字比对 claim：writer 会把全角逗号归一成半角（实测 '，'→','），逐字比会测到归一化上。
+    assert len(verdict.claim_checks) == 1
+    caught = verdict.claim_checks[0]
+    assert caught.supported is False
+    assert caught.rationale == "LAW_VERSION_WATERSHED_MISMATCH"
+    assert "诉讼时效" in caught.claim and "第一百八十八条" in caught.claim
 
 
 def test_verifier_flag_on_keeps_post_watershed_draft_passing(monkeypatch: pytest.MonkeyPatch):
