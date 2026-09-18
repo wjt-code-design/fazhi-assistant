@@ -40,7 +40,7 @@ NOMATCH_CLARIFY_SSE = (
     "data: [DONE]\n\n"
 )
 # 上述夹具共用同一个占位 run_id。`_ScriptedService` 会按 case 把它改写成唯一值，
-# 使 resume 请求带上可归属的信号（见 `_resolve_case`）。
+# 使 resume 请求带上可归属的信号（改写发生在 `_reply()`；`_resolve_case` 做反向解析）。
 _RUN_ID_PLACEHOLDER = "agent-run-x"
 
 
@@ -521,6 +521,12 @@ def test_scripted_service_resume_attribution_is_order_independent():
     正确，所以缺陷不可见；一旦 runner 引入并发或多 case 交替，无主请求就会被挂到别的 case 上、
     静默消费它的脚本游标，使该 case 的 `asked`（⇒ 红线判据的输入）失真且无从定位。
     本测试用一个**全新实例**（没有任何前置请求）直接归属 resume：靠猜的实现必然返回 None。
+
+    watch-it-fail（2026-09-18 实测，`dispatch-output/ta5-arms-20260917/_p11_watch_it_fail.py`，
+    在 `backend/` 下跑）：摘掉 `_resolve_case` 的 run_id 通道、还原"猜上一个 case" ⇒ 本测试变红
+    `AssertionError: assert None == 'C02'`，同批 5 个端到端测试仍绿。
+    ⚠️ 这条红**只能由该定向扰动产生**：把整个 `_ScriptedService` 回滚到 `7c7261c` 得到的是
+    `AttributeError`（旧实现根本没有 `_resolve_case` 这个方法），不是本测试。
     """
     svc = _ScriptedService()
     other = next(cid for cid in runner.BY_ID if cid != "C01")
@@ -584,9 +590,10 @@ def test_clarification_loop_terminates_when_server_never_finalizes(scripted):
     `test_scope_menu_does_not_consume_fact_clarification_budget`（回滚后变红）。
 
     ⚠️ 已知缺陷（同上审查，2026-09-18 **已修**）：原先写作 `len(chat_requests) < 50`，该界**形同虚设**
-    ——实测实际值仅 3（2026-09-18 把本行临时改成 `== -1` 复读出 `assert 3 == -1`），且因
-    `_ScriptedService` 靠 `_last_case` 猜 resume 归属、脚本 `("clarify_once",)*50` 实际只被消费
-    3 条，故该断言既未触界、也不能区分 `while` 与旧 `for`（正是本 repo
+    ——实测实际值仅 3（2026-09-18 把本行临时改成 `== -1` 复读出 `assert 3 == -1`）：1 次初始题 +
+    `FACT_CLARIFY_LIMIT`(=2) 次应答。脚本 `("clarify_once",)*50` 之所以只被消费 3 条，是 runner
+    预算耗尽后自己停下，与请求归属方式无关（此段原先错记成"靠 `_last_case` 猜归属导致饿死"，
+    该符号本批已删）。故 `< 50` 既未触界、也不能区分 `while` 与旧 `for`（正是本 repo
     `loop-termination-preflight` 警告的"探针撞自设阈值"反模式）。现已按"钉住确切值"改正。
     证据：`_verify_h2.py`。
     """
@@ -646,3 +653,36 @@ def test_redline_not_triggered_when_server_stops_after_two_rounds(scripted):
     assert len(r["asked"]) == 2
     assert r["agent_completed"] is True
     assert r["redline_candidate_over_2_rounds"] is False
+
+
+def test_multi_case_run_keeps_attribution_per_case(scripted):
+    """多 case 交替时每个 case 的 `asked` 只能来自它自己的脚本——P1-1 的覆盖面补测。
+
+    两条脚本**形态不同**（C01 首轮是争点菜单、其余案首轮是事实澄清），归属一旦串到别的 case，
+    两案的 asked 序列就会互换，比"没有无主请求"的绊线多一层可观察判别量。
+
+    ⚠️ 这是**覆盖面测试，不是 P1-1 的红绿锁**（2026-09-18 代码审查 (a)1 的如实定性，已实测确认）：
+    `gate2_runner.py` 无任何线程/并发（grep 无 `Thread` / `max_workers`），串行多 case 下旧
+    `_last_case` 每次遇到初始题都会刷新，于是猜的答案**照样正确**。实测
+    （`_p11_watch_it_fail.py` 把归属改回猜法）：本测试仍绿，同批 5 个端到端测试全绿，
+    只有顺序无关的那个单测变红。故本测试锁的是"将来引入并发或多 case 交替时不要串味"，
+    不是"这次修对了"——真锁 P1-1 的是
+    `test_scripted_service_resume_attribution_is_order_independent`。
+    """
+    tmp_path, service, _port = scripted
+    other = next(cid for cid in runner.BY_ID if cid != "C01")
+    service.set_script("C01", ("scope", "clarify_once", "final"))
+    service.set_script(other, ("clarify_once", "nomatch_prompt", "final"))
+
+    assert _run_scripted(scripted, "--case", f"C01,{other}") == 0
+    _assert_attribution_clean(service)
+    sessions = json.loads((tmp_path / "gate2-run-t6-run-sessions.json").read_text(encoding="utf-8"))
+    asked1 = sessions["results"]["C01"]["asked"]
+    asked2 = sessions["results"][other]["asked"]
+
+    assert len(asked1) == len(asked2) == 2, f"两案应各应答 2 轮：C01={asked1} {other}={asked2}"
+    prompts1 = [a["prompt"] for a in asked1]
+    prompts2 = [a["prompt"] for a in asked2]
+    # 争点菜单只属于 C01；事实追问只属于 other——串味时这两行必然同时炸。
+    assert "争点" in prompts1[0] and "争点" not in prompts2[0], f"asked 串味：{prompts1} / {prompts2}"
+    assert "司法鉴定资质" in prompts2[1], f"{other} 第 2 轮应是未命中的事实追问：{prompts2}"

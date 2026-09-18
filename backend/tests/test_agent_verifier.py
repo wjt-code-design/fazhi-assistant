@@ -230,10 +230,13 @@ _TRUE_OVERCONFIDENCE = (
 )
 # 术语与断言**同时命中**的句子——只有这类形态才走到 `_is_overconfident` 的优先级仲裁。
 # 与 `_LEGAL_TERMS` 的分工：后者只命中术语、根本不触发断言正则，故对分支顺序**不敏感**。
-# 2026-09-18 实测（`dispatch-output/ta5-arms-20260917/_p15_probe.py`，需在 backend/ 下跑）：
-# 删掉术语优先分支后 `_LEGAL_TERMS` 全部仍绿，本组是唯一能发现该删除的测试。
+# 2026-09-18 实测（`dispatch-output/ta5-arms-20260917/` 下三个探针，均在 `backend/` 跑：
+# `_p15_probe.py` 静态枚举 / `_p15_watch_it_fail.py` 定向删分支 / `_p15_literal_sweep.py` 全库扫
+# 156 文件 17636 个字面量）：删掉术语优先分支后 `_LEGAL_TERMS` 21 例全部仍绿，全库唯一能发现该
+# 删除的是本组 2 例 + 下面的 `_ACCEPTED_RISK_MISSES` 1 例（合计 3 例变红）。
 _LEGAL_SENTENCES_COMPETING_WITH_ASSERTION = (
-    # verifier.py 的 `_is_overconfident` docstring 亲自举的例子，此前无测试锁定
+    # 第一句是 `_is_overconfident` docstring 亲自举的原文例子，此前无测试锁定；
+    # 第二句按同形态构造（docstring 术语列举里的「必然因果关系」+ 断言动词「承担」）。
     "在一定期限内适用该规定",
     "必然因果关系是承担责任的要件",
 )
@@ -264,6 +267,25 @@ def test_terminology_priority_wins_when_assertion_also_matches(text):
     fail-closed（用户看到失败），漏判最多让一句措辞过关。
     """
     assert _is_overconfident(text) is False, f"含术语的合法陈述被误判为过度承诺：{text!r}"
+
+
+# 术语优先的**已知代价**：术语与断言挤在同一句时整段放行，于是一句真过度承诺过关。
+# 下列句子确实该被判过度承诺，但按现行判定**不会**——这是自认的出口，不是待修的 bug。
+_ACCEPTED_RISK_MISSES = ("在一定期限内必然胜诉",)
+
+
+@pytest.mark.parametrize("text", _ACCEPTED_RISK_MISSES)
+def test_terminology_priority_admits_missing_a_real_overpromise(text):
+    """接受风险留痕：术语优先会放过「术语 + 打包票」同句的**真**过度承诺。
+
+    「一定期限」命中术语后缀 ⇒ 整段放行，尽管同句的「必然…胜诉」独立命中断言正则。收紧它
+    = 改生产语义（词表判定），须 Owner 裁决；本测试的作用是：**判定形态一变就在此暴露**，
+    而不是让人以为白名单没有代价。
+
+    watch-it-fail（2026-09-18）：删掉术语优先分支（`_p15_watch_it_fail.py`）本测试变红；把两条
+    正则的判定顺序调过来（`_p15_order_swap.py`）同样变红。
+    """
+    assert _is_overconfident(text) is False, f"术语优先的接受风险形态已改变，需重开裁决：{text!r}"
 
 
 def test_only_pass_can_render():
