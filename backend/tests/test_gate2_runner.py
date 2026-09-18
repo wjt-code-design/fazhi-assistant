@@ -34,6 +34,14 @@ SCOPE_CLARIFY_SSE = (
     ' "run_id": "agent-run-x", "state_version": 3, "conversation_id": 7}\n\n'
     "data: [DONE]\n\n"
 )
+NOMATCH_CLARIFY_SSE = (
+    'data: {"type": "clarification", "prompt": "对方是否具备司法鉴定资质？",'
+    ' "run_id": "agent-run-x", "state_version": 4, "conversation_id": 7}\n\n'
+    "data: [DONE]\n\n"
+)
+# 上述夹具共用同一个占位 run_id。`_ScriptedService` 会按 case 把它改写成唯一值，
+# 使 resume 请求带上可归属的信号（见 `_resolve_case`）。
+_RUN_ID_PLACEHOLDER = "agent-run-x"
 
 
 class _FakeGateService:
@@ -382,15 +390,38 @@ _MIXED_SEQ = ("scope", "nomatch_prompt", "clarify_once")
 class _ScriptedService:
     """按"每 case 一串脚本化响应"返回：逐次 chat 请求消费下一条。"""
 
+    # resume 请求的归属真源：run_id 由 case_id 唯一决定，于是"这个请求属于哪个 case"
+    # 是**请求自身的纯函数**，不依赖任何跨请求状态。
+    _RUN_ID_PREFIX = "gate2-run-"
+
     def __init__(self) -> None:
         self.chat_requests: list[dict] = []
         self.script: dict[str, list[str]] = {}
         self._cursor: dict[str, int] = {}
-        self._last_case: str | None = None  # resume 请求的归属回退（无初始题文本可匹配时）
+        # 归不上 case 的请求在此记账并被显式断言之。P1-1 之前这里回退成"猜最近一个 case"
+        # （`_last_case`），会把无主请求挂到别的 case 上、静默消费它的脚本游标。
+        self.unattributed: list[dict] = []
         self._lock = threading.Lock()
 
     def set_script(self, case_id: str, scenes: tuple[str, ...]) -> None:
         self.script[case_id] = list(scenes)
+
+    @classmethod
+    def run_id_for(cls, case_id: str) -> str:
+        return f"{cls._RUN_ID_PREFIX}{case_id}"
+
+    def _resolve_case(self, content: str, agent_run_id: object) -> str | None:
+        """把一次 /api/chat 归属到 case：初始题按文本，resume 按 run_id。归不上返回 None。"""
+        for cid, case in runner.BY_ID.items():
+            if case["initial_question"] == content:
+                return cid
+        run_id = str(agent_run_id or "")
+        if run_id.startswith(self._RUN_ID_PREFIX):
+            cid = run_id[len(self._RUN_ID_PREFIX) :]
+            if cid in runner.BY_ID:
+                return cid
+        self.unattributed.append({"content": content, "agent_run_id": agent_run_id})
+        return None
 
     def start(self) -> ThreadingHTTPServer:
         service = self
@@ -415,38 +446,35 @@ class _ScriptedService:
                     return
                 with service._lock:
                     service.chat_requests.append(dict(payload))
-                content = str(payload.get("content", ""))
-                case_id = next((cid for cid, c in runner.BY_ID.items() if c["initial_question"] == content), None)
-                if case_id is None:
-                    # resume 请求：按 run_id 归属回退到最近一次初始题
-                    case_id = service._last_case
-                seq = service.script.get(case_id, ["final"])
-                idx = service._cursor.get(case_id, 0)
-                # 脚本耗尽后默认 final（正常收敛）；需要"永不 finalize"的场景在脚本里显式写满
-                scene = seq[idx] if idx < len(seq) else "final"
-                service._cursor[case_id] = idx + 1
-                if case_id:
-                    service._last_case = case_id
+                    case_id = service._resolve_case(str(payload.get("content", "")), payload.get("agent_run_id"))
+                    seq = service.script.get(case_id, ["final"]) if case_id else ["final"]
+                    idx = service._cursor.get(case_id, 0) if case_id else 0
+                    # 脚本耗尽后默认 final（正常收敛）；需要"永不 finalize"的场景在脚本里显式写满
+                    scene = seq[idx] if idx < len(seq) else "final"
+                    if case_id:
+                        service._cursor[case_id] = idx + 1
+                # 归属成功的 case 才有唯一 run_id；归不上时保留占位符，让下次同样归属失败并被记账。
+                run_id = service.run_id_for(case_id) if case_id else _RUN_ID_PLACEHOLDER
+
+                def _reply(body: str) -> None:
+                    self._send_sse(body.replace(_RUN_ID_PLACEHOLDER, run_id))
+
                 if scene == "scope":
-                    self._send_sse(SCOPE_CLARIFY_SSE)
+                    _reply(SCOPE_CLARIFY_SSE)
                     return
                 if scene == "clarify_once":
                     # 事实澄清：prompt 命中 C01-r1-f1 关键词「内网」
-                    self._send_sse(CLARIFY_SSE)
+                    _reply(CLARIFY_SSE)
                     return
                 if scene == "nomatch_prompt":
                     # 关键词不命中的事实追问 → runner 只能回 NO_MATCH_REPLY
-                    self._send_sse(
-                        'data: {"type": "clarification", "prompt": "对方是否具备司法鉴定资质？",'
-                        ' "run_id": "agent-run-x", "state_version": 4, "conversation_id": 7}\n\n'
-                        "data: [DONE]\n\n"
-                    )
+                    _reply(NOMATCH_CLARIFY_SSE)
                     return
                 if scene == "final_never":
                     # 服务端永不 finalize（持续索要澄清）：runner 必须有限步退出，不得挂死
-                    self._send_sse(CLARIFY_SSE)
+                    _reply(CLARIFY_SSE)
                     return
-                self._send_sse(INITIAL_OK_FINAL_SSE)
+                _reply(INITIAL_OK_FINAL_SSE)
 
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
         original_do_post = Handler.do_POST
@@ -486,6 +514,40 @@ def _run_scripted(harness, *extra: str) -> int:
     return runner.run(argv)
 
 
+def test_scripted_service_resume_attribution_is_order_independent():
+    """P1-1：resume 归属必须是**请求自身的纯函数**，不依赖"上一个请求是谁"。
+
+    旧实现用 `_last_case` 回退猜归属。今天所有 scripted 测试都只跑单个 case，猜的答案恰好
+    正确，所以缺陷不可见；一旦 runner 引入并发或多 case 交替，无主请求就会被挂到别的 case 上、
+    静默消费它的脚本游标，使该 case 的 `asked`（⇒ 红线判据的输入）失真且无从定位。
+    本测试用一个**全新实例**（没有任何前置请求）直接归属 resume：靠猜的实现必然返回 None。
+    """
+    svc = _ScriptedService()
+    other = next(cid for cid in runner.BY_ID if cid != "C01")
+    reply = "对上述问题的补充说明"
+    assert all(c["initial_question"] != reply for c in runner.BY_ID.values()), "夹具文本与某 case 初始题撞了"
+
+    # 无前置请求，仅凭 run_id 就能归属；且必须归到 run_id 编码的那个 case，而非别的
+    assert svc._resolve_case(reply, svc.run_id_for(other)) == other
+    assert svc.unattributed == []
+
+    # 初始题仍按文本归属
+    assert svc._resolve_case(runner.BY_ID["C01"]["initial_question"], None) == "C01"
+
+    # 归不上 ⇒ 返回 None **并记账**，绝不回退成某个 case
+    assert svc._resolve_case(reply, _RUN_ID_PLACEHOLDER) is None
+    assert svc.unattributed == [{"content": reply, "agent_run_id": _RUN_ID_PLACEHOLDER}]
+
+
+def _assert_attribution_clean(service: _ScriptedService) -> None:
+    """端到端绊线：真 HTTP 流程里每个请求都必须能归属。
+
+    这条断言才真正检验 `_reply()` 的 run_id 改写生效了——若改写漏掉，resume 会带占位
+    run_id 回来、归属失败并被记账，此处立即变红。
+    """
+    assert service.unattributed == [], f"存在无法归属的 chat 请求：{service.unattributed}"
+
+
 def test_scope_menu_does_not_consume_fact_clarification_budget(scripted):
     """E03/E04 根因：争点选择（scope）与事实澄清共用 (1,2) 预算 → 答完菜单后事实轮只剩 1 格，
     第 3 次澄清无槽位应答 → 空终稿。修复后两层预算分离，事实轮仍有 2 格。"""
@@ -503,6 +565,7 @@ def test_scope_menu_does_not_consume_fact_clarification_budget(scripted):
     assert answers[0] == runner.SCOPE_REPLY
     assert answers[1] == runner.NO_MATCH_REPLY
     assert answers[2] != runner.NO_MATCH_REPLY
+    _assert_attribution_clean(service)
 
 
 def test_clarification_loop_terminates_when_server_never_finalizes(scripted):
@@ -516,11 +579,12 @@ def test_clarification_loop_terminates_when_server_never_finalizes(scripted):
     正确性，只锁住"不会无界空转"这一既有性质。真正的回归证据是
     `test_scope_menu_does_not_consume_fact_clarification_budget`（回滚后变红）。
 
-    ⚠️ 已知缺陷（同上审查，**未修**，需裁决后再动）：`len(chat_requests) < 50` 这个界**形同虚设**
-    ——实测实际值仅 3，且因 `_ScriptedService` 靠 `_last_case` 猜 resume 归属、脚本
-    `("clarify_once",)*50` 实际只被消费 3 条，故该断言既未触界、也不能区分 `while` 与旧 `for`
-    （正是本 repo `loop-termination-preflight` 警告的"探针撞自设阈值"反模式）。
-    改正形态应钉住**确切值**而非远大于实际的数。证据：`_verify_h2.py`。
+    ⚠️ 已知缺陷（同上审查，2026-09-18 **已修**）：原先写作 `len(chat_requests) < 50`，该界**形同虚设**
+    ——实测实际值仅 3（2026-09-18 把本行临时改成 `== -1` 复读出 `assert 3 == -1`），且因
+    `_ScriptedService` 靠 `_last_case` 猜 resume 归属、脚本 `("clarify_once",)*50` 实际只被消费
+    3 条，故该断言既未触界、也不能区分 `while` 与旧 `for`（正是本 repo
+    `loop-termination-preflight` 警告的"探针撞自设阈值"反模式）。现已按"钉住确切值"改正。
+    证据：`_verify_h2.py`。
     """
     tmp_path, service, _port = scripted
     service.set_script("C01", ("clarify_once",) * 50)
@@ -532,7 +596,10 @@ def test_clarification_loop_terminates_when_server_never_finalizes(scripted):
     # 协议口径：服务端共发起 3 次追问（2 次已应答 + 末尾 1 次）> 上限 2 ⇒ 红线候选。
     assert r["redline_candidate_over_2_rounds"] is True
     assert len(r["rounds"]) <= 1 + runner.FACT_CLARIFY_LIMIT + runner.SCOPE_CLARIFY_LIMIT
-    assert len(service.chat_requests) < 50  # ⚠️ 见 docstring：该界过松，证明力弱
+    # 1 次初始题 + FACT_CLARIFY_LIMIT(=2) 次应答。写死字面量而**不**用 `1 + runner.FACT_CLARIFY_LIMIT`
+    # 派生式：派生式会随预算常量被调大而自动放宽，正重演 `< 50` 的失效机制。
+    assert len(service.chat_requests) == 3
+    _assert_attribution_clean(service)
 
 
 def test_redline_counts_every_clarification_round_including_scope(scripted):
@@ -556,6 +623,7 @@ def test_redline_counts_every_clarification_round_including_scope(scripted):
     assert len(r["asked"]) == 3, f"三次追问都应被应答；实际 asked={r['asked']}"
     assert r["agent_completed"] is True  # 脚本耗尽后服务端 finalize
     assert r["redline_candidate_over_2_rounds"] is True  # 追问 3 次 > 协议上限 2
+    _assert_attribution_clean(service)
 
 
 def test_redline_not_triggered_when_server_stops_after_two_rounds(scripted):
@@ -573,3 +641,4 @@ def test_redline_not_triggered_when_server_stops_after_two_rounds(scripted):
     assert len(r["asked"]) == 2
     assert r["agent_completed"] is True
     assert r["redline_candidate_over_2_rounds"] is False
+    _assert_attribution_clean(service)

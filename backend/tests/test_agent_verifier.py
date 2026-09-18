@@ -228,14 +228,23 @@ _TRUE_OVERCONFIDENCE = (
     # 断言助动词类（集成测试的 REWRITE 负例形态：把裁量空间说死）
     "依据《民法典》第675条，一定应当依法履行相应义务。",
 )
+# 术语与断言**同时命中**的句子——只有这类形态才走到 `_is_overconfident` 的优先级仲裁。
+# 与 `_LEGAL_TERMS` 的分工：后者只命中术语、根本不触发断言正则，故对分支顺序**不敏感**。
+# 2026-09-18 实测（`dispatch-output/ta5-arms-20260917/_p15_probe.py`，需在 backend/ 下跑）：
+# 删掉术语优先分支后 `_LEGAL_TERMS` 全部仍绿，本组是唯一能发现该删除的测试。
+_LEGAL_SENTENCES_COMPETING_WITH_ASSERTION = (
+    # verifier.py 的 `_is_overconfident` docstring 亲自举的例子，此前无测试锁定
+    "在一定期限内适用该规定",
+    "必然因果关系是承担责任的要件",
+)
 
 
 @pytest.mark.parametrize("term", _LEGAL_TERMS)
 def test_overconfident_check_does_not_hit_legal_terminology(term):
     """专有名词不得被判过度承诺（E04 根因：'绝对免赔额' 被字面命中 → 整轮 fail-closed）。
 
-    watch-it-fail（2026-09-18）：判定回滚为 `any(m in text for m in _OVERCONFIDENT_MARKERS)`
-    后，本组 24 个里有 19 个变红。
+    watch-it-fail（2026-09-18 复测）：判定回滚为 `any(m in text for m in _OVERCONFIDENT_MARKERS)`
+    后，本组 21 例里有 **16** 例变红。
     """
     assert _is_overconfident(term) is False, f"专有名词 {term!r} 被误判为过度承诺"
 
@@ -244,6 +253,17 @@ def test_overconfident_check_does_not_hit_legal_terminology(term):
 def test_overconfident_check_still_catches_real_overpromises(text):
     """反例护栏：真过度承诺仍必须被拦（否则前一组可用"永不命中"的恒假谓词通过）。"""
     assert _is_overconfident(text) is True, f"过度承诺 {text!r} 未被拦住"
+
+
+@pytest.mark.parametrize("text", _LEGAL_SENTENCES_COMPETING_WITH_ASSERTION)
+def test_terminology_priority_wins_when_assertion_also_matches(text):
+    """术语优先是**有意的保守取舍**：弱标记+术语后缀一律放行，即使同句还带断言动词。
+
+    watch-it-fail（2026-09-18）：删掉 `verifier.py` 的术语优先分支后本组变红；把两条正则
+    的判定顺序调过来同样变红。理由见 `_is_overconfident` docstring——误杀会让整轮
+    fail-closed（用户看到失败），漏判最多让一句措辞过关。
+    """
+    assert _is_overconfident(text) is False, f"含术语的合法陈述被误判为过度承诺：{text!r}"
 
 
 def test_only_pass_can_render():
