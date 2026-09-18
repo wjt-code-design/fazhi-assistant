@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
+from datetime import date
 from typing import Any, Protocol, cast
 
 from request_bootstrap import RequestBootstrap
@@ -473,7 +474,9 @@ def execute_agent_request(
             state,
             draft,
             covered_issues_exempt=frozenset(issue_id for issue_id, _ in uncovered),
-            law_as_of=saved_record.law_as_of,
+            # models.py 用 legacy Column(Date) 声明 ⇒ 属性静态类型是 Column[date]，
+            # 运行时经 SQLAlchemy instrument 才是 date（同 :122 对 last_error_code 的 cast）。
+            law_as_of=cast(date | None, saved_record.law_as_of),
         )
     except Exception:
         return _persist_drafting_failure(
