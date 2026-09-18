@@ -473,6 +473,7 @@ def execute_agent_request(
             state,
             draft,
             covered_issues_exempt=frozenset(issue_id for issue_id, _ in uncovered),
+            law_as_of=saved_record.law_as_of,
         )
     except Exception:
         return _persist_drafting_failure(
