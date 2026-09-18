@@ -72,6 +72,12 @@ class Settings(BaseSettings):
     # 默认关 = writer/verifier 数字校验行为逐字不变。设计依据 T-A0
     # （dispatch-output/ta0-numeric-trace-20260917/report.md）。
     numeric_matching_v2: bool = False
+    # R12 伪调用检测（2026-09-18，外部 harness 方案差距分析 P0-3）：writer/verifier 对
+    # claim 文本做「声称执行过某动作（检索/合同分析/调取历史/用户确认）而 state 无真实
+    # 执行记录」的确定性比对——对应已知缺陷 deepseek-v4-flash"伪调用"（工具调用被渲染
+    # 为文本而非执行）。判定真源 agent/phantom_check.py；默认关 = writer/verifier 行为
+    # 逐字不变（与 entity_precision_check / numeric_matching_v2 同一开关惯例）。
+    phantom_tool_check: bool = False
 
     # ---- 部门法守卫（R1/R1b，预注册 docs/preregistration-dept-law-filter-r1-20260913.md）----
     # R1：Agent 检索后剔除「他域专属程序法」条文（证据池防跨部门法混入；实体法永不过滤）。

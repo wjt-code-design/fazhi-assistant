@@ -240,15 +240,19 @@ def render_verified(
 
 class DeterministicVerifier:
     @staticmethod
+    def _fact_texts(state: LegalAgentState) -> list[str]:
+        """事实+未决事实原文（数字白名单与受控计算共用的输入集）。"""
+        return [f.statement for issue in state.issues for f in issue.facts] + [
+            u.statement for issue in state.issues for u in issue.unknown_facts
+        ]
+
+    @staticmethod
     def _fact_allowlist(state: LegalAgentState) -> set[str]:
         """T-A3 数字白名单（与 writer 同口径单一真源拆两防线）：事实+未决（原值）+ 受控计算。"""
         from . import fee_calc
 
-        texts = [f.statement for issue in state.issues for f in issue.facts] + [
-            u.statement for issue in state.issues for u in issue.unknown_facts
-        ]
-        allow = numeric_tokens("\n".join(texts), loose_amounts=True)
-        allow |= fee_calc.controlled_fee_tokens(texts)
+        allow = numeric_tokens("\n".join(DeterministicVerifier._fact_texts(state)), loose_amounts=True)
+        allow |= fee_calc.controlled_fee_tokens(DeterministicVerifier._fact_texts(state))
         return allow
 
     def verify(
@@ -358,6 +362,10 @@ class DeterministicVerifier:
             if unsupported_v and settings.numeric_matching_v2:
                 # T-A3 同口径验算：事实白名单 + 受控计算（受理费），与 writer 一致（单一真源拆两防线）。
                 unsupported_v -= self._fact_allowlist(state)
+                # R11 受控时效放行集（与 writer 同口径；claim 断言时效结论 + 事实含日期才触发）。
+                from . import limitation_calc
+
+                unsupported_v -= limitation_calc.controlled_limitation_tokens(claim.text, self._fact_texts(state))
             if unsupported_v:
                 return self._result(
                     VerificationVerdict.FAIL_SAFE,
@@ -370,6 +378,24 @@ class DeterministicVerifier:
                     [claim.claim_id],
                     "NON_CANONICAL_CITATION",
                 )
+            # R12 伪调用检测第二道防线（phantom_tool_check，默认关 = 行为逐字不变）：
+            # writer 已在生成侧拦截；这里防"绕过 writer 直接构造 draft"的路径（同
+            # 引用/数字校验"单一真源拆两防线"惯例，判定真源在 phantom_check 模块）。
+            if settings.phantom_tool_check:
+                from . import phantom_check
+
+                phantom_categories = phantom_check.phantom_action_categories(
+                    claim.text,
+                    tool_success=phantom_check.succeeded_tools(state.observations),
+                    has_evidence=bool(state.evidence),
+                    clarifications=state.clarifications,
+                )
+                if phantom_categories:
+                    return self._result(
+                        VerificationVerdict.FAIL_SAFE,
+                        [claim.claim_id],
+                        "PHANTOM_TOOL_CLAIM",
+                    )
             if not canonical_citations(claim.text).issubset(canonical_citations("\n".join(bound_evidence_text))):
                 return self._result(
                     VerificationVerdict.FAIL_SAFE,

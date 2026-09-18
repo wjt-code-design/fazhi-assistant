@@ -166,6 +166,8 @@ _UNCOVERED_REASON_TEXT = {
     # T-A2（entity_precision_check 开关开启时才可能出现）：
     "SUBJECT_TYPE_MISMATCH": "所引法条与本案主体类型不符",
     "CLAIM_DIRECTION_REVERSED": "所引法条的责任方向颠倒",
+    # R12（phantom_tool_check 开关开启时才可能出现）：
+    "PHANTOM_TOOL_CLAIM": "答复中声称执行了实际未发生的检索或确认动作",
 }
 
 
@@ -289,6 +291,7 @@ def execute_agent_request(
                 user_id=user_id,
                 conversation_id=bootstrap.conv_id,
                 state=initial_state,
+                law_as_of=bootstrap.law_as_of,
             )
         except (PermissionError, ValueError):
             return _failure_or_fallback("OWNERSHIP_FAILURE", conversation_id=bootstrap.conv_id)
@@ -413,6 +416,9 @@ def execute_agent_request(
             "UNSUPPORTED_CITATION",
             "UNSUPPORTED_NUMERIC_TOKEN",
             "NON_CANONICAL_CITATION",
+            # R12（phantom_tool_check 开启时才可能出现）：不写"谎称执行过"的短语
+            # 同样是 writer 自身可避免的失误（换措辞即可）。
+            "PHANTOM_TOOL_CLAIM",
         }
     )
     uncovered: list[tuple[str, str]] = []

@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import date, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -459,6 +459,31 @@ def test_real_agent_service_returns_clarification_without_assistant_message(db):
     assert result.prompt == "工资支付日是什么？"
     assert result.issue_id is not None
     assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+
+
+def test_agent_service_propagates_bootstrap_law_as_of_to_run_record(db):
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    injected = date(2020, 12, 31)
+    bootstrap = replace(_bootstrap(conversation.id), law_as_of=injected)
+
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=bootstrap,
+        finalizer=_finalize,
+        llm=_AgentTransport(
+            issue_payload=_issue_payload(unknown=True),
+            planner_payload={"kind": "finish_research", "summary": "交给确定性评估"},
+        ),
+        gateway=_law_gateway(),
+    )
+
+    assert result.outcome == "clarification"
+    record = db.query(AgentRun).filter_by(conversation_id=conversation.id).one()
+    assert record.law_as_of == injected
 
 
 def test_real_agent_service_requests_scope_selection_for_six_issues(db):

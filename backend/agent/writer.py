@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_valida
 from prompts import AGENT_WRITER_SYSTEM
 from settings import settings
 
-from . import entity_precision, fee_calc
+from . import entity_precision, fee_calc, limitation_calc, phantom_check
 from .schemas import Fact, LegalAgentState, LegalValidity, SourceType
 
 DraftSection = Literal["conclusion", "issue_analysis", "risk"]
@@ -571,6 +571,7 @@ def log_writer_summary(
     failing_issue_id: str | None = None,
     numeric_violation: Mapping[str, Any] | None = None,
     citation_violation: str | None = None,
+    violation_detail: str | None = None,
 ) -> None:
     """逐次 writer 渲染的可归因摘要（**只记标识与计数，不含草稿文本**）。
 
@@ -596,6 +597,9 @@ def log_writer_summary(
                 "numeric_violation": None if numeric_violation is None else dict(numeric_violation),
                 # 仅当引用校验触发时才有值；只含**形态类别名**（不含任何法条文本）。
                 "citation_violation": citation_violation,
+                # R12 伪调用检测（phantom_tool_check 开启时）：命中的动作类别名
+                # （retrieval/contract_analysis/memory/user_confirmation，"+"连接）。
+                "violation_detail": violation_detail,
             }
         },
     )
@@ -662,9 +666,7 @@ def numeric_tokens(text: str, *, loose_amounts: bool = False) -> set[str]:
     return tokens
 
 
-def unsupported_numeric_tokens(
-    text: str, bound_source_text: str, *, loose_amounts: bool = False
-) -> set[str]:
+def unsupported_numeric_tokens(text: str, bound_source_text: str, *, loose_amounts: bool = False) -> set[str]:
     """`text` 中不受 `bound_source_text` 支持的数字 token 集合（唯一真源）。"""
     return numeric_tokens(text, loose_amounts=loose_amounts) - numeric_tokens(
         bound_source_text, loose_amounts=loose_amounts
@@ -807,12 +809,14 @@ class EvidenceBoundedWriter:
             reason_code: str,
             failing_issue_id: str | None = None,
             citation_violation: str | None = None,
+            violation_detail: str | None = None,
         ) -> WriterResult:
             """失败统一出口（前置 + 循环内）：先记可归因摘要，再返回 FAIL_SAFE。
 
             failing_issue_id 缺省取当前正在校验的 claim 所属争点，因此循环内任意一条
             失败都会带出「是哪个争点触发的」。
             citation_violation：引用类失败的**形态类别**（不含文本），见 citation_*_shape。
+            violation_detail：R12 伪调用检测命中的动作类别（不含文本）。
             """
             log_writer_summary(
                 reason_code,
@@ -824,6 +828,7 @@ class EvidenceBoundedWriter:
                 failing_issue_id=failing_issue_id if failing_issue_id is not None else current_issue,
                 numeric_violation=numeric_buckets if reason_code == "UNSUPPORTED_NUMERIC_TOKEN" else None,
                 citation_violation=citation_violation,
+                violation_detail=violation_detail,
             )
             return self._fail(reason_code)
 
@@ -874,12 +879,17 @@ class EvidenceBoundedWriter:
         # 不判「无来源」（T-A0 机理 2/3：跨争点事实 + 脱敏副作用）。池外新数字仍拦（防幻觉）。
         # 并入 T-A3(b) 受控计算放行集（受理费：标的额 → 办法第13条递进公式 → verifier 同口径验算）。
         fact_allowlist: set[str] = set()
+        _ep_fact_texts: list[str] = []
         if settings.numeric_matching_v2:
             _ep_fact_texts = [f.statement for issue in state.issues for f in issue.facts] + [
                 u.statement for issue in state.issues for u in issue.unknown_facts
             ]
             fact_allowlist = numeric_tokens("\n".join(_ep_fact_texts), loose_amounts=True)
             fact_allowlist |= fee_calc.controlled_fee_tokens(_ep_fact_texts)
+        # R12 伪调用检测（phantom_tool_check，默认关）：真实执行记录只随 state 变化，
+        # 在循环外取一次；claim 文本是否"谎称执行过"在循环内逐条判定。
+        _phantom_tool_success = phantom_check.succeeded_tools(state.observations)
+        _phantom_has_evidence = bool(state.evidence)
         for proposed in generated.claims:
             if proposed.issue_id not in issues:
                 return _fail_here("UNKNOWN_ISSUE_ID", proposed.issue_id)
@@ -894,6 +904,19 @@ class EvidenceBoundedWriter:
             if claim_id in seen_claim_ids:
                 return _fail_here("CLAIM_HASH_COLLISION")
             seen_claim_ids.add(claim_id)
+
+            # R12 伪调用检测（phantom_tool_check，默认关 = 行为逐字不变）：claim 文本
+            # 声称执行过某动作（检索/合同分析/调取历史/用户确认）而 state 无真实执行
+            # 记录 → fail-closed（宁可拒绝，不交付"谎称查过"的答复）。
+            if settings.phantom_tool_check:
+                phantom_categories = phantom_check.phantom_action_categories(
+                    proposed.text,
+                    tool_success=_phantom_tool_success,
+                    has_evidence=_phantom_has_evidence,
+                    clarifications=state.clarifications,
+                )
+                if phantom_categories:
+                    return _fail_here("PHANTOM_TOOL_CLAIM", violation_detail="+".join(phantom_categories))
 
             for evidence_id in proposed.evidence_ids:
                 if evidence_id not in evidence_by_id:
@@ -931,7 +954,10 @@ class EvidenceBoundedWriter:
                 proposed.text, bound_numeric_text, loose_amounts=settings.numeric_matching_v2
             )
             if unsupported and settings.numeric_matching_v2:
+                # R11 受控时效放行集（limitation_calc，与 fee_calc 同口径；claim 文本
+                # 需断言时效结论 + 事实含日期才触发，见模块 docstring 边界）。
                 unsupported -= fact_allowlist
+                unsupported -= limitation_calc.controlled_limitation_tokens(proposed.text, _ep_fact_texts)
             if unsupported:
                 # 分桶归因（只记计数）：漏绑 / 跨争点无权引用 / 来自未决事实 / 编造 —— 改法各不相同。
                 numeric_buckets = numeric_violation_buckets(unsupported, proposed, payload)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import ast
 import copy
 import logging
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -294,6 +295,22 @@ def main_module():
     import main
 
     return main
+
+
+def test_bootstrap_only_passes_law_as_of_and_case_domain_through(monkeypatch, main_module):
+    captured: dict[str, object] = {}
+
+    def fake_bootstrap(*args, **kwargs):
+        captured.update(kwargs)
+        return "bootstrap"
+
+    monkeypatch.setattr(main_module, "bootstrap_request", fake_bootstrap)
+
+    result = main_module._bootstrap_only(1, 17, "问题", None, False, "civil", date(2020, 12, 31))
+
+    assert result == "bootstrap"
+    assert captured["case_domain"] == "civil"
+    assert captured["law_as_of"] == date(2020, 12, 31)
 
 
 def _wire_pre_without_io(monkeypatch, main_module, *, events, fast_result):
