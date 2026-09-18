@@ -98,3 +98,15 @@ dispatch-output/config-backups-*/
 # 该目录的代码备份（无密钥，但同"备份不入库"原则；2026-09-15）
 dispatch-output/agent-quality-20260911/*.before-*
 
+# 仓库根的调试/取证留痕（`_xxx.txt` 一类）。实测根目录有 97 个这样的条目（-unormal 口径），
+# 而 `.gitignore` 原先**没有任何 `_*` 规则** ⇒ 一次 `git add -A` 就可能把含真密钥的留痕提交上去。
+# 前导斜杠是关键：写成 `_*` 会匹配任意层级，实测会命中 9 个已跟踪文件（`__init__.py`、
+# `backend/tests/_r15_tripwire_probe.py` 等探针），那不是我想要的。
+# 复验判据：`git check-ignore -q _probe.txt` ⇒ rc=0；
+#           `git check-ignore -q backend/tests/_r15_tripwire_probe.py` ⇒ rc=1
+/_*
+
+# 鉴权状态快照（S1 全仓递归扫描实测：`dispatch-output/t2-evidence-replay-20260916/p2-auth-state.json`
+# 里是 120 字节、含数字的**真形态 JWT**，而它的姊妹文件 `dispatch-output/token.json` 早已有显式规则
+# （:76）——这一类漏了。留痕不入库，与 token.json 同等待遇。）
+dispatch-output/**/*auth-state*.json
