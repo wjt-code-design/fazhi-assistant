@@ -205,6 +205,39 @@ def controlled_limitation_tokens(claim_text: str, fact_texts: Iterable[str]) -> 
     }
 
 
+def law_version_crosses_watershed(
+    claim_text: str,
+    fact_texts: Iterable[str],
+    law_as_of: date | None,
+) -> bool:
+    """True = 「按 law_as_of 版本的法回答分水岭前事实」的版本适用冲突（R15，2026-09-18）。
+
+    判据全确定性，任一不满足 → False（不拦，调用方行为逐字不变）：
+    1. claim 断言**民事**时效结论（命中 _CIVIL_KEYWORDS）；劳动仲裁走劳调法 27 条
+       （2008 年生效，与民法典分水岭无关）→ 一律 False；
+    2. `law_as_of` 已给定（None = 调用方没给基准日，无从判定）；
+    3. 事实文本含可解析日期（无日期不拦：「没日期就不许谈时效」会误伤纯法条陈述）；
+    4. 最早事实日（本模块边界 3 的起算锚）与 `law_as_of` **分跨** CIVIL_CODE_EFFECTIVE 两侧。
+
+    与 `controlled_limitation_tokens` 的分工（不是重复）：后者只在**数字白名单**维度
+    收回放行（fail-open，边界 1 刻意保守），本函数在**版本适用**维度终止作答
+    （fail-closed）。它覆盖的是既有门看不见的一类：claim 不带年数 token（仅引用
+    《民法典》某条）时，numeric 门无 token 可算、citation 门只验"条文是否在证据池"
+    ——而证据池本身就是按 law_as_of 做 cutoff 捞的，必然只捞得到分水岭后的法。
+    """
+    text = unicodedata.normalize("NFKC", claim_text or "")
+    if any(keyword in text for keyword in _LABOR_KEYWORDS):
+        return False
+    if not any(keyword in text for keyword in _CIVIL_KEYWORDS):
+        return False
+    if law_as_of is None:
+        return False
+    dates = extract_dates(fact_texts)
+    if not dates:
+        return False
+    return (dates[0] < CIVIL_CODE_EFFECTIVE) != (law_as_of < CIVIL_CODE_EFFECTIVE)
+
+
 __all__ = [
     "CIVIL_CODE_EFFECTIVE",
     "CIVIL_GENERAL_YEARS",
@@ -214,4 +247,5 @@ __all__ = [
     "calc_limitation",
     "controlled_limitation_tokens",
     "extract_dates",
+    "law_version_crosses_watershed",
 ]
