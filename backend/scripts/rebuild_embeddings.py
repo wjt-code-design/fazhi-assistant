@@ -27,6 +27,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
 
+from scripts import chroma_dir_guard  # noqa: E402
+
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
 
@@ -99,6 +101,11 @@ def _ensure_new_collection(name: str):
         name,
         metadata={"hnsw:space": "cosine"},
     )
+
+
+def _check_env_contract() -> None:
+    """CLI 前置守卫：CHROMA_DIR 与本脚本固定目标分歧时拒绝跑（重建会改写生产索引）。"""
+    chroma_dir_guard.assert_matches(os.path.join(BASE_DIR, "chroma_db"), "rebuild_embeddings")
 
 
 def main() -> None:
@@ -211,4 +218,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    _check_env_contract()
     main()

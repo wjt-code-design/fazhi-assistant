@@ -28,6 +28,8 @@ BACKEND = os.path.dirname(HERE)
 sys.path.insert(0, BACKEND)
 os.chdir(BACKEND)
 
+from scripts import chroma_dir_guard  # noqa: E402
+
 DEFAULT_BACKUP_ROOT = os.path.join(
     BACKEND, "backups"
 )  # 对抗审计 v2 #22：与 compose 卷 ./backend/backups:/app/backups 一致
@@ -96,6 +98,11 @@ def export_chroma_json(dest_dir: str) -> str:
     return out
 
 
+def _check_env_contract() -> None:
+    """CLI 前置守卫：CHROMA_DIR 与本脚本固定目标分歧时拒绝跑（不放 main() 里，理由见 chroma_dir_guard）。"""
+    chroma_dir_guard.assert_matches(CHROMA_DIR, "backup_data")
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(description="数据备份 + 恢复验证")
     ap.add_argument("--out", default=None, help="备份目标目录（默认 ../backups/<时间戳>/）")
@@ -161,4 +168,5 @@ def main(argv: list[str] | None = None) -> int:
 
 
 if __name__ == "__main__":
+    _check_env_contract()
     sys.exit(main())
