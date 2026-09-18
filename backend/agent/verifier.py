@@ -6,13 +6,14 @@ import hashlib
 import hmac
 import json
 import re
+from datetime import date
 from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from settings import settings
 
-from . import phantom_check
+from . import limitation_calc, phantom_check
 from .schemas import LegalAgentState, LegalValidity, SourceType
 from .writer import (
     DraftAnswer,
@@ -47,6 +48,10 @@ class VerificationResult(BaseModel):
     # 的 fresh 二次验证使用同一豁免（否则二次验证用默认空集会再次拦下部分交付）。
     # 不参与 digest（digest 只绑定 state/draft 内容）。
     covered_issues_exempt: frozenset[str] = Field(default_factory=frozenset)
+    # R15（2026-09-18）：基准日同样随结果传递，供 render_verified 的 fresh 二次验证复用
+    # （与上面 covered_issues_exempt 同款理由：二次验证若用 None，开关一开就会走到
+    # LAW_TRIPWIRE_NOT_WIRED，把"绊线拦下错答案"变成"整轮静默不交付"）。不参与 digest。
+    law_as_of: date | None = None
 
     @model_validator(mode="after")
     def pass_requires_bound_artifacts(self) -> VerificationResult:
@@ -223,7 +228,12 @@ def render_verified(
 
     if verification.verdict is not VerificationVerdict.PASS:
         return None
-    fresh = DeterministicVerifier().verify(state, draft, covered_issues_exempt=verification.covered_issues_exempt)
+    fresh = DeterministicVerifier().verify(
+        state,
+        draft,
+        covered_issues_exempt=verification.covered_issues_exempt,
+        law_as_of=verification.law_as_of,
+    )
     if fresh.verdict is not VerificationVerdict.PASS:
         return None
     if not hmac.compare_digest(verification.draft_digest or "", fresh.draft_digest or ""):
@@ -262,6 +272,7 @@ class DeterministicVerifier:
         draft: DraftAnswer,
         *,
         covered_issues_exempt: frozenset[str] = frozenset(),
+        law_as_of: date | None = None,
     ) -> VerificationResult:
         """确定性验证（schema/绑定/引用/覆盖率）。
 
@@ -270,7 +281,15 @@ class DeterministicVerifier:
         **跳过**「须有绑生效成文法的 claim」判定 —— 否则部分交付必然被覆盖率门禁拦下。
         **默认空集 ⇒ 行为逐字不变**；判定逻辑仍**只在本方法**（单一真源，不在 service 复制一份）。
         ⚠️ 豁免只影响"是否因此失败"，**不影响**该争点的验收结论：未覆盖争点在评测中仍记 FAIL/REVIEW。
+
+        `law_as_of`（R15 版本适用绊线）：本次任务适用法律的基准日，由调用方（service）从
+        `AgentRun.law_as_of` 透传。**默认 None ⇒ 绊线不可判 ⇒ 不拦**；但开关一开而这里仍是
+        None，视为接线丢失并 fail-closed（`LAW_TRIPWIRE_NOT_WIRED`）——静默放行正是该门要防的失败模式。
         """
+        # R15 版本适用绊线的接线自检（放在最前：接线断了就先说断，别让别的门把症状盖住）。
+        # 判据本身在 limitation_calc.law_version_crosses_watershed（时效真源，此处只消费）。
+        if settings.law_version_tripwire_check and law_as_of is None:
+            return self._result(VerificationVerdict.FAIL_SAFE, [], "LAW_TRIPWIRE_NOT_WIRED")
         try:
             payload = build_writer_payload(state)
         except ValueError:
@@ -310,6 +329,8 @@ class DeterministicVerifier:
 
         # R12 伪调用检测：真实执行记录按争点取一次（同一 claim 不重复扫 observations）。
         _phantom_executions = phantom_check.issue_executions(state.observations) if settings.phantom_tool_check else {}
+        # R15 版本适用绊线：事实文本集与 claim 无关，取一次即可（开关关 ⇒ 不做无谓扫描）。
+        _tripwire_fact_texts = self._fact_texts(state) if settings.law_version_tripwire_check else []
 
         for claim in claims:
             if claim.issue_id not in issue_ids or not claim.evidence_ids:
@@ -367,8 +388,6 @@ class DeterministicVerifier:
                 # T-A3 同口径验算：事实白名单 + 受控计算（受理费），与 writer 一致（单一真源拆两防线）。
                 unsupported_v -= self._fact_allowlist(state)
                 # R11 受控时效放行集（与 writer 同口径；claim 断言时效结论 + 事实含日期才触发）。
-                from . import limitation_calc
-
                 unsupported_v -= limitation_calc.controlled_limitation_tokens(claim.text, self._fact_texts(state))
             if unsupported_v:
                 return self._result(
@@ -402,6 +421,18 @@ class DeterministicVerifier:
                     VerificationVerdict.FAIL_SAFE,
                     [claim.claim_id],
                     "FABRICATED_CITATION",
+                )
+            # R15 版本适用绊线（law_version_tripwire_check，默认关 = 行为逐字不变）：
+            # 引用/数字两门都验"claim 说的东西在不在证据池"，而证据池本身按 law_as_of 做 cutoff
+            # 捞取 ⇒ 分水岭前事实永远只配到现行法。故版本适用冲突必须在**这一层**单独判一次。
+            # 判定真源在 limitation_calc.law_version_crosses_watershed（单一真源，此处只消费）。
+            if settings.law_version_tripwire_check and limitation_calc.law_version_crosses_watershed(
+                claim.text, _tripwire_fact_texts, law_as_of
+            ):
+                return self._result(
+                    VerificationVerdict.FAIL_SAFE,
+                    [claim.claim_id],
+                    "LAW_VERSION_WATERSHED_MISMATCH",
                 )
 
         # Writer cannot sign its own support verdict; only Verifier emits checks.
@@ -459,6 +490,7 @@ class DeterministicVerifier:
             draft=draft,
             covered_issues_exempt=covered_issues_exempt,
             state=state,
+            law_as_of=law_as_of,
         )
 
     @staticmethod
@@ -470,6 +502,7 @@ class DeterministicVerifier:
         draft: DraftAnswer | None = None,
         state: LegalAgentState | None = None,
         covered_issues_exempt: frozenset[str] = frozenset(),
+        law_as_of: date | None = None,
     ) -> VerificationResult:
         # 2026-09-18：失败路径同样填充 claim_checks（原先仅 PASS 填 ⇒ 非 PASS 时
         # claim.text 完全丢失，OVERCONFIDENT_WORDING 之类的误伤无法事后归因，
@@ -482,6 +515,7 @@ class DeterministicVerifier:
             unsupported_claim_ids=sorted(wanted),
             reason_code=reason_code,
             covered_issues_exempt=covered_issues_exempt,
+            law_as_of=law_as_of,
             draft_digest=draft_digest(draft) if draft is not None else None,
             state_digest=_state_digest(state) if state is not None else None,
             claim_checks=(

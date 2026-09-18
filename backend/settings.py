@@ -78,6 +78,14 @@ class Settings(BaseSettings):
     # 为文本而非执行）。判定真源 agent/phantom_check.py；默认关 = writer/verifier 行为
     # 逐字不变（与 entity_precision_check / numeric_matching_v2 同一开关惯例）。
     phantom_tool_check: bool = False
+    # R15 法律版本适用绊线（2026-09-18，外部 harness 方案差距分析 P0-2 的评测侧配套）：
+    # claim 按 law_as_of 版本的法回答 2021-01-01（《民法典》1260 条）分水岭前的事实 →
+    # verifier 终态拒答（LAW_VERSION_WATERSHED_MISMATCH）。判定真源
+    # agent/limitation_calc.law_version_crosses_watershed；基准日由 service 从 AgentRun 透传，
+    # 开关开而未透传 = 接线丢失，同样终态失败（LAW_TRIPWIRE_NOT_WIRED）。
+    # 默认关 = verifier 行为逐字不变（与 phantom_tool_check / entity_precision_check 同一
+    # 开关惯例；开启属评测批预登记事项，见 docs/handoff-external-harness-20260918.md §2.2）。
+    law_version_tripwire_check: bool = False
 
     # ---- 部门法守卫（R1/R1b，预注册 docs/preregistration-dept-law-filter-r1-20260913.md）----
     # R1：Agent 检索后剔除「他域专属程序法」条文（证据池防跨部门法混入；实体法永不过滤）。
