@@ -23,6 +23,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -117,7 +118,21 @@ def preflight() -> str:
         )
     if src.count("if scope_used >= SCOPE_CLARIFY_LIMIT:") != 1:
         sys.exit("FATAL(preflight): scope 守卫文字不再唯一，语料谓词归属需重判")
-    return sha256_file(RUNNER)
+
+    # 判据源文件必须等于 HEAD 版：并行会话正在改这个文件，读脏版本出的数无法复现
+    def _git(*a):
+        return subprocess.run(
+            ("git", *a), capture_output=True, text=True, cwd=str(REPO), check=False
+        ).stdout.strip()
+
+    head_short = _git("rev-parse", "--short", "HEAD")
+    wt_blob = _git("hash-object", "backend/scripts/gate2_runner.py")
+    hd_blob = _git("rev-parse", "HEAD:./backend/scripts/gate2_runner.py")
+    if wt_blob != hd_blob or not hd_blob:
+        sys.exit(
+            f"FATAL(preflight): gate2_runner.py 工作树({wt_blob[:12]}) != HEAD({hd_blob[:12]}) ⇒ 判据源正被在途改动，先等落定"
+        )
+    return sha256_file(RUNNER), head_short, wt_blob
 
 
 # ---------------------------------------------------------------- 1. 语料清点
@@ -520,13 +535,17 @@ def scope_matrix(rows: list[dict]) -> dict:
 # ---------------------------------------------------------------- 5. 报告
 
 
-def build_report(counts, cal_notes, rep, matrix, runner_sha, rows) -> str:
+def build_report(counts, cal_notes, rep, matrix, runner_sha, rows, prov) -> str:
     L = []
     A = L.append
     A("# over2 判据历史重放审计（P2-2 · 2026-09-19）")
     A("")
     A(
         f"- 判据源文件 `backend/scripts/gate2_runner.py` sha256 = `{runner_sha}`（本审计全程只读）"
+    )
+    A(
+        f"- 该文件工作树 blob = HEAD blob = `{prov['runner_blob'][:12]}…`，审计基线 HEAD = `{prov['head']}`"
+        " ⇒ 出的数对应**已提交版本**，不是任何人的在途改动"
     )
     A(
         f"- 冻结判据 `CLARIFY_ROUND_LIMIT = {CLARIFY_ROUND_LIMIT}`；重放输入 = 每条 case 已存的 `asked` 与末轮 `event_types`"
@@ -734,7 +753,8 @@ def build_report(counts, cal_notes, rep, matrix, runner_sha, rows) -> str:
 
 def main() -> int:
     verify = "--verify" in sys.argv
-    runner_sha = preflight()
+    runner_sha, head_short, runner_blob = preflight()
+    prov = {"head": head_short, "runner_blob": runner_blob}
     rows, counts = collect_corpus()
     cal_notes = calibrate()
     rep = replay(rows)
@@ -750,8 +770,9 @@ def main() -> int:
         "replay": rep,
         "scope_trigger_matrix": matrix,
         "gate2_runner_sha256": runner_sha,
+        "provenance": prov,
     }
-    report = build_report(counts, cal_notes, rep, matrix, runner_sha, rows)
+    report = build_report(counts, cal_notes, rep, matrix, runner_sha, rows, prov)
 
     if verify:
         same = True

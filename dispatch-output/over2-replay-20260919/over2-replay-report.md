@@ -1,6 +1,7 @@
 # over2 判据历史重放审计（P2-2 · 2026-09-19）
 
 - 判据源文件 `backend/scripts/gate2_runner.py` sha256 = `ae2e412059ed68ac1514c62727cee61c50b8a2d6fe7e38a77c7e05631847e295`（本审计全程只读）
+- 该文件工作树 blob = HEAD blob = `6ecd402a0a5e…`，审计基线 HEAD = `5afc8d0` ⇒ 出的数对应**已提交版本**，不是任何人的在途改动
 - 冻结判据 `CLARIFY_ROUND_LIMIT = 2`；重放输入 = 每条 case 已存的 `asked` 与末轮 `event_types`
 - 口径（Owner 2026-09-18 决策）：按 run **分层报，不合并总率**；另给 distinct 题号的保守下界；漏标 = 存储值唯一匹配某旧谓词 **且** 现行谓词不同意；匹不上 ⇒ 不可归因，单列不并入。
 

@@ -14,6 +14,10 @@
     "真实集条目数": 375
   },
   "gate2_runner_sha256": "ae2e412059ed68ac1514c62727cee61c50b8a2d6fe7e38a77c7e05631847e295",
+  "provenance": {
+    "head": "5afc8d0",
+    "runner_blob": "6ecd402a0a5e7f6d377e353d0b06a15f19d0feeb"
+  },
   "replay": {
     "discriminating": [
       {
