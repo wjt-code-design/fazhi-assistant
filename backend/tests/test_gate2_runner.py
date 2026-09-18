@@ -44,16 +44,28 @@ NOMATCH_CLARIFY_SSE = (
 _RUN_ID_PLACEHOLDER = "agent-run-x"
 
 
-class _FakeGateService:
-    """可控假 HTTP 服务：按 case 注入场景；记录全部 chat 请求。"""
+class _SseTestServer:
+    """两个假服务的共同部分：SSE 传输、login 分支、请求记账、起停服务。
+
+    ⚠️ 只拥有**传输**，不拥有**语义**：`handle_chat()` 的场景分派与应答内容留在子类。
+    关键原因是 `_ScriptedService` 会按 case 改写响应里的 run_id，而 `_FakeGateService`
+    不会——若把这层改写提到基类，那 10 条 harness 测试的 resume 归属行为就会被这次
+    "行为保持型重构"改掉。
+
+    `_lock` 用 RLock：子类需要在同一把锁里既记账又推进游标（旧代码正是这么做的），
+    而 `_record()` 自身也要持锁，普通 `Lock` 会在嵌套处自锁。
+    """
 
     def __init__(self) -> None:
         self.chat_requests: list[dict] = []
-        self.initial_scene: dict[str, str] = {}  # case_id → scene
-        self._lock = threading.Lock()
+        self._lock = threading.RLock()
 
-    def set_scene(self, case_id: str, scene: str) -> None:
-        self.initial_scene[case_id] = scene
+    def _record(self, payload: dict) -> None:
+        with self._lock:
+            self.chat_requests.append(dict(payload))
+
+    def handle_chat(self, handler: BaseHTTPRequestHandler, payload: dict) -> None:
+        raise NotImplementedError
 
     def start(self) -> ThreadingHTTPServer:
         service = self
@@ -72,82 +84,104 @@ class _FakeGateService:
 
             def do_POST(self):  # noqa: N802
                 length = int(self.headers.get("Content-Length", 0))
-                payload = json.loads(self.rfile.read(length) or b"{}")
                 if self.path == "/api/auth/login":
-                    self._send_sse("SYNC")  # runner 只取 json token
+                    # login 必须是 JSON：runner 只取 token，给 SSE 会让它直接失败。
+                    self.rfile.read(length)
+                    body = b'{"token": "test-token"}'
+                    self.send_response(200)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(body)))
+                    self.end_headers()
+                    self.wfile.write(body)
                     return
                 if self.path != "/api/chat":
                     self.send_error(404)
                     return
-                # login 的响应不是 JSON 会让 runner 失败——单独处理 login：
-                with service._lock:
-                    service.chat_requests.append(dict(payload))
-                content = str(payload.get("content", ""))
-                case_id = next((cid for cid, c in runner.BY_ID.items() if c["initial_question"] == content), None)
-                scene = service.initial_scene.get(case_id, "final")
-                if scene == "http_500":
-                    body = b'{"detail": "internal error"}'
-                    self.send_response(500)
-                    self.send_header("Content-Length", str(len(body)))
-                    self.send_header("Content-Type", "application/json")
-                    self.end_headers()
-                    self.wfile.write(body)
-                    return
-                if scene == "timeout":
-                    self.close_connection = True  # 不响应直接断开 → 客户端 OSError
-                    return
-                if scene == "hang":
-                    import time as _time
-
-                    _time.sleep(15)  # 挂起：模拟长请求，供"中途 kill 进程"测试窗口
-                    self._send_sse(INITIAL_OK_FINAL_SSE)
-                    return
-                if scene == "non_sse":
-                    body = b"plain text, not an SSE stream"
-                    self.send_response(200)
-                    self.send_header("Content-Length", str(len(body)))
-                    self.end_headers()
-                    self.wfile.write(body)
-                    return
-                if scene == "clarify_once":
-                    self._send_sse(CLARIFY_SSE)
-                    return
-                if scene == "scope":
-                    self._send_sse(SCOPE_CLARIFY_SSE)
-                    return
-                self._send_sse(INITIAL_OK_FINAL_SSE)
+                payload = json.loads(self.rfile.read(length) or b"{}")
+                service.handle_chat(self, payload)
 
         server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        # login 单独返回 JSON token（覆盖上面 SSE 行为）：
-        original_do_post = Handler.do_POST
-
-        def do_POST(self):  # noqa: N802
-            if self.path == "/api/auth/login":
-                length = int(self.headers.get("Content-Length", 0))
-                self.rfile.read(length)
-                body = b'{"token": "test-token"}'
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-                return
-            original_do_post(self)
-
-        Handler.do_POST = do_POST
         thread = threading.Thread(target=server.serve_forever, daemon=True)
         thread.start()
         return server
 
 
+def _serve(tmp_path, monkeypatch, cls):
+    """两个 fixture 的共同装配：换 EVID 目录 → 起假服务 → 收尾。
+
+    收尾两个调用缺一不可，且**不是本批新增的**：两个 fixture 在本批开工时的 HEAD 版本里
+    就已同时调 `shutdown()` + `server_close()`。`shutdown()` 只停 `serve_forever`，
+    `server_close()` 才关监听 socket；这里只是把两份拷贝收成一份。
+    """
+    monkeypatch.setattr(runner, "EVID", tmp_path)
+    service = cls()
+    server = service.start()
+    try:
+        yield tmp_path, service, server.server_port
+    finally:
+        server.shutdown()
+        server.server_close()
+
+
+class _FakeGateService(_SseTestServer):
+    """可控假 HTTP 服务：按 case 注入**单一**场景；记录全部 chat 请求。
+
+    行为保持论证（本类相对旧实现的两处删除，均已核对不可观测）：
+    ① 旧 `do_POST` 在 login 分支里先 `_send_sse("SYNC")`，但整个 `Handler.do_POST` 随后被
+      外层 wrapper 重写、login 提前返回 ⇒ 那一行**从未生效**；
+    ② 旧代码对**任意**路径都先 `json.loads(body)` 再判 404，基类改成先判 login/404 再解析
+      ⇒ 差异只在"向未知路径 POST 非 JSON"时才有意义，runner 不发这种请求（它只打
+      `/api/auth/login` 与 `/api/chat`），故无测试覆盖该差异、也无测试受它影响。
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.initial_scene: dict[str, str] = {}  # case_id → scene
+
+    def set_scene(self, case_id: str, scene: str) -> None:
+        self.initial_scene[case_id] = scene
+
+    def handle_chat(self, handler: BaseHTTPRequestHandler, payload: dict) -> None:
+        self._record(payload)
+        content = str(payload.get("content", ""))
+        case_id = next((cid for cid, c in runner.BY_ID.items() if c["initial_question"] == content), None)
+        scene = self.initial_scene.get(case_id, "final")
+        if scene == "http_500":
+            body = b'{"detail": "internal error"}'
+            handler.send_response(500)
+            handler.send_header("Content-Length", str(len(body)))
+            handler.send_header("Content-Type", "application/json")
+            handler.end_headers()
+            handler.wfile.write(body)
+            return
+        if scene == "timeout":
+            handler.close_connection = True  # 不响应直接断开 → 客户端 OSError
+            return
+        if scene == "hang":
+            import time as _time
+
+            _time.sleep(15)  # 挂起：模拟长请求，供"中途 kill 进程"测试窗口
+            handler._send_sse(INITIAL_OK_FINAL_SSE)
+            return
+        if scene == "non_sse":
+            body = b"plain text, not an SSE stream"
+            handler.send_response(200)
+            handler.send_header("Content-Length", str(len(body)))
+            handler.end_headers()
+            handler.wfile.write(body)
+            return
+        if scene == "clarify_once":
+            handler._send_sse(CLARIFY_SSE)
+            return
+        if scene == "scope":
+            handler._send_sse(SCOPE_CLARIFY_SSE)
+            return
+        handler._send_sse(INITIAL_OK_FINAL_SSE)
+
+
 @pytest.fixture
 def harness(tmp_path, monkeypatch):
-    monkeypatch.setattr(runner, "EVID", tmp_path)
-    service = _FakeGateService()
-    server = service.start()
-    yield tmp_path, service, server.server_port
-    server.shutdown()
-    server.server_close()
+    yield from _serve(tmp_path, monkeypatch, _FakeGateService)
 
 
 def _run(harness, *extra: str) -> int:
@@ -387,7 +421,7 @@ def test_scope_clarification_replies_issue_numbers_not_no_match_reply(harness):
 _MIXED_SEQ = ("scope", "nomatch_prompt", "clarify_once")
 
 
-class _ScriptedService:
+class _ScriptedService(_SseTestServer):
     """按"每 case 一串脚本化响应"返回：逐次 chat 请求消费下一条。"""
 
     # resume 请求的归属真源：run_id 由 case_id 唯一决定，于是"这个请求属于哪个 case"
@@ -395,13 +429,12 @@ class _ScriptedService:
     _RUN_ID_PREFIX = "gate2-run-"
 
     def __init__(self) -> None:
-        self.chat_requests: list[dict] = []
+        super().__init__()
         self.script: dict[str, list[str]] = {}
         self._cursor: dict[str, int] = {}
         # 归不上 case 的请求在此记账并被显式断言之。P1-1 之前这里回退成"猜最近一个 case"
         # （`_last_case`），会把无主请求挂到别的 case 上、静默消费它的脚本游标。
         self.unattributed: list[dict] = []
-        self._lock = threading.Lock()
 
     def set_script(self, case_id: str, scenes: tuple[str, ...]) -> None:
         self.script[case_id] = list(scenes)
@@ -423,89 +456,43 @@ class _ScriptedService:
         self.unattributed.append({"content": content, "agent_run_id": agent_run_id})
         return None
 
-    def start(self) -> ThreadingHTTPServer:
-        service = self
+    def handle_chat(self, handler: BaseHTTPRequestHandler, payload: dict) -> None:
+        with self._lock:
+            self._record(payload)
+            case_id = self._resolve_case(str(payload.get("content", "")), payload.get("agent_run_id"))
+            seq = self.script.get(case_id, ["final"]) if case_id else ["final"]
+            idx = self._cursor.get(case_id, 0) if case_id else 0
+            # 脚本耗尽后默认 final（正常收敛）；需要"永不 finalize"的场景在脚本里显式写满
+            scene = seq[idx] if idx < len(seq) else "final"
+            if case_id:
+                self._cursor[case_id] = idx + 1
+        # 归属成功的 case 才有唯一 run_id；归不上时保留占位符，让下次同样归属失败并被记账。
+        run_id = self.run_id_for(case_id) if case_id else _RUN_ID_PLACEHOLDER
 
-        class Handler(BaseHTTPRequestHandler):
-            def log_message(self, *args):
-                pass
+        def _reply(body: str) -> None:
+            handler._send_sse(body.replace(_RUN_ID_PLACEHOLDER, run_id))
 
-            def _send_sse(self, body: str) -> None:
-                data = body.encode("utf-8")
-                self.send_response(200)
-                self.send_header("Content-Type", "text/event-stream")
-                self.send_header("Content-Length", str(len(data)))
-                self.end_headers()
-                self.wfile.write(data)
-
-            def do_POST(self):  # noqa: N802
-                length = int(self.headers.get("Content-Length", 0))
-                payload = json.loads(self.rfile.read(length) or b"{}")
-                if self.path != "/api/chat":
-                    self.send_error(404)
-                    return
-                with service._lock:
-                    service.chat_requests.append(dict(payload))
-                    case_id = service._resolve_case(str(payload.get("content", "")), payload.get("agent_run_id"))
-                    seq = service.script.get(case_id, ["final"]) if case_id else ["final"]
-                    idx = service._cursor.get(case_id, 0) if case_id else 0
-                    # 脚本耗尽后默认 final（正常收敛）；需要"永不 finalize"的场景在脚本里显式写满
-                    scene = seq[idx] if idx < len(seq) else "final"
-                    if case_id:
-                        service._cursor[case_id] = idx + 1
-                # 归属成功的 case 才有唯一 run_id；归不上时保留占位符，让下次同样归属失败并被记账。
-                run_id = service.run_id_for(case_id) if case_id else _RUN_ID_PLACEHOLDER
-
-                def _reply(body: str) -> None:
-                    self._send_sse(body.replace(_RUN_ID_PLACEHOLDER, run_id))
-
-                if scene == "scope":
-                    _reply(SCOPE_CLARIFY_SSE)
-                    return
-                if scene == "clarify_once":
-                    # 事实澄清：prompt 命中 C01-r1-f1 关键词「内网」
-                    _reply(CLARIFY_SSE)
-                    return
-                if scene == "nomatch_prompt":
-                    # 关键词不命中的事实追问 → runner 只能回 NO_MATCH_REPLY
-                    _reply(NOMATCH_CLARIFY_SSE)
-                    return
-                if scene == "final_never":
-                    # 服务端永不 finalize（持续索要澄清）：runner 必须有限步退出，不得挂死
-                    _reply(CLARIFY_SSE)
-                    return
-                _reply(INITIAL_OK_FINAL_SSE)
-
-        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        original_do_post = Handler.do_POST
-
-        def do_POST(self):  # noqa: N802
-            if self.path == "/api/auth/login":
-                length = int(self.headers.get("Content-Length", 0))
-                self.rfile.read(length)
-                body = b'{"token": "test-token"}'
-                self.send_response(200)
-                self.send_header("Content-Type", "application/json")
-                self.send_header("Content-Length", str(len(body)))
-                self.end_headers()
-                self.wfile.write(body)
-                return
-            original_do_post(self)
-
-        Handler.do_POST = do_POST
-        thread = threading.Thread(target=server.serve_forever, daemon=True)
-        thread.start()
-        return server
+        if scene == "scope":
+            _reply(SCOPE_CLARIFY_SSE)
+            return
+        if scene == "clarify_once":
+            # 事实澄清：prompt 命中 C01-r1-f1 关键词「内网」
+            _reply(CLARIFY_SSE)
+            return
+        if scene == "nomatch_prompt":
+            # 关键词不命中的事实追问 → runner 只能回 NO_MATCH_REPLY
+            _reply(NOMATCH_CLARIFY_SSE)
+            return
+        if scene == "final_never":
+            # 服务端永不 finalize（持续索要澄清）：runner 必须有限步退出，不得挂死
+            _reply(CLARIFY_SSE)
+            return
+        _reply(INITIAL_OK_FINAL_SSE)
 
 
 @pytest.fixture
 def scripted(tmp_path, monkeypatch):
-    monkeypatch.setattr(runner, "EVID", tmp_path)
-    service = _ScriptedService()
-    server = service.start()
-    yield tmp_path, service, server.server_port
-    server.shutdown()
-    server.server_close()
+    yield from _serve(tmp_path, monkeypatch, _ScriptedService)
 
 
 def _run_scripted(harness, *extra: str) -> int:
