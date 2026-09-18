@@ -775,7 +775,28 @@ def main() -> int:
     report = build_report(counts, cal_notes, rep, matrix, runner_sha, rows, prov)
 
     if verify:
+        # provenance 里嵌着 HEAD 短码与判据文件 blob —— 并行会话一提交它就会变。
+        # 那是**环境移动**，不是本审计不确定 ⇒ 单独比对、只报漂移，不算失败。
         same = True
+        drift = []
+
+        def _strip_prov(path: Path, text: str, sink: list) -> str:
+            if path.suffix == ".json":
+                obj = json.loads(text)
+                sink.append(obj.pop("provenance", None))
+                return (
+                    json.dumps(obj, ensure_ascii=False, indent=2, sort_keys=True) + "\n"
+                )
+            if path.name.endswith(".md"):
+                keep = []
+                for ln in text.split("\n"):
+                    if ln.startswith("- 该文件工作树 blob = HEAD blob"):
+                        sink.append(ln)
+                        continue
+                    keep.append(ln)
+                return "\n".join(keep)
+            return text
+
         for path, text in (
             (
                 OUT / "run-manifest.json",
@@ -790,9 +811,17 @@ def main() -> int:
             (OUT / "over2-replay-report.md", report),
         ):
             got = path.read_bytes().decode("utf-8") if path.exists() else "<缺失>"
-            if got != text:
+            sg: list = []
+            sn: list = []
+            if _strip_prov(path, got, sg) != _strip_prov(path, text, sn):
                 same = False
                 print(f"VERIFY DIFF: {path.name}")
+            if sg != sn:  # 两边真不一致才报，免得把"都是同一个 HEAD"说成漂移
+                drift.append((path.name, sg, sn))
+        for name, a, b in drift:
+            print(
+                f"  （provenance 不一致 = 环境移动，非本审计不确定，未计入失败）{name}: 盘上={a} / 现算={b}"
+            )
         print(f"VERIFY 幂等 = {same}")
         return 0 if same else 1
 
