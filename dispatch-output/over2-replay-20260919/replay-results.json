@@ -1,0 +1,1860 @@
+{
+  "calibration": [
+    "校准(a) 谓词公式 vs 真值表 45 条 ×2 列：不符 0 处",
+    "校准(c) 分档器五档可达性：5 例，不符 0 处",
+    "校准(b) 真实已知答案 4 例（P0-1 的 3 例漏标 + 1 例对照）：不符 0 处"
+  ],
+  "counts": {
+    "归档副本": 37,
+    "待定": 0,
+    "待定须逐条给理由": 0,
+    "文件总数": 527,
+    "测试夹具": 406,
+    "真实评测": 84,
+    "真实集条目数": 375
+  },
+  "gate2_runner_sha256": "ae2e412059ed68ac1514c62727cee61c50b8a2d6fe7e38a77c7e05631847e295",
+  "replay": {
+    "discriminating": [
+      {
+        "case": "E06",
+        "cls": "一致",
+        "fact_seen": 1,
+        "n_asked": 2,
+        "path": "dispatch-output/agent-baseline-v2-r3-20260913/gate2-run-baseline-v2-d-sessions.json",
+        "preds": {
+          "new_protocol": true,
+          "old_20260917": false,
+          "v1_equivalent": true
+        },
+        "run": "baseline-v2-d",
+        "stored": true,
+        "tail": true,
+        "分歧轴": [
+          "09-17↔现行"
+        ]
+      },
+      {
+        "case": "C01",
+        "cls": "一致",
+        "fact_seen": 1,
+        "n_asked": 2,
+        "path": "dispatch-output/agent-quality-1e7-20260915/gate2-run-quality-1e7-20260915-r2-sessions.json",
+        "preds": {
+          "new_protocol": true,
+          "old_20260917": false,
+          "v1_equivalent": true
+        },
+        "run": "quality-1e7-20260915-r2",
+        "stored": true,
+        "tail": true,
+        "分歧轴": [
+          "09-17↔现行"
+        ]
+      },
+      {
+        "case": "H02",
+        "cls": "一致",
+        "fact_seen": 1,
+        "n_asked": 2,
+        "path": "dispatch-output/r1-accept-holdout-20260914/gate2-run-r1-accept-holdout-20260914-sessions.json",
+        "preds": {
+          "new_protocol": true,
+          "old_20260917": false,
+          "v1_equivalent": true
+        },
+        "run": "r1-accept-holdout-20260914",
+        "stored": true,
+        "tail": true,
+        "分歧轴": [
+          "09-17↔现行"
+        ]
+      },
+      {
+        "case": "W02",
+        "cls": "一致",
+        "fact_seen": 2,
+        "n_asked": 3,
+        "path": "dispatch-output/r15-watershed-20260918/gate2-run-r15-watershed-agent-flagon-20260918-sessions.json",
+        "preds": {
+          "new_protocol": true,
+          "old_20260917": false,
+          "v1_equivalent": true
+        },
+        "run": "r15-watershed-agent-flagon-20260918",
+        "stored": true,
+        "tail": false,
+        "分歧轴": [
+          "09-17↔现行"
+        ]
+      },
+      {
+        "case": "E03",
+        "cls": "一致",
+        "fact_seen": 1,
+        "n_asked": 2,
+        "path": "dispatch-output/r1ob-online-20260917/arm-on/gate2-run-r1ob-on-eval-20260917-sessions.json",
+        "preds": {
+          "new_protocol": true,
+          "old_20260917": false,
+          "v1_equivalent": true
+        },
+        "run": "r1ob-on-eval-20260917",
+        "stored": true,
+        "tail": true,
+        "分歧轴": [
+          "09-17↔现行"
+        ]
+      },
+      {
+        "case": "E03",
+        "cls": "一致",
+        "fact_seen": 1,
+        "n_asked": 2,
+        "path": "dispatch-output/ta5-arms-20260917/arm-off/gate2-run-ta5-off-eval-20260917-sessions.json",
+        "preds": {
+          "new_protocol": true,
+          "old_20260917": false,
+          "v1_equivalent": true
+        },
+        "run": "ta5-off-eval-20260917",
+        "stored": true,
+        "tail": true,
+        "分歧轴": [
+          "09-17↔现行"
+        ]
+      },
+      {
+        "case": "E04",
+        "cls": "一致",
+        "fact_seen": 1,
+        "n_asked": 2,
+        "path": "dispatch-output/ta5-arms-20260917/arm-off/gate2-run-ta5-off-eval-20260917-sessions.json",
+        "preds": {
+          "new_protocol": true,
+          "old_20260917": false,
+          "v1_equivalent": true
+        },
+        "run": "ta5-off-eval-20260917",
+        "stored": true,
+        "tail": true,
+        "分歧轴": [
+          "09-17↔现行"
+        ]
+      },
+      {
+        "case": "E03",
+        "cls": "一致",
+        "fact_seen": 1,
+        "n_asked": 2,
+        "path": "dispatch-output/ta5-arms-20260917/arm-on/gate2-run-ta5-on-eval-20260917-sessions.json",
+        "preds": {
+          "new_protocol": true,
+          "old_20260917": false,
+          "v1_equivalent": true
+        },
+        "run": "ta5-on-eval-20260917",
+        "stored": true,
+        "tail": true,
+        "分歧轴": [
+          "09-17↔现行"
+        ]
+      }
+    ],
+    "per_case": [
+      {
+        "case": "C01",
+        "n": 49,
+        "一致": 49,
+        "不可归因": 0,
+        "判别条目": 1,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "C02",
+        "n": 25,
+        "一致": 25,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "C03",
+        "n": 21,
+        "一致": 21,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "C04",
+        "n": 24,
+        "一致": 24,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "C05",
+        "n": 29,
+        "一致": 29,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "C06",
+        "n": 23,
+        "一致": 23,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "C07",
+        "n": 29,
+        "一致": 29,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "C08",
+        "n": 21,
+        "一致": 21,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "C09",
+        "n": 28,
+        "一致": 28,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "C10",
+        "n": 22,
+        "一致": 22,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "E01",
+        "n": 12,
+        "一致": 12,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "E02",
+        "n": 10,
+        "一致": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "E03",
+        "n": 10,
+        "一致": 10,
+        "不可归因": 0,
+        "判别条目": 3,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "E04",
+        "n": 10,
+        "一致": 10,
+        "不可归因": 0,
+        "判别条目": 1,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "E05",
+        "n": 9,
+        "一致": 9,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "E06",
+        "n": 5,
+        "一致": 5,
+        "不可归因": 0,
+        "判别条目": 1,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "E07",
+        "n": 3,
+        "一致": 3,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "E08",
+        "n": 3,
+        "一致": 3,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "E09",
+        "n": 3,
+        "一致": 3,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "E10",
+        "n": 3,
+        "一致": 3,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "H01",
+        "n": 6,
+        "一致": 6,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "H02",
+        "n": 6,
+        "一致": 6,
+        "不可归因": 0,
+        "判别条目": 1,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "H03",
+        "n": 6,
+        "一致": 6,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "H04",
+        "n": 6,
+        "一致": 6,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "H05",
+        "n": 6,
+        "一致": 6,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "W01",
+        "n": 3,
+        "一致": 3,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      },
+      {
+        "case": "W02",
+        "n": 3,
+        "一致": 3,
+        "不可归因": 0,
+        "判别条目": 1,
+        "反向差异": 0,
+        "无判定": 0,
+        "漏标": 0
+      }
+    ],
+    "per_run": [
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-coverage-attribution-20260912/gate2-run-attr-q38-c01-20260912-01-sessions.json"
+        ],
+        "run": "attr-q38-c01-20260912-01",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-baseline-2-sessions.json"
+        ],
+        "run": "baseline-2",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-baseline-5-sessions.json"
+        ],
+        "run": "baseline-5",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-baseline-6-sessions.json"
+        ],
+        "run": "baseline-6",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 20,
+        "paths": [
+          "dispatch-output/agent-baseline-v2-20260913/gate2-run-baseline-v2-20260913-sessions.json"
+        ],
+        "run": "baseline-v2-20260913",
+        "一致": 20,
+        "一致但无判别力": 20,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 12,
+        "paths": [
+          "dispatch-output/agent-baseline-v2-r2-20260913/gate2-run-baseline-v2-b-sessions.json"
+        ],
+        "run": "baseline-v2-b",
+        "一致": 12,
+        "一致但无判别力": 12,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 5,
+        "paths": [
+          "dispatch-output/agent-baseline-v2-r3-20260913/gate2-run-baseline-v2-c-sessions.json"
+        ],
+        "run": "baseline-v2-c",
+        "一致": 5,
+        "一致但无判别力": 5,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 2,
+        "paths": [
+          "dispatch-output/agent-baseline-v2-r3-20260913/gate2-run-baseline-v2-d-sessions.json"
+        ],
+        "run": "baseline-v2-d",
+        "一致": 2,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 1,
+        "反向差异": 0,
+        "存储判红线": 1,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 1
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-baseline-v2-20260913/gate2-run-baseline-v2-e01-rerun-sessions.json"
+        ],
+        "run": "baseline-v2-e01-rerun",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-baseline-v2-20260913/gate2-run-baseline-v2-e01-rerun2-sessions.json"
+        ],
+        "run": "baseline-v2-e01-rerun2",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-budget20-verify-20260912/gate2-run-budget20-q38-c01-20260912-01-sessions.json"
+        ],
+        "run": "budget20-q38-c01-20260912-01",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-baseline-v2-r2-20260913/gate2-run-e-smoke-sessions.json"
+        ],
+        "run": "e-smoke",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-baseline-v2-r2-20260913/gate2-run-e06-probe-sessions.json"
+        ],
+        "run": "e06-probe",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-fix-evidence-check-sessions.json"
+        ],
+        "run": "fix-evidence-check",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-fix-evidence-check2-sessions.json"
+        ],
+        "run": "fix-evidence-check2",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-forensic-c02-sessions.json"
+        ],
+        "run": "forensic-c02",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate2-1-sessions.json"
+        ],
+        "run": "gate2-1",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate2-baseline-1-sessions.json"
+        ],
+        "run": "gate2-baseline-1",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate2-diag-1-sessions.json"
+        ],
+        "run": "gate2-diag-1",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-modelarm-qwen36-sessions.json"
+        ],
+        "run": "gate5-dev-modelarm-qwen36",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-1-sessions.json"
+        ],
+        "run": "gate5-dev-run-1",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-10-sessions.json"
+        ],
+        "run": "gate5-dev-run-10",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-11-sessions.json"
+        ],
+        "run": "gate5-dev-run-11",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-13-qwen38-sessions.json"
+        ],
+        "run": "gate5-dev-run-13-qwen38",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-14-qwen38-t8-sessions.json"
+        ],
+        "run": "gate5-dev-run-14-qwen38-t8",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-15-qwen38-t8b-sessions.json"
+        ],
+        "run": "gate5-dev-run-15-qwen38-t8b",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-16-qwen38-b2verify-sessions.json"
+        ],
+        "run": "gate5-dev-run-16-qwen38-b2verify",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 5,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-17-holdout-waxis-sessions.json"
+        ],
+        "run": "gate5-dev-run-17-holdout-waxis",
+        "一致": 5,
+        "一致但无判别力": 5,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-17-qwen38-waxis-sessions.json"
+        ],
+        "run": "gate5-dev-run-17-qwen38-waxis",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-2-sessions.json"
+        ],
+        "run": "gate5-dev-run-2",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-3-sessions.json"
+        ],
+        "run": "gate5-dev-run-3",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-5-sessions.json"
+        ],
+        "run": "gate5-dev-run-5",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-6-sessions.json"
+        ],
+        "run": "gate5-dev-run-6",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-8-sessions.json"
+        ],
+        "run": "gate5-dev-run-8",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 10,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-9-sessions.json"
+        ],
+        "run": "gate5-dev-run-9",
+        "一致": 10,
+        "一致但无判别力": 10,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-numeric-attribution-20260912/gate2-run-numattr-q38-c01-20260912-01-sessions.json"
+        ],
+        "run": "numattr-q38-c01-20260912-01",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-probe-c01-qwen38-20260910-sessions.json"
+        ],
+        "run": "probe-c01-qwen38-20260910",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-probe-c01-verify-20260910-sessions.json"
+        ],
+        "run": "probe-c01-verify-20260910",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-probe-c01-verify2-20260910-sessions.json"
+        ],
+        "run": "probe-c01-verify2-20260910",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-1e-20260915/gate2-run-quality-1e-20260915-sessions.json"
+        ],
+        "run": "quality-1e-20260915",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-1e2-20260915/gate2-run-quality-1e2-20260915-sessions.json"
+        ],
+        "run": "quality-1e2-20260915",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-1e3-20260915/gate2-run-quality-1e3-20260915-sessions.json"
+        ],
+        "run": "quality-1e3-20260915",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-1e4-20260915/gate2-run-quality-1e4-20260915-sessions.json"
+        ],
+        "run": "quality-1e4-20260915",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-1e5-20260915/gate2-run-quality-1e5-20260915-sessions.json"
+        ],
+        "run": "quality-1e5-20260915",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-1e6-20260915/gate2-run-quality-1e6-20260915-r2-sessions.json"
+        ],
+        "run": "quality-1e6-20260915-r2",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-1e6-20260915/gate2-run-quality-1e6-20260915-r3-sessions.json"
+        ],
+        "run": "quality-1e6-20260915-r3",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-1e7-20260915/gate2-run-quality-1e7-20260915-r2-sessions.json"
+        ],
+        "run": "quality-1e7-20260915-r2",
+        "一致": 1,
+        "一致但无判别力": 0,
+        "不可归因": 0,
+        "判别条目": 1,
+        "反向差异": 0,
+        "存储判红线": 1,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 1
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-1e7-20260915/gate2-run-quality-1e7-20260915-r3-sessions.json"
+        ],
+        "run": "quality-1e7-20260915-r3",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-1e8-20260916/gate2-run-quality-1e8-20260916-r1-sessions.json"
+        ],
+        "run": "quality-1e8-20260916-r1",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-1e9-20260916/gate2-run-quality-1e9-20260916-r1-sessions.json"
+        ],
+        "run": "quality-1e9-20260916-r1",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-1e9-20260916/gate2-run-quality-1e9-20260916-r2-sessions.json"
+        ],
+        "run": "quality-1e9-20260916-r2",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-20260911/gate2-run-quality-q38-c01-20260911-01-sessions.json"
+        ],
+        "run": "quality-q38-c01-20260911-01",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-quality-h3-20260912/gate2-run-quality-q38-c01-20260912-h3-01-sessions.json"
+        ],
+        "run": "quality-q38-c01-20260912-h3-01",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-qwen-writer-check-sessions.json"
+        ],
+        "run": "qwen-writer-check",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 5,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-qwen36-batch1-sessions.json"
+        ],
+        "run": "qwen36-batch1",
+        "一致": 5,
+        "一致但无判别力": 5,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 5,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-qwen36-batch2-sessions.json"
+        ],
+        "run": "qwen36-batch2",
+        "一致": 5,
+        "一致但无判别力": 5,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-qwen36-writer-check-sessions.json"
+        ],
+        "run": "qwen36-writer-check",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 8,
+        "paths": [
+          "dispatch-output/r1-accept-eval-20260914/gate2-run-r1-accept-eval-20260914-sessions.json"
+        ],
+        "run": "r1-accept-eval-20260914",
+        "一致": 8,
+        "一致但无判别力": 8,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 5,
+        "paths": [
+          "dispatch-output/r1-accept-holdout-20260914/gate2-run-r1-accept-holdout-20260914-sessions.json"
+        ],
+        "run": "r1-accept-holdout-20260914",
+        "一致": 5,
+        "一致但无判别力": 4,
+        "不可归因": 0,
+        "判别条目": 1,
+        "反向差异": 0,
+        "存储判红线": 1,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 1
+      },
+      {
+        "n": 2,
+        "paths": [
+          "dispatch-output/r15-watershed-20260918/gate2-run-r15-watershed-agent-flagoff-20260918-sessions.json"
+        ],
+        "run": "r15-watershed-agent-flagoff-20260918",
+        "一致": 2,
+        "一致但无判别力": 2,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 2,
+        "paths": [
+          "dispatch-output/r15-watershed-20260918/gate2-run-r15-watershed-agent-flagon-20260918-sessions.json"
+        ],
+        "run": "r15-watershed-agent-flagon-20260918",
+        "一致": 2,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 1,
+        "反向差异": 0,
+        "存储判红线": 1,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 1
+      },
+      {
+        "n": 2,
+        "paths": [
+          "dispatch-output/r15-watershed-20260918/gate2-run-r15-watershed-flagoff-20260918-sessions.json"
+        ],
+        "run": "r15-watershed-flagoff-20260918",
+        "一致": 2,
+        "一致但无判别力": 2,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 8,
+        "paths": [
+          "dispatch-output/r1ob-online-20260917/arm-off/gate2-run-r1ob-off-eval-20260917-sessions.json"
+        ],
+        "run": "r1ob-off-eval-20260917",
+        "一致": 8,
+        "一致但无判别力": 8,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 5,
+        "paths": [
+          "dispatch-output/r1ob-online-20260917/arm-off/gate2-run-r1ob-off-holdout-20260917-sessions.json"
+        ],
+        "run": "r1ob-off-holdout-20260917",
+        "一致": 5,
+        "一致但无判别力": 5,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 8,
+        "paths": [
+          "dispatch-output/r1ob-online-20260917/arm-on/gate2-run-r1ob-on-eval-20260917-sessions.json"
+        ],
+        "run": "r1ob-on-eval-20260917",
+        "一致": 8,
+        "一致但无判别力": 7,
+        "不可归因": 0,
+        "判别条目": 1,
+        "反向差异": 0,
+        "存储判红线": 1,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 1
+      },
+      {
+        "n": 5,
+        "paths": [
+          "dispatch-output/r1ob-online-20260917/arm-on/gate2-run-r1ob-on-holdout-20260917-sessions.json"
+        ],
+        "run": "r1ob-on-holdout-20260917",
+        "一致": 5,
+        "一致但无判别力": 5,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 8,
+        "paths": [
+          "dispatch-output/r1ob-prodform-20260917/arm-off/gate2-run-r1ob-prod-off-eval-20260917-sessions.json"
+        ],
+        "run": "r1ob-prod-off-eval-20260917",
+        "一致": 8,
+        "一致但无判别力": 8,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 5,
+        "paths": [
+          "dispatch-output/r1ob-prodform-20260917/arm-off/gate2-run-r1ob-prod-off-holdout-20260917-sessions.json"
+        ],
+        "run": "r1ob-prod-off-holdout-20260917",
+        "一致": 5,
+        "一致但无判别力": 5,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 8,
+        "paths": [
+          "dispatch-output/r1ob-prodform-20260917/arm-on/gate2-run-r1ob-prod-on-eval-20260917-sessions.json"
+        ],
+        "run": "r1ob-prod-on-eval-20260917",
+        "一致": 8,
+        "一致但无判别力": 8,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 5,
+        "paths": [
+          "dispatch-output/r1ob-prodform-20260917/arm-on/gate2-run-r1ob-prod-on-holdout-20260917-sessions.json"
+        ],
+        "run": "r1ob-prod-on-holdout-20260917",
+        "一致": 5,
+        "一致但无判别力": 5,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 9,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-run-4-cont-sessions.json"
+        ],
+        "run": "run-4-cont",
+        "一致": 9,
+        "一致但无判别力": 9,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-schema-probe-sessions.json"
+        ],
+        "run": "schema-probe",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 2,
+        "paths": [
+          "dispatch-output/review-02e3851-20260918/committed/release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-schema-probe2-sessions.json"
+        ],
+        "run": "schema-probe2",
+        "一致": 2,
+        "一致但无判别力": 2,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/t4-batch-retrieval-20260912/gate2-run-t4-batch-retrieval-r1-c01-20260912-sessions.json"
+        ],
+        "run": "t4-batch-retrieval-r1-c01-20260912",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/t4-batch-retrieval-20260912-r2/gate2-run-t4-batch-retrieval-r2-c01-20260912-sessions.json"
+        ],
+        "run": "t4-batch-retrieval-r2-c01-20260912",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/t4-serial-writer-20260912/gate2-run-t4-serial-writer-c01-20260912-sessions.json"
+        ],
+        "run": "t4-serial-writer-c01-20260912",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/t4-serial-writer-20260912-r2/gate2-run-t4-serial-writer-c01-r2-20260912-sessions.json"
+        ],
+        "run": "t4-serial-writer-c01-r2-20260912",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/t5-capability-20260913/gate2-run-t5-cap-c01-20260913-sessions.json"
+        ],
+        "run": "t5-cap-c01-20260913",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/t5-capability-20260913/gate2-run-t5-cap-c07-20260913-sessions.json"
+        ],
+        "run": "t5-cap-c07-20260913",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/t5-capability-20260913/gate2-run-t5-cap-c10-20260913-sessions.json"
+        ],
+        "run": "t5-cap-c10-20260913",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 8,
+        "paths": [
+          "dispatch-output/ta5-arms-20260917/arm-off/gate2-run-ta5-off-eval-20260917-sessions.json"
+        ],
+        "run": "ta5-off-eval-20260917",
+        "一致": 8,
+        "一致但无判别力": 6,
+        "不可归因": 0,
+        "判别条目": 2,
+        "反向差异": 0,
+        "存储判红线": 2,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 2
+      },
+      {
+        "n": 2,
+        "paths": [
+          "dispatch-output/ta5-arms-20260917/arm-off-rerun-e0304/gate2-run-ta5-off-rerun-e0304-20260918-002754-sessions.json"
+        ],
+        "run": "ta5-off-rerun-e0304-20260918-002754",
+        "一致": 2,
+        "一致但无判别力": 2,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      },
+      {
+        "n": 8,
+        "paths": [
+          "dispatch-output/ta5-arms-20260917/arm-on/gate2-run-ta5-on-eval-20260917-sessions.json"
+        ],
+        "run": "ta5-on-eval-20260917",
+        "一致": 8,
+        "一致但无判别力": 7,
+        "不可归因": 0,
+        "判别条目": 1,
+        "反向差异": 0,
+        "存储判红线": 1,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 1
+      },
+      {
+        "n": 1,
+        "paths": [
+          "dispatch-output/agent-writer-attribution-20260912/gate2-run-wattr-q38-c01-20260912-01-sessions.json"
+        ],
+        "run": "wattr-q38-c01-20260912-01",
+        "一致": 1,
+        "一致但无判别力": 1,
+        "不可归因": 0,
+        "判别条目": 0,
+        "反向差异": 0,
+        "存储判红线": 0,
+        "无判定": 0,
+        "漏标": 0,
+        "现行判红线": 0
+      }
+    ],
+    "unresolved": []
+  },
+  "scope_trigger_matrix": {
+    "cells": {
+      "E01": {
+        "判定": "符合",
+        "实测 run 数": 12,
+        "未触发": 12,
+        "触发": 0,
+        "设计 scope_trigger": false
+      },
+      "E02": {
+        "判定": "混合",
+        "实测 run 数": 10,
+        "未触发": 9,
+        "触发": 1,
+        "设计 scope_trigger": true
+      },
+      "E03": {
+        "判定": "混合",
+        "实测 run 数": 10,
+        "未触发": 7,
+        "触发": 3,
+        "设计 scope_trigger": false
+      },
+      "E04": {
+        "判定": "混合",
+        "实测 run 数": 10,
+        "未触发": 9,
+        "触发": 1,
+        "设计 scope_trigger": false
+      },
+      "E05": {
+        "判定": "符合",
+        "实测 run 数": 9,
+        "未触发": 9,
+        "触发": 0,
+        "设计 scope_trigger": false
+      },
+      "E06": {
+        "判定": "混合",
+        "实测 run 数": 5,
+        "未触发": 3,
+        "触发": 2,
+        "设计 scope_trigger": true
+      },
+      "E07": {
+        "判定": "符合",
+        "实测 run 数": 3,
+        "未触发": 3,
+        "触发": 0,
+        "设计 scope_trigger": false
+      },
+      "E08": {
+        "判定": "符合",
+        "实测 run 数": 3,
+        "未触发": 3,
+        "触发": 0,
+        "设计 scope_trigger": false
+      },
+      "E09": {
+        "判定": "符合",
+        "实测 run 数": 3,
+        "未触发": 3,
+        "触发": 0,
+        "设计 scope_trigger": false
+      },
+      "E10": {
+        "判定": "符合",
+        "实测 run 数": 3,
+        "未触发": 3,
+        "触发": 0,
+        "设计 scope_trigger": false
+      }
+    },
+    "schema": "agent-eval-frozen-cases/v2",
+    "status": "FROZEN"
+  }
+}
