@@ -542,8 +542,12 @@ def test_scripted_service_resume_attribution_is_order_independent():
 def _assert_attribution_clean(service: _ScriptedService) -> None:
     """端到端绊线：真 HTTP 流程里每个请求都必须能归属。
 
-    这条断言才真正检验 `_reply()` 的 run_id 改写生效了——若改写漏掉，resume 会带占位
-    run_id 回来、归属失败并被记账，此处立即变红。
+    ⚠️ **必须紧跟在 `_run_scripted()` 之后调用**，挪到测试末尾就失去意义：实测漏掉 run_id
+    改写的故障若由后面的行为断言先炸（`IndexError` / `agent_completed` / `asked` 计数），
+    报错完全看不出是归属坏了；放最前面时 4 个测试都直接点名那条带占位 run_id 的应答。
+
+    watch-it-fail（2026-09-18，`dispatch-output/ta5-arms-20260917/_p11_tripwire_probe.py`）：
+    注掉 `_reply()` 的 run_id 改写 ⇒ 本绊线 4 例全部首先变红。
     """
     assert service.unattributed == [], f"存在无法归属的 chat 请求：{service.unattributed}"
 
@@ -555,6 +559,7 @@ def test_scope_menu_does_not_consume_fact_clarification_budget(scripted):
     service.set_script("C01", _MIXED_SEQ)
 
     assert _run_scripted(scripted, "--case", "C01") == 0
+    _assert_attribution_clean(service)
     sessions = json.loads((tmp_path / "gate2-run-t6-run-sessions.json").read_text(encoding="utf-8"))
     r = sessions["results"]["C01"]
 
@@ -565,7 +570,6 @@ def test_scope_menu_does_not_consume_fact_clarification_budget(scripted):
     assert answers[0] == runner.SCOPE_REPLY
     assert answers[1] == runner.NO_MATCH_REPLY
     assert answers[2] != runner.NO_MATCH_REPLY
-    _assert_attribution_clean(service)
 
 
 def test_clarification_loop_terminates_when_server_never_finalizes(scripted):
@@ -590,6 +594,7 @@ def test_clarification_loop_terminates_when_server_never_finalizes(scripted):
     service.set_script("C01", ("clarify_once",) * 50)
 
     assert _run_scripted(scripted, "--case", "C01") == 0
+    _assert_attribution_clean(service)
     sessions = json.loads((tmp_path / "gate2-run-t6-run-sessions.json").read_text(encoding="utf-8"))
     r = sessions["results"]["C01"]
     assert r["agent_completed"] is False
@@ -599,7 +604,6 @@ def test_clarification_loop_terminates_when_server_never_finalizes(scripted):
     # 1 次初始题 + FACT_CLARIFY_LIMIT(=2) 次应答。写死字面量而**不**用 `1 + runner.FACT_CLARIFY_LIMIT`
     # 派生式：派生式会随预算常量被调大而自动放宽，正重演 `< 50` 的失效机制。
     assert len(service.chat_requests) == 3
-    _assert_attribution_clean(service)
 
 
 def test_redline_counts_every_clarification_round_including_scope(scripted):
@@ -617,13 +621,13 @@ def test_redline_counts_every_clarification_round_including_scope(scripted):
     service.set_script("C01", ("scope", "scope", "clarify_once"))
 
     assert _run_scripted(scripted, "--case", "C01") == 0
+    _assert_attribution_clean(service)
     sessions = json.loads((tmp_path / "gate2-run-t6-run-sessions.json").read_text(encoding="utf-8"))
     r = sessions["results"]["C01"]
 
     assert len(r["asked"]) == 3, f"三次追问都应被应答；实际 asked={r['asked']}"
     assert r["agent_completed"] is True  # 脚本耗尽后服务端 finalize
     assert r["redline_candidate_over_2_rounds"] is True  # 追问 3 次 > 协议上限 2
-    _assert_attribution_clean(service)
 
 
 def test_redline_not_triggered_when_server_stops_after_two_rounds(scripted):
@@ -635,10 +639,10 @@ def test_redline_not_triggered_when_server_stops_after_two_rounds(scripted):
     service.set_script("C01", ("scope", "clarify_once", "final"))
 
     assert _run_scripted(scripted, "--case", "C01") == 0
+    _assert_attribution_clean(service)
     sessions = json.loads((tmp_path / "gate2-run-t6-run-sessions.json").read_text(encoding="utf-8"))
     r = sessions["results"]["C01"]
 
     assert len(r["asked"]) == 2
     assert r["agent_completed"] is True
     assert r["redline_candidate_over_2_rounds"] is False
-    _assert_attribution_clean(service)
