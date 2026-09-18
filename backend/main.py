@@ -7,7 +7,7 @@ import socket
 import time
 from contextlib import asynccontextmanager, suppress
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from threading import Event
 from typing import Any
 from urllib.parse import urlparse
@@ -647,6 +647,7 @@ def _bootstrap_only(
     image,
     client_truncated: bool = False,
     case_domain: str | None = None,
+    law_as_of: date | None = None,
 ):
     """Persist one accepted user request without starting either answer path."""
     return bootstrap_request(
@@ -656,6 +657,7 @@ def _bootstrap_only(
         image,
         client_truncated,
         case_domain=case_domain,
+        law_as_of=law_as_of,
         _deps=BootstrapDependencies(
             session_factory=SessionLocal,
             load_context=load_context,
@@ -1457,6 +1459,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     image,
                     body.truncated,
                     body.case_domain,
+                    body.law_as_of,
                 )
                 correlation_id = make_agent_correlation_id(conversation_id=bootstrap.conv_id)
                 try:

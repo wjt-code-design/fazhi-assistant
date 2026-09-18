@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date
 from pathlib import Path
 from threading import Event, Thread
 from types import SimpleNamespace
@@ -106,6 +107,24 @@ def test_bootstrap_classifies_raw_and_never_calls_fast_path_capabilities(store):
 
     assert classified == ["原始问题"]
     assert result.raw_query == "原始问题"
+
+
+def test_bootstrap_request_carries_injected_law_as_of_and_defaults_none(store):
+    injected = bootstrap_request(
+        store.user_id,
+        store.conv_id,
+        "原始问题",
+        None,
+        False,
+        law_as_of=date(2020, 12, 31),
+        _deps=_bootstrap_deps(store),
+    )
+
+    assert injected.law_as_of == date(2020, 12, 31)
+
+    default = bootstrap_request(store.user_id, store.conv_id, "原始问题", None, False, _deps=_bootstrap_deps(store))
+
+    assert default.law_as_of is None
 
 
 def test_public_bootstrap_uses_real_forbidden_call_traps(store, monkeypatch):

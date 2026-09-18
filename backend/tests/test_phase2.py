@@ -1,3 +1,4 @@
+from datetime import date
 from types import SimpleNamespace
 
 import pydantic
@@ -82,6 +83,17 @@ def test_chatin_flexible_and_maxlen():
         pass
     else:
         raise AssertionError("应拒绝超长 content")
+
+
+def test_chatin_law_as_of_iso_date_and_rejection():
+    assert ChatIn(question="x").law_as_of is None
+    assert ChatIn(question="x", law_as_of="2021-01-01").law_as_of == date(2021, 1, 1)
+    try:
+        ChatIn(question="x", law_as_of="not-a-date")  # 非法 ISO 日期 → 422 契约
+    except pydantic.ValidationError:
+        pass
+    else:
+        raise AssertionError("应拒绝非法 law_as_of")
 
 
 # ---------- memory 双阈值（纯逻辑） ----------

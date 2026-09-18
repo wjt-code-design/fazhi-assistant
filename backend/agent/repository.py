@@ -42,9 +42,19 @@ class RunVersionConflict(Exception):
 
 
 def create_run(
-    db: Session, *, user_id: int, conversation_id: int, state: LegalAgentState
+    db: Session,
+    *,
+    user_id: int,
+    conversation_id: int,
+    state: LegalAgentState,
+    law_as_of: date | None = None,
 ) -> AgentRun:
-    """Create the first durable snapshot for a user-owned agent execution."""
+    """Create the first durable snapshot for a user-owned agent execution.
+
+    R15-lite（2026-09-18）：`law_as_of` 缺省 None 时落当日（行为逐字不变）；评测/
+    灰度通道可显式注入法律版本基准日（如 2021-01-01 民法典分水岭场景），随 run
+    持久化并被工具 cutoff/证据有效性判定消费。server-owned：值只能由服务端代码设置。
+    """
     owns_conversation = (
         db.query(Conversation.id)
         .filter(Conversation.id == conversation_id, Conversation.user_id == user_id)
@@ -59,7 +69,7 @@ def create_run(
         conversation_id=conversation_id,
         status=state.status.value,
         state_version=0,
-        law_as_of=date.today(),
+        law_as_of=law_as_of or date.today(),
         state_json=state.model_dump_json(),
     )
     db.add(run)

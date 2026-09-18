@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -63,6 +63,11 @@ class ChatIn(BaseModel):
     # 评测/灰度通道案例域码（tier-1 判域直判源）。生产客户端不传 → None（恒不触发）。
     # 非法值拒绝（422 契约）；合法值 = agent/r1ob.VALID_CASE_DOMAINS。
     case_domain: str | None = Field(default=None, max_length=32)
+    # R15-lite（2026-09-18，外部 harness 方案差距分析）：法律版本基准日（评测/灰度通道
+    # 注入，ISO 日期，如 "2021-01-01" 模拟民法典分水岭场景）。生产客户端不传 → None
+    # （create_run 落 date.today()，行为逐字不变）。server-owned：模型输出被 gateway
+    # 与 runtime 拒收，仅随 run 记录与检索 cutoff 消费。
+    law_as_of: date | None = None
 
     @model_validator(mode="after")
     def validate_case_domain(self) -> "ChatIn":

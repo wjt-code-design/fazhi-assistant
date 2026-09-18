@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from threading import RLock
 from typing import Any
@@ -42,6 +42,11 @@ class RequestBootstrap:
     # R1-OB（2026-09-16 预注册）：评测/灰度通道案例域码（tier-1 判域直判源）。
     # 生产链路缺省 None（代码路径存在但恒不触发）；合法值见 agent/r1ob.VALID_CASE_DOMAINS。
     case_domain: str | None = None
+    # R15-lite（2026-09-18，外部 harness 方案差距分析 P0-2）：法律版本基准日服务端注入。
+    # 缺省 None = create_run 落 date.today()（行为逐字不变）；评测通道可显式传入
+    # （如 2021-01-01 民法典分水岭场景）。**server-owned**：模型输出被 runtime/gateway
+    # 的 server-owned 字段清单拒收，该值只能由服务端代码设置。
+    law_as_of: date | None = None
 
 
 @dataclass(frozen=True)
@@ -261,6 +266,7 @@ def bootstrap_request(
     client_truncated: bool,
     *,
     case_domain: str | None = None,
+    law_as_of: date | None = None,
     _deps: BootstrapDependencies | None = None,
 ) -> RequestBootstrap:
     """Validate and persist an accepted request without invoking retrieval or routing."""
@@ -387,6 +393,7 @@ def bootstrap_request(
             contract_text=contract_text,
             client_truncated=client_truncated,
             case_domain=case_domain,
+            law_as_of=law_as_of,
         )
     except Exception:
         try:
