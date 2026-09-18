@@ -65,9 +65,28 @@ def pred_v1_equivalent(n: int, tail: bool) -> bool:
     """v1「最多两轮、两轮后仍 clarification」在 runner 预算=2 下的等价式。
 
     ⚠️ 只在**执行预算 = 2** 时成立（第 3 次追问必然停在末尾）。预算 > 2 后两者会分叉，
-    本审计在真实语料与 P0-1 真值表上都没能构造出该形态 —— 见报告 §6.3。
+    本审计在真实语料与 P0-1 真值表上都没能构造出该形态 —— 见报告 §7.3。
     """
     return (n >= 3) or (n >= 2 and tail)
+
+
+def pred_snapshot_literal(tail: bool) -> bool:
+    """v1 的**代码形状**：只看末轮还有没有 clarification。
+
+    与 `pred_v1_equivalent` 不是一回事 —— 后者是 v1 **意图**（"出现过第 3 次追问"）在预算=2 下的
+    等价式，它本身已经在数次数了。P2-2 问的是"按字面快照读会漏多少"，必须用本函数；
+    用等价式会把答案算成 0（本批第一版就犯了这个错 ⇒ handover §13.3⑦）。
+    """
+    return bool(tail)
+
+
+def divergent_axes(preds: dict[str, bool]) -> list[str]:
+    """列出所有与现行不同判定的历史读法。"""
+    return sorted(
+        k
+        for k in ("snapshot_literal", "v1_equivalent", "old_20260917")
+        if preds[k] != preds["new_protocol"]
+    )
 
 
 def classify(stored, preds: dict[str, bool]) -> tuple[str, list[str]]:
@@ -374,6 +393,7 @@ def replay(rows: list[dict]) -> dict:
                 1 for a in asked if SCOPE_MARK not in str(a.get("prompt", ""))
             )
             preds = {
+                "snapshot_literal": pred_snapshot_literal(tail),
                 "v1_equivalent": pred_v1_equivalent(n, tail),
                 "old_20260917": pred_old_0917(fact_seen, tail),
                 "new_protocol": pred_cur(n, tail),
@@ -381,16 +401,8 @@ def replay(rows: list[dict]) -> dict:
             stored = c.get("redline_candidate_over_2_rounds")
             cls, matched = classify(stored, preds)
             # 判别力：三个谓词若给出同一答案，这条样本**无法**区分口径 ⇒ 不能拿"一致"当"尺子一直对"的证据
-            discriminating = (
-                len(
-                    {
-                        preds["v1_equivalent"],
-                        preds["old_20260917"],
-                        preds["new_protocol"],
-                    }
-                )
-                > 1
-            )
+            axes = divergent_axes(preds)
+            discriminating = bool(axes)
             if cls == "不可归因":
                 unresolved.append(
                     {
@@ -426,11 +438,6 @@ def replay(rows: list[dict]) -> dict:
             b["现行判红线"] += int(preds["new_protocol"])
             b["存储判红线"] += int(stored is True)
             if discriminating:
-                axes = []
-                if preds["v1_equivalent"] != preds["new_protocol"]:
-                    axes.append("v1↔现行")
-                if preds["old_20260917"] != preds["new_protocol"]:
-                    axes.append("09-17↔现行")
                 discriminating_rows.append(
                     {
                         "path": r["path"],
@@ -532,10 +539,70 @@ def scope_matrix(rows: list[dict]) -> dict:
     }
 
 
+def issue_count_reconcile(rows: list[dict]) -> dict:
+    """T-B：真实 scope 提示里带着**运行时争点数**，拿它对 controller 的 `>5` 规则做对账。
+
+    三件事必须分开看，混成一个数就会冤枉错对象：
+      A. controller 侧：提示自称"分解出 N 个"，规则是 N>5 才该发范围选择 ⇒ 检查发出来的 N 是否真 >5；
+      B. 题集侧：`scope_trigger` 是**设计**标记，契约写的依据也是 ">5" ⇒ 检查它与 required_issues 是否自洽；
+      ⚠️ 写这里踩过一个坑：`dsg == (ri or 0) > 5` 会被解析成链式比较
+         `(dsg == ri) and (ri > 5)`，于是 8 个本该"自洽"的题被误标成"自相矛盾"。必须显式加 `bool(... > 5)`。
+      C. 桥梁：`required_issues`（题集静态标注）与 N（planner 运行时分解）本来就是两个量 ⇒
+         若 C 对不上，B 根本预测不了运行时行为 —— 这才是混淆矩阵里 E02/E06 那两行"混合"的根因。
+    """
+    frozen = load_json(FROZEN_V2)
+    design = {
+        c["id"]: c.get("scope_trigger")
+        for c in frozen.get("cases") or []
+        if isinstance(c.get("scope_trigger"), bool)
+    }
+    req = {
+        c["id"]: len(c.get("required_issues") or []) for c in frozen.get("cases") or []
+    }
+    seen: dict[str, set] = {}
+    for r in [x for x in rows if x["cls"] == "真实评测"]:
+        d = load_json(REPO / r["path"])
+        for cid, c in sorted((d.get("results") or {}).items()):
+            prompts = [str(a.get("prompt", "")) for a in (c.get("asked") or [])]
+            for x in prompts:
+                m = re.search(r"分解出 (\d+) 个", x)
+                if m:
+                    seen.setdefault(cid, set()).add(int(m.group(1)))
+    out = []
+    for cid in sorted(set(list(seen) + list(design))):
+        vals = sorted(seen.get(cid, set()))
+        dsg, ri = design.get(cid), req.get(cid)
+        out.append(
+            {
+                "case": cid,
+                "设计 scope_trigger": dsg,
+                "required_issues": ri,
+                "运行时 N": vals,
+                "controller 发出的 N 是否都 >5": (
+                    "无 scope 提示" if not vals else all(v > 5 for v in vals)
+                ),
+                "题集标记与 required_issues>5": (
+                    "无该字段"
+                    if dsg is None
+                    else ("自洽" if dsg == bool((ri or 0) > 5) else "**题集自相矛盾**")
+                ),
+                "运行时 N 是否等于 required_issues": (
+                    "无数据"
+                    if not vals
+                    else ("相等" if vals == [ri] else f"不等：{vals} vs {ri}")
+                ),
+            }
+        )
+    return {
+        "rule_source": "controller.py:880 正向触发『多于 5 个即选择』，不设 MAX_ISSUES 上界",
+        "rows": out,
+    }
+
+
 # ---------------------------------------------------------------- 5. 报告
 
 
-def build_report(counts, cal_notes, rep, matrix, runner_sha, rows, prov) -> str:
+def build_report(counts, cal_notes, rep, matrix, runner_sha, rows, prov, issue) -> str:
     L = []
     A = L.append
     A("# over2 判据历史重放审计（P2-2 · 2026-09-19）")
@@ -692,8 +759,12 @@ def build_report(counts, cal_notes, rep, matrix, runner_sha, rows, prov) -> str:
     A("")
     tt = load_json(TRUTH_TABLE)
     disc = rep["discriminating"]
-    ax_v1 = sum(1 for x in disc if "v1↔现行" in x["分歧轴"])
-    ax_17 = sum(1 for x in disc if "09-17↔现行" in x["分歧轴"])
+    ax_lit = sum(1 for x in disc if "snapshot_literal" in x["分歧轴"])
+    ax_v1 = sum(1 for x in disc if "v1_equivalent" in x["分歧轴"])
+    ax_17 = sum(1 for x in disc if "old_20260917" in x["分歧轴"])
+    tt_lit = sum(
+        1 for r in tt if (not r["cur"]["completed"]) != bool(r["cur"]["redline"])
+    )
     tt_v1 = sum(1 for r in tt if bool(r["v1"]["redline"]) != bool(r["cur"]["redline"]))
     tt_17 = sum(
         1
@@ -701,7 +772,29 @@ def build_report(counts, cal_notes, rep, matrix, runner_sha, rows, prov) -> str:
         if bool(r["v1"]["redline"])
         != (r["cur"]["n_fact"] >= 2 and not r["cur"]["completed"])
     )
-    A("## 6. 结论（含「这个 0 不代表什么」）")
+    A(
+        "## 6. 运行时争点数对账（T-B：把 controller 规则 / 题集标记 / planner 分解分开算）"
+    )
+    A("")
+    A(f"规则出处：`{issue['rule_source']}`。")
+    A("")
+    A(
+        "| case | 设计 scope_trigger | required_issues | 运行时 N | controller 的 N 是否都>5 | 题集标记 vs required_issues>5 | 运行时 N vs required_issues |"
+    )
+    A("|---|---|---|---|---|---|---|")
+    for x in issue["rows"]:
+        A(
+            f"| {x['case']} | `{x['设计 scope_trigger']}` | {x['required_issues']} | {x['运行时 N'] or '—'} | "
+            f"{x['controller 发出的 N 是否都 >5']} | {x['题集标记与 required_issues>5']} | {x['运行时 N 是否等于 required_issues']} |"
+        )
+    A("")
+    A(
+        "三列各管一件事：**controller 那列**若为 True，说明凡发出范围选择的 run，提示里的 N 确实 >5，确定性路径没跑偏；"
+        "**题集那列**若为「自相矛盾」，那是**题目自己标错了**，与模型无关；**最后一列**若普遍「不等」，"
+        "说明 `scope_trigger` 这个设计标记按构造就预测不了运行时行为 —— 混淆矩阵里的「混合」行由此而来。"
+    )
+    A("")
+    A("## 7. 结论（含「这个 0 不代表什么」）")
     A("")
     A(
         f"1. **存储层零矛盾**：真实集 {tot['n']} 条里，与现行谓词矛盾的 **{tot['漏标'] + tot['反向差异'] + tot['不可归因']}** 条；"
@@ -712,29 +805,39 @@ def build_report(counts, cal_notes, rep, matrix, runner_sha, rows, prov) -> str:
     )
     A("")
     A(
-        f"| 分歧轴 | 真实语料（{tot['n']} 条） | 合成真值表（{len(tt)} 条，P0-1 修复后那次） |"
+        f"| 分歧轴（历史读法 vs 现行） | 真实语料（{tot['n']} 条） | 合成真值表（{len(tt)} 条，P0-1 修复后那次） |"
     )
     A("|---|---|---|")
-    A(f"| 末尾快照(v1) ↔ 现行 `clar_requests>2` | **{ax_v1}** | **{tt_v1}** |")
-    A(f"| 09-17 版(排除 scope 轮) ↔ 现行 | **{ax_17}** | **{tt_17}** |")
+    A(
+        f"| **字面快照** `bool(末尾有澄清)`（v1 的代码形状，P2-2 问的就是它） | **{ax_lit}** | **{tt_lit}** |"
+    )
+    A(f"| v1 **意图**等价式 `(n>=3) or (n>=2 and tail)` | **{ax_v1}** | **{tt_v1}** |")
+    A(f"| 09-17 版（排除 scope 轮） | **{ax_17}** | **{tt_17}** |")
     A("")
     A(
-        "⇒ 本机能拿出的**全部**证据（真实 371 + 合成 45）里，「末尾快照 vs 按次数」这条轴**一次都没有分歧过**。"
+        f"⇒ 真正回答 P2-2 的是第一行：真实语料里**字面快照会与现行分叉的样本有 {ax_lit} 条**"
+        "（形态 = 已应答满 3 次追问、末轮已是 final）。逐条列在 `replay-results.json` 的"
+        " `replay.discriminating`。"
+    )
+    lit = [x for x in disc if "snapshot_literal" in x["分歧轴"]]
+    lit_wrong = [x for x in lit if x["stored"] is not True]
+    lit_desc = "；".join(
+        f"`{x['run']}` / {x['case']}（asked={x['n_asked']}，末轮 {'仍是澄清' if x['tail'] else '已 final'}，存储值 `{x['stored']}`）"
+        for x in lit
     )
     A(
-        f"   有实证暴露面的只有「排除 scope 轮」那条轴（真实 {ax_17} / 合成 {tt_17}），而它已被 P0-1 回滚修好。"
+        f"3. **这些条判对了吗？** {len(lit)} 条里存储值与现行口径不一致的 = **{len(lit_wrong)}** 条。逐条："
+        f"{lit_desc}。⇒ **P2-2 原句『E03/E04 之外可能还有被末尾快照掩盖的』在现存语料内被证伪**："
+        "有判别力的真实样本确实存在（不是一条都没有），而它们的判定都是对的；"
+        "漏标 0 不是「没测过」，而是「测过、且没漏」。"
     )
     A(
-        "3. **为什么这条轴测不到（机制）**：现行 `SCOPE_CLARIFY_LIMIT = FACT_CLARIFY_LIMIT = 2` 恰与冻结判据"
-        "`CLARIFY_ROUND_LIMIT = 2` 相等 ⇒ 第 3 次追问必然**不被应答**而停在末尾 ⇒ "
-        "`asked=2 ∧ 末尾 clarification` 时「看末尾」与「数次数」必然同值。要分叉必须出现"
-        "「第 3 次追问被应答消化、随后服务端给 final」的形态，而这要求执行预算 > 2。"
-    )
-    A(
-        "4. ⇒ **P2-2 原句「E03/E04 之外可能还有被末尾快照掩盖的」不是被证伪，而是从未被测过**："
-        "现存语料不具备判别该命题的形态。且补这个样本**不必付费重跑**——在合成夹具里让假服务第 3 次追问后给 "
-        "final、并把该序列的执行预算抬到 3，就能造出两版判据分叉。本批不擅自改预算（判据冻结 + 不改执行语义），"
-        "只把这条登记为待裁决项。"
+        "4. **订正本批第一版的一个错判（重要）**：上一版把这条轴写成「0 分歧、从未被测过」，"
+        "原因是我把「v1 意图等价式 (n>=3) or (n>=2 and tail)」当成了「字面快照读法」——"
+        "而那个等价式本身就在数次数，当然和现行恒等。补上真正的 `bool(tail)` 读法后分歧是 1 条。"
+        "同时撤回本批一度新增的一条 monkeypatch 测试：实测把判据退回字面快照，"
+        "test_redline_counts_every_clarification_round_including_scope 这一条**已经**会红"
+        "（2 failed / 18 passed）⇒ 这条轴早有端到端报警器，新测试是重复覆盖。"
     )
     A(
         "5. **顺带查清一件事，免得下一个人误读**：执行书 `:999-1001` 的「45 序列里 25 个分歧，全为 v1=True/cur=False」"
@@ -748,6 +851,34 @@ def build_report(counts, cal_notes, rep, matrix, runner_sha, rows, prov) -> str:
     return "\n".join(L).rstrip("\n") + "\n"
 
 
+def gate_literal_axis(rep: dict) -> str:
+    """校准 (d)：字面快照这条轴的已知答案（来自本会话一次**独立手算**，非本次重放的产物）。
+
+    钉三件事，任一不符就不出数：
+      · W02 / r15-watershed-agent-flagon-20260918 必须落在"字面快照与现行分叉"里；
+      · 所有分叉条目的存储值都必须 = 现行（否则"漏标 0"这句话就不成立了，得改写结论）；
+      · 分叉条目数不得为 0（为 0 说明我又把哪条公式接错了，正是第一版犯的错）。
+    """
+    lit = [x for x in rep["discriminating"] if "snapshot_literal" in x["分歧轴"]]
+    if not lit:
+        sys.exit(
+            "FATAL(calibrate-d): 字面快照轴 0 分歧 ⇒ 与独立手算不符（第一版的错判形状），禁止出数"
+        )
+    if not any(
+        x["case"] == "W02" and x["run"] == "r15-watershed-agent-flagon-20260918"
+        for x in lit
+    ):
+        sys.exit(
+            f"FATAL(calibrate-d): 独立手算认定的 W02@r15-watershed-agent-flagon 不在分叉集合里：{[(x['run'], x['case']) for x in lit]}"
+        )
+    bad = [x for x in lit if x["stored"] != x["preds"]["new_protocol"]]
+    if bad:
+        sys.exit(
+            f"FATAL(calibrate-d): {len(bad)} 条分叉样本的存储值与现行不一致 ⇒ 结论须改写为存在漏标，禁止沿用旧文案"
+        )
+    return f"字面快照轴分叉 {len(lit)} 条，存储值全部 = 现行 ⇒ 漏标 0 成立"
+
+
 # ---------------------------------------------------------------- main
 
 
@@ -758,7 +889,9 @@ def main() -> int:
     rows, counts = collect_corpus()
     cal_notes = calibrate()
     rep = replay(rows)
+    lit_note = gate_literal_axis(rep)
     matrix = scope_matrix(rows)
+    issue = issue_count_reconcile(rows)
     manifest = {
         "rule": "三信号：run.label ∈ 夹具名集合 / 路径含 pytest 临时目录特征 / results 非空；sha256 去重归档副本",
         "counts": counts,
@@ -766,13 +899,23 @@ def main() -> int:
     }
     results = {
         "counts": counts,
-        "calibration": cal_notes,
+        "calibration": cal_notes + [f"校准(d) {lit_note}"],
         "replay": rep,
         "scope_trigger_matrix": matrix,
+        "issue_count_reconcile": issue,
         "gate2_runner_sha256": runner_sha,
         "provenance": prov,
     }
-    report = build_report(counts, cal_notes, rep, matrix, runner_sha, rows, prov)
+    report = build_report(
+        counts,
+        cal_notes + [f"校准(d) {lit_note}"],
+        rep,
+        matrix,
+        runner_sha,
+        rows,
+        prov,
+        issue,
+    )
 
     if verify:
         # provenance 里嵌着 HEAD 短码与判据文件 blob —— 并行会话一提交它就会变。

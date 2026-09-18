@@ -2,7 +2,8 @@
   "calibration": [
     "校准(a) 谓词公式 vs 真值表 45 条 ×2 列：不符 0 处",
     "校准(c) 分档器五档可达性：5 例，不符 0 处",
-    "校准(b) 真实已知答案 4 例（P0-1 的 3 例漏标 + 1 例对照）：不符 0 处"
+    "校准(b) 真实已知答案 4 例（P0-1 的 3 例漏标 + 1 例对照）：不符 0 处",
+    "校准(d) 字面快照轴分叉 1 条，存储值全部 = 现行 ⇒ 漏标 0 成立"
   ],
   "counts": {
     "归档副本": 37,
@@ -14,8 +15,145 @@
     "真实集条目数": 375
   },
   "gate2_runner_sha256": "ae2e412059ed68ac1514c62727cee61c50b8a2d6fe7e38a77c7e05631847e295",
+  "issue_count_reconcile": {
+    "rows": [
+      {
+        "case": "C01",
+        "controller 发出的 N 是否都 >5": true,
+        "required_issues": 4,
+        "设计 scope_trigger": null,
+        "运行时 N": [
+          6
+        ],
+        "运行时 N 是否等于 required_issues": "不等：[6] vs 4",
+        "题集标记与 required_issues>5": "无该字段"
+      },
+      {
+        "case": "E01",
+        "controller 发出的 N 是否都 >5": "无 scope 提示",
+        "required_issues": 4,
+        "设计 scope_trigger": false,
+        "运行时 N": [],
+        "运行时 N 是否等于 required_issues": "无数据",
+        "题集标记与 required_issues>5": "自洽"
+      },
+      {
+        "case": "E02",
+        "controller 发出的 N 是否都 >5": true,
+        "required_issues": 3,
+        "设计 scope_trigger": true,
+        "运行时 N": [
+          7
+        ],
+        "运行时 N 是否等于 required_issues": "不等：[7] vs 3",
+        "题集标记与 required_issues>5": "**题集自相矛盾**"
+      },
+      {
+        "case": "E03",
+        "controller 发出的 N 是否都 >5": true,
+        "required_issues": 4,
+        "设计 scope_trigger": false,
+        "运行时 N": [
+          6
+        ],
+        "运行时 N 是否等于 required_issues": "不等：[6] vs 4",
+        "题集标记与 required_issues>5": "自洽"
+      },
+      {
+        "case": "E04",
+        "controller 发出的 N 是否都 >5": true,
+        "required_issues": 4,
+        "设计 scope_trigger": false,
+        "运行时 N": [
+          6
+        ],
+        "运行时 N 是否等于 required_issues": "不等：[6] vs 4",
+        "题集标记与 required_issues>5": "自洽"
+      },
+      {
+        "case": "E05",
+        "controller 发出的 N 是否都 >5": "无 scope 提示",
+        "required_issues": 4,
+        "设计 scope_trigger": false,
+        "运行时 N": [],
+        "运行时 N 是否等于 required_issues": "无数据",
+        "题集标记与 required_issues>5": "自洽"
+      },
+      {
+        "case": "E06",
+        "controller 发出的 N 是否都 >5": true,
+        "required_issues": 6,
+        "设计 scope_trigger": true,
+        "运行时 N": [
+          7,
+          8
+        ],
+        "运行时 N 是否等于 required_issues": "不等：[7, 8] vs 6",
+        "题集标记与 required_issues>5": "自洽"
+      },
+      {
+        "case": "E07",
+        "controller 发出的 N 是否都 >5": "无 scope 提示",
+        "required_issues": 3,
+        "设计 scope_trigger": false,
+        "运行时 N": [],
+        "运行时 N 是否等于 required_issues": "无数据",
+        "题集标记与 required_issues>5": "自洽"
+      },
+      {
+        "case": "E08",
+        "controller 发出的 N 是否都 >5": "无 scope 提示",
+        "required_issues": 4,
+        "设计 scope_trigger": false,
+        "运行时 N": [],
+        "运行时 N 是否等于 required_issues": "无数据",
+        "题集标记与 required_issues>5": "自洽"
+      },
+      {
+        "case": "E09",
+        "controller 发出的 N 是否都 >5": "无 scope 提示",
+        "required_issues": 4,
+        "设计 scope_trigger": false,
+        "运行时 N": [],
+        "运行时 N 是否等于 required_issues": "无数据",
+        "题集标记与 required_issues>5": "自洽"
+      },
+      {
+        "case": "E10",
+        "controller 发出的 N 是否都 >5": "无 scope 提示",
+        "required_issues": 4,
+        "设计 scope_trigger": false,
+        "运行时 N": [],
+        "运行时 N 是否等于 required_issues": "无数据",
+        "题集标记与 required_issues>5": "自洽"
+      },
+      {
+        "case": "H02",
+        "controller 发出的 N 是否都 >5": true,
+        "required_issues": null,
+        "设计 scope_trigger": null,
+        "运行时 N": [
+          6
+        ],
+        "运行时 N 是否等于 required_issues": "不等：[6] vs None",
+        "题集标记与 required_issues>5": "无该字段"
+      },
+      {
+        "case": "W02",
+        "controller 发出的 N 是否都 >5": true,
+        "required_issues": null,
+        "设计 scope_trigger": null,
+        "运行时 N": [
+          6
+        ],
+        "运行时 N 是否等于 required_issues": "不等：[6] vs None",
+        "题集标记与 required_issues>5": "无该字段"
+      }
+    ],
+    "rule_source": "controller.py:880 正向触发『多于 5 个即选择』，不设 MAX_ISSUES 上界"
+  },
   "provenance": {
-    "head": "fe40b0c",
+    "head": "61fbd11",
     "runner_blob": "6ecd402a0a5e7f6d377e353d0b06a15f19d0feeb"
   },
   "replay": {
@@ -29,13 +167,14 @@
         "preds": {
           "new_protocol": true,
           "old_20260917": false,
+          "snapshot_literal": true,
           "v1_equivalent": true
         },
         "run": "baseline-v2-d",
         "stored": true,
         "tail": true,
         "分歧轴": [
-          "09-17↔现行"
+          "old_20260917"
         ]
       },
       {
@@ -47,13 +186,14 @@
         "preds": {
           "new_protocol": true,
           "old_20260917": false,
+          "snapshot_literal": true,
           "v1_equivalent": true
         },
         "run": "quality-1e7-20260915-r2",
         "stored": true,
         "tail": true,
         "分歧轴": [
-          "09-17↔现行"
+          "old_20260917"
         ]
       },
       {
@@ -65,13 +205,14 @@
         "preds": {
           "new_protocol": true,
           "old_20260917": false,
+          "snapshot_literal": true,
           "v1_equivalent": true
         },
         "run": "r1-accept-holdout-20260914",
         "stored": true,
         "tail": true,
         "分歧轴": [
-          "09-17↔现行"
+          "old_20260917"
         ]
       },
       {
@@ -83,13 +224,15 @@
         "preds": {
           "new_protocol": true,
           "old_20260917": false,
+          "snapshot_literal": false,
           "v1_equivalent": true
         },
         "run": "r15-watershed-agent-flagon-20260918",
         "stored": true,
         "tail": false,
         "分歧轴": [
-          "09-17↔现行"
+          "old_20260917",
+          "snapshot_literal"
         ]
       },
       {
@@ -101,13 +244,14 @@
         "preds": {
           "new_protocol": true,
           "old_20260917": false,
+          "snapshot_literal": true,
           "v1_equivalent": true
         },
         "run": "r1ob-on-eval-20260917",
         "stored": true,
         "tail": true,
         "分歧轴": [
-          "09-17↔现行"
+          "old_20260917"
         ]
       },
       {
@@ -119,13 +263,14 @@
         "preds": {
           "new_protocol": true,
           "old_20260917": false,
+          "snapshot_literal": true,
           "v1_equivalent": true
         },
         "run": "ta5-off-eval-20260917",
         "stored": true,
         "tail": true,
         "分歧轴": [
-          "09-17↔现行"
+          "old_20260917"
         ]
       },
       {
@@ -137,13 +282,14 @@
         "preds": {
           "new_protocol": true,
           "old_20260917": false,
+          "snapshot_literal": true,
           "v1_equivalent": true
         },
         "run": "ta5-off-eval-20260917",
         "stored": true,
         "tail": true,
         "分歧轴": [
-          "09-17↔现行"
+          "old_20260917"
         ]
       },
       {
@@ -155,13 +301,14 @@
         "preds": {
           "new_protocol": true,
           "old_20260917": false,
+          "snapshot_literal": true,
           "v1_equivalent": true
         },
         "run": "ta5-on-eval-20260917",
         "stored": true,
         "tail": true,
         "分歧轴": [
-          "09-17↔现行"
+          "old_20260917"
         ]
       }
     ],

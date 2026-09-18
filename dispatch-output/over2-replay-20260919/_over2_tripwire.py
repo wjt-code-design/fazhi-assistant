@@ -1,6 +1,8 @@
 """绊线探针：证明 `over2_replay.py` 的三道校准门禁**真的会拦**，而不是永远放行。
 
-审计脚本最容易犯的毛病是"无论数据怎样都说没问题"。这里用两处定向变异，各自必须被**指定的那道门**拦下：
+审计脚本最容易犯的毛病是"无论数据怎样都说没问题"。这里用三处定向变异，各自必须被**指定的那道门**拦下：
+（M3 是本批第二版补的：报告头号数字"真实语料里字面快照分叉 1 条"完全依赖 `pred_snapshot_literal`，
+  而它接反时前三道校准一条都看不见 —— 第一版就是在这条轴上算错过一次。）
 
 M1  把现行谓词 `> CLARIFY_ROUND_LIMIT` 改成 `>= CLARIFY_ROUND_LIMIT`（判据放宽半格）
     ⇒ 期望 **FATAL(calibrate-a)**：合成真值表 45 条立刻对不上。
@@ -32,6 +34,13 @@ MUTATIONS = [
         '        return ("漏标" if preds["new_protocol"] else "反向差异"), matched',
         '        return "一致", matched',
         "FATAL(calibrate-c)",
+    ),
+    (
+        # 报告的头号数字（真实语料里字面快照分叉 1 条）全靠这个函数，它被接反时校准 (a)(b)(c) 都看不见
+        "M3 字面快照读法接反",
+        "    return bool(tail)",
+        "    return not tail",
+        "FATAL(calibrate-d)",
     ),
 ]
 
