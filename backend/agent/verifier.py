@@ -12,6 +12,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 from settings import settings
 
+from . import phantom_check
 from .schemas import LegalAgentState, LegalValidity, SourceType
 from .writer import (
     DraftAnswer,
@@ -307,6 +308,9 @@ class DeterministicVerifier:
         ).issubset(known_missing):
             return self._result(VerificationVerdict.FAIL_SAFE, [], "FABRICATED_MISSING_INFORMATION")
 
+        # R12 伪调用检测：真实执行记录按争点取一次（同一 claim 不重复扫 observations）。
+        _phantom_executions = phantom_check.issue_executions(state.observations) if settings.phantom_tool_check else {}
+
         for claim in claims:
             if claim.issue_id not in issue_ids or not claim.evidence_ids:
                 return self._result(
@@ -382,12 +386,9 @@ class DeterministicVerifier:
             # writer 已在生成侧拦截；这里防"绕过 writer 直接构造 draft"的路径（同
             # 引用/数字校验"单一真源拆两防线"惯例，判定真源在 phantom_check 模块）。
             if settings.phantom_tool_check:
-                from . import phantom_check
-
                 phantom_categories = phantom_check.phantom_action_categories(
                     claim.text,
-                    tool_success=phantom_check.succeeded_tools(state.observations),
-                    has_evidence=bool(state.evidence),
+                    execution=_phantom_executions.get(claim.issue_id, phantom_check.NO_EXECUTION),
                     clarifications=state.clarifications,
                 )
                 if phantom_categories:

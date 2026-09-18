@@ -887,9 +887,8 @@ class EvidenceBoundedWriter:
             fact_allowlist = numeric_tokens("\n".join(_ep_fact_texts), loose_amounts=True)
             fact_allowlist |= fee_calc.controlled_fee_tokens(_ep_fact_texts)
         # R12 伪调用检测（phantom_tool_check，默认关）：真实执行记录只随 state 变化，
-        # 在循环外取一次；claim 文本是否"谎称执行过"在循环内逐条判定。
-        _phantom_tool_success = phantom_check.succeeded_tools(state.observations)
-        _phantom_has_evidence = bool(state.evidence)
+        # 在循环外按争点取一次；claim 文本是否"谎称执行过"在循环内逐条判定。
+        _phantom_executions = phantom_check.issue_executions(state.observations)
         for proposed in generated.claims:
             if proposed.issue_id not in issues:
                 return _fail_here("UNKNOWN_ISSUE_ID", proposed.issue_id)
@@ -906,13 +905,12 @@ class EvidenceBoundedWriter:
             seen_claim_ids.add(claim_id)
 
             # R12 伪调用检测（phantom_tool_check，默认关 = 行为逐字不变）：claim 文本
-            # 声称执行过某动作（检索/合同分析/调取历史/用户确认）而 state 无真实执行
+            # 声称执行过某动作（检索/合同分析/调取历史/用户确认）而**该争点**无真实执行
             # 记录 → fail-closed（宁可拒绝，不交付"谎称查过"的答复）。
             if settings.phantom_tool_check:
                 phantom_categories = phantom_check.phantom_action_categories(
                     proposed.text,
-                    tool_success=_phantom_tool_success,
-                    has_evidence=_phantom_has_evidence,
+                    execution=_phantom_executions.get(proposed.issue_id, phantom_check.NO_EXECUTION),
                     clarifications=state.clarifications,
                 )
                 if phantom_categories:
