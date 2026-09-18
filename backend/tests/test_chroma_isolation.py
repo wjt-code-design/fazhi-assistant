@@ -4,7 +4,8 @@
 方案与证据：dispatch-output/te-chroma-isolation-20260918/plan-te-chroma-isolation.md
 
 三层判据：
-1. 出口存在 + 两处构造点吃同一常量（防 [PL#13] 多份拷贝）；
+1. 出口存在 + 两处构造点吃同一常量（防"同一事实存在两份拷贝、改一处漏一处"，
+   即 [PL#13]——该编号出自**另一个项目**的 lesson-map，本仓 docs/PROBLEM_LOG.md 不用此编号）；
 2. 生产默认值未漂移（未设 CHROMA_DIR ⇒ 仍是 BASE_DIR/chroma_db）；
 3. 默认层隔离**生效且不失真**：不指真实目录、临时库仍是 cosine、且确实写得进去
    （最后一条防"字节没变是因为根本没碰库"的空过）。
