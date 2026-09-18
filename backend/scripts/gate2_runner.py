@@ -70,6 +70,22 @@ def _case_domain_of(case: dict) -> str | None:
     return _CASE_DOMAIN_MAP.get((case.get("domain") or "").strip())
 
 
+def _round1_payload(case: dict, *, no_case_domain: bool, no_as_of_date: bool) -> dict:
+    """首轮请求体：固定三键 + 两个「按案例声明才传」的 server-owned 注入字段。
+
+    `case_domain`（R1-OB）与 `law_as_of`（R15）同口径：生产前端不传，评测按案例声明透传；
+    两个 `--no-*` 开关用于模拟生产形态（缺省=评测形态）。案例缺字段 ⇒ 不发该键，
+    由服务端按自己的缺省处理（law_as_of 缺省落当日，见 agent/repository.create_run）。
+    """
+    payload: dict = {"content": case["initial_question"], "no_cache": True, "force_agent": True}
+    domain = None if no_case_domain else _case_domain_of(case)
+    if domain is not None:
+        payload["case_domain"] = domain
+    if not no_as_of_date and case.get("as_of_date") is not None:
+        payload["law_as_of"] = case["as_of_date"]
+    return payload
+
+
 # 事实单元同义问法关键词表（执行配置；跨轮匹配，稳定 fact_id；对应 §6.1 同义等价判定）
 # 键：<CASE>-r<轮>-f<序号> （与 frozen-fact-ids-v1.json 对齐）
 KEYWORDS: dict[str, list[str]] = {
@@ -296,6 +312,12 @@ def run(argv: list[str] | None = None) -> int:
         help="不向服务端透传 case_domain（模拟**生产形态**：tier-1 域码不触发，判域走 tier-2 "
         "用户原始问题拼接）；缺省=按案例 domain 透传（评测形态，R1-OB 在线批次口径）",
     )
+    ap.add_argument(
+        "--no-as-of-date",
+        action="store_true",
+        help="不向服务端透传 law_as_of（模拟**生产形态**：基准日由服务端落当日）；缺省=案例声明 "
+        "as_of_date 时透传（R15 跨 2021-01-01 分水岭对照臂口径）",
+    )
     args = ap.parse_args(argv)
     if args.retry_unknown and not args.resume:
         raise SystemExit("--retry-unknown 仅在 --resume 下有效")
@@ -457,11 +479,8 @@ def run(argv: list[str] | None = None) -> int:
         rounds = []
         conv_id = None
         t0 = time.time()
-        payload = {"content": c["initial_question"], "no_cache": True, "force_agent": True}
-        _cd = None if args.no_case_domain else _case_domain_of(c)
-        if _cd is not None:
-            # R1-OB：tier-1 域码随请求透传（--no-case-domain 关闭=生产形态；未映射案例不带该键）
-            payload["case_domain"] = _cd
+        # R1-OB 域码 + R15 基准日：两个注入字段的口径统一在 _round1_payload（含注释）。
+        payload = _round1_payload(c, no_case_domain=args.no_case_domain, no_as_of_date=args.no_as_of_date)
         status, raw = post("/api/chat", payload, token)
         events = _events(raw)
         err_codes = _error_codes(events)
