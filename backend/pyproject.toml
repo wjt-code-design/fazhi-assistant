@@ -4,15 +4,18 @@ target-version = "py311"
 # **冻结物**（执行书 T0 红线 + 哈希锚定物，见 dispatch-output/.../candidate-manifest-*.json
 # 的 frozen_files_sha256）一律跳过 ruff —— 对它们做任何 lint 自动修复或格式化都会改变冻结哈希，
 # 等价于"修改冻结物"，违反 docs/code-review-standard.md §2 B1。
-# 代价：这 6 个文件失去 ruff 覆盖（它们本就被冻结、不接受改动，故无实际损失）。
+# 代价：被排除文件失去 ruff 覆盖（它们本就被冻结、不接受改动，故无实际损失）。
 # 若将来 unfreeze，**必须删掉本 exclude** 并接受其 lint 修复。
 # 2026-09-16 unfreeze 记录：verifier.py（T2 渲染收窄，handoff 授权）与 chat_integration.py
 # （T1 覆盖契约；不在 1e9 候选 candidate-hashes.json 锚定内）已由用户工作流解冻并接受改动
-# ⇒ 两项从 exclude 删除（履行本注释义务，恢复 lint 覆盖）；state_machine/repository/prompts/
-# gate5_judge 仍冻结保留。
+# ⇒ 两项从 exclude 删除（履行本注释义务，恢复 lint 覆盖）。
+# 2026-09-18 unfreeze 记录：repository.py（R15-lite：law_as_of 服务端注入管道须改 create_run；
+# Owner 于当日会话决策卡明确授权"解冻并保留改动"）。判据与 09-16 先例一致：最新 1e9 锚定
+# （candidate-hashes.json）不含 repository.py，仅 09-10 t2-persistence 老 manifest 锚定过
+# （历史状态可经 git 历史复现）。解冻代价实测：ruff check 0 issue；format 仅 1 处既有签名
+# 折叠（load_owned_run，与本批改动无关），已接受。state_machine/prompts/gate5_judge 仍冻结保留。
 exclude = [
     "agent/state_machine.py",
-    "agent/repository.py",
     "prompts.py",
     "scripts/gate5_judge.py",
 ]

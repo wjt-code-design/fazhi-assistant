@@ -78,9 +78,7 @@ def create_run(
     return run
 
 
-def load_owned_run(
-    db: Session, *, run_id: str, user_id: int, conversation_id: int
-) -> AgentRun | None:
+def load_owned_run(db: Session, *, run_id: str, user_id: int, conversation_id: int) -> AgentRun | None:
     """Load a run only when both its user and conversation ownership match."""
     return (
         db.query(AgentRun)
