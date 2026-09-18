@@ -686,3 +686,39 @@ def test_multi_case_run_keeps_attribution_per_case(scripted):
     # 争点菜单只属于 C01；事实追问只属于 other——串味时这两行必然同时炸。
     assert "争点" in prompts1[0] and "争点" not in prompts2[0], f"asked 串味：{prompts1} / {prompts2}"
     assert "司法鉴定资质" in prompts2[1], f"{other} 第 2 轮应是未命中的事实追问：{prompts2}"
+
+
+def test_scope_budget_exhaustion_aborts_run_without_hanging(scripted):
+    """P2-1（2026-09-18）：服务端连发 3 次 scope 索要时，runner 必须停在 `scope_used` 守卫上。
+
+    覆盖对象 = `gate2_runner.py:496-498`（守卫判据文字：`scope_used >= SCOPE_CLARIFY_LIMIT`；
+    行号会随文件漂移，认这段文字为准）。本测试之前全文件 6 处 `set_script` 实参（去重后 5 条序列）
+    逐条枚举，**没有一条能走进这个守卫**：`(scope,nomatch_prompt,clarify_once)` 只有 1 次 scope、
+    `(clarify_once,)*50` 与 `(clarify_once,nomatch_prompt,final)` 从未索要争点、
+    `(scope,clarify_once,final)`×2 只有 1 次 scope；最接近的是 `(scope,scope,clarify_once)`——
+    它第 3 轮确实带着满格的 `scope_used` 回到循环顶部，但那一条 prompt 是事实追问，走的是 `else`
+    分支的 fact 守卫，scope 守卫仍然一次都没执行到。此处"零覆盖"是**按脚本枚举推定**，
+    不是覆盖工具实测：本环境 `--cov` 两次尝试均 `Module was never imported`（见 handover §13.3），
+    故证明力完全来自下一条的删守卫实验。
+
+    ⚠️ 本测试**不是缺陷复现**：守卫行为本来就对，写完直接跑就是绿的，"先红"在这里做不到，
+    也不必假装做到。它的证明力全部来自**定向删守卫**
+    （`dispatch-output/ta5-arms-20260917/_p21_watch_it_fail.py`）：删掉 :496-498 ⇒ 第 3 次
+    scope 索要被应答掉 ⇒ `asked` 2→3、`agent_completed` False→True ⇒ 本测试变红。
+
+    为什么只能 `break`、不能 `continue`：循环靠"发应答→取新事件"推进，不应答第 3 次索要时
+    同一个 clarification 会原地转到无限。所以"scope 预算耗尽即终态退出"是唯一不自指的走法，
+    代价是同时放弃了剩余的 fact 预算（本测试把该后果一并钉住，防止将来被"顺手优化"掉）。
+    """
+    tmp_path, service, _port = scripted
+    service.set_script("C01", ("scope", "scope", "scope"))
+
+    assert _run_scripted(scripted, "--case", "C01") == 0
+    _assert_attribution_clean(service)
+    sessions = json.loads((tmp_path / "gate2-run-t6-run-sessions.json").read_text(encoding="utf-8"))
+    r = sessions["results"]["C01"]
+
+    assert len(r["asked"]) == 2, f"scope 预算 2 格耗尽后第 3 次索要不应被应答；实际 asked={r['asked']}"
+    assert r["agent_completed"] is False, "服务端停在 scope 索要上，没有终稿可声称完成"
+    assert r["redline_candidate_over_2_rounds"] is True, "已应答 2 次 + 未应答 1 次 = 第 3 次追问 → 红线"
+    assert len(service.chat_requests) == 3, "请求数上界 = 初始题 + 2 次 scope 应答；再多即守卫失效在空转"
