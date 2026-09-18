@@ -21,7 +21,7 @@ import retrieval
 import retrieval_core as rc
 from law_versions import replaceable_version_ids, version_metadata
 from models import QaCandidate
-from rag_chain import BASE_DIR, QA_COLLECTION_NAME, embeddings, vectorstore
+from rag_chain import CHROMA_DIR, QA_COLLECTION_NAME, embeddings, vectorstore
 
 _ALLOWED_EXT = {".txt", ".md", ".pdf", ".docx"}
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -35,7 +35,7 @@ _WRITE_LOCK = threading.RLock()
 # 受控沉淀采纳后的"已确认问答"集合：用 question 做向量，便于问题空间匹配复用。
 # collection 名随 embedding provider 派生（与主库同语义空间，见 rag_chain.QA_COLLECTION_NAME）
 _qa_store = Chroma(
-    persist_directory=os.path.join(BASE_DIR, "chroma_db"),
+    persist_directory=CHROMA_DIR,
     embedding_function=embeddings,
     collection_name=QA_COLLECTION_NAME,
 )

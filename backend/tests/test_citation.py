@@ -1,8 +1,12 @@
 """引用校验（B0.1 防假引用）+ 条号直查路由归一化测试（Step 7）。
 
-纯函数测试，不碰数据库。覆盖：
+覆盖：
 - citation_verify：命中/异常/全称简称归一/〇零归一/无引用。
 - _num_to_cn / _normalize_article / parse_article_query 边界。
+
+绝大多数用例是纯函数测试（注入 in_kb/article_ok，不碰向量库）。
+只有下面三条标了 `real_kb` 的用例判据**必须**来自真实知识库（conftest.real_kb 显式 opt-in，
+只读；2026-09-18 前默认层未隔离时它们隐式吃真实库）。
 """
 
 import os
@@ -92,7 +96,7 @@ def test_verify_cross_law_fabrication():
 
 
 # ---------------- citation_verify 真实知识库集成（默认 in_kb=article_in_kb） ----------------
-def test_verify_against_real_kb():
+def test_verify_against_real_kb(real_kb):
     assert R.citation_verify("依据《刑法》第十三条。") == []  # 在库 → 不报
     assert R.citation_verify("依据《刑法》第九百九十九条。") == ["《刑法》第九百九十九条"]  # 不存在 → 报
     assert R.citation_verify("《宪法》第二条规定国家性质。") == []  # 宪法括注边界 → 在库不报
@@ -157,7 +161,7 @@ def test_classify_answer_citations_mixed():
     assert statuses["《税务法》第九条"] == R.REF_SOURCE_MISSING  # 库外法
 
 
-def test_classify_answer_defaults_real_kb():
+def test_classify_answer_defaults_real_kb(real_kb):
     # 默认判据=真实知识库：801 记法变体不误报；虚构条号/库外法报对应状态
     statuses = {
         item["literal"]: item["status"]
@@ -215,7 +219,7 @@ def test_frontload_expected_no_match_unchanged():
     assert R._frontload_expected(docs, frozenset()) == docs  # 空期望 → 原样
 
 
-def test_hybrid_retrieve_expected_laws_weights_topk():
+def test_hybrid_retrieve_expected_laws_weights_topk(real_kb):
     # 真实 KB 集成：无期望 → 577 是否在 top-k 看语义；给期望 577 → 必须前置出现
     with_expected = R.hybrid_retrieve("合同违约后继续履行的法律后果", k=4, expected_laws=["民法典:577"])
     arts = [d.metadata.get("article", "") for d in with_expected]

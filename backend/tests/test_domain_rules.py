@@ -67,7 +67,7 @@ def test_scenario_none_safe():
 
 # ---------------- 条文映射（真实 KB，slow：CI 跳过） ----------------
 @pytest.mark.slow
-def test_cheating_docs_lookup_real_kb():
+def test_cheating_docs_lookup_real_kb(real_kb):
     docs = dr.cheating_docs()
     arts = {(d.metadata.get("source"), d.metadata.get("article")) for d in docs}
     assert ("刑法", "第二百八十四条之一") in arts
@@ -75,7 +75,7 @@ def test_cheating_docs_lookup_real_kb():
 
 
 @pytest.mark.slow
-def test_consumer_clause_docs_lookup_real_kb():
+def test_consumer_clause_docs_lookup_real_kb(real_kb):
     docs = dr.consumer_clause_docs()
     arts = {(d.metadata.get("source"), d.metadata.get("article")) for d in docs}
     assert ("民法典", "第四百九十六条") in arts

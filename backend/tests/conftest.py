@@ -30,18 +30,44 @@ os.environ["QUOTA_DB"] = os.path.join(tempfile.gettempdir(), f"fazhi_test_quota_
 # 避免"每个新 store 都要有人记得单独隔离"这类反复出现的漏配。
 _TEST_DB = os.path.join(tempfile.gettempdir(), f"fazhi_test_app_{os.getpid()}.db").replace("\\", "/")
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB}"
-#
-# ⚠️ 已知且**有意未隔离**的一项副作用（2026-09-17 取证留痕，避免下次重复排查）：
-#   `backend/chroma_db/` 仍是**真实**向量库，因为路径在 rag_chain.py:112 与
-#   knowledge_service.py:38 **硬编码、无环境变量出口**；而 test_citation.py 的
-#   `test_verify_against_real_kb` / `test_classify_answer_defaults_real_kb` **有意**
-#   在快测集里使用真实语料（**未打 `@pytest.mark.slow`**）⇒ 全局重定向会直接打挂它们。
-#   后果：tests/test_phase5.py 的两个测试会把测试法条 add 进真实 KB 并在 finally 里删。
-#   自清理**一直有效**（只读探测 4 个集合，无任何测试残留），代价是索引文件只增不减
-#   （约 +16KB/轮）；残余风险仅为「add 与 delete 之间进程崩溃 → 测试法条永久留在生产 KB」。
-#   根治需给 rag_chain/knowledge_service 加 `CHROMA_DIR` 出口 + 让有意者显式 opt-in
-#   ⇒ 属设计变更（动生产 RAG 主路径 + Docker 卷语义），留独立票据。
-#   归因与全部证据：dispatch-output/pytest-full-20260917/db-write-attribution-report.md
+# 向量库目录同样隔离（T-E，2026-09-18；与上面两条同款**无条件**赋值，理由同款）：
+#   真实 backend/chroma_db 被 docker-compose.yml:47 bind mount 进容器，而 chroma 并发不安全
+#   （compose:11 就为此只跑单 worker）⇒「本地 pytest 写真实索引」同时是污染面与撞锁面：
+#   test_phase5 的两个测试会往真实集合 add/delete，并行会话的全量跑也曾观测到同窗写入。
+#   2026-09-17 之前这里只留了「有意未隔离」的说明，因为路径硬编码在 rag_chain.py:120 与
+#   knowledge_service.py:38、没有出口；出口常量落地后本行才可能生效。
+_TEST_CHROMA = os.path.join(tempfile.gettempdir(), f"fazhi_test_chroma_{os.getpid()}")
+os.environ["CHROMA_DIR"] = _TEST_CHROMA
+
+
+def _prepare_test_chroma() -> None:
+    """预建主集合为 **cosine**，保持与生产同一条分数口径分支。
+
+    rag_chain 的 Chroma(...) 在 **import 期** 建集合，而 langchain_chroma 把
+    collection_metadata=None 原样传给 get_or_create_collection ⇒ 空目录里新建的集合是
+    chromadb 0.4.24 默认的 **l2**；真实 legal_provisions_cos 是 cosine。若不预建，
+    retrieval._collection_is_cosine() 会在测试 lane 读到 False，整轮跑在生产**不走**的
+    那条分支上（静默失真，比写错库更坏）。qa_pairs 故意不预建：真实库它就是 {}→l2。
+    集合名与 rag_chain._COLLECTION_LOCAL 是两处字面量，由
+    test_chroma_isolation.py::test_default_lane_keeps_cosine_fidelity 钉住——名字一旦分叉
+    该测试直接红，不会退化成"跑在错分支上还以为过了"。
+
+    Settings 必须**逐字复刻** langchain_chroma/vectorstores.py:305-307 的构造
+    （`Settings(is_persistent=True)` 再赋 persist_directory）：chromadb 0.4.24 按
+    `persist_directory` 缓存 SharedSystemClient，同一路径第二次以不同 settings 打开会直接
+    `ValueError: An instance of Chroma already exists for ... with different settings`
+    （⇒ 整个测试收集期炸掉）。所以这里不能"顺手关掉遥测"，只能与生产同一份 settings。
+    """
+    import chromadb  # noqa: PLC0415
+
+    settings = chromadb.config.Settings(is_persistent=True)
+    settings.persist_directory = _TEST_CHROMA
+    client = chromadb.Client(settings)
+    client.get_or_create_collection(name="legal_provisions_cos", metadata={"hnsw:space": "cosine"})
+
+
+_prepare_test_chroma()
+
 # 集成测试会创建普通用户；显式开启注册，避免依赖被忽略的本地 .env。
 os.environ.setdefault("FEATURE_SELF_REGISTER", "true")
 
@@ -83,3 +109,54 @@ def db(tmp_path, monkeypatch):
     finally:
         session.close()
         engine.dispose()
+
+
+@pytest.fixture
+def real_kb(monkeypatch):
+    """**显式 opt-in** 真实语料（T-E，2026-09-18）：把 retrieval 的库引用指回真实 chroma_db。
+
+    默认层已把 CHROMA_DIR 隔离到进程私有临时库，所以「判据必须来自真实知识库」的用例
+    只能靠把本 fixture 写进签名才拿得到真实内容——谁依赖真实语料，从此可读、可数。
+
+    构造与 rag_chain.py:119-123 逐字相同（同 collection 名、同嵌入函数），只差
+    persist_directory：这样这些用例走的仍是生产那条分支（cosine 口径 + 真实 1024 维向量），
+    而不是假向量的近似物。BGE 在 rag_chain import 期就已加载，这里不额外付模型成本。
+    只读约定：用例只做检索/按元数据 get，不 add/delete ⇒ 不写真实库。
+
+    两个缓存必须处理，否则跨库串味：
+    - BM25 与源名集（`_ensure_bm25`/`_ensure_src_set` 是全量扫描后的模块级缓存）——
+      前序测试可能已用**空临时库**建好，会让真实语料检索返回 0 条；用 `invalidate()` 丢弃，
+      teardown 再来一次，免得**真实库口径**的缓存反向泄漏回默认 lane；
+    - `_COLLECTION_IS_COSINE`：`invalidate()` 明确**不清**它（retrieval.py:596-606 vs :628-640），
+      必须自己置 None（置回 None 后按当前库惰性重算，成本是一次 metadata 读）。
+
+    真实语料缺失时 skip 而不是硬跑：`backend/chroma_db/` 被 .gitignore:31 忽略、只存在于本机，
+    空库上「查不到」会让否定式断言恒过——那是假绿，比红更坏。
+
+    覆盖面边界（诚实标注）：本 fixture 只重绑 `retrieval.vectorstore`。生产里另有
+    `knowledge_base.py:11` / `knowledge_service.py:24` / `main.py:106` 各自持有一份同名引用
+    （模块级 `from rag_chain import vectorstore` 拷贝），走那三条路径的用例**不受**本 fixture 影响。
+    已核：`domain_rules` 的 `_lookup_all` 经 `from retrieval import exact_article_lookup`
+    （domain_rules.py:18-25）间接走 retrieval ⇒ 在其覆盖内。新增持副本的模块时，要么改走
+    retrieval，要么把该模块一并加进本 fixture。
+    """
+    from langchain_chroma import Chroma  # noqa: PLC0415
+
+    import rag_chain
+    import retrieval
+
+    vs = Chroma(
+        persist_directory=rag_chain.DEFAULT_CHROMA_DIR,
+        embedding_function=rag_chain.embeddings,
+        collection_name=rag_chain.COLLECTION_NAME,
+    )
+    n = vs._collection.count()
+    if n < 1000:
+        pytest.skip(f"真实语料不可用（{rag_chain.DEFAULT_CHROMA_DIR} 主库仅 {n} 条）——不得在空库上假绿")
+    retrieval.invalidate()
+    monkeypatch.setattr(retrieval, "vectorstore", vs)
+    monkeypatch.setattr(retrieval, "_COLLECTION_IS_COSINE", None)
+    try:
+        yield vs
+    finally:
+        retrieval.invalidate()

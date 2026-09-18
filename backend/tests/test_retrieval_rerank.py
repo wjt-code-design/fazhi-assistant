@@ -315,39 +315,39 @@ def test_rerank_without_deadline_keeps_historical_behaviour(monkeypatch):
 
 # ---------------- 真实 KB 查准（slow：CI 跳过） ----------------
 @pytest.mark.slow
-def test_high_altitude_fall_precision():
+def test_high_altitude_fall_precision(real_kb):
     docs = retrieval.hybrid_retrieve("高空抛物致人损害，由谁承担责任？", k=6)
     assert _in_top(docs, "民法典", "第一千二百五十四条"), "高空抛物应召回 1254，而非高度危险责任噪声"
 
 
 @pytest.mark.slow
-def test_admin_reconsideration_scope():
+def test_admin_reconsideration_scope(real_kb):
     docs = retrieval.hybrid_retrieve("行政复议的受案范围包括哪些情形？", k=6)
     assert _in_top(docs, "行政复议法", "第十一条"), "受案范围应召回 11 条正面条款（措辞桥接）"
 
 
 @pytest.mark.slow
-def test_personal_info_principles():
+def test_personal_info_principles(real_kb):
     docs = retrieval.hybrid_retrieve("处理个人信息应当遵循哪些原则？", k=6)
     for art in ("第五条", "第六条", "第七条"):
         assert _in_top(docs, "个人信息保护法", art), f"个人信息原则应召回 {art}"
 
 
 @pytest.mark.slow
-def test_shareholder_capital_deadline():
+def test_shareholder_capital_deadline(real_kb):
     docs = retrieval.hybrid_retrieve("公司股东认缴出资的期限是多长？", k=6)
     assert _in_top(docs, "公司法", "第四十七条"), "出资期限应召回 47 条"
 
 
 @pytest.mark.slow
-def test_short_name_exact_lookup():
+def test_short_name_exact_lookup(real_kb):
     # 简称→全称：条号直查也应吃别名（库内 source 是全称「刑事诉讼法」）
     docs = retrieval.exact_article_lookup("刑诉法", "第八十三条")
     assert docs, "刑诉法第八十三条应命中刑事诉讼法第八十三条"
 
 
 @pytest.mark.slow
-def test_short_name_citation_verify():
+def test_short_name_citation_verify(real_kb):
     # code-review P1：引用校验（article_in_kb）也应归一——答案引《民诉法》第X条
     # 不应被判假引用（此前 source_in_kb/article_in_kb 走 _source_key 不接别名）
     bad = retrieval.citation_verify("根据《民诉法》第一百二十条，采取强制措施的决定权专属人民法院。")

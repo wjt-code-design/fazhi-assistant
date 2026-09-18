@@ -109,8 +109,18 @@ _QA_COLLECTION_LOCAL = "qa_pairs"
 _QA_COLLECTION_CLOUD = "qa_pairs_te4"
 COLLECTION_NAME = _COLLECTION_CLOUD if settings.embedding_provider == "aliyun" else _COLLECTION_LOCAL
 QA_COLLECTION_NAME = _QA_COLLECTION_CLOUD if settings.embedding_provider == "aliyun" else _QA_COLLECTION_LOCAL
+
+# 向量库目录 = 单一真源（T-E，2026-09-18）。生产/容器不设 CHROMA_DIR ⇒ 取值与加出口前逐字相同
+# （docker-compose.yml:19-44 的 environment 是显式白名单，不含该键）；测试在 conftest 里**无条件**
+# 指向进程私有临时目录——因为 ./backend/chroma_db 被 compose:47 bind mount 进容器，
+# 本地全量跑写的就是线上容器正在读的那份索引（且 chroma 并发不安全，见 compose:11）。
+# DEFAULT_CHROMA_DIR 单独导出：它是「未设环境变量时生产落在哪」的判据本体，
+# 供测试断言默认值未漂移，也供需要真实语料的用例（conftest.real_kb）按同一真源打开。
+DEFAULT_CHROMA_DIR = os.path.join(BASE_DIR, "chroma_db")
+CHROMA_DIR = os.environ.get("CHROMA_DIR") or DEFAULT_CHROMA_DIR
+
 vectorstore = Chroma(
-    persist_directory=os.path.join(BASE_DIR, "chroma_db"),
+    persist_directory=CHROMA_DIR,
     embedding_function=embeddings,
     collection_name=COLLECTION_NAME,
 )
