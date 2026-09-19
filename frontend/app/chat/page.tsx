@@ -292,7 +292,7 @@ export default function ChatPage() {
             const msgIndex = Number(msgEl.getAttribute("data-msg-index"));
             e.preventDefault();
             e.stopPropagation();
-            void toggleInlineLaw(ref, msgIndex);
+            void toggleInlineLaw(ref, msgIndex, messages[msgIndex]?.agentRunId);
           }}
         >
           <MessageList

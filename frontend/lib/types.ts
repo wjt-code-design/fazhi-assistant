@@ -5,6 +5,7 @@ import type { CoverageInfo } from "./coverage";
 import type { ScopeCandidate } from "./scope";
 
 export interface Msg {
+  agentRunId?: string;
   role: "user" | "assistant";
   content: string;
   imageDataURL?: string; // 本轮刚发送的本地预览
@@ -31,6 +32,7 @@ export interface ConversationItem {
 
 // convApi.detail 返回的历史消息（后端字段），映射为 Msg 展示（P3-4 收紧 any）
 export interface HistoryMsg {
+  agent_run_id?: string | null;
   role?: string;
   content?: string;
   image_ref?: string;
@@ -65,6 +67,8 @@ export interface PendingAgentRun {
 }
 
 export interface ExpandedLaw {
+  isSnapshot?: boolean;
+  lawAsOf?: string;
   msgIndex: number;
   source: string;
   article: string;

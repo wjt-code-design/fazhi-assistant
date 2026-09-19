@@ -110,9 +110,9 @@ def test_civil_pre_cutoff_flags_case_review():
     """跨 2021-01-01（方案 T1）：给旧法口径 + 强制 needs_case_review，不固化衔接判断。"""
     result = calc_limitation("civil", fact_date=date(2019, 5, 1))
     assert result is not None
-    assert result["general_years"] == 2
+    assert result["general_years"] == 3
     assert result["needs_case_review"] is True
-    assert result["expiry_date"] == date(2021, 5, 1)
+    assert result["expiry_date"] == date(2022, 5, 1)
     assert "民法典" in result["notes"][0]
 
 

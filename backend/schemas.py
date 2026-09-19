@@ -105,6 +105,7 @@ class MessageOut(BaseModel):
     image_ref: str | None = None
     thumb_ref: str | None = None
     created_at: datetime
+    agent_run_id: str | None = None
     # T1（2026-09-16）覆盖投影：full/partial（Agent 消息且 run 有结构化覆盖）、
     # unknown（旧 assistant 消息或 run 缺结构化信息——不得推断 full）、
     # None（用户消息，覆盖不适用）。

@@ -252,6 +252,7 @@ export async function streamChat(
         else if (p.type === "final") {
           onMeta({
             conversation_id: p.conversation_id,
+            agent_run_id: typeof p.run_id === "string" ? p.run_id : undefined,
             agent_event: "final",
             // T1：结构化覆盖（full/partial + 未覆盖列表），随 token 一起驱动顶部提示；
             // 未知形态归 undefined 的判定收口在 coverage.coverageFromFinalEvent（纯函数可测）
@@ -331,6 +332,8 @@ export const feedbackApi = {
 
 // ==================== 法条（法条悬浮卡 / 速查面板，P1） ====================
 export interface LawDetail {
+  is_snapshot?: boolean;
+  law_as_of?: string;
   source: string;
   article: string;
   content: string;
@@ -346,8 +349,8 @@ export interface LawItem {
   status?: string;
 }
 export const lawApi = {
-  detail: (source: string, article: string) =>
-    api.get<LawDetail>(`/api/law?source=${encodeURIComponent(source)}&article=${encodeURIComponent(article)}`),
+  detail: (source: string, article: string, runId?: string) =>
+    api.get<LawDetail>(`/api/law?source=${encodeURIComponent(source)}&article=${encodeURIComponent(article)}${runId ? `&run_id=${encodeURIComponent(runId)}` : ""}`),
   search: (q: string) => api.get<LawItem[]>(`/api/law/search?q=${encodeURIComponent(q)}`),
 };
 

@@ -74,6 +74,7 @@ export function useConversations(opts: {
           thumbRef: m.thumb_ref || undefined,
           // T1（2026-09-16）：历史覆盖投影（unknown/缺字段 → undefined，不显示提示、绝不显示为 full）
           coverage: coverageFromMessage(m) || undefined,
+          agentRunId: m.agent_run_id || undefined,
         }))
       );
       opts.setIsNearBottom(true);

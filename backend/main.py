@@ -1298,7 +1298,10 @@ async def admin_analysis_runs(request: Request, limit: int = 50, admin: User = D
 
 @app.get("/api/law")
 @limiter.limit("60/minute")
-async def law_detail(request: Request, source: str, article: str, user: User = Depends(get_current_user)):
+async def law_detail(
+    request: Request, source: str, article: str, run_id: str | None = None,
+    user: User = Depends(get_current_user),
+):
     """法条原文（前端法条悬浮卡 / 速查面板，P1）。复用 exact_article_lookup，未命中 404。
 
     B3（2026-08-07）：article 先 _normalize_article 归一（〇/零、阿拉伯/中文、之条），
@@ -1306,6 +1309,35 @@ async def law_detail(request: Request, source: str, article: str, user: User = D
     """
 
     def _do():
+        if run_id is not None:
+            from agent.schemas import LegalAgentState
+            from agent.writer import canonical_citations
+
+            # 同时核验 run 与会话归属；有 run 的卡片绝不回退为“当前版本”。
+            with SessionLocal() as db:
+                run = (db.query(AgentRun).join(Conversation, AgentRun.conversation_id == Conversation.id)
+                       .filter(AgentRun.id == run_id, AgentRun.user_id == user.id,
+                               Conversation.user_id == user.id).one_or_none())
+                if run is None:
+                    return None
+                try:
+                    state = LegalAgentState.model_validate_json(run.state_json)
+                except ValueError:
+                    return None
+                requested = canonical_citations(f"《{source}》{_normalize_article(article)}")
+                if not requested:
+                    return None
+                matched = [ev for ev in state.evidence if requested <= canonical_citations(
+                    ev.source_ref + "\n" + ev.snippet
+                )]
+                if not matched:
+                    return None
+                return {
+                    "source": source, "article": _normalize_article(article),
+                    "content": "\n\n".join(dict.fromkeys(ev.snippet for ev in matched)),
+                    "is_snapshot": True, "law_as_of": run.law_as_of.isoformat(),
+                    "status": "答复证据快照（非完整条文）",
+                }
         docs = exact_article_lookup(source, _normalize_article(article))
         if not docs:
             return None
@@ -2125,6 +2157,7 @@ def get_conversation(conv_id: int, user: User = Depends(get_current_user), db: S
                 image_ref=m.image_ref,
                 thumb_ref=m.thumb_ref,
                 created_at=m.created_at,
+                agent_run_id=m.agent_run_id if m.role == "assistant" else None,
                 coverage_status=coverage_status,
                 uncovered_issues=uncovered,
             )

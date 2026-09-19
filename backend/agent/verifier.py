@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, model_validator
 from settings import settings
 
 from . import limitation_calc, phantom_check
+from .fact_consistency import settlement_conflicts
 from .schemas import LegalAgentState, LegalValidity, SourceType
 from .writer import (
     DraftAnswer,
@@ -176,14 +177,14 @@ def _render_draft_text(state: LegalAgentState, draft: DraftAnswer) -> str:
     questions = [issue.question for issue in state.issues]
     blocks.append("核心法律争点：\n" + "\n".join(f"- {q}" for q in questions))
     # 4 法律依据（T2，2026-09-16 收窄）：只列 claim 正文**实际引用**且已绑定的条文——
-    # 交集 = canonical_citations(claim.text) ∩ canonical_citations(该 claim 绑定证据的 source_ref)。
+    # 交集 = claim 引文 ∩ 绑定证据的 (source_ref + snippet) 引文，与核验同口径。
     # 绑定但正文未引用的不展示（1e9 实测冗余 8/13、4/5 条消除）；正文引用但未绑定的
     # 仍由 verify() 的 FABRICATED_CITATION 拦截（不放宽安全边界，B3）。
     # 顺序 = claim 顺序 × 正文首次引用顺序（canonical_citations_in_order，与核验同一解析真源）；
     # 跨 claim 按条目去重。展示 label 复用 source_ref 形态（KB 为《法名》第X条或 法名#第X条）。
     # 不从整篇答案提取（防法律依据自身自匹配）、不做全局引文集匹配、无模型调用。
     evidence_by_id = {ev.evidence_id: ev for ev in state.evidence}
-    seen_refs: set[str] = set()
+    seen_refs: set[tuple[str, str, str]] = set()
     refs: list[str] = []
     for claim in (*draft.conclusion, *draft.issue_analysis, *draft.risks):
         bound_keys: set[tuple[str, str, str]] = set()
@@ -197,13 +198,17 @@ def _render_draft_text(state: LegalAgentState, draft: DraftAnswer) -> str:
             for key in canonical_citations_in_order(ev.source_ref):
                 bound_keys.add(key)
                 bound_labels.setdefault(key, label)
+            for key in canonical_citations_in_order(ev.snippet):
+                bound_keys.add(key)
+                suffix = f"之{key[2]}" if key[2] else ""
+                bound_labels.setdefault(key, f"- 《{key[0]}》第{key[1]}条{suffix}")
         for key in canonical_citations_in_order(claim.text):
             if key not in bound_keys:
                 continue
             label = bound_labels[key]
-            if label in seen_refs:
+            if key in seen_refs:
                 continue
-            seen_refs.add(label)
+            seen_refs.add(key)
             refs.append(label)
     blocks.append("法律依据：\n" + ("\n".join(refs) if refs else "- （无）"))
     # 5 分情形分析（issue_analysis claims）
@@ -381,6 +386,10 @@ class DeterministicVerifier:
                     )
                 bound_fact_text.append(linked_fact[1].statement)
             bound_numeric_text = "\n".join((*bound_fact_text, *bound_evidence_text))
+            if settlement_conflicts(claim.text, [
+                f.statement for issue in state.issues if issue.issue_id == claim.issue_id for f in issue.facts
+            ]):
+                return self._result(VerificationVerdict.FAIL_SAFE, [claim.claim_id], "FACT_CONTRADICTION")
             claim_nums = numeric_tokens(claim.text, loose_amounts=settings.numeric_matching_v2)
             bound_nums = numeric_tokens(bound_numeric_text, loose_amounts=settings.numeric_matching_v2)
             unsupported_v = claim_nums - bound_nums

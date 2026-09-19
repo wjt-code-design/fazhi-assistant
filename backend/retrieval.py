@@ -346,6 +346,7 @@ def exact_article_lookup(source: str, article: str, cutoff: str | None = None) -
     """精确条号查找（含时效过滤，与检索同口径）。返回匹配 Document 列表。"""
     cutoff = cutoff or date.today().isoformat()
     source = canon_source(source)  # 简称→全称（库内存全称，民诉法→民事诉讼法）
+    article = _normalize_article(article)
     data = vectorstore._collection.get(
         where={"$and": [{"source": source}, {"article": article}]},
         include=["documents", "metadatas"],

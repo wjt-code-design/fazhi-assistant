@@ -69,9 +69,10 @@ _ACTION_PATTERNS: Mapping[str, tuple[tuple[re.Pattern[str], ...], frozenset[str]
         tuple(
             re.compile(pattern)
             for pattern in (
-                r"历史会话",
-                r"此前(?:的)?咨询记录",
-                r"调取(?:了)?(?:您|该用户)?(?:的)?历史",
+                r"(?:历史会话|此前(?:的)?咨询记录)(?:中)?(?:显示|表明|记载)",
+                r"(?:根据|依据)(?:您|该用户)?(?:的)?(?:历史会话|此前(?:的)?咨询记录)",
+                r"(?:已|曾|经)(?:经)?(?:读取|调取|查询)(?:了)?(?:您|该用户)?(?:的)?历史",
+                r"调取了(?:您|该用户)?(?:的)?历史",
                 r"记忆中存有",
             )
         ),
@@ -142,7 +143,13 @@ def phantom_action_categories(
     flagged: list[str] = []
     for category in sorted(_ACTION_PATTERNS):
         patterns, required_tools = _ACTION_PATTERNS[category]
-        if not any(pattern.search(text) for pattern in patterns):
+        matches = [match for pattern in patterns for match in pattern.finditer(text)]
+        if category == "memory":
+            # 只看命中前的当前分句，否定声明不能豁免后一句的肯定声称。
+            matches = [match for match in matches if not re.search(
+                r"(?:未|没有|无法|不能|并无)[^，。；！？\n]*$", text[:match.start()]
+            )]
+        if not matches:
             continue
         if category == "user_confirmation":
             if clarifications <= 0:

@@ -11,18 +11,17 @@ grep 全仓证实：此前「诉讼时效三年」只存在于题库文本与语
   **不适用中止、中断**；普通时效经中断重新起算后亦不得突破该上限）；
 - 劳动争议仲裁时效 **1 年** ——《劳动争议调解仲裁法》第 27 条（劳动报酬争议在
   劳动关系存续期间不受 1 年限制；劳动关系终止的，自终止之日起 1 年内提出）；
-- 民法典分水岭 **2021-01-01** ——《民法典》第 1260 条废止九部法律；分水岭前普通
-  时效按《民法通则》第 135 条为 2 年。
+- 普通时效自 **2017-10-01** 起为 3 年（《民法总则》第188条）；此前为2年，
+  尚未届满的按法释〔2018〕12号衔接，已经届满的不复活。
 
 纯函数、无 IO、无模型调用；缺日期/无法判型 → 返回 None/空集（fail-open，
 同 fee_calc 先例）。受控 token 消费口径与 fee_calc 相同：writer/verifier 在
 `settings.numeric_matching_v2` 开启时并入数字白名单（默认关 = 行为逐字不变）。
 
 刻意保守的边界（自审记录）：
-1. **时效衔接不猜测**：跨 2021-01-01 事实存在"旧法已届满不复活 / 施行日尚未届满
-   适用民法典三年"的衔接规则（《民法典》时间效力规定），需个案事实判断 ⇒
-   `calc_limitation` 对分水岭前事实标注 `needs_case_review=True`（仍给出旧法
-   2 年口径供参考），而**白名单函数对分水岭前事实一律返回空集**——不把衔接期
+1. **特殊衔接不猜测**：普通二年/三年按2017年分界及未届满规则计算，特殊期间、
+   中止等仍需个案事实判断。`calc_limitation` 对2021年前事实保留
+   `needs_case_review=True`（给出历史普通时效口径供参考），而**白名单函数对分水岭前事实一律返回空集**——不把衔接期
    判断固化为常量，宁可放行原校验（fail-open）也不放错 token。
 2. **中止（暂停）暂不支持**：只实现中断（民法典 195 条，自中断之日起重新计算）。
    中止需"最后 6 个月内 + 不可抗力/其他障碍"的定性判断，硬编码反而制造伪确定性。
@@ -42,9 +41,10 @@ from datetime import date
 
 CIVIL_GENERAL_YEARS = 3  # 《民法典》第188条第1款
 CIVIL_MAXIMUM_YEARS = 20  # 《民法典》第188条第2款（不适用中止、中断）
-CIVIL_PRE_CODE_YEARS = 2  # 《民法通则》第135条（分水岭前口径）
+CIVIL_PRE_CODE_YEARS = 2  # 《民法通则》第135条（2017-10-01前，保留旧导出名兼容调用方）
 LABOR_ARBITRATION_YEARS = 1  # 《劳动争议调解仲裁法》第27条
 CIVIL_CODE_EFFECTIVE = date(2021, 1, 1)  # 《民法典》第1260条：九部法律同日废止
+CIVIL_GENERAL_PROVISIONS_EFFECTIVE = date(2017, 10, 1)
 
 _CLAIM_TYPES = ("civil", "labor_arbitration", "labor_remuneration")
 
@@ -128,33 +128,49 @@ def calc_limitation(
             start: date = labor_termination_date
         else:
             start = knowledge_date or fact_date
+        expiry = _add_years(start, LABOR_ARBITRATION_YEARS)
+        for interruption in sorted(set(interruption_dates)):
+            if start <= interruption <= expiry and (as_of is None or interruption <= as_of):
+                expiry = _add_years(interruption, LABOR_ARBITRATION_YEARS)
         return {
             "claim_type": claim_type,
             "law_basis": "《劳动争议调解仲裁法》第27条",
             "general_years": LABOR_ARBITRATION_YEARS,
             "start_date": start,
-            "expiry_date": _add_years(start, LABOR_ARBITRATION_YEARS),
+            "expiry_date": expiry,
             "max_protection_expiry": None,
-            "expired_as_of": (as_of > _add_years(start, LABOR_ARBITRATION_YEARS)) if as_of else None,
+            "expired_as_of": (as_of > expiry) if as_of else None,
             "needs_case_review": False,
             "not_limited_within_relationship": False,
             "notes": notes,
         }
     # ---- civil ----
     pre_code = fact_date < CIVIL_CODE_EFFECTIVE
-    years = CIVIL_PRE_CODE_YEARS if pre_code else CIVIL_GENERAL_YEARS
+    start = knowledge_date or fact_date
+    years = CIVIL_PRE_CODE_YEARS if start < CIVIL_GENERAL_PROVISIONS_EFFECTIVE else CIVIL_GENERAL_YEARS
     if pre_code:
         notes.append(
-            "事实发生于《民法典》施行（2021-01-01）前，普通时效按《民法通则》二年口径给出；"
-            "施行日尚未届满时是否衔接适用《民法典》三年（时间效力规定）需个案复核。"
+            "事实发生于《民法典》施行前；2017-10-01起普通时效为三年，"
+            "此前已届满不复活、尚未届满按民法总则衔接；特殊时效及中止仍需个案复核。"
         )
-    start = knowledge_date or fact_date
     expiry = _add_years(start, years)
     # 中断（民法典195条）：自中断、有关程序终结之日起重新计算。仅接纳落在
     # [start, expiry] 区间内的中断日——区间外的日期对当前起算无意义。
+    anchor = start
     for interruption in sorted(set(interruption_dates)):
+        if as_of is not None and interruption > as_of:
+            continue
+        if interruption >= CIVIL_GENERAL_PROVISIONS_EFFECTIVE and expiry >= CIVIL_GENERAL_PROVISIONS_EFFECTIVE:
+            if years == CIVIL_PRE_CODE_YEARS:
+                years = CIVIL_GENERAL_YEARS
+                expiry = _add_years(anchor, years)
         if start <= interruption <= expiry:
+            anchor = interruption
             expiry = _add_years(interruption, years)
+    if years == CIVIL_PRE_CODE_YEARS and expiry >= CIVIL_GENERAL_PROVISIONS_EFFECTIVE:
+        if as_of is None or as_of >= CIVIL_GENERAL_PROVISIONS_EFFECTIVE:
+            years = CIVIL_GENERAL_YEARS
+            expiry = _add_years(anchor, years)
     # 最长保护期（188条第2款）：自权利受损之日起 20 年，不适用中止、中断——
     # 同时构成普通时效（含中断重新起算）的客观上限。
     max_protection_expiry = _add_years(fact_date, CIVIL_MAXIMUM_YEARS)
@@ -163,7 +179,8 @@ def calc_limitation(
         notes.append("普通时效经中断重新起算后仍受最长权利保护期间（20年）约束，已按上限截断。")
     return {
         "claim_type": claim_type,
-        "law_basis": "《民法典》第188条" if not pre_code else "《民法通则》第135条（衔接期，需个案复核）",
+        "law_basis": ("《民法典》第188条" if start >= CIVIL_CODE_EFFECTIVE else
+                      "《民法总则》第188条（法释〔2018〕12号衔接）" if years == 3 else "《民法通则》第135条"),
         "general_years": years,
         "start_date": start,
         "expiry_date": expiry,

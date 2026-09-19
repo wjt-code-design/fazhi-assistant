@@ -169,6 +169,7 @@ _UNCOVERED_REASON_TEXT = {
     "CLAIM_DIRECTION_REVERSED": "所引法条的责任方向颠倒",
     # R12（phantom_tool_check 开关开启时才可能出现）：
     "PHANTOM_TOOL_CLAIM": "答复中声称执行了实际未发生的检索或确认动作",
+    "FACT_CONTRADICTION": "答复的清偿状态与本争点已确认事实相反",
 }
 
 

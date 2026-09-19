@@ -86,6 +86,7 @@ export function useChatStream(opts: {
             const last = copy[copy.length - 1];
             if (!last) return copy;
             const patch: Partial<Msg> = {};
+            if (meta.agent_run_id) patch.agentRunId = meta.agent_run_id;
             if (meta.sources?.length) patch.sources = meta.sources;
             if (meta.agent_event === "clarification") patch.scopeCandidates = patchScope;
             if (meta.agent_event !== undefined) patch.agentNote = patchNote;

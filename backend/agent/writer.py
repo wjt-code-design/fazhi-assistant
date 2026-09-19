@@ -22,6 +22,7 @@ from prompts import AGENT_WRITER_SYSTEM
 from settings import settings
 
 from . import entity_precision, fee_calc, limitation_calc, phantom_check
+from .fact_consistency import settlement_conflicts
 from .schemas import Fact, LegalAgentState, LegalValidity, SourceType
 
 DraftSection = Literal["conclusion", "issue_analysis", "risk"]
@@ -943,6 +944,8 @@ class EvidenceBoundedWriter:
                     return _fail_here("CROSS_ISSUE_FACT")
 
             bound_fact_text = "\n".join(fact_by_id[fact_id].statement for fact_id in proposed.fact_ids)
+            if settlement_conflicts(proposed.text, [f.statement for f in issues[proposed.issue_id].facts]):
+                return _fail_here("FACT_CONTRADICTION")
             bound_evidence_text = "\n".join(
                 evidence_by_id[evidence_id].source_ref + "\n" + evidence_by_id[evidence_id].snippet
                 for evidence_id in proposed.evidence_ids
