@@ -1706,7 +1706,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             if hit:
                 ca = hit["answer"]
                 _f0 = time.perf_counter()  # 缓存命中：首帧≈总耗时（瞬时，用于首帧埋点分段标注）
-                yield f"data: {json.dumps({'content': ca}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'content': ca}, ensure_ascii=False)}\n\n"  # gate-exit: E1
                 routing_metrics.record("cache", False, "pass", "hit", checked=False)
                 log_account(
                     model="cache",
@@ -1734,7 +1734,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             qa_ans = None if body.no_cache else await run_in_threadpool(_qa_direct_return, pre)
             if qa_ans:
                 _f0 = time.perf_counter()
-                yield f"data: {json.dumps({'content': qa_ans}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'content': qa_ans}, ensure_ascii=False)}\n\n"  # gate-exit: E2
                 routing_metrics.record("qa_cache", False, "pass", "hit", checked=False)
                 log_account(
                     model="qa_cache",
@@ -1763,7 +1763,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 if strategy == "clarify":
                     _clarified[pre["conv_id"]] = True  # 会话级：最多反问一次
                 _f0 = time.perf_counter()  # 反问/拒答：零 LLM，首帧≈总耗时
-                yield f"data: {json.dumps({'content': msg}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'content': msg}, ensure_ascii=False)}\n\n"  # gate-exit: E3
                 routing_metrics.record(strategy, False, "pass", "miss", checked=False)
                 log_account(
                     model="rule",
@@ -1792,7 +1792,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 if cd.get("need_clarify"):
                     # 信息确认闸：触发但无合同全文 → 零 LLM 反问要内容/范围/立场/类型
                     _f0 = time.perf_counter()
-                    yield f"data: {json.dumps({'content': CONTRACT_CLARIFY_PROMPT}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'content': CONTRACT_CLARIFY_PROMPT}, ensure_ascii=False)}\n\n"  # gate-exit: E4
                     routing_metrics.record("contract_clarify", False, "pass", "miss", checked=False)
                     log_account(
                         model="rule",
@@ -1867,7 +1867,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     if _f0 is None:
                         _f0 = time.perf_counter()
                     chunks.append(piece)
-                    yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E5
                 answer = "".join(chunks)
                 if answer:
                     _contract_reviewed_convs.add(pre["conv_id"])  # 完整报告已产出：之后续聊才算追问
@@ -1887,7 +1887,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     if bad:
                         note = "\n\n> 注：报告引用 " + "、".join(bad) + " 未在知识库中检索到，建议核对。"
                         answer += note
-                        yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"  # gate-exit: E6
                 routing_metrics.record("contract_review", False, "pass", "miss", checked=False)
                 log_account(
                     model="contract_review",
@@ -1927,7 +1927,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 answer = res.answer
                 if answer:
                     _f0 = time.perf_counter()  # 轻量缓冲：非流式整答返回，首帧=完成时刻
-                    yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"  # gate-exit: E7
                 else:
                     yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
                 if cache_key and res.verdict == "pass" and not res.law_version_hit:
@@ -2011,7 +2011,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 if _f0 is None:
                     _f0 = time.perf_counter()  # 真流式：首个 token 时刻（首帧埋点）
                 chunks.append(piece)
-                yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E8
             answer = "".join(chunks)
             if not answer:
                 try:
@@ -2020,7 +2020,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     if answer:
                         if _f0 is None:
                             _f0 = time.perf_counter()
-                        yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"  # gate-exit: E9
                 except Exception:
                     answer = ""
             else:
@@ -2034,7 +2034,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     # B1：中性措辞，不再"建议核对原文"（该句曾是前端 stripUnprovidedHint 要删的噪音）
                     note = "\n\n> 注：回答中引用的 " + "、".join(bad_cites) + " 未收录于本知识库。"
                     answer += note
-                    yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"  # gate-exit: E10
                     log_account(
                         kind="citation_anomaly",
                         conv_id=pre["conv_id"],
@@ -2044,7 +2044,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 if multi_bad:
                     note = "\n\n> ⚠️ 本题可能为多选题，上述回答似乎只给出了一个正确选项，请核对是否遗漏。"
                     answer += note
-                    yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"  # gate-exit: E11
                     log_account(
                         kind="multi_incomplete",
                         conv_id=pre["conv_id"],
@@ -2088,12 +2088,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     # 常引格式条文/库外表达，注语义违和且误导；审查 I3）
                     if pre["intent"] != "study_aid":
                         answer += NOTE_COMPLEX
-                        yield f"data: {json.dumps({'content': NOTE_COMPLEX}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'content': NOTE_COMPLEX}, ensure_ascii=False)}\n\n"  # gate-exit: E12
             # S2：回退模型本身已不可用 → 明说降级，不静默烧耗尽模型（闲聊豁免：降级注不适合闲聊语境）
             if use_router and flag_degraded and answer and pre["intent"] != "chitchat":
                 verdict_flag = "low_quota"
                 answer += NOTE_QUOTA
-                yield f"data: {json.dumps({'content': NOTE_QUOTA}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'content': NOTE_QUOTA}, ensure_ascii=False)}\n\n"  # gate-exit: E13
             # 流式无真实 usage → 按输出 + 主要输入估算扣减（补输入，避免长期低估）。
             # thinking 模型 reasoning_content 不计入估算 → ×thinking_mult 近似（审查 K1）
             # failover 后按真正回答的模型扣减（current["key"] 由 make_chain_fn 在重试时
