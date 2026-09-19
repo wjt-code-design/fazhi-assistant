@@ -1173,6 +1173,18 @@ def _fast_path_fact_texts(pre: dict) -> list[str]:
     return [t for t in texts if t]
 
 
+def _fast_path_law_as_of(body) -> date:
+    """快车道判定用的法律版本基准日 = R15-lite 契约的**第①半**（缺省时由服务端落当日）。
+
+    agent 路径那一半在 `agent/repository.py` 的 `create_run`（`law_as_of or date.today()`），
+    而快车道**不经过** `create_run` ⇒ 必须在调用点自己补。漏掉的后果不是"少判一次"，是
+    `None` 被 `_law_version_gate` 当成接线丢失（`LAW_TRIPWIRE_NOT_WIRED`）⇒ 开关一开**每条答复都命中**。
+    缺省处理本身仍按 `create_run` docstring 的锁定：不改必填、不报错。
+    流式出口（票 C / S6）复用本函数，别再写第二份 `or date.today()`。
+    """
+    return body.law_as_of or date.today()
+
+
 def _law_version_gate(res: _LightResult, fact_texts: list[str], law_as_of: date | None) -> _LightResult:
     """S5：缓冲轻量出口的法律版本绊线门。判定规则**只**在 `limitation_calc`（单一真源，§5-1）。
 
@@ -1911,7 +1923,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
 
             # 分支1：轻量缓冲 + 自检 + 至多一次升级旗舰
             if use_light:
-                res = await run_in_threadpool(_light_buffered, pre, messages, body.law_as_of)
+                res = await run_in_threadpool(_light_buffered, pre, messages, _fast_path_law_as_of(body))
                 answer = res.answer
                 if answer:
                     _f0 = time.perf_counter()  # 轻量缓冲：非流式整答返回，首帧=完成时刻

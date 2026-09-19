@@ -1,0 +1,35 @@
+全量变异复审判定（S5 后续 · 计划 R5 / 步骤 1d）
+================================================
+执行时间：2026-09-20 02:57 → 03:07
+执行器：  run_mutations_full.py（本目录）
+树：      副本树 C:\Users\33393\AppData\Local\Temp\fz-mut-20260920
+          = git archive cd29211 + 叠加本会话 4 个改动文件 + 补 dispatch-output/task1
+每个变异跑整套 tests/（1363 条），与同树同流程现采基线做 junit 差分。
+
+baseline_failed=21          # 与票 G 复审 clean-base.xml 的 21 同值 ⇒ 重采口径对得上
+M1_cache_guard_off:        KILLED  21→22  tests.test_fast_path_law_version_gate::test_e6_hit_does_not_enter_cache
+M2_callsite_half1_removed: KILLED  21→23  ::test_e6_missing_client_date_does_not_degrade_every_answer
+                                    ::test_e6_pre_watershed_fact_hits_by_version_rule_not_by_missing_date
+M3_empty_answer_note_appended: KILLED 21→22 ::test_empty_answer_still_returns_empty
+M4_missing_date_passes:    KILLED  21→22  ::test_failclosed_when_switch_on_but_law_as_of_missing
+VERDICT=ALL_KILLED
+_self_check.main_py_restored_byte_exact = True
+
+本轮要证的那一条
+----------------
+M1 = 删掉 main.py 里"命中版本绊线的答复不进缓存"那道闸（`and not res.law_version_hit`）。
+票 G 复审实测：该变异在 S5 的测试下**存活**（四个变异每个只跑了
+tests/test_fast_path_law_version_gate.py 一个文件，全量 21→21 零反应）。
+现在它被 `test_e6_hit_does_not_enter_cache`（端点级 SSE + answer_cache.put recorder）杀掉。
+=> 复审 §6 自陈的"缓存全部停写是推的不是看到的"这一条，从推断变成读数。
+
+M2 = 把调用点退回 `body.law_as_of`（即把 R15-lite 契约第①半再漏掉一次）。
+被 1a 的两条端点级用例杀掉：一条断"不该命中的形状别被加注记"，一条断"命中的 reason 必须是
+LAW_VERSION_WATERSHED_MISMATCH 而不是 LAW_TRIPWIRE_NOT_WIRED"。
+
+未含在本轮里的
+--------------
+- 票 G 的 G-M2（摘掉 `:1183` 那处开关读数）它自评"存活但是等价变异"（`:1224` 还有第二处读数）。
+  本轮未重复该形状 —— 等价性由复审判定，本会话未独立复核。
+- 完整 junit xml 与 stdout（5 份，约 1.4 MB）留在副本树同目录，未入库（与本仓 S5 证据目录
+  只入 .py/.json/.txt 的惯例一致）。重采命令见 run_mutations_full.py 的 docstring。

@@ -132,9 +132,21 @@ S5 的自选变异 M4 专门验过这条不被破。
    （若签名不合用，改 `_law_version_gate` 的入参形态并回头改 S5 的测试，别开第二份）。
 3. 门必须覆盖 §2c 列出的**两个**答案来源（流式 join、`_invoke_llm` 兜底）。逐条点名写进回报。
 4. `law_as_of` 在流式分支作用域内够得着（S5 已证 `body.law_as_of` 在 `stream()` 闭包内可用），
-   不需要新中转。
+   不需要新中转。⚠️ **但必须传 `_fast_path_law_as_of(body)`，不是 `body.law_as_of`**（票 G F3 + 主会话 2026-09-20 订正）：
+   生产客户端不传 ⇒ `body.law_as_of` 恒 `None`，而真源 `law_version_crosses_watershed` 在 `None` 时返回 **False**、
+   `main.py` 的门却把 `None` 当"接线丢失"**先行命中** ⇒ 开关一开**每条答复都降级**。
+   R15-lite 契约的第①半（缺省落 `date.today()`）在 agent 路径由 `repository.create_run` 承担，
+   快车道不经它 ⇒ 由 `main._fast_path_law_as_of(body)` 承担（主会话已在 S5 后续票里加好，
+   **若你领票时该函数尚不存在**，说明那次提交未合入 ⇒ 自己按此口径补一条并在回报里点名）。
+   别在流式出口再写第二份 `or date.today()`。
 5. 缺基准日 fail-closed，口径照抄 S5 / `verifier.py:296`。
+   ⚠️ 补上第 4 条后，正常请求路径**再也走不到** `LAW_TRIPWIRE_NOT_WIRED` ⇒ 你必须配一条
+   "该 reason 在正常路径上不出现"的断言，否则它从"接线检测器"退化成"又一个恒假守卫"（S5 后续票已这么钉）。
 6. 命中必须进 §2b 的写缓存闸门（新增第四闸），否则错版本答复会被后续同题零 token 固化，门再也走不到。
+   ⚠️ **并且必须连带一条能杀它的测试**（票 G F5 实据：S5 那道同款闸被删掉后**全量 21→21 零反应**，
+   因为四个变异每个只跑了同一个测试文件）。判据口径见 §6-④。
+   现成仪器可直接复用：`backend/tests/_sse_harness.py` 的 `sse_client(route=...)` + `chat_frames()`
+   —— 那是本仓第一套能把 SSE 出口打到端点级断言的夹具（`answer_cache.put` 可换 recorder）。
 7. 日志沿用 S5 登记的四个字段，**不要**新造字段名（`tests/test_log_field_whitelist.py` 会递归扫全树；
    basetemp 别设在 `backend/` 内）。
 
@@ -145,9 +157,16 @@ S5 的自选变异 M4 专门验过这条不被破。
   真源在 `agent/` 不许改 ⇒ 只能登记不能焊死）。
 - ③ **默认关零变化**：像 S5 那样做**改前基线**逐字比对（`dump_sha256` 前后相同），并且必须含
   §2c 的兜底路径样本。⚠️ S5 的教训：基线要在动 `main.py` **之前**采，采完立刻存档哈希。
+  ⚠️ **但别只靠它**（主会话 2026-09-20 自审 §九-B）：`dispatch-output/s5-fastpath-gate-20260919/capture_light_baseline.py`
+  是**直接调 `_light_buffered`** 取样的，凡"改在调用点/端点里"的修复对它**完全不可见**
+  （它会平凡地继续给出同一个 sha）。本票动的正是流式调用点 ⇒ 必须**另加**端点级逐帧比对：
+  用 `_sse_harness.chat_frames()` 在开关 OFF 下取改前/改后帧序列 sha256，两者须相同。
 - ④ **变异 ≥3**，且要含这两条：只接流式不接 `_invoke_llm` 兜底（专门抓 §5-3）；把 `context` 当事实（抓 §2d）。
-  每道记"红在哪一条断言"。S5 的执行器可复用：`dispatch-output/s5-fastpath-gate-20260919/run_mutations.py`
-  （⚠️ 它已修过一次 CRLF 盲区——本仓 `core.autocrlf=true`，锚点写 `\n` 会 0 命中，别重复踩）。
+  每道记"红在哪一条断言"。**跑法有硬要求**（R5，票 G F5 的教训）：每个变异跑**整套 `tests/`**，
+  与同树同流程重采的干净基线做 **junit 差分**，取"基线绿→变异红"的差集非空才算被杀；
+  **副本树内全量允许、live 树禁止**（见 `docs/handoff-independent-sessions-20260919.md` §0-4）。
+  执行器直接复用：`dispatch-output/s5-followup-20260920/run_mutations_full.py <副本树> <输出目录>`
+  （CRLF 感知、跑完字节级还原并自证）。⚠️ S5 的老执行器 `run_mutations.py` 只跑定向文件，**别照搬那一点**。
 - ⑤ 两态都跑 `agent_enabled` True/False，**并验证 effective 值两边真的不同**（别跑出"两态其实同态"）。
 - ⑥ 一次 **RUN_VALID** 门禁。⚠️ 跑门禁期间任何 `backend/**/*.py` 变动（含新建临时探针）⇒ 整轮作废重来。
 - ⑦ **额外一条本票特有**：必须在**真实配置**下（不改 `.env`）用执行证明"门所在的那条分支真的被走到"——

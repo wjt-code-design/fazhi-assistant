@@ -1,0 +1,98 @@
+FF                                                                       [100%]
+================================== FAILURES ===================================
+__________ test_e6_missing_client_date_does_not_degrade_every_answer __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000024E00069350>
+
+    def test_e6_missing_client_date_does_not_degrade_every_answer(monkeypatch):
+        """S03 形状（分水岭后事实 + 民事时效结论）：客户端不传基准日 ⇒ **不该**被加注记。
+    
+        修复前 RED：`law_as_of=None` ⇒ `LAW_TRIPWIRE_NOT_WIRED` ⇒ 恒命中 ⇒ 注记出现、缓存停写。
+        修复后 GREEN：服务端落 `date.today()` ⇒ 事实与基准日同在分水岭后 ⇒ 判定 False ⇒ 原样交付。
+        """
+        import answer_cache
+    
+        answer_cache.clear()
+        puts = []
+        reasons = _capture_gate_reasons(monkeypatch)
+        monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+        with sse_client(
+            monkeypatch,
+            route="light_buffered",
+            light_text=CLAIM_S03_IN_PERIOD,
+            cache_put=lambda *a, **k: puts.append(a),
+        ) as c:
+            frames = chat_frames(c, login(c), FACT_W02_2023[0])
+        body = "".join(frames)
+>       assert NOTE_MARKER not in body, f"每条答复都被加注记 ⇒ 第①半仍缺：{body[:200]}"
+E       AssertionError: 每条答复都被加注记 ⇒ 第①半仍缺：data: {"type": "status", "msg": "正在思考…"}data: {"content": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自2023年8月1日起算至2026年8月1日届满，你现在起诉仍在三年诉讼时效之内。\n\n> 注：本回答所适用的法律版本与所述事实的发生时间可能不一致，本回答仅供参考。"}data: {"conversation_id": 1, "
+E       assert '注：本回答所适用的法律版本' not in 'data: {"typ...data: [DONE]'
+E         
+E         '注：本回答所适用的法律版本' is contained here:
+E           效之内。\n\n> 注：本回答所适用的法律版本与所述事实的发生时间可能不一致，本回答仅供参考。"}data: {"conversation_id": 1, "sources": [{"source": "劳动合同法", "article": "第十九条", "effective_from": "", "effective_to": "", "status": ""}]}data: [DONE]
+E         ?           +++++++++++++
+
+tests\test_fast_path_law_version_gate.py:498: AssertionError
+---------------------------- Captured stderr call -----------------------------
+{"ts": "2026-09-20T02:50:24", "level": "INFO", "logger": "legal.access", "req": "dc470bc2314e", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 255.2}
+{"ts": "2026-09-20T02:50:24", "level": "INFO", "logger": "legal.access", "req": "ba29c17408f1", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 231.8}
+{"ts": "2026-09-20T02:50:25", "level": "INFO", "logger": "legal.chat", "req": "bc9a9b67726c", "msg": "chat", "ms": 150.4, "first_ms": 150.1, "model": "test-light", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 44, "tier": "light", "cache": "miss", "escalated": false, "verdict": "pass"}
+{"ts": "2026-09-20T02:50:25", "level": "INFO", "logger": "legal.access", "req": "bc9a9b67726c", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 232.5}
+------------------------------ Captured log call ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event CollectionQueryEvent: capture() takes 1 positional argument but 3 were given
+_____ test_e6_pre_watershed_fact_hits_by_version_rule_not_by_missing_date _____
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000024E006DED50>
+
+    def test_e6_pre_watershed_fact_hits_by_version_rule_not_by_missing_date(monkeypatch):
+        """S01 形状（分水岭前事实）：仍要命中，但**必须**是按版本判定命中，不是 `LAW_TRIPWIRE_NOT_WIRED`。
+    
+        这条同时防两个方向：修坏了（门变哑 ⇒ 断言不绿）、修成"靠缺省日常量兜着"（reason 不是 WATERSHED_MISMATCH）。
+        修复前 RED：reason 是 `LAW_TRIPWIRE_NOT_WIRED`（根本没进真源）。
+        """
+        reasons = _capture_gate_reasons(monkeypatch)
+        monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+        with sse_client(monkeypatch, route="light_buffered", light_text=CLAIM_S01_WRONG_CURRENT_LAW) as c:
+            frames = chat_frames(c, login(c), FACT_W01_2019[0])
+        body = "".join(frames)
+        assert NOTE_MARKER in body, "分水岭前事实 + 分水岭后法却没加注记 ⇒ 门没在 E6 上生效"
+>       assert reasons == ["LAW_VERSION_WATERSHED_MISMATCH"], (
+            f"命中原因不是版本判定 ⇒ 第①半仍未补上（`None` 被当成接线丢失）：{reasons!r}"
+        )
+E       AssertionError: 命中原因不是版本判定 ⇒ 第①半仍未补上（`None` 被当成接线丢失）：['LAW_TRIPWIRE_NOT_WIRED']
+E       assert ['LAW_TRIPWIRE_NOT_WIRED'] == ['LAW_VERSION...HED_MISMATCH']
+E         
+E         At index 0 diff: 'LAW_TRIPWIRE_NOT_WIRED' != 'LAW_VERSION_WATERSHED_MISMATCH'
+E         Use -v to get more diff
+
+tests\test_fast_path_law_version_gate.py:515: AssertionError
+---------------------------- Captured stderr call -----------------------------
+{"ts": "2026-09-20T02:50:25", "level": "INFO", "logger": "legal.access", "req": "ea78179aca06", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 260.4}
+{"ts": "2026-09-20T02:50:25", "level": "INFO", "logger": "legal.access", "req": "7d683cd8171f", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 239.8}
+{"ts": "2026-09-20T02:50:25", "level": "INFO", "logger": "legal.chat", "req": "3591d36a1cab", "msg": "chat", "ms": 73.1, "first_ms": 72.9, "model": "test-light", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 65, "tier": "light", "cache": "miss", "escalated": false, "verdict": "pass"}
+{"ts": "2026-09-20T02:50:25", "level": "INFO", "logger": "legal.access", "req": "3591d36a1cab", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 139.3}
+============================== warnings summary ===============================
+venv\Lib\site-packages\starlette\formparsers.py:12
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+tests/test_fast_path_law_version_gate.py::test_e6_missing_client_date_does_not_degrade_every_answer
+tests/test_fast_path_law_version_gate.py::test_e6_pre_watershed_fact_hits_by_version_rule_not_by_missing_date
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\httpx\_client.py:690: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+tests/test_fast_path_law_version_gate.py::test_e6_missing_client_date_does_not_degrade_every_answer
+tests/test_fast_path_law_version_gate.py::test_e6_pre_watershed_fact_hits_by_version_rule_not_by_missing_date
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    return self._jws.encode(
+
+tests/test_fast_path_law_version_gate.py::test_e6_missing_client_date_does_not_degrade_every_answer
+tests/test_fast_path_law_version_gate.py::test_e6_pre_watershed_fact_hits_by_version_rule_not_by_missing_date
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    decoded = self.decode_complete(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_fast_path_law_version_gate.py::test_e6_missing_client_date_does_not_degrade_every_answer
+FAILED tests/test_fast_path_law_version_gate.py::test_e6_pre_watershed_fact_hits_by_version_rule_not_by_missing_date
+2 failed, 13 deselected, 7 warnings in 17.30s

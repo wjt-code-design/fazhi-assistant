@@ -17,6 +17,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
 import os
 import sys
 from datetime import date
@@ -28,9 +30,12 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
+import pytest  # noqa: E402
+
 import llm_registry  # noqa: E402
 import main  # noqa: E402
 import quality  # noqa: E402
+from tests._sse_harness import chat_frames, login, sse_client  # noqa: E402
 
 # ---------------- 样本（文本原样取自独立表，未做任何"迁就实现"的改写） ----------------
 
@@ -307,9 +312,16 @@ def test_escalated_answer_is_judged_not_the_light_one(monkeypatch):
 
 
 def test_empty_answer_still_returns_empty(monkeypatch):
-    """上游空答时不得给空串追加注记 —— 否则会把调用方的"空答走 error 帧"（main.py 约 :1837）
-    变成一条假装有内容的降级回答。这条与 test_tiering.py 里那条同族，门必须保持形状。"""
+    """上游空答时不得给空串追加注记 —— 否则会把调用方的"空答走 error 帧"兜底
+    （`_light_buffered` 调用点之后那个 `else`）变成一条假装有内容的降级回答。
+
+    ⚠️ 本条重写过一次（票 G F6）：旧写法喂的是"真源根本不会命中"的空文本
+    （空 claim 在 `_CIVIL_KEYWORDS` 那关就返回 False）⇒ 门永不触发，断言实际测的是
+    "没命中时答案没变"，是一把**空枪**。现在用恒 True 替身**强制命中**，才真的钉住 carve-out：
+    把门改成"空答也追加注记"，本条必须变红。
+    """
     monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+    monkeypatch.setattr(main.limitation_calc, "law_version_crosses_watershed", lambda *a, **k: True)
     res = run_light(
         monkeypatch,
         make_pre(FACT_W01_2019),
@@ -319,7 +331,8 @@ def test_empty_answer_still_returns_empty(monkeypatch):
         verdicts=[(False, "empty"), (False, "empty")],
         flag_content="",
     )
-    assert res.answer == ""
+    assert res.law_version_hit is True, "恒 True 替身下却没命中 ⇒ 本条又退化成空枪"
+    assert res.answer == "", f"命中却给空答案加了注记 ⇒ 造出一条有字没内容的假降级回答：{res.answer!r}"
 
 
 # ---------------- ④ 判定必须委托真源，不在 main.py 重写规则（§5-1） ----------------
@@ -355,3 +368,177 @@ def test_hit_is_logged_with_judged_text_and_baseline_date(monkeypatch):
     assert joined, f"日志未带 extra：{captured!r}"
     assert any(CLAIM_S01_WRONG_CURRENT_LAW[:20] in str(v) for v in joined.values()), "缺被判定原文"
     assert any("2026" in str(v) for v in joined.values()), "缺基准日 law_as_of"
+
+
+# ---------------- ⑥ 端点级（SSE）：闸在 stream() 里，不在 _light_buffered 里 ----------------
+#
+# 这一节为什么必须存在（票 G F5/F6 + 本计划 §九-B）：
+#   1. `main.py:1921` 的 `not res.law_version_hit` 是 S5 提交信息里写明"否则门再也走不到"的
+#      load-bearing 闸，但 S5 的四个变异**每个只跑了本文件** ⇒ 删掉它全量 21→21 零反应（G-M1 存活）。
+#      本节的 `test_e6_hit_...` 就是能杀它的那条。
+#   2. 复审 §6 自陈"缓存全部停写是推的不是看到的" ⇒ 本节把它从推断变成读数。
+#   3. 1a 那行改动在 `main.py:1914`（调用点）。`capture_light_baseline.py` 直接调 `_light_buffered`，
+#      不经该行 ⇒ 对它不可见；唯一能证 1a 零变化的仪器是**端点级逐帧比对**（见 dump 采集口）。
+
+E6_QUESTION = FACT_W01_2019[0]  # 分水岭**前**事实（2019年3月5日）
+E6_ANSWER = CLAIM_S01_WRONG_CURRENT_LAW  # 分水岭**后**法的民事时效结论
+NOTE_MARKER = "注：本回答所适用的法律版本"  # NOTE_LAW_VERSION 去换行后的稳定子串
+
+
+def test_e6_hit_does_not_enter_cache(monkeypatch):
+    """开关开 + 跨分水岭 ⇒ 答复被加注记，且**一次缓存写入都没有**。
+
+    期望值独立于实现：命中形状取自独立手算表 S01（`EXPECTATIONS[0]`），
+    "不进缓存"取自 S5 提交信息对该闸的明示要求，不是从 `:1921` 那行反推的。
+    """
+    import answer_cache
+
+    answer_cache.clear()
+    puts = []
+    monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+    with sse_client(
+        monkeypatch,
+        route="light_buffered",
+        light_text=E6_ANSWER,
+        cache_put=lambda *a, **k: puts.append(a),
+    ) as c:
+        frames = chat_frames(c, login(c), E6_QUESTION)
+    body = "".join(frames)
+    assert NOTE_MARKER in body, f"开关开 + 事实跨分水岭却未加注记 ⇒ E6 没走到门：{body[:200]}"
+    assert puts == [], f"被拦答复仍写缓存 ⇒ 同题后续请求会零 token 直返错版答案：{puts!r}"
+
+
+def test_e6_control_leg_writes_cache_when_switch_off(monkeypatch):
+    """控制腿：同一请求在开关**关**时确实写了一次缓存、且没有注记。
+
+    没有这条，上面那句 `puts == []` 可能只是因为这条路径根本不写缓存（= 空枪）。
+    S5 已经因为"样本喂的是不可触发文本"让一条全 return 点测试失去鉴别力，这里补齐。
+    """
+    import answer_cache
+
+    answer_cache.clear()
+    puts = []
+    monkeypatch.setattr(main.settings, "fast_path_law_version_check", False)
+    with sse_client(
+        monkeypatch,
+        route="light_buffered",
+        light_text=E6_ANSWER,
+        cache_put=lambda *a, **k: puts.append(a),
+    ) as c:
+        frames = chat_frames(c, login(c), E6_QUESTION)
+    body = "".join(frames)
+    assert len(puts) == 1, f"开关关时这条路径本应写缓存一次，实际 {len(puts)} 次 ⇒ 控制腿失效，⑥ 全部结论不可信"
+    assert NOTE_MARKER not in body, "开关关却加注记 ⇒ 默认行为被改（Owner 纪律：默认关 ⇒ 线上一字不变）"
+
+
+def test_e6_dump_frames_for_zero_change_diff(monkeypatch):
+    """1a 的零变化证据采集口：开关 OFF 下把 E6 的 SSE 帧序列落盘，改前/改后比 sha256。
+
+    只在设了 `FZ_DUMP_FRAMES` 时执行（平时 skip，不给套件加时长）。
+    `conversation_id` 是每次新建会话的自增主键，与"答复有没有变"无关 ⇒ 归一化时剔除。
+    """
+    import answer_cache
+
+    out = os.environ.get("FZ_DUMP_FRAMES")
+    if not out:
+        pytest.skip("未设 FZ_DUMP_FRAMES：本用例是 1a 改前/改后逐帧比对的采集口")
+    assert main.settings.fast_path_law_version_check is False, "开关默认值被改过 ⇒ 这份基线不再是默认态"
+    answer_cache.clear()
+    with sse_client(monkeypatch, route="light_buffered", light_text=E6_ANSWER) as c:
+        frames = chat_frames(c, login(c), E6_QUESTION)
+    norm = []
+    for f in frames:
+        if f.startswith("data: ") and f.strip() != "data: [DONE]":
+            obj = json.loads(f[len("data: ") :])
+            obj.pop("conversation_id", None)
+            norm.append(obj)
+        else:
+            norm.append(f)
+    dump = json.dumps(norm, ensure_ascii=False, sort_keys=True)
+    payload = {"sha256": hashlib.sha256(dump.encode("utf-8")).hexdigest(), "n_frames": len(norm), "frames": norm}
+    with open(out, "wb") as fh:
+        fh.write(json.dumps(payload, ensure_ascii=False, indent=1).encode("utf-8"))
+
+
+# ---- 1a：R15-lite 契约的第①半（缺省基准日由服务端落当日）在快车道调用点补上 ----
+#
+# 为什么这两条是**先红**的（本计划 §一 R1 + 票 G F3）：`agent/repository.py` 的 `create_run` docstring
+# 把契约写成两半 —— ①缺省时服务端落 `date.today()` ②错版答复由绊线拦。快车道路线**不经过**
+# `create_run`，`:1914` 直接把 `body.law_as_of`（生产客户端不传 ⇒ `None`）递给门 ⇒ 开关一开，
+# 每条答复都在 `LAW_TRIPWIRE_NOT_WIRED` 那支命中（与答案写了什么无关）。
+# 判据形状取自独立手算表：S03（2023 事实 + 分水岭后基准日 ⇒ 不命中）、S01（2019 事实 ⇒ 命中）。
+# 今天（2026-09-20）与 `AS_OF_2026`（2026-09-18）在分水岭同侧 ⇒ 可直接沿用该表结论，无需我另算。
+
+
+def _capture_gate_reasons(monkeypatch) -> list[str]:
+    """抓 `_law_version_gate` 落的 reason —— 钉"按哪支命中"，不钉"命中没命中"。
+
+    只断"命中"会让 S01 那条在修复前也是绿的（`None` 走 NOT_WIRED 同样命中）⇒ 失去鉴别力。
+    """
+    captured: list[str] = []
+
+    def fake_warning(*args, **kwargs):
+        captured.append(str(kwargs.get("extra", {}).get("fast_path_law_version_reason", "")))
+
+    monkeypatch.setattr(main.logging.getLogger("legal.chat"), "warning", fake_warning)
+    return captured
+
+
+def test_e6_missing_client_date_does_not_degrade_every_answer(monkeypatch):
+    """S03 形状（分水岭后事实 + 民事时效结论）：客户端不传基准日 ⇒ **不该**被加注记。
+
+    修复前 RED：`law_as_of=None` ⇒ `LAW_TRIPWIRE_NOT_WIRED` ⇒ 恒命中 ⇒ 注记出现、缓存停写。
+    修复后 GREEN：服务端落 `date.today()` ⇒ 事实与基准日同在分水岭后 ⇒ 判定 False ⇒ 原样交付。
+    """
+    import answer_cache
+
+    answer_cache.clear()
+    puts = []
+    reasons = _capture_gate_reasons(monkeypatch)
+    monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+    with sse_client(
+        monkeypatch,
+        route="light_buffered",
+        light_text=CLAIM_S03_IN_PERIOD,
+        cache_put=lambda *a, **k: puts.append(a),
+    ) as c:
+        frames = chat_frames(c, login(c), FACT_W02_2023[0])
+    body = "".join(frames)
+    assert NOTE_MARKER not in body, f"每条答复都被加注记 ⇒ 第①半仍缺：{body[:200]}"
+    assert reasons == [], f"不该命中的形状落了命中日志：{reasons!r}"
+    assert len(puts) == 1, "不该命中却仍停写缓存 ⇒ 门在生产形态下仍是恒命中"
+
+
+def test_e6_pre_watershed_fact_hits_by_version_rule_not_by_missing_date(monkeypatch):
+    """S01 形状（分水岭前事实）：仍要命中，但**必须**是按版本判定命中，不是 `LAW_TRIPWIRE_NOT_WIRED`。
+
+    这条同时防两个方向：修坏了（门变哑 ⇒ 断言不绿）、修成"靠缺省日常量兜着"（reason 不是 WATERSHED_MISMATCH）。
+    修复前 RED：reason 是 `LAW_TRIPWIRE_NOT_WIRED`（根本没进真源）。
+    """
+    reasons = _capture_gate_reasons(monkeypatch)
+    monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+    with sse_client(monkeypatch, route="light_buffered", light_text=CLAIM_S01_WRONG_CURRENT_LAW) as c:
+        frames = chat_frames(c, login(c), FACT_W01_2019[0])
+    body = "".join(frames)
+    assert NOTE_MARKER in body, "分水岭前事实 + 分水岭后法却没加注记 ⇒ 门没在 E6 上生效"
+    assert reasons == ["LAW_VERSION_WATERSHED_MISMATCH"], (
+        f"命中原因不是版本判定 ⇒ 第①半仍未补上（`None` 被当成接线丢失）：{reasons!r}"
+    )
+
+
+def test_fast_path_law_as_of_uses_server_today_not_a_constant(monkeypatch):
+    """函数自身：不传 ⇒ 落**当日**；显式传 ⇒ 原样透传（第①半的字面口径）。
+
+    与上面两条端点级用例的分工：端点级钉"调用点确实用了它"，本条钉"它算的是哪天"。
+    把 `main.date` 冻成分水岭**前**的一天再断言，既让判据不随墙钟漂移，也排掉"写死一个分水岭后的
+    常量"这类伪实现 —— 不冻的话，硬编码当天日期的实现要等到隔天才会露馅。
+    """
+
+    class _FrozenDay(date):
+        @classmethod
+        def today(cls):
+            return date(2019, 7, 1)  # 分水岭前的"当日"：若实现写死后一半日期，这里就会露馅
+
+    monkeypatch.setattr(main, "date", _FrozenDay)
+    assert main._fast_path_law_as_of(SimpleNamespace(law_as_of=None)) == date(2019, 7, 1)
+    assert main._fast_path_law_as_of(SimpleNamespace(law_as_of=date(2021, 1, 1))) == date(2021, 1, 1)

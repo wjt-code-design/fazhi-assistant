@@ -1,0 +1,31 @@
+零变化判定（S5 后续 · 步骤 1a/1b · 2026-09-20）
+================================================
+本轮改的是 `main.py` 的**调用点**（新增 `_fast_path_law_as_of`，调用点第三实参改调它），
+开关默认值一字未动（`fast_path_law_version_check = False`）。零变化证据分两件，缺一不可：
+
+① 旧仪器（S5 的逐字基线）——三种开关态全部复现 S5 存档 hash
+---------------------------------------------------------
+capture_light_baseline.py  mode=baseline  a9d3e83de9a6d042038fea6f259503ad934fb525364fef01c733a3928427b9af   MATCH
+                           mode=on        e8bcbb9831457c3f3ff6238a58add46b1b39346a762ecf4ec4cc350971fe7a3a   MATCH
+                           mode=on_asof   09cf7fdfaa661bd8a474dd374492ba0b1f118b155b0fbe93adda3c33ab528813   MATCH
+（对拍对象 = dispatch-output/s5-fastpath-gate-20260919/light-baseline-*.json，10 例、nondeterministic=0）
+
+⚠️ **这条证不了 1a**，只证明"没碰坏 `_light_buffered`"：该脚本 `run_case` 直接调
+`main._light_buffered(pre, [])`，**根本不经过被改的那一行** ⇒ 对本轮改动天然不可见。
+（本会话自审 §九-B 发现的原 DoD 空枪，故有 ②。）
+执行时把脚本**复制**到本目录再跑：它的 `out_dir` 是"脚本所在目录"，在原目录跑会覆盖 S5 的冻结存档。
+
+② 端点级逐帧比对（本轮新增，才是 1a 的真证据）
+---------------------------------------------------------
+采集口：tests/test_fast_path_law_version_gate.py::test_e6_dump_frames_for_zero_change_diff
+        （`FZ_DUMP_FRAMES` 门控；用例内先断 `settings.fast_path_law_version_check is False`
+          ⇒ 保证采的是默认态；归一化剔除每次自增的 `conversation_id`）
+路线：   tests/_sse_harness.py::sse_client(route="light_buffered") ⇒ 真实走 `/api/chat` SSE
+
+  改前 e6-frames-BEFORE.json  sha256=9744dbb78164177f96233669…  n_frames=8
+  改后 e6-frames-AFTER.json   sha256=9744dbb78164177f96233669…  n_frames=8
+  VERDICT = ZERO_CHANGE（两份 payload 整体相等，不只 sha 相等）
+
+环境隔离（遵守"app.db 绝对只读"）：两次跑都显式导出
+DATABASE_URL / QUOTA_DB / CHROMA_DIR 到 %TEMP% 进程私有路径（口径照 tests/conftest.py），
+全量与变异复审一律在副本树 C:/Users/33393/AppData/Local/Temp/fz-mut-20260920 上跑。

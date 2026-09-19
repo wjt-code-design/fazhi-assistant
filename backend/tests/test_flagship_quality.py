@@ -3,6 +3,9 @@
 背景：精简到 2 模型后 text 无 light 档，use_light=False，text 全走旗舰流式分支。
 若该分支不写缓存、不跑自检，则 S3(缓存)/S6(自检) 对文字问题名存实亡。
 本测试 mock LLM/检索，走真实 chat 编排，断言缓存写入与自检执行——修复前应 RED。
+
+夹具已抽到 `_sse_harness.sse_client(route="flagship_stream")`（S5/1b）：桩点集合与抽提前一致，
+本文件的断言一字未改 —— 抽提判据就是"抽前抽后同结果"。
 """
 
 import os
@@ -15,55 +18,18 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
 import pytest
-from langchain_core.documents import Document
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from sqlalchemy.pool import StaticPool
 
-
-class _FakeChain:
-    async def astream(self, messages):
-        for p in ["根据《劳动合同法》第十九条，", "试用期最长六个月。"]:
-            yield p
+from tests._sse_harness import FLAGSHIP_PARTS, login, sse_client
 
 
 @pytest.fixture
 def client(monkeypatch):
-    import database
-    import main
-    from models import Base
-
-    eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
-    Base.metadata.create_all(eng)
-    sm = sessionmaker(bind=eng, autoflush=False, autocommit=False)
-    monkeypatch.setattr(database, "SessionLocal", sm)
-    monkeypatch.setattr(main, "SessionLocal", sm)
-    # 强制走健康的旗舰流式分支，隔离本机注册模型与配额状态。
-    monkeypatch.setattr(main.settings, "feature_router", True)
-    monkeypatch.setattr(main.registry, "has_role", lambda modality, tier: False)
-    monkeypatch.setattr(main, "_safe_pick", lambda modality, tier: ("flag-test", object(), False))
-    monkeypatch.setattr(main, "make_chain", lambda llm: _FakeChain())
-    # 检索命中一条，使 _cacheable=True 且 ctx_present=True
-    monkeypatch.setattr(
-        main,
-        "retrieve",
-        lambda q, k=4: [
-            Document(page_content="第十九条 试用期…", metadata={"source": "劳动合同法", "article": "第十九条"})
-        ],
-    )
-    monkeypatch.setattr(main, "classify_intent", lambda t: "legal_query")
-    monkeypatch.setattr(main.ks, "search_qa", lambda q: None)
-    # 引用校验放行（假答案引用的条文视为在库）
-    monkeypatch.setattr(main, "citation_verify", lambda a, in_kb=None: [])
-    from fastapi.testclient import TestClient
-
-    with TestClient(main.app) as c:
+    with sse_client(monkeypatch, flagship_parts=FLAGSHIP_PARTS) as c:
         yield c
 
 
 def _login(client):
-    client.post("/api/auth/register", json={"username": "user1", "password": "password123"})
-    return client.post("/api/auth/login", json={"username": "user1", "password": "password123"}).json()["token"]
+    return login(client)
 
 
 def test_flagship_path_writes_cache_and_runs_selfcheck(client, monkeypatch):

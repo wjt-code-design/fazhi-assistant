@@ -40,11 +40,21 @@
 | agent 路径有门、快车道没有 | `verifier.py` 4 行命中（`:296 :338 :434 :438`）、`main.py` 全文 `tripwire` **0 命中** | `grep -c tripwire backend/main.py` |
 | 冻结资产完好 | `gate2_runner.py` sha256 = `ae2e4120…47e295`（与票面要求一致，已实测相符） | `sha256sum backend/scripts/gate2_runner.py` |
 
-**环境四条坑**（本会话与上一任为它们返过工，一次坑值 20 分钟）：
+**环境与纪律五条**（前四条是本会话与上一任为它们返过工的坑，一次坑值 20 分钟；第五条是裁决出的默认要求）：
 1. `core.autocrlf=true` ⇒ 落盘**写字节**，`Path.write_text()` 会把 `\n` 变成 `\r\n`；改完复测 CRLF 计数。
 2. 含中文 + 反引号 / `$` 的串**不要**塞进 `bash -c` 或 `python -c`，写成临时脚本文件再跑。
 3. `pgrep -f <进程名>` 在这台机器会假阴性：等后台任务是等**副作用哨兵**（输出文件非空 / 末行出现 `rc=`）。
-4. **不要跑全量测试套件、不要跑 `run_gate_full.py`**（花钱，且会与 S5 抢 `app.db` / chroma 把隔离判据弄脏）。只跑你自己的定向文件。
+4. **全量测试套件 / `run_gate_full.py`：live 树禁止，副本树内允许。**
+   禁的是在 live 上跑（花钱、且与并行会话抢 `app.db` / chroma 把隔离判据弄脏）；
+   副本树（`git archive <commit> | tar -x -C <目录>`）里 `backend/.env` 不在场，且
+   `tests/conftest.py` **无条件**把 `DATABASE_URL` / `QUOTA_DB` / `CHROMA_DIR` 指到 `%TEMP%` 进程私有路径
+   ⇒ 副本内跑不出污染。副本需另备 `dispatch-output/task1/`（被 `.gitignore` 排除，缺了 `test_harness_fact_reveal.py`
+   收集期就报错）。**本条口径由票 G 复审 §7-P3 与主会话裁决确立（2026-09-20）。**
+5. **变异审计必须跑全量 + junit 差分**，不许只跑定向文件。
+   教训实据：S5 那轮四个变异**每个只跑 `tests/test_fast_path_law_version_gate.py` 一个文件** ⇒
+   `main.py` 里"命中不进缓存"那道 load-bearing 闸被删掉后**全量零反应**（复审 G-M1 存活）。
+   判据形状：基线与被审变异体各跑一轮整套，取"基线绿 → 变异红"的**差集**非空才算被杀；
+   两份基线口径不同（不同 commit / 不同副本流程）时**不许相减**，要先在同一棵树上重采。
 
 **通用边界**：不推送、不部署、不改任何开关默认值、不动 `backend/agent/**`、不动 `evals/` 冻结集、
 pytest 的 basetemp **不要设在 `backend/` 内**（`tests/test_log_field_whitelist.py` 递归扫全树）。

@@ -1,0 +1,38 @@
+{
+ "M1_cache_guard_off": {
+  "status": "KILLED",
+  "mutant_failed": 22,
+  "newly_red": [
+   "tests.test_fast_path_law_version_gate::test_e6_hit_does_not_enter_cache"
+  ],
+  "newly_green": []
+ },
+ "M2_callsite_half1_removed": {
+  "status": "KILLED",
+  "mutant_failed": 23,
+  "newly_red": [
+   "tests.test_fast_path_law_version_gate::test_e6_missing_client_date_does_not_degrade_every_answer",
+   "tests.test_fast_path_law_version_gate::test_e6_pre_watershed_fact_hits_by_version_rule_not_by_missing_date"
+  ],
+  "newly_green": []
+ },
+ "M3_empty_answer_note_appended": {
+  "status": "KILLED",
+  "mutant_failed": 22,
+  "newly_red": [
+   "tests.test_fast_path_law_version_gate::test_empty_answer_still_returns_empty"
+  ],
+  "newly_green": []
+ },
+ "M4_missing_date_passes": {
+  "status": "KILLED",
+  "mutant_failed": 22,
+  "newly_red": [
+   "tests.test_fast_path_law_version_gate::test_failclosed_when_switch_on_but_law_as_of_missing"
+  ],
+  "newly_green": []
+ },
+ "_self_check": {
+  "main_py_restored_byte_exact": true
+ }
+}
