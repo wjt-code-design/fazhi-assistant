@@ -1,0 +1,31 @@
+真实库/配额库未被写（只读指纹，2026-09-20 03:2x，HEAD `966a769`）
+================================================================
+为什么要取这一条：本轮 DoD 还剩"门禁 RUN_VALID"一条腿，而 `run_gate_full.py` 的隔离指纹
+读的就是下面这几个真实文件 ⇒ 没有它们，"测试没写生产库"这句话只能靠 mtime 推断。
+（票 G 复审独立取过同一组读数，两边**互不参照**却同值。）
+
+现量（纯 `open(...,'rb').read(100)`，不开 sqlite 连接、不加锁、不起进程）：
+  backend/app.db                size=20205568  change_counter(24-27)=10784
+                                version_valid_for(92-95)=10784  mtime=2026-09-19T00:28:25.716707
+  backend/data/quota_used.sqlite size=12288     change_counter=2   mtime=2026-09-19T00:12:51.569789
+
+对账：票 G `FOR-REVIEW-20260920.md` §4 记的是 size=20205568 / mtime=00:28:25.716707500 /
+cc=10784 / vvf=10784 / header18-19=1/1（非 WAL）⇒ **完全一致** ⇒ 本会话这一整轮
+（含 5 次副本树全量、端点级 pytest、以及 `capture_light_baseline.py`）没有写真实库。
+
+本轮所有会写的东西都指向进程私有临时路径：
+- pytest：`tests/conftest.py` **无条件**把 DATABASE_URL / QUOTA_DB / CHROMA_DIR 指到 %TEMP%；
+- 独立脚本 `capture_light_baseline.py`（conftest 不参与）：由调用方显式导出
+  DATABASE_URL=sqlite:///C:/Users/33393/AppData/Local/Temp/fz_1a_app.db
+  QUOTA_DB=.../fz_1a_quota.sqlite  CHROMA_DIR=.../fz_1a_chroma 后才跑。
+  ⚠️ 坑：SQLite **不认 MSYS 风格路径**（`/c/Users/...` 直接 `unable to open database file`），
+  必须写 `C:/Users/...`。
+- basetemp 一律在 %TEMP%（不进 `backend/`，否则被 `test_log_field_whitelist.py` 的全树扫扫到）。
+
+还没做的一条（需要 Owner 当场放开 live 窗口）
+--------------------------------------------
+`run_gate_full.py <标签>` 的 **RUN_VALID** 那条腿：它同时要"源码前后 sha 一致"和
+"真实 chroma 整目录清单一致"，只能在真实目录上跑 ⇒ 搬不进副本树（副本里没有真实库，
+"未变"会退化成恒真）。本轮改动 = `main.py` 一处调用点 + 一个新函数 + 测试面，
+静态判据（1363 条全量 × 5 轮、4/4 变异全杀、上面的库指纹未变）已齐，
+差的是这一条正式门禁读数。
