@@ -87,21 +87,23 @@ def scan_file(path: Path, max_bytes: int) -> tuple[list, str, int | None]:
 
     字节数随读数一起交出去，调用方**不要再 stat 一次**：这是一棵别的会话正在写的树，
     两次 stat 之间文件可以消失，那会让整台仪器以 rc=1 崩在 0/3/4 契约之外。
-    去重键 = `(pattern, 绝对起始偏移, token 字节长)`：OVERLAP=64 会让落在块尾的匹配在下一块
-    里被**再找一次**，旧版因此双计。绝对偏移 = 已读字节数 - 上一块保留的尾部长度 + 块内位置，
+    去重键 = `(pattern, 绝对起始偏移)`：OVERLAP=64 会让落在块尾的匹配在下一块里被**再找一次**，
+    不去重就双计。绝对偏移 = 已读字节数 - 上一块保留的尾部长度 + 块内位置，
     首块无尾部 ⇒ 退化为块内位置。键里含 pattern ⇒ 同一位置被两条正则各命中一次时不会被误并
     （真键家族 15+6 就是这么分布的）。
+    键里**不含 token 长度**：起点落在重叠窗内、结尾又跨过块界的那一条，首块只能匹配出**截断形状**
+    —— 那是一条现实中不存在的凭据形状（len/sha12 都是半截的），却和完整形状一起进报告。
+    同一起点在后面的块里只会匹配得**不短于**前面（重叠窗只补长、不截短）⇒ 直接覆盖，留完整那条。
     """
-    hits: list = []
     try:
         size = path.stat().st_size
     except OSError:
-        return hits, "oserror", None
+        return [], "oserror", None
     if size == 0:
-        return hits, "zero_byte", size
+        return [], "zero_byte", size
     if size > max_bytes:
-        return hits, "too_big", size
-    seen: set = set()
+        return [], "too_big", size
+    found: dict = {}
     try:
         with path.open("rb") as fh:
             prev_tail = b""
@@ -116,17 +118,14 @@ def scan_file(path: Path, max_bytes: int) -> tuple[list, str, int | None]:
                         tok = shape_of_token(name, m)
                         if b"\x00" in tok:
                             continue
-                        key = (name, offset - len(prev_tail) + m.start(), len(tok))
-                        if key in seen:
-                            continue
-                        seen.add(key)
-                        hits.append({"pattern": name, **shape(tok)})
+                        key = (name, offset - len(prev_tail) + m.start())
+                        found[key] = {"pattern": name, **shape(tok)}
                 prev_tail = buf[-OVERLAP:]
                 offset += len(chunk)
     except OSError:
         # 半路读挂：命中如实保留（宁可多报），但本文件不算"读到结尾"
-        return hits, "oserror", size
-    return hits, "scanned", size
+        return list(found.values()), "oserror", size
+    return list(found.values()), "scanned", size
 
 
 def walk_files(repo: Path) -> tuple[list, list]:
