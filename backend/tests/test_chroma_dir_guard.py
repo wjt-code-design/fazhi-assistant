@@ -62,14 +62,15 @@ def test_script_is_wired_to_the_guard(fname):
 
 
 def test_backup_data_wires_the_guard_for_quota_db_too():
-    """Q1 判据的接线面：`backup_data` 还必须拿 **QUOTA_DB** 比一遍，分歧即拒绝执行。
+    """Q1 判据的接线面：`backup_data` 必须拿 **QUOTA_DB 去比 QUOTA_SOURCE**，分歧即拒绝执行。
 
-    期望值来自票面判据（"`QUOTA_DB` 分歧即拒绝"），不是从实现里抄的。
-    `[^()]*` 是刻意的：它不允许跨过一次调用边界，于是"另一支 assert_matches 传了 env_name"
-    冒充"QUOTA_DB 这一支传了"挡不住——正则必须能区分"传了"与"没传"。
+    期望值来自票面判据（"`QUOTA_DB` 分歧即拒绝"），不是从实现里抄的。两个约束都是刻意的：
+    - `[^()]*` 不允许跨过一次调用边界 ⇒ "另一支 `assert_matches` 传了 env_name" 冒充不算数；
+    - 参数位必须写 `QUOTA_SOURCE` ⇒ 只把 `env_name="QUOTA_DB"` 挂到 **CHROMA_DIR 那一支**上
+      （容器 bug 的另一种复活方式：两支比的还是同一个向量库目录）也会红。
     """
     src = (SCRIPTS / "backup_data.py").read_text(encoding="utf-8")
-    assert re.search(r'assert_matches\([^()]*env_name="QUOTA_DB"[^()]*\)', src), (
-        'backup_data 的守卫没带 env_name="QUOTA_DB" ⇒ 容器里 QUOTA_DB 指向卷内路径时，'
+    assert re.search(r'assert_matches\(QUOTA_SOURCE[^()]*env_name="QUOTA_DB"[^()]*\)', src), (
+        "backup_data 没有拿 QUOTA_DB 去比 QUOTA_SOURCE ⇒ 容器里 QUOTA_DB 指向卷内路径时，"
         '三件附属会全部按 backend/data/ 找不到源而跳过，脚本仍打印"备份完成"'
     )

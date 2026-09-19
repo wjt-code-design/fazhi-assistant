@@ -292,7 +292,83 @@ def test_quota_guard_target_is_the_mapped_extra_source():
 
     期望值这里**故意独立写死**（`BACKEND/data/quota_used.sqlite`）—— 若两侧都写
     `os.path.join(DATA_DIR, ...)`，这条就退化成自己比自己、永远绿。它挡的是"接对了参数、
-    但比的是另一个文件"（那样容器里要么误拒、要么该拒时不拒）。
+    但比的是另一个文件"（那样容器里要么误拒、要么该拒时不拒）。M5 互换映射时这条会红，
+    红因是"守卫跟着映射一起偏了"，与 marker 那条同源、不是红错原因。
     """
     assert backup_data.QUOTA_SOURCE == os.path.join(backup_data.BACKEND, "data", "quota_used.sqlite")
-    assert os.path.basename(backup_data.QUOTA_SOURCE) == backup_data.EXTRA_SQLITE["quota_used.sqlite"]
+
+
+def test_manifest_records_chroma_as_counts_and_skips_verify_residue(tmp_path, monkeypatch, capsys):
+    """清单的 chroma 面（不 walk 的理由就在这条）：`chroma_db` 只记 files/bytes **不哈希**，
+    而 `app.db.verify.tmp` 这种残留**不许**混进 entries。
+
+    `verify_sqlite` 正常收尾会自己删临时文件；但只要它在 `finally` 之前抛异常，残留就留在包里。
+    walk 备份目录会把残留当成产物记进清单 ⇒ 坏包拿到一份看起来完整的凭证。这里刻意造一个残留
+    并断言"它确实在包里、而清单没记它"，两头都钉住。
+    """
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    _seed_sqlite(tmp_path / "app.db", "main")
+    chroma = tmp_path / "chroma_db"
+    (chroma / "sub").mkdir(parents=True)
+    (chroma / "sqlite.bin").write_bytes(b"1" * 1000)
+    (chroma / "sub" / "vec.bin").write_bytes(b"2" * 500)
+    monkeypatch.setattr(backup_data, "DB_PATH", str(tmp_path / "app.db"))
+    monkeypatch.setattr(backup_data, "CHROMA_DIR", str(chroma))
+    monkeypatch.setattr(backup_data, "DATA_DIR", str(data_dir))  # 两份附属都不存在 ⇒ skipped
+    monkeypatch.setattr(backup_data, "MEDIA_DIR", str(tmp_path / "no_media"))
+
+    def fake_export(dest_dir):
+        path = Path(dest_dir) / "chroma_index.json"
+        path.write_text('{"count": 0, "items": []}', encoding="utf-8")
+        return str(path)
+
+    def verify_leaving_residue(path):
+        Path(str(path) + ".verify.tmp").write_bytes(b"junk")
+        return True, "ok"
+
+    monkeypatch.setattr(backup_data, "export_chroma_json", fake_export)
+    monkeypatch.setattr(backup_data, "verify_sqlite", verify_leaving_residue)
+
+    out = tmp_path / "backup"
+    exit_code = backup_data.main(["--out", str(out)])
+    assert exit_code == 0, capsys.readouterr().out
+
+    manifest = json.loads((out / backup_data.MANIFEST_NAME).read_text(encoding="utf-8"))
+    by_dest = {e["dest"]: e for e in manifest["entries"]}
+    assert set(by_dest) == {"app.db", "chroma_db", "chroma_index.json"}
+    assert (by_dest["chroma_db"]["files"], by_dest["chroma_db"]["bytes"]) == (2, 1500)
+    assert "sha256" not in by_dest["chroma_db"], "真实库 362MB，哈希会把备份 I/O 翻倍"
+    assert (out / "app.db.verify.tmp").is_file(), "残留没造出来 ⇒ 这条断言在测一个不存在的形状"
+    assert ".verify.tmp" not in json.dumps(manifest, ensure_ascii=False), "清单把临时残留记成了产物"
+
+
+def test_manifest_media_items_degrade_to_counts_when_over_limit(tmp_path, monkeypatch, capsys):
+    """media 文件数超上限 ⇒ 退化成只记计数并说一句，而不是把清单撑爆。
+
+    上限在测试里降到 1（现网 5000，本仓 media 实测 58 个文件，永远碰不到那条分支）；
+    正常那条分支（逐个 sha256）由上面 `test_backup_maps_each_extra_source...` 覆盖。
+    """
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    _seed_sqlite(tmp_path / "app.db", "main")
+    media = tmp_path / "media"
+    media.mkdir()
+    (media / "a.bin").write_bytes(b"x")
+    (media / "b.bin").write_bytes(b"y")
+    monkeypatch.setattr(backup_data, "DB_PATH", str(tmp_path / "app.db"))
+    monkeypatch.setattr(backup_data, "CHROMA_DIR", str(tmp_path / "chroma_db"))
+    monkeypatch.setattr(backup_data, "DATA_DIR", str(data_dir))
+    monkeypatch.setattr(backup_data, "MEDIA_DIR", str(media))
+    monkeypatch.setattr(backup_data, "MEDIA_ITEM_HASH_LIMIT", 1)
+
+    out = tmp_path / "backup"
+    exit_code = backup_data.main(["--out", str(out), "--skip-chroma"])
+    printed = capsys.readouterr().out
+    assert exit_code == 0, printed
+
+    manifest = json.loads((out / backup_data.MANIFEST_NAME).read_text(encoding="utf-8"))
+    entry = {e["dest"]: e for e in manifest["entries"]}["media"]
+    assert (entry["files"], entry["bytes"]) == (2, 2)
+    assert "items" not in entry, "超上限还逐个哈希 ⇒ 清单自己把备份拖慢"
+    assert "[Manifest] media 文件过多，仅记计数" in printed, printed

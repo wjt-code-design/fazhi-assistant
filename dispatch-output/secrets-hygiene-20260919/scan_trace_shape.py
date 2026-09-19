@@ -82,9 +82,11 @@ def shape_of_token(name: str, m: re.Match) -> bytes:
     return m.group(2) if name == "generic_assign_secret" else m.group(0)
 
 
-def scan_file(path: Path, max_bytes: int) -> tuple[list, str]:
-    """扫单文件，返回 (命中, 计数口径)。口径 ∈ scanned/zero_byte/too_big/oserror。
+def scan_file(path: Path, max_bytes: int) -> tuple[list, str, int | None]:
+    """扫单文件，返回 (命中, 计数口径, 字节数)。口径 ∈ scanned/zero_byte/too_big/oserror。
 
+    字节数随读数一起交出去，调用方**不要再 stat 一次**：这是一棵别的会话正在写的树，
+    两次 stat 之间文件可以消失，那会让整台仪器以 rc=1 崩在 0/3/4 契约之外。
     去重键 = `(pattern, 绝对起始偏移, token 字节长)`：OVERLAP=64 会让落在块尾的匹配在下一块
     里被**再找一次**，旧版因此双计。绝对偏移 = 已读字节数 - 上一块保留的尾部长度 + 块内位置，
     首块无尾部 ⇒ 退化为块内位置。键里含 pattern ⇒ 同一位置被两条正则各命中一次时不会被误并
@@ -94,11 +96,11 @@ def scan_file(path: Path, max_bytes: int) -> tuple[list, str]:
     try:
         size = path.stat().st_size
     except OSError:
-        return hits, "oserror"
+        return hits, "oserror", None
     if size == 0:
-        return hits, "zero_byte"
+        return hits, "zero_byte", size
     if size > max_bytes:
-        return hits, "too_big"
+        return hits, "too_big", size
     seen: set = set()
     try:
         with path.open("rb") as fh:
@@ -122,11 +124,9 @@ def scan_file(path: Path, max_bytes: int) -> tuple[list, str]:
                 prev_tail = buf[-OVERLAP:]
                 offset += len(chunk)
     except OSError:
-        return (
-            hits,
-            "oserror",
-        )  # 半路读挂：命中如实保留（宁可多报），但本文件不算"读到结尾"
-    return hits, "scanned"
+        # 半路读挂：命中如实保留（宁可多报），但本文件不算"读到结尾"
+        return hits, "oserror", size
+    return hits, "scanned", size
 
 
 def walk_files(repo: Path) -> tuple[list, list]:
@@ -149,17 +149,17 @@ def relative_to(repo: Path, path: Path) -> str | None:
 
 
 def scan_repo(repo: Path, max_bytes: int) -> tuple[list, list]:
-    """遍历一次，产出逐文件读数 [(rel, path, 命中, 口径)] 与目录剪枝名单。只读数，不判定。"""
+    """遍历一次，产出逐文件读数 ``[(rel, 命中, 口径, 字节数)]`` 与目录剪枝名单。只读数，不判定。"""
     paths, pruned_dirs = walk_files(repo)
     rows = [
-        (rel, p, *scan_file(p, max_bytes))
+        (rel, *scan_file(p, max_bytes))
         for p in paths
         if (rel := relative_to(repo, p)) is not None
     ]
     return rows, pruned_dirs
 
 
-def tracking_of(rel: str, tracked: set, git_ok: bool):
+def tracking_of(rel: str, tracked: set, git_ok: bool) -> bool | str:
     """True/False = 可信判定；``"unknown"`` = git 列表失败。
 
     这是**全局**置 unknown 而非逐文件判断——列表失败时没有任何信息能区分谁被跟踪，
@@ -186,7 +186,7 @@ def build_summary(rows: list, per_file: dict, pruned_dirs: list) -> dict:
 
     旧口径把 0 字节与超限文件也算进 files_scanned ⇒ "71,159" 不是覆盖数。
     """
-    status = Counter(s for _, _, _, s in rows)
+    status = Counter(s for _, _, s, _ in rows)
     by_pattern: dict = {}
     for rel, info in per_file.items():
         for h in info["hits"]:
@@ -233,10 +233,10 @@ def main() -> int:
     per_file = {
         rel: {
             "tracked": tracking_of(rel, tracked, git_ok),
-            "bytes": p.stat().st_size,
+            "bytes": size,
             "hits": hits,
         }
-        for rel, p, hits, _status in rows
+        for rel, hits, _status, size in rows
         if hits
     }
     summary = build_summary(rows, per_file, pruned_dirs)
