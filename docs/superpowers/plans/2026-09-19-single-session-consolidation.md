@@ -717,7 +717,7 @@ Owner 授权派发后，我给一个只读调查员写的 brief 说"一个 27 �
 2. **"最小可用"其实不最小**：三条出口里只有缓冲轻量能便宜接门（文本已在手、有 `NOTE_QUOTA/NOTE_COMPLEX`
    降级惯用法可复用），两条流式出口要判就得在流尾收口 = 改用户可见行为 ⇒ **票拆成 S5-a（只做轻量）+ 流式收口另开**。
 3. **`law_as_of` 在 `:1831` 作用域里本来就够得着**（端点 `:1486-1494` 已把 `body.law_as_of` 传进 bootstrap），
-   所以不必经 `pre` 字典中转 —— 而走 `pre` 会撞上 `test_request_bootstrap.py:601` 钉死的
+   所以不必经 `pre` 字典中转 —— 而走 `pre` 会撞上 `test_request_bootstrap.py` 的 `:311` 与 `:602` **两条**钉死的
    `set(result) == LEGACY_KEYS`。这条决定了票面 §4-Q2 的推荐路线。
    顺带把旧记录里"` _pre()` 未证实可能废弃"结掉了：`main.py` 内 **0 调用点**，只有
    `tests/test_pre_rewrite_order.py:93/:149` 调它，它 `:713` 转发到 `_prepare_fast_path_only`
