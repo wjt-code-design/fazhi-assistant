@@ -98,10 +98,17 @@ dispatch-output/config-backups-*/
 # 该目录的代码备份（无密钥，但同"备份不入库"原则；2026-09-15）
 dispatch-output/agent-quality-20260911/*.before-*
 
-# 仓库根的调试/取证留痕（`_xxx.txt` 一类）。实测根目录有 97 个这样的条目（-unormal 口径），
-# 而 `.gitignore` 原先**没有任何 `_*` 规则** ⇒ 一次 `git add -A` 就可能把含真密钥的留痕提交上去。
+# 仓库根的调试/取证留痕（`_xxx.txt` 一类）。这类条目有多少 —— **注释里只写命令，不写数字**：
+#   git status --porcelain --ignored | grep -c '^!! _'      （2026-09-19 实测给 108）
+# 别把 108 和当初记在注释里的 97 当成"同一个数变了"：97 是规则生效**前**用
+#   git status --porcelain                                  （默认 -u，未跟踪目录折叠成一条）
+# 数出来的未跟踪条目；规则生效后同一批文件改从 `!!` 出现，且 `--ignored` 的折叠语义不同
+# ⇒ 两个数不是同一个量，不可比。**原命令现在返回 0**，那正是规则在工作的证据。
+# 加这条规则的动机仍然成立：`.gitignore` 原先**没有任何 `_*` 规则** ⇒ 一次 `git add -A`
+# 就可能把含真密钥的留痕提交上去。
 # 前导斜杠是关键：写成 `_*` 会匹配任意层级，实测会命中 9 个已跟踪文件（`__init__.py`、
-# `backend/tests/_r15_tripwire_probe.py` 等探针），那不是我想要的。
+# `backend/tests/_r15_tripwire_probe.py` 等探针），那不是我想要的。这个 9 不过期，因为命令在：
+#   git ls-files | awk -F/ '{print $NF}' | grep -c '^_'
 # 复验判据：`git check-ignore -q _probe.txt` ⇒ rc=0；
 #           `git check-ignore -q backend/tests/_r15_tripwire_probe.py` ⇒ rc=1
 /_*
@@ -109,4 +116,5 @@ dispatch-output/agent-quality-20260911/*.before-*
 # 鉴权状态快照（S1 全仓递归扫描实测：`dispatch-output/t2-evidence-replay-20260916/p2-auth-state.json`
 # 里是 120 字节、含数字的**真形态 JWT**，而它的姊妹文件 `dispatch-output/token.json` 早已有显式规则
 # （:76）——这一类漏了。留痕不入库，与 token.json 同等待遇。）
+# 出处：这条不是 S2 票面点名的，是执行者（S1/S2 那个会话）自加 ⇒ Owner 已于 2026-09-19 追认（Q6）。
 dispatch-output/**/*auth-state*.json
