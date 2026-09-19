@@ -213,7 +213,11 @@ EXITS: list[dict] = [
                 "GAP-TODO",
                 "待开票（本表 2026-09-20 新发现）：`answer_cache.put(..., model=" + '"contract_review"' + ")` "
                 "发生在追加引用告警注记**之前**，且本出口不跑自检 ⇒ "
-                "**引用未收录的合同报告会以「无告警」的形态进缓存并被零 token 复播**。",
+                "**引用未收录的合同报告会以「无告警」的形态进缓存并被零 token 复播**。"
+                "⚠️ 判定其实**早就算好了**：`bad = citation_verify(answer)` 在 `:1883`，"
+                "写闸在 `:1884` 却没看它 ⇒ 修法近乎免费（`if cache_key and not bad:`），"
+                "代价只是带告警的报告不进缓存。全仓三处写闸（`:1886` / `:1936` / `:2074`）"
+                "条件集互不相同，另见 E7、E6 两格。",
             ),
             "评测可信度": ("NA", "不在冻结集内。"),
         },
@@ -276,8 +280,14 @@ EXITS: list[dict] = [
             ),
             "写缓存闸": (
                 "GAP-TODO",
-                "待开票（本表新发现）：轻量侧只有三条件（cache_key / verdict==pass / not law_version_hit），"
-                "而流式出口是四条件（另含 `_cache_write_ok` 确定性写闸 + `not multi_bad`）"
+                "待开票（本表新发现）：两条闸**字面条件集交集只有 `cache_key`**"
+                '（`:1933` = cache_key / `res.verdict == "pass"` / `not res.law_version_hit`；'
+                "`:2071` = cache_key / `not flag_degraded` / `_cache_write_ok` / `not multi_bad`）。"
+                '逐条对：流式的 `not flag_degraded` 在轻量侧由 `verdict == "pass"` 承担'
+                '（配额耗尽分支 `:1249-1251` 把 verdict 写成 `v.reason or "low_quota"`）⇒ 不是漏闸，'
+                "但**降级与自检 FAIL 两个信号被合进同一个条件**，归因粒度比流式粗。"
+                "轻量侧真正**无任何对应物**的两件：`_cache_write_ok`（确定性写闸，全文只在 `:2071` 出现）"
+                "与 `not multi_bad`（`quality.multi_incomplete` 全文只在 `:2030` 流式侧调用）"
                 "⇒ 同一个「拦错答进缓存」的形状两份实现、强弱不同（`[PL#13]`）。"
                 "已有的那条 `not law_version_hit` 本轮已配端点级用例（能杀删闸变异）。",
             ),

@@ -18,6 +18,91 @@
 - **当前限制**：V1 在线路径支持 Gate Shadow 和实时灰度，但尚无后台双跑且不展示 Agent 答案的 Shadow Traffic executor；evaluator 现在提供严格的冻结 artifact adapter，以及只接收人工脱敏离线 `{id, answer}` 证据的 normalizer。正式 evidence 使用 v2 artifact，必须同题集、同 evidence mode、同 candidate revision、同 release manifest；normalizer 不访问数据库、用户会话或模型，拒绝额外身份字段、不匹配 case、字符串伪装的数值/布尔值和不安全 provenance。normalizer 不能凭 schema 识别 prose/trace 中的个人信息，脱敏仍须独立审计。尚无真实 capture artifact。在专用双跑/采集流程产出真实同 hash 报告、工件、重放检查和独立审计前，发布保持 `BLOCKED`，不得把实时 Agent 流量称为 Shadow。
 - **代价**：发布需要两份可追溯报告、恢复演练、较长观测窗口和逐级人工操作；换来不会因漂亮但同源或不可复现的指标自动放量。
 
+## ADR-018 开源 agent 框架评估：只借形状、不引依赖 + 出口×闸门登记表（2026-09-20）
+
+**背景**：Owner 问"法智要不要借鉴开源 agent 框架的做法"。起因是 S5 收口时暴露的两件事：
+
+1. 同一个"追加确定性核对注 + 拦写缓存 + 落一条日志"的形状在 `backend/main.py` 里已经手写了四遍
+   （引用告警 / 多选漏答 / 自检 FAIL / 回退模型不可用），版本绊线是第五遍；
+2. S5 把那道门接在**缓冲轻量出口**上，单测全绿、门禁 RUN_VALID，交完才发现**那条出口在当前部署配置下
+   零流量**（`llm_registry` 实配的 `(modality, tier)` 全集只有 `('text','flag')` ⇒ `use_light` 恒假）。
+   门是接在活代码上，只是活代码今天没人走到。
+
+候选三个：NVIDIA NeMo Guardrails（槽位声明）、LangGraph（图自省）、promptfoo（断言词表）。
+
+**决策**：**不引入任何框架依赖（含 dev 依赖），只借形状。** 落地物是一张「文本出口 × 已挂闸门」登记表
+加一条硬红哨兵：
+
+- `backend/gate_exit_registry.py` —— **真源是 Python dict**（13 个出口 × 8 道闸门，每格 `(状态, 证据)`）。
+  "什么算一个出口"也写成代码而非自然语言：`scan_content_yields()` 认
+  `Yield → JoinedStr → Call(json.dumps) → Dict 含 'content' 键` 这一条形状，全树扫。
+- `backend/scripts/gen_gate_exit_registry.py` → `docs/gate-exit-registry.md` —— **md 是生成物**，
+  带 `generated-at` / `source-commit` 头，不许手改；快速矩阵刻意**不写行号**（行号在本项目已漂移过四次）。
+- `backend/tests/test_gate_exit_registry.py` —— 哨兵共 9 条，分两类：
+  **四条自证腿**（在 `tmp_path` 里现造一份"有 yield 没锚点"的源、一份"锚点 id 不在表里"的源，
+  再加一条幽灵行、一条无证据豁免，断哨兵必须报错——防规则本身空转，范本是仓里已有的
+  `tests/test_log_field_whitelist.py`）+ **五条主断言**（真码出口全登记 / 表行全在真码里 /
+  结构完整（每行每列齐、状态在词表内、证据非空、`GAP-TODO` 必须挂票号）/ 豁免合法 / md == 生成物）。
+  豁免清单的**内容**在真源侧（`gate_exit_registry.py:411` `EXEMPTIONS: list[dict] = []`，现在是空的），
+  它的**上限**在测试侧（`test_gate_exit_registry.py:38` `MAX_EXEMPTIONS = 0`）——
+  谁要豁免就得同时加内容并显式改上限，改上限会进 diff、要上线审。
+- 13 处 yield 各加一条 `  # gate-exit: E<n>` 锚点注释。**纯注释**：剥掉标记后的 `main.py` 与加锚点前
+  （`fad2cee~1`）在**归一 EOL 后逐字节相同**（两边行数都是 2667 ⇒ 一条代码行都没多）。
+  ⚠️ 口径：拿它跟 git blob 比**原样字节**会得 False，只因 `core.autocrlf=true` 下 blob 存 LF、
+  工作树是 CRLF —— 这句"逐字节相同"必须带 EOL 归一这个前提。取证脚本
+  `dispatch-output/s5-followup-20260920/verify_anchors_comment_only.py`。
+  出口与行之间用符号/锚点绑定，不用行号绑定。
+
+**三候选与各自否掉的理由**（特性已于 2026-09-20 经 context7 核过官方文档，不是记忆）：
+
+| 候选 | 已核到的事实 | 结论 |
+|---|---|---|
+| NeMo Guardrails | 槽位是 **7 类**（`input/output/retrieval/dialog/actions/tool_input/tool_output`）；`output` rail 的**流式策略是一等参数**（`enabled / chunk_size: 200 / context_size: 50 跨块重叠 / stream_first`），另有 `options={"rails":[...]}` 只跑子集 | **借形状两件**：槽位枚举、"分块 + carry-over" 的判定策略（不必扣住整段再判）。**不引依赖**：它的槽位是*它那一条*生成边界上的位置，答不了"我这 13 个代码路径里哪些会吐文本"——而后者才是本项目的病 |
+| LangGraph | `get_graph(xray=True)` / `draw_mermaid_png()` 确实存在，但条件边是 `add_conditional_edges(node, predicate_fn, {...})`，**谓词是运行时函数、`xray` 只展开子图** | **撤回我方先前的推荐**。它在"当前部署配置下这条分支可达吗"上和本项目**同样瞎**，借它的自省形状等于借一份看不见的图 |
+| promptfoo | 断言词表 `contains / regex / llm-rubric / javascript / similar(cosine threshold) / contains-json`；多轮靠 provider `stateful: true` 或跨用例同 `sessionId`。**它跑断言、不做搜索优化** | 断言即声明的形状我们已有（judge / verifier）。**别当调参工具**：`watershed-cases-r15.json` 里"还需调参"那类活属人工对抗设计或 DSPy 式优化器，不在它能力内 |
+
+**同时被否掉的第四个方案（我方自己提、自己否）**："先把闸门抽成公共中间件收敛重复"。否它的理由是
+**它是代理目标**：测的是"闸门覆盖率"，真实目标是"错版本答复的交付率"；而且它绕开了当时两条**正确性缺陷**
+（开关一开 = 恒命中、写缓存闸零测试敏感）。结构整洁本身不是可测的风险下降。
+先补正确性、再立表、最后才谈收敛。
+
+**代价（明确登记，不是"没问题"）**：
+
+1. **表要人维护，且真源写错不会红**——哨兵只拦"漏登记 / 幽灵行 / md 漂移"，不拦"这格其实不该是 PASS"。
+   部分缓解：每格强制带一段可复核的证据字符串，空证据硬红。
+2. 每加一处 `content` yield 就得同步加表行，否则 CI 硬红。这是**故意**设的摩擦。
+3. `scan_content_yields()` 只认 `Yield → json.dumps(Dict)` 且 Dict 含 `'content'` 键这一条形状，
+   所以两类东西是**结构性**挡在门外的、不是被清单排除的：`yield "data: [DONE]\n\n"` 是纯字符串常量，
+   根本没有 dict。剩下三种"是 dumps 但不是文本"的帧（带 `type` 的 `restart`、带 `error` 的失败帧、
+   收尾带 `conversation_id`+`sources` 的元数据帧）由 `NON_TEXT_FRAME_KEYS = {type, error, conversation_id}`
+   显式排除。将来若换别的推送形状（如自定义事件），规则要一起改，
+   否则又是一条"规则匹配 0 处而全绿"的空转哨兵——这条**已有前科**（本票初版规则实测匹配 0 处）。
+4. 不引依赖 = 放弃上游维护的免费更新。换来的收益是"我们只借了一个已核实存在的形状"，
+   而不是"我们的答复路径从此受一个我们读不懂的库管辖"。
+
+**这张表第一次立起来就读出的缺口（9 格 `GAP-TODO`，摊在 7 个出口上；下表末行是 E7 的另一半）**：
+
+| 出口 | 缺什么 | 为什么值得记 |
+|---|---|---|
+| E8 旗舰流式增量 | 版本绊线未接，而它是**主承流量**出口（有执行取证） | 票 C / S6 的正当性现在由这张表给出，不再由叙述给出 |
+| E7 缓冲轻量整答 | （本行不是缺口，是**对照**：它的版本绊线是唯一 PASS 的一格） | 与上一行合起来才是最锋利的一句：**接了门的出口零流量，承流量的出口没接门**——单看任一行都会误判"这事做了" |
+| E9 流式空答后 `_invoke_llm` 兜底整答 | 版本绊线未接 | 与 E8 是同一条回答的两种成形方式，只补 E8 会漏这条 |
+| E1 / E2 缓存直返两分支 | 版本绊线未接，且在收口点**之前**就 return | 挂在收口的门永远走不到这两条；E2 的命中率至今未量 |
+| E5 合同报告流式增量 | 配额降级注记、写缓存闸 | 合同分支**从不跑** `quality.self_check`（全文 `self_check` 只在 `:1240/:1265/:2066`）；且引用告警的判定 `bad = citation_verify(answer)` 在 `:1883` **早就算好了**，`:1884` 的写闸却没看它 ⇒ 带未收录引用的报告会以"无告警"形态进缓存被零 token 复播。**这一格修法近乎免费**（`if cache_key and not bad:`） |
+| E6 合同引用告警注记帧 | 写缓存闸 | 同上另一面：注记追加在 `put` 之后 ⇒ 复播时丢掉那条告警 |
+| E7 缓冲轻量整答 | 多选完整性、写缓存闸 | `multi_incomplete` 全文只在 `:2030` 流式侧调用 ⇒ 轻量路径无多选保护；两条写缓存闸的**字面条件集交集只有 `cache_key`**，轻量侧对 `_cache_write_ok` 与 `not multi_bad` **无任何对应物**（`not flag_degraded` 那半由 `verdict == "pass"` 承担，代价是"降级"与"自检 FAIL"两个信号被合进一个条件） |
+
+**已知残留 / 后续**：① 9 格 `GAP-TODO` 目前只写"待开票"，需给真实票号后回表更新并重生成 md
+（不回，`test_committed_md_is_the_generated_artifact` 这条腿会红）；② S5 与票 C 都只拦**新写入**，
+库里已存在的错版本条目不受影响；③ 表不覆盖 `agent_path` 与合同文件端点（`OUT_OF_SCOPE` 两行，各自记了理由）。
+
+**成本教训（本 ADR 要钉住的那一条）**：仓库**早就把这个事实钉在测试里了**——
+`backend/tests/test_flagship_quality.py` docstring 第三行原文是
+「背景：精简到 2 模型后 text 无 light 档，use_light=False，text 全走旗舰流式分支。」
+（该行早于本轮存在，`966a769~1` 里就在，不是本会话自己写进去的），而它的 fixture 正是我准备"新建"的那套端点级设施。
+我却派了一次**付费只读探针会话**去量同一件事。⇒ 想知道某个分支可达吗、某条前提真假，
+**第一站是既有测试的 docstring 与 fixture**，不是新写探针。报成本时也要先查设施是否已存在。
+
 ---
 
 ## ADR-001 单一 omni 模型，不用「分类模型 + 生成模型」双模型

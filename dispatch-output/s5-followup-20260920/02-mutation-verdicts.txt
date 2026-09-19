@@ -31,5 +31,7 @@ LAW_VERSION_WATERSHED_MISMATCH 而不是 LAW_TRIPWIRE_NOT_WIRED"。
 --------------
 - 票 G 的 G-M2（摘掉 `:1183` 那处开关读数）它自评"存活但是等价变异"（`:1224` 还有第二处读数）。
   本轮未重复该形状 —— 等价性由复审判定，本会话未独立复核。
-- 完整 junit xml 与 stdout（5 份，约 1.4 MB）留在副本树同目录，未入库（与本仓 S5 证据目录
-  只入 .py/.json/.txt 的惯例一致）。重采命令见 run_mutations_full.py 的 docstring。
+- 原始 junit xml 5 份（1,353,719 B）+ stdout 5 份（345,582 B）共约 1.7 MB，就在本目录，
+  **故意不入库**（与本仓 S5 证据目录只入 .py/.json/.txt 摘要的惯例一致；判据已在
+  mutation-report-full.json 里逐变异给出 failed 数与 newly_red 用例名）。副本树
+  %TEMP%/fz-mut-20260920 内有一份同源副本，重采命令见 run_mutations_full.py 的 docstring。
