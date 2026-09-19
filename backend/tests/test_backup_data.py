@@ -287,6 +287,36 @@ def test_backup_fails_closed_when_extra_verification_raises(tmp_path, monkeypatc
     assert not (tmp_path / "backup" / backup_data.MANIFEST_NAME).exists()
 
 
+def test_backup_fails_closed_when_manifest_construction_raises(tmp_path, monkeypatch, capsys):
+    """清单算不动（读盘/写 JSON 抛 OSError）⇒ 同样要给**一条明确的失败结论**，而不是 traceback。
+
+    上面那批 fail-closed 分支把"备份"这一步全包了，但清单这一步是全脚本最后两处裸 I/O：
+    它挂了运维既看不到"备份完成"也看不到"备份失败"，只看到一屏栈。桩打在 `file_sha256`
+    （清单面对整个包的第一次读盘），抛在这里等价于"清单构建中途挂了"。
+    """
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    _seed_sqlite(tmp_path / "app.db", "main")
+    _seed_sqlite(data_dir / "quota_used.sqlite", "quota")
+    monkeypatch.setattr(backup_data, "DB_PATH", str(tmp_path / "app.db"))
+    monkeypatch.setattr(backup_data, "CHROMA_DIR", str(tmp_path / "chroma_db"))
+    monkeypatch.setattr(backup_data, "DATA_DIR", str(data_dir))
+    monkeypatch.setattr(backup_data, "MEDIA_DIR", str(tmp_path / "no_media"))
+
+    def fail_hash(_path):
+        raise OSError("disk gone")
+
+    monkeypatch.setattr(backup_data, "file_sha256", fail_hash)
+
+    exit_code = backup_data.main(["--out", str(tmp_path / "backup"), "--skip-chroma"])
+    printed = capsys.readouterr().out
+
+    assert exit_code == 1, printed
+    assert "[Manifest] ERROR 清单构建失败：disk gone" in printed, printed
+    assert "备份完成" not in printed
+    assert not (tmp_path / "backup" / backup_data.MANIFEST_NAME).exists()
+
+
 def test_quota_guard_target_is_the_mapped_extra_source():
     """接线的另一半：守卫拿 QUOTA_DB 去比的"期望源"，必须就是附属映射算出的那份账本。
 

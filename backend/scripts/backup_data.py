@@ -340,14 +340,20 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     # ---- 清单：走到这里才写 —— 上面每条 return 都是"包不可用"，坏包不该带一份看起来完整的凭证 ----
-    entries = manifest_entries(
-        out,
-        args.skip_chroma,
-        args.skip_chroma_export,
-        msg,
-        extra_records,
-    )
-    manifest = write_manifest(out, entries)
+    # 这一步是全脚本最后两处裸 I/O。只兜 OSError：清单面只做读盘与写 JSON，没有任何 sqlite 调用
+    # ⇒ 跟抄 `(OSError, sqlite3.Error)` 会多出一条永远走不到的分支，反而把真实失败面写虚了。
+    try:
+        entries = manifest_entries(
+            out,
+            args.skip_chroma,
+            args.skip_chroma_export,
+            msg,
+            extra_records,
+        )
+        manifest = write_manifest(out, entries)
+    except OSError as exc:
+        print(f"[Manifest] ERROR 清单构建失败：{exc}")
+        return 1
     print(f"[Manifest] {manifest}  entries={len(entries)}  " + " ".join(f"{e['dest']}:{e['kind']}" for e in entries))
 
     print(
