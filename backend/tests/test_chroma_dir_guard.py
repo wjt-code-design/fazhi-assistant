@@ -4,7 +4,10 @@
 - 把 `assert_matches` 的 raise 删掉 ⇒ 第 3 条红；把里面的 `os.path.abspath` 去掉 ⇒ 第 2 条红
   （那条测的是"同一路径的不同写法不该被误判成分歧"，用的是真不同的字面量，不是自己造自己比）；
 - 把某个脚本 `__main__` 前的 `_check_env_contract()` 调用删掉、或把它挪进 `main()` 里
-  ⇒ 该脚本的接线断言红（接线用源码判定，不 import 脚本本体，见 WIRED 注释）。
+  ⇒ 该脚本的接线断言红（接线用源码判定，不 import 脚本本体，见 WIRED 注释）；
+- 把 `backup_data` 那句 `env_name="QUOTA_DB"` 删掉（退回默认 CHROMA_DIR）⇒ 末条 QUOTA_DB 接线断言红。
+  那道门挡的是容器侧形状：compose 注入 `QUOTA_DB=/data/quota_used.sqlite`，而脚本按 `backend/data/`
+  固定取源 ⇒ 只判 CHROMA_DIR 时三件附属全部"源不存在⇒跳过"，却照样打印"备份完成"。
 """
 
 import os
@@ -56,3 +59,17 @@ def test_script_is_wired_to_the_guard(fname):
         f"{fname} 的守卫不在 __main__ 路径上（放进 main() 会让 test_backup_data 这类直调 main 的用例被拒）"
     )
     assert "assert_matches(" in src, f"{fname} 的 _check_env_contract 没真正调用守卫"
+
+
+def test_backup_data_wires_the_guard_for_quota_db_too():
+    """Q1 判据的接线面：`backup_data` 还必须拿 **QUOTA_DB** 比一遍，分歧即拒绝执行。
+
+    期望值来自票面判据（"`QUOTA_DB` 分歧即拒绝"），不是从实现里抄的。
+    `[^()]*` 是刻意的：它不允许跨过一次调用边界，于是"另一支 assert_matches 传了 env_name"
+    冒充"QUOTA_DB 这一支传了"挡不住——正则必须能区分"传了"与"没传"。
+    """
+    src = (SCRIPTS / "backup_data.py").read_text(encoding="utf-8")
+    assert re.search(r'assert_matches\([^()]*env_name="QUOTA_DB"[^()]*\)', src), (
+        'backup_data 的守卫没带 env_name="QUOTA_DB" ⇒ 容器里 QUOTA_DB 指向卷内路径时，'
+        '三件附属会全部按 backend/data/ 找不到源而跳过，脚本仍打印"备份完成"'
+    )
