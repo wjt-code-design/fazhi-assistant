@@ -1,0 +1,38 @@
+[
+  {
+    "name": "M1-摘掉整道门",
+    "desc": "开关开也直接原样返回 ⇒ 门形同不存在",
+    "target": "main.py",
+    "snippet": "    if not settings.fast_path_law_version_check:\n        return res\n",
+    "replacement": "    if not settings.fast_path_law_version_check or True:  # MUTANT M1\n        return res\n",
+    "expect_failed_test": "test_independent_expectation_table",
+    "pytest_args": ["tests/test_fast_path_law_version_gate.py", "-q"]
+  },
+  {
+    "name": "M2-缺基准日当作不拦",
+    "desc": "把 fail-closed 改成放行（§4-Q3 明令禁止的方向）",
+    "target": "main.py",
+    "snippet": "    if law_as_of is None:\n        reason = \"LAW_TRIPWIRE_NOT_WIRED\"\n",
+    "replacement": "    if law_as_of is None:\n        return res  # MUTANT M2\n",
+    "expect_failed_test": "test_failclosed_when_switch_on_but_law_as_of_missing",
+    "pytest_args": ["tests/test_fast_path_law_version_gate.py", "-q"]
+  },
+  {
+    "name": "M3-只漏一个return点",
+    "desc": "升级后仍不过那条 return 不接门（§5-2 专门防的形状）",
+    "target": "main.py",
+    "snippet": "    return _law_version_gate(\n        _LightResult((fraw + NOTE_COMPLEX) if fraw else \"\", fkey, modality, \"flag\", usage + fusage, True, fv.reason),\n        fact_texts,\n        law_as_of,\n    )",
+    "replacement": "    return _LightResult((fraw + NOTE_COMPLEX) if fraw else \"\", fkey, modality, \"flag\", usage + fusage, True, fv.reason)  # MUTANT M3",
+    "expect_failed_test": "test_every_return_point_passes_the_gate",
+    "pytest_args": ["tests/test_fast_path_law_version_gate.py", "-q"]
+  },
+  {
+    "name": "M4-把法条文本当事实",
+    "desc": "事实集误含 pre[\"context\"]（检索到的旧法条文，其日期不属于本案）",
+    "target": "main.py",
+    "snippet": "    texts = [pre.get(\"user_text\") or \"\", pre.get(\"rewritten\") or \"\"]\n",
+    "replacement": "    texts = [pre.get(\"user_text\") or \"\", pre.get(\"rewritten\") or \"\", pre.get(\"context\") or \"\"]  # MUTANT M4\n",
+    "expect_failed_test": "test_law_text_dates_are_not_facts",
+    "pytest_args": ["tests/test_fast_path_law_version_gate.py", "-q"]
+  }
+]

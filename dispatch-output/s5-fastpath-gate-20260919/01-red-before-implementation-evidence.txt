@@ -1,0 +1,319 @@
+FFFFFFFFFF                                                               [100%]
+================================== FAILURES ===================================
+____________ test_failclosed_when_switch_on_but_law_as_of_missing _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A7804ABED0>
+
+    def test_failclosed_when_switch_on_but_law_as_of_missing(monkeypatch):
+        """§4-Q3：开关开 + 拿不到基准日 = 判定不可信 ⇒ 走保守分支。
+        **不许**写成"缺就当作不拦"（照抄 agent 路径 verifier.py:296-297 的 fail-closed）。
+        用两参数调用 ⇒ 生产码未改时这道题红在断言上，可作 §6-① 的干净红。"""
+        monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+        res = run_light(monkeypatch, make_pre(FACT_W01_2019), CLAIM_S01_WRONG_CURRENT_LAW)
+>       assert getattr(res, "law_version_hit", None) is True, (
+            f"快车道轻量出口没有这道门（返回结构无 law_version_hit 字段）：{res!r}"
+        )
+E       AssertionError: 快车道轻量出口没有这道门（返回结构无 law_version_hit 字段）：_LightResult(answer='依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。', key='L', modality='text', tier='light', usage=10, escalated=False, verdict='pass')
+E       assert None is True
+E        +  where None = getattr(_LightResult(answer='依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。', key='L', modality='text', tier='light', usage=10, escalated=False, verdict='pass'), 'law_version_hit', None)
+
+tests\test_fast_path_law_version_gate.py:174: AssertionError
+_______________ test_switch_off_leaves_hitting_answer_untouched _______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A7804A8710>
+
+    def test_switch_off_leaves_hitting_answer_untouched(monkeypatch):
+        """§5-4：开关关 ⇒ 同一条会命中的输入也必须逐字不变。"""
+        monkeypatch.setattr(main.settings, "fast_path_law_version_check", False)
+>       res = run_light(
+            monkeypatch,
+            make_pre(FACT_W01_2019),
+            CLAIM_S01_WRONG_CURRENT_LAW,
+            law_as_of=AS_OF_2026,
+        )
+
+tests\test_fast_path_law_version_gate.py:183: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A7804A8710>
+pre = {'conv_id': 1, 'intent': 'legal_query', 'image': None, 'recent': [], ...}
+answer = '依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。'
+law_as_of = datetime.date(2026, 9, 18), shape = 'ok-light', verdicts = None
+flag_content = None
+
+    def run_light(monkeypatch, pre, answer, law_as_of=NO_AS_OF, shape="ok-light", verdicts=None, flag_content=None):
+        install_fakes(monkeypatch, answer, flag_content=flag_content, shape=shape, verdicts=verdicts)
+        if isinstance(law_as_of, _NoAsOf):
+            return main._light_buffered(pre, [])  # 现网调用形状（§4-Q2 之所以要带默认值尾参）
+>       return main._light_buffered(pre, [], law_as_of)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: _light_buffered() takes 2 positional arguments but 3 were given
+
+tests\test_fast_path_law_version_gate.py:162: TypeError
+_____________________ test_independent_expectation_table ______________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A78053A310>
+
+    def test_independent_expectation_table(monkeypatch):
+        """九条样本（S01/S02/S03/S04/S06/S07/S09/S12/S15），期望值抄自独立手算表。"""
+        monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+        bad = []
+        for sid, claim, facts, as_of, expect_hit in EXPECTATIONS:
+>           res = run_light(monkeypatch, make_pre(facts), claim, law_as_of=as_of)
+                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_fast_path_law_version_gate.py:202: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A78053A310>
+pre = {'conv_id': 1, 'intent': 'legal_query', 'image': None, 'recent': [], ...}
+answer = '依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。'
+law_as_of = datetime.date(2026, 9, 18), shape = 'ok-light', verdicts = None
+flag_content = None
+
+    def run_light(monkeypatch, pre, answer, law_as_of=NO_AS_OF, shape="ok-light", verdicts=None, flag_content=None):
+        install_fakes(monkeypatch, answer, flag_content=flag_content, shape=shape, verdicts=verdicts)
+        if isinstance(law_as_of, _NoAsOf):
+            return main._light_buffered(pre, [])  # 现网调用形状（§4-Q2 之所以要带默认值尾参）
+>       return main._light_buffered(pre, [], law_as_of)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: _light_buffered() takes 2 positional arguments but 3 were given
+
+tests\test_fast_path_law_version_gate.py:162: TypeError
+______________ test_hit_appends_note_instead_of_replacing_answer ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A780509310>
+
+    def test_hit_appends_note_instead_of_replacing_answer(monkeypatch):
+        """Q1：命中必须**明说降级**（同 NOTE_QUOTA/NOTE_COMPLEX 惯用法），不许静默替换答案。
+        原答案文本必须仍在，注记追加在后面。"""
+        monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+>       res = run_light(monkeypatch, make_pre(FACT_W01_2019), CLAIM_S01_WRONG_CURRENT_LAW, law_as_of=AS_OF_2026)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_fast_path_law_version_gate.py:217: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A780509310>
+pre = {'conv_id': 1, 'intent': 'legal_query', 'image': None, 'recent': [], ...}
+answer = '依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。'
+law_as_of = datetime.date(2026, 9, 18), shape = 'ok-light', verdicts = None
+flag_content = None
+
+    def run_light(monkeypatch, pre, answer, law_as_of=NO_AS_OF, shape="ok-light", verdicts=None, flag_content=None):
+        install_fakes(monkeypatch, answer, flag_content=flag_content, shape=shape, verdicts=verdicts)
+        if isinstance(law_as_of, _NoAsOf):
+            return main._light_buffered(pre, [])  # 现网调用形状（§4-Q2 之所以要带默认值尾参）
+>       return main._light_buffered(pre, [], law_as_of)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: _light_buffered() takes 2 positional arguments but 3 were given
+
+tests\test_fast_path_law_version_gate.py:162: TypeError
+______________________ test_law_text_dates_are_not_facts ______________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A7805AF010>
+
+    def test_law_text_dates_are_not_facts(monkeypatch):
+        """事实集只许来自用户自述。检索命中的**法条文本**里带分水岭前的年份，
+        不得被当成本案事实去触发判定（否则每条引用的旧法都会把门点亮）。"""
+        monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+>       res = run_light(
+            monkeypatch,
+            make_pre(
+                ["我借出去的钱对方一直没还，现在起诉还来得及吗？"],  # 事实：无任何可解析日期
+                context="《民法通则》第一百三十五条（1986年公布，2021年1月1日废止）：向人民法院请求保护民事权利的诉讼时效期间为二年。",
+                sources=[{"source": "民法通则", "article": "第一百三十五条"}],
+            ),
+            CLAIM_S01_WRONG_CURRENT_LAW,
+            law_as_of=AS_OF_2026,
+        )
+
+tests\test_fast_path_law_version_gate.py:227: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A7805AF010>
+pre = {'conv_id': 1, 'intent': 'legal_query', 'image': None, 'recent': [], ...}
+answer = '依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。'
+law_as_of = datetime.date(2026, 9, 18), shape = 'ok-light', verdicts = None
+flag_content = None
+
+    def run_light(monkeypatch, pre, answer, law_as_of=NO_AS_OF, shape="ok-light", verdicts=None, flag_content=None):
+        install_fakes(monkeypatch, answer, flag_content=flag_content, shape=shape, verdicts=verdicts)
+        if isinstance(law_as_of, _NoAsOf):
+            return main._light_buffered(pre, [])  # 现网调用形状（§4-Q2 之所以要带默认值尾参）
+>       return main._light_buffered(pre, [], law_as_of)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: _light_buffered() takes 2 positional arguments but 3 were given
+
+tests\test_fast_path_law_version_gate.py:162: TypeError
+___________________ test_every_return_point_passes_the_gate ___________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A7804BB810>
+
+    def test_every_return_point_passes_the_gate(monkeypatch):
+        """漏一个 return 点就是"门在但走不到"（§9-1 `[PL#14]` 假接线的直接教训）。"""
+        monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+        missed = []
+        for shape, verdicts, flag_content, label in RETURN_POINT_SHAPES:
+            light_text = CLAIM_S01_WRONG_CURRENT_LAW if shape == "ok-light" else "看相关规定吧"
+>           res = run_light(
+                monkeypatch,
+                make_pre(FACT_W01_2019),
+                light_text,
+                law_as_of=AS_OF_2026,
+                shape=shape,
+                verdicts=verdicts,
+                flag_content=flag_content,
+            )
+
+tests\test_fast_path_law_version_gate.py:259: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A7804BB810>
+pre = {'conv_id': 1, 'intent': 'legal_query', 'image': None, 'recent': [], ...}
+answer = '依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。'
+law_as_of = datetime.date(2026, 9, 18), shape = 'ok-light'
+verdicts = [(True, '')], flag_content = None
+
+    def run_light(monkeypatch, pre, answer, law_as_of=NO_AS_OF, shape="ok-light", verdicts=None, flag_content=None):
+        install_fakes(monkeypatch, answer, flag_content=flag_content, shape=shape, verdicts=verdicts)
+        if isinstance(law_as_of, _NoAsOf):
+            return main._light_buffered(pre, [])  # 现网调用形状（§4-Q2 之所以要带默认值尾参）
+>       return main._light_buffered(pre, [], law_as_of)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: _light_buffered() takes 2 positional arguments but 3 were given
+
+tests\test_fast_path_law_version_gate.py:162: TypeError
+______________ test_escalated_answer_is_judged_not_the_light_one ______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A7805A6690>
+
+    def test_escalated_answer_is_judged_not_the_light_one(monkeypatch):
+        """升级到旗舰后，被判定的是**最终交付给用户的那段文本**（fraw），不是被替换掉的轻量稿。"""
+        monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+>       res = run_light(
+            monkeypatch,
+            make_pre(FACT_W01_2019),
+            "看相关规定吧",
+            law_as_of=AS_OF_2026,
+            shape="escalate-pass",
+            verdicts=[(False, "no_citation_while_hit"), (True, "")],
+            flag_content=CLAIM_S01_WRONG_CURRENT_LAW,
+        )
+
+tests\test_fast_path_law_version_gate.py:276: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A7805A6690>
+pre = {'conv_id': 1, 'intent': 'legal_query', 'image': None, 'recent': [], ...}
+answer = '看相关规定吧', law_as_of = datetime.date(2026, 9, 18)
+shape = 'escalate-pass'
+verdicts = [(False, 'no_citation_while_hit'), (True, '')]
+flag_content = '依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。'
+
+    def run_light(monkeypatch, pre, answer, law_as_of=NO_AS_OF, shape="ok-light", verdicts=None, flag_content=None):
+        install_fakes(monkeypatch, answer, flag_content=flag_content, shape=shape, verdicts=verdicts)
+        if isinstance(law_as_of, _NoAsOf):
+            return main._light_buffered(pre, [])  # 现网调用形状（§4-Q2 之所以要带默认值尾参）
+>       return main._light_buffered(pre, [], law_as_of)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: _light_buffered() takes 2 positional arguments but 3 were given
+
+tests\test_fast_path_law_version_gate.py:162: TypeError
+____________________ test_empty_answer_still_returns_empty ____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A7805C4490>
+
+    def test_empty_answer_still_returns_empty(monkeypatch):
+        """上游空答时不得给空串追加注记 —— 否则会把调用方的"空答走 error 帧"（main.py 约 :1837）
+        变成一条假装有内容的降级回答。这条与 test_tiering.py 里那条同族，门必须保持形状。"""
+        monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+>       res = run_light(
+            monkeypatch,
+            make_pre(FACT_W01_2019),
+            "",
+            law_as_of=AS_OF_2026,
+            shape="escalate-fail",
+            verdicts=[(False, "empty"), (False, "empty")],
+            flag_content="",
+        )
+
+tests\test_fast_path_law_version_gate.py:294: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A7805C4490>
+pre = {'conv_id': 1, 'intent': 'legal_query', 'image': None, 'recent': [], ...}
+answer = '', law_as_of = datetime.date(2026, 9, 18), shape = 'escalate-fail'
+verdicts = [(False, 'empty'), (False, 'empty')], flag_content = ''
+
+    def run_light(monkeypatch, pre, answer, law_as_of=NO_AS_OF, shape="ok-light", verdicts=None, flag_content=None):
+        install_fakes(monkeypatch, answer, flag_content=flag_content, shape=shape, verdicts=verdicts)
+        if isinstance(law_as_of, _NoAsOf):
+            return main._light_buffered(pre, [])  # 现网调用形状（§4-Q2 之所以要带默认值尾参）
+>       return main._light_buffered(pre, [], law_as_of)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: _light_buffered() takes 2 positional arguments but 3 were given
+
+tests\test_fast_path_law_version_gate.py:162: TypeError
+____________ test_gate_uses_the_single_truth_source_and_not_a_copy ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A7804B9790>
+
+    def test_gate_uses_the_single_truth_source_and_not_a_copy(monkeypatch):
+        """真源被换成恒 True / 恒 False 时，门必须跟着变 ⇒ 证明 main.py 里没有第二份规则。
+        只 patch 读，不改 agent/ 任何一行。"""
+        monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+        pre = make_pre(FACT_W01_2019)
+    
+>       monkeypatch.setattr(main.limitation_calc, "law_version_crosses_watershed", lambda *a, **k: True)
+                            ^^^^^^^^^^^^^^^^^^^^
+E       AttributeError: module 'main' has no attribute 'limitation_calc'
+
+tests\test_fast_path_law_version_gate.py:315: AttributeError
+____________ test_hit_is_logged_with_judged_text_and_baseline_date ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A78056AC90>
+
+    def test_hit_is_logged_with_judged_text_and_baseline_date(monkeypatch):
+        monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+        captured = []
+        monkeypatch.setattr(main.logging.getLogger("legal.chat"), "warning", lambda *a, **k: captured.append((a, k)))
+>       res = run_light(monkeypatch, make_pre(FACT_W01_2019), CLAIM_S01_WRONG_CURRENT_LAW, law_as_of=AS_OF_2026)
+              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+tests\test_fast_path_law_version_gate.py:331: 
+_ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001A78056AC90>
+pre = {'conv_id': 1, 'intent': 'legal_query', 'image': None, 'recent': [], ...}
+answer = '依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。'
+law_as_of = datetime.date(2026, 9, 18), shape = 'ok-light', verdicts = None
+flag_content = None
+
+    def run_light(monkeypatch, pre, answer, law_as_of=NO_AS_OF, shape="ok-light", verdicts=None, flag_content=None):
+        install_fakes(monkeypatch, answer, flag_content=flag_content, shape=shape, verdicts=verdicts)
+        if isinstance(law_as_of, _NoAsOf):
+            return main._light_buffered(pre, [])  # 现网调用形状（§4-Q2 之所以要带默认值尾参）
+>       return main._light_buffered(pre, [], law_as_of)
+               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       TypeError: _light_buffered() takes 2 positional arguments but 3 were given
+
+tests\test_fast_path_law_version_gate.py:162: TypeError
+============================== warnings summary ===============================
+venv\Lib\site-packages\starlette\formparsers.py:12
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_fast_path_law_version_gate.py::test_failclosed_when_switch_on_but_law_as_of_missing
+FAILED tests/test_fast_path_law_version_gate.py::test_switch_off_leaves_hitting_answer_untouched
+FAILED tests/test_fast_path_law_version_gate.py::test_independent_expectation_table
+FAILED tests/test_fast_path_law_version_gate.py::test_hit_appends_note_instead_of_replacing_answer
+FAILED tests/test_fast_path_law_version_gate.py::test_law_text_dates_are_not_facts
+FAILED tests/test_fast_path_law_version_gate.py::test_every_return_point_passes_the_gate
+FAILED tests/test_fast_path_law_version_gate.py::test_escalated_answer_is_judged_not_the_light_one
+FAILED tests/test_fast_path_law_version_gate.py::test_empty_answer_still_returns_empty
+FAILED tests/test_fast_path_law_version_gate.py::test_gate_uses_the_single_truth_source_and_not_a_copy
+FAILED tests/test_fast_path_law_version_gate.py::test_hit_is_logged_with_judged_text_and_baseline_date
+10 failed, 1 warning in 18.32s

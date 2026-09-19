@@ -1,0 +1,64 @@
+[
+ {
+  "name": "M1-摘掉整道门",
+  "desc": "开关开也直接原样返回 ⇒ 门形同不存在",
+  "rc": 1,
+  "restored": true,
+  "sha_before": "6212be8d8c214971c3dec9c50d8e9c177f344e2bd8e58aff2ac7331690c8d9e5",
+  "sha_after": "6212be8d8c214971c3dec9c50d8e9c177f344e2bd8e58aff2ac7331690c8d9e5",
+  "failed_tests": [
+   "test_escalated_answer_is_judged_not_the_light_one",
+   "test_every_return_point_passes_the_gate",
+   "test_failclosed_when_switch_on_but_law_as_of_missing",
+   "test_gate_uses_the_single_truth_source_and_not_a_copy",
+   "test_hit_appends_note_instead_of_replacing_answer",
+   "test_hit_is_logged_with_judged_text_and_baseline_date",
+   "test_independent_expectation_table"
+  ],
+  "expect_failed_test": "test_independent_expectation_table",
+  "red_on_assertion": ">       assert getattr(res, \"law_version_hit\", None) is True, (\n            f\"快车道轻量出口没有这道门（返回结构无 law_version_hit 字段）：{res!r}\"\n        ) || E       AssertionError: 快车道轻量出口没有这道门（返回结构无 law_version_hit 字段）：_LightResult(answer='依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。', key='L', modality='text', tier='light', usage=10, escalated=False, verdict='pass', law_version_hit=False)\nE       a",
+  "verdict": "OK"
+ },
+ {
+  "name": "M2-缺基准日当作不拦",
+  "desc": "把 fail-closed 改成放行（§4-Q3 明令禁止的方向）",
+  "rc": 1,
+  "restored": true,
+  "sha_before": "6212be8d8c214971c3dec9c50d8e9c177f344e2bd8e58aff2ac7331690c8d9e5",
+  "sha_after": "6212be8d8c214971c3dec9c50d8e9c177f344e2bd8e58aff2ac7331690c8d9e5",
+  "failed_tests": [
+   "test_failclosed_when_switch_on_but_law_as_of_missing"
+  ],
+  "expect_failed_test": "test_failclosed_when_switch_on_but_law_as_of_missing",
+  "red_on_assertion": ">       assert getattr(res, \"law_version_hit\", None) is True, (\n            f\"快车道轻量出口没有这道门（返回结构无 law_version_hit 字段）：{res!r}\"\n        ) || E       AssertionError: 快车道轻量出口没有这道门（返回结构无 law_version_hit 字段）：_LightResult(answer='依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。', key='L', modality='text', tier='light', usage=10, escalated=False, verdict='pass', law_version_hit=False)\nE       a",
+  "verdict": "OK"
+ },
+ {
+  "name": "M3-只漏一个return点",
+  "desc": "升级后仍不过那条 return 不接门（§5-2 专门防的形状）",
+  "rc": 1,
+  "restored": true,
+  "sha_before": "6212be8d8c214971c3dec9c50d8e9c177f344e2bd8e58aff2ac7331690c8d9e5",
+  "sha_after": "6212be8d8c214971c3dec9c50d8e9c177f344e2bd8e58aff2ac7331690c8d9e5",
+  "failed_tests": [
+   "test_every_return_point_passes_the_gate"
+  ],
+  "expect_failed_test": "test_every_return_point_passes_the_gate",
+  "red_on_assertion": ">       assert not missed, \"；\".join(missed) || E       AssertionError: 升级后仍不过（shape=escalate-fail）未过门：law_version_hit=False\nE       assert not ['升级后仍不过（shape=escalate-fail）未过门：law_version_hit=False']\n\ntests\\test_fast_path_law_version_gate.py:282: AssertionError\n------------------------------ Captured log call ------------------------------\nWARNI",
+  "verdict": "OK"
+ },
+ {
+  "name": "M4-把法条文本当事实",
+  "desc": "事实集误含 pre[\"context\"]（检索到的旧法条文，其日期不属于本案）",
+  "rc": 1,
+  "restored": true,
+  "sha_before": "6212be8d8c214971c3dec9c50d8e9c177f344e2bd8e58aff2ac7331690c8d9e5",
+  "sha_after": "6212be8d8c214971c3dec9c50d8e9c177f344e2bd8e58aff2ac7331690c8d9e5",
+  "failed_tests": [
+   "test_law_text_dates_are_not_facts"
+  ],
+  "expect_failed_test": "test_law_text_dates_are_not_facts",
+  "red_on_assertion": ">       assert res.law_version_hit is False  # 无事实日期 ⇒ 条款3不成立 ⇒ 不拦\n        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ || E       AssertionError: assert True is False\nE        +  where True = _LightResult(answer='依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回...不一致，本回答仅供参考。', key='L', modality='text', tier='light', usage=10, escalated=False, verdict='pass', law_version",
+  "verdict": "OK"
+ }
+]

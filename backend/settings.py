@@ -86,6 +86,14 @@ class Settings(BaseSettings):
     # 默认关 = verifier 行为逐字不变（与 phantom_tool_check / entity_precision_check 同一
     # 开关惯例；开启属评测批预登记事项，见 docs/handoff-external-harness-20260918.md §2.2）。
     law_version_tripwire_check: bool = False
+    # S5（2026-09-19）：把上面那道绊线**扩展到快车道**。`agent_enabled=False` 时线上流量走快车道，
+    # 而版本判定只挂在 agent 路径（verifier）上 ⇒ 快车道当时**没有任何版本判定**（R15 收口量出的缺口）。
+    # 本开关只覆盖缓冲轻量出口 `main._light_buffered_locked`；两条 `stream_with_retry` 流式出口
+    # 因"答案分片在外"需先定收口策略，**尚未受保护**（另开票，见 docs/handoff-s5-fastpath-version-gate-20260919.md §3）。
+    # 判定真源仍是 agent/limitation_calc.law_version_crosses_watershed（单一真源，快车道只消费）；
+    # 开关开而未拿到 law_as_of = 接线丢失，同 agent 路径 verifier.py 口径 fail-closed（不当作不拦）。
+    # 默认关 = 快车道行为逐字不变；开启属评测批预登记事项。
+    fast_path_law_version_check: bool = False
 
     # ---- 部门法守卫（R1/R1b，预注册 docs/preregistration-dept-law-filter-r1-20260913.md）----
     # R1：Agent 检索后剔除「他域专属程序法」条文（证据池防跨部门法混入；实体法永不过滤）。

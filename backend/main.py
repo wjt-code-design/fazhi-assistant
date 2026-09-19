@@ -6,7 +6,7 @@ import os
 import socket
 import time
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date, datetime
 from threading import Event
 from typing import Any
@@ -35,6 +35,7 @@ import quality
 import query_understand
 import quota_store
 import routing_metrics
+from agent import limitation_calc  # S5：快车道只**消费**版本判定真源，不在本文件重写规则
 from agent.chat_integration import (
     CoverageProjection,
     coverage_from_state_json,
@@ -1013,6 +1014,8 @@ def _safe_pick(modality: str, tier: str, *, exclude: set[str] | None = None) -> 
 # B1（2026-08-07）：去掉"建议核对条文原文"——前端曾为清这句写 stripUnprovidedHint，后端不再制造该噪音
 NOTE_COMPLEX = "\n\n> 注：该问题较复杂，本回答仅供参考。"
 NOTE_QUOTA = "\n\n> 注：模型配额紧张，本回答仅供参考。"
+# S5（2026-09-19）快车道版本绊线命中时的明说降级注记（同 NOTE_* 惯用法，不静默替换答案）。
+NOTE_LAW_VERSION = "\n\n> 注：本回答所适用的法律版本与所述事实的发生时间可能不一致，本回答仅供参考。"
 
 # 低置信反问计数（任务2）：conv_id → 已反问（最多一次，防死循环）。进程内状态，
 # 单 worker 下有效（ADR-008 单 worker 约束）；重启清零可接受——反问上限防的是同会话循环。
@@ -1150,41 +1153,113 @@ class _LightResult:
     usage: int
     escalated: bool
     verdict: str
+    # S5 快车道版本绊线：命中=True 时答案已追加 NOTE_LAW_VERSION，且**不得**进缓存（见调用点）。
+    # 刻意不复用 verdict 承载该信号 —— verdict 是自检归因（pass/vague/low_quota/…），覆盖它就会
+    # 丢掉"为什么降级"的那一半信息，两条降级原因得能同时出现在一张日志里。
+    law_version_hit: bool = False
 
 
-def _light_buffered(pre: dict, messages: list) -> _LightResult:
+def _fast_path_fact_texts(pre: dict) -> list[str]:
+    """快车道的"事实文本"集 = **用户自述**（本轮问句 + 改写 + 历史里的用户消息）。
+
+    与 agent 路径 `verifier._fact_texts`（= issue.facts + unknown_facts）同语义：都是"本案事实"，
+    不是"检索到的法条"。⚠️ 刻意不含 `pre["context"]` / `pre["sources"]` —— 那里面的日期属于证据池
+    （且旧法条文本必然带分水岭前的年份），当事实用会让每条引用都点亮判定，是纯假阳性。
+    """
+    texts = [pre.get("user_text") or "", pre.get("rewritten") or ""]
+    texts += [
+        m.get("content") or "" for m in (pre.get("recent") or []) if isinstance(m, dict) and m.get("role") == "user"
+    ]
+    return [t for t in texts if t]
+
+
+def _law_version_gate(res: _LightResult, fact_texts: list[str], law_as_of: date | None) -> _LightResult:
+    """S5：缓冲轻量出口的法律版本绊线门。判定规则**只**在 `limitation_calc`（单一真源，§5-1）。
+
+    开关关 ⇒ 原样返回（行为逐字不变）。开关开而拿不到 `law_as_of` ⇒ fail-closed 按命中处理，
+    口径照抄 agent 路径 `verifier.py:296-297`：开关开而基准日缺失 = 接线丢失 = 判定不可信，
+    **不等于**可以放行（静默放行正是这道门要防的失败模式）。
+    """
+    if not settings.fast_path_law_version_check:
+        return res
+    if law_as_of is None:
+        reason = "LAW_TRIPWIRE_NOT_WIRED"
+    elif limitation_calc.law_version_crosses_watershed(res.answer, fact_texts, law_as_of):
+        reason = "LAW_VERSION_WATERSHED_MISMATCH"
+    else:
+        return res
+    # 落被判定原文 + 基准日：否则线上只知道"拦了"，不知道按哪版法拦了哪句（5afc8d0 的可归因教训）。
+    logging.getLogger("legal.chat").warning(
+        "快车道版本绊线命中（缓冲轻量出口）：%s",
+        reason,
+        extra={
+            "fast_path_law_version_hit": True,
+            "fast_path_law_version_reason": reason,
+            "fast_path_law_version_detail": res.answer[:200],
+            "law_as_of": law_as_of.isoformat() if law_as_of else None,
+        },
+    )
+    return replace(
+        res,
+        # 空答不追加注记：调用方靠"空答 ⇒ error 帧"兜底（约 :1837），给它加字会造出一条假降级回答。
+        answer=(res.answer + NOTE_LAW_VERSION) if res.answer else "",
+        law_version_hit=True,
+    )
+
+
+def _light_buffered(pre: dict, messages: list, law_as_of: date | None = None) -> _LightResult:
     """轻量路径：缓冲生成 → 自检 → 至多一次升级旗舰重答。同步，线程池内跑。"""
     modality = "vision" if pre.get("image") else "text"
     ctx_present = bool(pre.get("sources"))
     lkey, llm, _ = _safe_pick(modality, "light")  # 轻量回退降级由下方升级 except 兜底
     with llm_guard:  # 轻量+升级重答共占一个并发位（同一请求串行持有，突增时降级）
-        return _light_buffered_locked(pre, messages, modality, ctx_present, lkey, llm)
+        return _light_buffered_locked(pre, messages, modality, ctx_present, lkey, llm, law_as_of)
 
 
-def _light_buffered_locked(pre: dict, messages: list, modality: str, ctx_present: bool, lkey, llm) -> _LightResult:
+def _light_buffered_locked(
+    pre: dict, messages: list, modality: str, ctx_present: bool, lkey, llm, law_as_of: date | None = None
+) -> _LightResult:
     """轻量路径主体（已持有并发位）：缓冲生成 → 自检 → 至多一次升级旗舰重答。"""
+    # 开关关 ⇒ 不做无谓的事实扫描（同 verifier.py:338 的省法）。
+    fact_texts = _fast_path_fact_texts(pre) if settings.fast_path_law_version_check else []
     resp = llm.invoke(messages)
     raw = clean_answer(resp.content or "") if resp else ""
     usage = _token_charge(resp, raw)
     v = quality.self_check(raw, ctx_present)
     if v.ok:
-        return _LightResult(raw, lkey, modality, "light", usage, False, "pass")
+        return _law_version_gate(
+            _LightResult(raw, lkey, modality, "light", usage, False, "pass"), fact_texts, law_as_of
+        )
     # 升级旗舰（配额耗尽则不升级，明说降级）
     try:
         fkey, fllm = registry.pick(modality, "flag")
     except QuotaExhausted:
-        return _LightResult(
-            (raw + NOTE_QUOTA) if raw else "", lkey, modality, "light", usage, False, v.reason or "low_quota"
+        return _law_version_gate(
+            _LightResult(
+                (raw + NOTE_QUOTA) if raw else "", lkey, modality, "light", usage, False, v.reason or "low_quota"
+            ),
+            fact_texts,
+            law_as_of,
         )
     if fkey == lkey:  # 轻量即旗舰，无更强者可升
-        return _LightResult((raw + NOTE_COMPLEX) if raw else "", lkey, modality, "light", usage, False, v.reason)
+        return _law_version_gate(
+            _LightResult((raw + NOTE_COMPLEX) if raw else "", lkey, modality, "light", usage, False, v.reason),
+            fact_texts,
+            law_as_of,
+        )
     fresp = fllm.invoke(messages)
     fraw = clean_answer(fresp.content or "") if fresp else ""
     fusage = _token_charge(fresp, fraw)
     fv = quality.self_check(fraw, ctx_present)
     if fv.ok:
-        return _LightResult(fraw, fkey, modality, "flag", usage + fusage, True, "pass")
-    return _LightResult((fraw + NOTE_COMPLEX) if fraw else "", fkey, modality, "flag", usage + fusage, True, fv.reason)
+        return _law_version_gate(
+            _LightResult(fraw, fkey, modality, "flag", usage + fusage, True, "pass"), fact_texts, law_as_of
+        )
+    return _law_version_gate(
+        _LightResult((fraw + NOTE_COMPLEX) if fraw else "", fkey, modality, "flag", usage + fusage, True, fv.reason),
+        fact_texts,
+        law_as_of,
+    )
 
 
 def _invoke_llm(messages, llm=None) -> str:
@@ -1299,7 +1374,10 @@ async def admin_analysis_runs(request: Request, limit: int = 50, admin: User = D
 @app.get("/api/law")
 @limiter.limit("60/minute")
 async def law_detail(
-    request: Request, source: str, article: str, run_id: str | None = None,
+    request: Request,
+    source: str,
+    article: str,
+    run_id: str | None = None,
     user: User = Depends(get_current_user),
 ):
     """法条原文（前端法条悬浮卡 / 速查面板，P1）。复用 exact_article_lookup，未命中 404。
@@ -1315,9 +1393,12 @@ async def law_detail(
 
             # 同时核验 run 与会话归属；有 run 的卡片绝不回退为“当前版本”。
             with SessionLocal() as db:
-                run = (db.query(AgentRun).join(Conversation, AgentRun.conversation_id == Conversation.id)
-                       .filter(AgentRun.id == run_id, AgentRun.user_id == user.id,
-                               Conversation.user_id == user.id).one_or_none())
+                run = (
+                    db.query(AgentRun)
+                    .join(Conversation, AgentRun.conversation_id == Conversation.id)
+                    .filter(AgentRun.id == run_id, AgentRun.user_id == user.id, Conversation.user_id == user.id)
+                    .one_or_none()
+                )
                 if run is None:
                     return None
                 try:
@@ -1327,15 +1408,17 @@ async def law_detail(
                 requested = canonical_citations(f"《{source}》{_normalize_article(article)}")
                 if not requested:
                     return None
-                matched = [ev for ev in state.evidence if requested <= canonical_citations(
-                    ev.source_ref + "\n" + ev.snippet
-                )]
+                matched = [
+                    ev for ev in state.evidence if requested <= canonical_citations(ev.source_ref + "\n" + ev.snippet)
+                ]
                 if not matched:
                     return None
                 return {
-                    "source": source, "article": _normalize_article(article),
+                    "source": source,
+                    "article": _normalize_article(article),
                     "content": "\n\n".join(dict.fromkeys(ev.snippet for ev in matched)),
-                    "is_snapshot": True, "law_as_of": run.law_as_of.isoformat(),
+                    "is_snapshot": True,
+                    "law_as_of": run.law_as_of.isoformat(),
                     "status": "答复证据快照（非完整条文）",
                 }
         docs = exact_article_lookup(source, _normalize_article(article))
@@ -1828,14 +1911,16 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
 
             # 分支1：轻量缓冲 + 自检 + 至多一次升级旗舰
             if use_light:
-                res = await run_in_threadpool(_light_buffered, pre, messages)
+                res = await run_in_threadpool(_light_buffered, pre, messages, body.law_as_of)
                 answer = res.answer
                 if answer:
                     _f0 = time.perf_counter()  # 轻量缓冲：非流式整答返回，首帧=完成时刻
                     yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"
                 else:
                     yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
-                if cache_key and res.verdict == "pass":
+                if cache_key and res.verdict == "pass" and not res.law_version_hit:
+                    # 命中版本绊线的答复**不进缓存**：否则一条按错版本法作答的答复会被后续同题请求
+                    # 零 token 直返（分支0 早于本门 ⇒ 门再也走不到），等于把这一次命中固化成常态。
                     answer_cache.put(cache_key, answer, pre["sources"])
                 if res.key:
                     # 对抗审计 v2 #20：SQLite 扣减同步阻塞事件循环 → 线程池

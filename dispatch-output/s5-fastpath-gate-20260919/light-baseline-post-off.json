@@ -1,0 +1,301 @@
+{
+ "mode": "baseline",
+ "switch_present_in_settings": true,
+ "switch_effective_value": false,
+ "call_signature_arity": 2,
+ "nondeterministic_cases": 0,
+ "case_count": 10,
+ "records": [
+  {
+   "input": {
+    "id": "R1_1171_pass__civil2019",
+    "return_point": "R1_1171_pass",
+    "shape": "ok-light",
+    "user_text": "2019年3月5日对方向我借款10万元，约定当日归还，此后我一直没催过。我现在起诉还能胜诉吗？",
+    "light_text": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。",
+    "flag_text": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。"
+   },
+   "run1": {
+    "answer": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。",
+    "key": "L",
+    "modality": "text",
+    "tier": "light",
+    "usage": 10,
+    "escalated": false,
+    "verdict": "pass"
+   },
+   "run2": {
+    "answer": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。",
+    "key": "L",
+    "modality": "text",
+    "tier": "light",
+    "usage": 10,
+    "escalated": false,
+    "verdict": "pass"
+   },
+   "stable": true
+  },
+  {
+   "input": {
+    "id": "R1_1171_pass__neutral",
+    "return_point": "R1_1171_pass",
+    "shape": "ok-light",
+    "user_text": "2022年6月1日对方向我借款10万元，约定当日归还，此后我一直没催过。我现在起诉还能胜诉吗？",
+    "light_text": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。",
+    "flag_text": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。"
+   },
+   "run1": {
+    "answer": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。",
+    "key": "L",
+    "modality": "text",
+    "tier": "light",
+    "usage": 10,
+    "escalated": false,
+    "verdict": "pass"
+   },
+   "run2": {
+    "answer": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。",
+    "key": "L",
+    "modality": "text",
+    "tier": "light",
+    "usage": 10,
+    "escalated": false,
+    "verdict": "pass"
+   },
+   "stable": true
+  },
+  {
+   "input": {
+    "id": "R2_1176_quota__civil2019",
+    "return_point": "R2_1176_quota",
+    "shape": "quota",
+    "user_text": "2019年3月5日对方向我借款10万元，约定当日归还，此后我一直没催过。我现在起诉还能胜诉吗？",
+    "light_text": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。",
+    "flag_text": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。"
+   },
+   "run1": {
+    "answer": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。\n\n> 注：模型配额紧张，本回答仅供参考。",
+    "key": "L",
+    "modality": "text",
+    "tier": "light",
+    "usage": 10,
+    "escalated": false,
+    "verdict": "vague"
+   },
+   "run2": {
+    "answer": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。\n\n> 注：模型配额紧张，本回答仅供参考。",
+    "key": "L",
+    "modality": "text",
+    "tier": "light",
+    "usage": 10,
+    "escalated": false,
+    "verdict": "vague"
+   },
+   "stable": true
+  },
+  {
+   "input": {
+    "id": "R2_1176_quota__neutral",
+    "return_point": "R2_1176_quota",
+    "shape": "quota",
+    "user_text": "2022年6月1日对方向我借款10万元，约定当日归还，此后我一直没催过。我现在起诉还能胜诉吗？",
+    "light_text": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。",
+    "flag_text": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。"
+   },
+   "run1": {
+    "answer": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。\n\n> 注：模型配额紧张，本回答仅供参考。",
+    "key": "L",
+    "modality": "text",
+    "tier": "light",
+    "usage": 10,
+    "escalated": false,
+    "verdict": "vague"
+   },
+   "run2": {
+    "answer": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。\n\n> 注：模型配额紧张，本回答仅供参考。",
+    "key": "L",
+    "modality": "text",
+    "tier": "light",
+    "usage": 10,
+    "escalated": false,
+    "verdict": "vague"
+   },
+   "stable": true
+  },
+  {
+   "input": {
+    "id": "R3_1180_no_stronger__civil2019",
+    "return_point": "R3_1180_no_stronger",
+    "shape": "same-key",
+    "user_text": "2019年3月5日对方向我借款10万元，约定当日归还，此后我一直没催过。我现在起诉还能胜诉吗？",
+    "light_text": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。",
+    "flag_text": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。"
+   },
+   "run1": {
+    "answer": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。\n\n> 注：该问题较复杂，本回答仅供参考。",
+    "key": "L",
+    "modality": "text",
+    "tier": "light",
+    "usage": 10,
+    "escalated": false,
+    "verdict": "vague"
+   },
+   "run2": {
+    "answer": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。\n\n> 注：该问题较复杂，本回答仅供参考。",
+    "key": "L",
+    "modality": "text",
+    "tier": "light",
+    "usage": 10,
+    "escalated": false,
+    "verdict": "vague"
+   },
+   "stable": true
+  },
+  {
+   "input": {
+    "id": "R3_1180_no_stronger__neutral",
+    "return_point": "R3_1180_no_stronger",
+    "shape": "same-key",
+    "user_text": "2022年6月1日对方向我借款10万元，约定当日归还，此后我一直没催过。我现在起诉还能胜诉吗？",
+    "light_text": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。",
+    "flag_text": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。"
+   },
+   "run1": {
+    "answer": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。\n\n> 注：该问题较复杂，本回答仅供参考。",
+    "key": "L",
+    "modality": "text",
+    "tier": "light",
+    "usage": 10,
+    "escalated": false,
+    "verdict": "vague"
+   },
+   "run2": {
+    "answer": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。\n\n> 注：该问题较复杂，本回答仅供参考。",
+    "key": "L",
+    "modality": "text",
+    "tier": "light",
+    "usage": 10,
+    "escalated": false,
+    "verdict": "vague"
+   },
+   "stable": true
+  },
+  {
+   "input": {
+    "id": "R4_1186_escalate_pass__civil2019",
+    "return_point": "R4_1186_escalate_pass",
+    "shape": "escalate-pass",
+    "user_text": "2019年3月5日对方向我借款10万元，约定当日归还，此后我一直没催过。我现在起诉还能胜诉吗？",
+    "light_text": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。",
+    "flag_text": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。"
+   },
+   "run1": {
+    "answer": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。",
+    "key": "F",
+    "modality": "text",
+    "tier": "flag",
+    "usage": 20,
+    "escalated": true,
+    "verdict": "pass"
+   },
+   "run2": {
+    "answer": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。",
+    "key": "F",
+    "modality": "text",
+    "tier": "flag",
+    "usage": 20,
+    "escalated": true,
+    "verdict": "pass"
+   },
+   "stable": true
+  },
+  {
+   "input": {
+    "id": "R4_1186_escalate_pass__neutral",
+    "return_point": "R4_1186_escalate_pass",
+    "shape": "escalate-pass",
+    "user_text": "2022年6月1日对方向我借款10万元，约定当日归还，此后我一直没催过。我现在起诉还能胜诉吗？",
+    "light_text": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。",
+    "flag_text": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。"
+   },
+   "run1": {
+    "answer": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。",
+    "key": "F",
+    "modality": "text",
+    "tier": "flag",
+    "usage": 20,
+    "escalated": true,
+    "verdict": "pass"
+   },
+   "run2": {
+    "answer": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。",
+    "key": "F",
+    "modality": "text",
+    "tier": "flag",
+    "usage": 20,
+    "escalated": true,
+    "verdict": "pass"
+   },
+   "stable": true
+  },
+  {
+   "input": {
+    "id": "R5_1187_escalate_fail__civil2019",
+    "return_point": "R5_1187_escalate_fail",
+    "shape": "escalate-fail",
+    "user_text": "2019年3月5日对方向我借款10万元，约定当日归还，此后我一直没催过。我现在起诉还能胜诉吗？",
+    "light_text": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。",
+    "flag_text": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。"
+   },
+   "run1": {
+    "answer": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。\n\n> 注：该问题较复杂，本回答仅供参考。",
+    "key": "F",
+    "modality": "text",
+    "tier": "flag",
+    "usage": 20,
+    "escalated": true,
+    "verdict": "vague"
+   },
+   "run2": {
+    "answer": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。\n\n> 注：该问题较复杂，本回答仅供参考。",
+    "key": "F",
+    "modality": "text",
+    "tier": "flag",
+    "usage": 20,
+    "escalated": true,
+    "verdict": "vague"
+   },
+   "stable": true
+  },
+  {
+   "input": {
+    "id": "R5_1187_escalate_fail__neutral",
+    "return_point": "R5_1187_escalate_fail",
+    "shape": "escalate-fail",
+    "user_text": "2022年6月1日对方向我借款10万元，约定当日归还，此后我一直没催过。我现在起诉还能胜诉吗？",
+    "light_text": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。",
+    "flag_text": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。"
+   },
+   "run1": {
+    "answer": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。\n\n> 注：该问题较复杂，本回答仅供参考。",
+    "key": "F",
+    "modality": "text",
+    "tier": "flag",
+    "usage": 20,
+    "escalated": true,
+    "verdict": "vague"
+   },
+   "run2": {
+    "answer": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。\n\n> 注：该问题较复杂，本回答仅供参考。",
+    "key": "F",
+    "modality": "text",
+    "tier": "flag",
+    "usage": 20,
+    "escalated": true,
+    "verdict": "vague"
+   },
+   "stable": true
+  }
+ ],
+ "dump_sha256": "a9d3e83de9a6d042038fea6f259503ad934fb525364fef01c733a3928427b9af"
+}

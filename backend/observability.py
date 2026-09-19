@@ -98,6 +98,17 @@ _ACCOUNT_FIELDS = (
     # 只含模型名与异常类名/摘要（截断 160 字符），不含任何用户文本或密钥。
     "rerank_model",
     "rerank_error",
+    # S5 快车道版本绊线（2026-09-19，settings.fast_path_law_version_check）：命中/保守分支落日志的
+    # 归因四字段。`fast_path_law_version_detail` = **被判定原文**（模型答案，截断 200），
+    # `fast_path_law_version_reason` = 命中口径（沿用 agent 路径的 LAW_VERSION_WATERSHED_MISMATCH /
+    # LAW_TRIPWIRE_NOT_WIRED 两个字面，让两条路径在同一张日志里可并列 grep），
+    # `law_as_of` = 本次判定用的基准日 —— 缺了这几项就只知道"拦了"而不知道"按哪版法拦的哪句"
+    # （动机同 5afc8d0 的可归因教训、`agent_claim_checks` 的先例：失败路径不带原文 ⇒ 事后只能猜）。
+    # 未登记会被 JSON formatter 静默丢弃。detail 为模型输出文本，不含用户输入原文与密钥。
+    "fast_path_law_version_hit",
+    "fast_path_law_version_reason",
+    "fast_path_law_version_detail",
+    "law_as_of",
 )
 
 _TEST_REQUEST_ID_FALLBACK = "unit-test-no-middleware-request-id"

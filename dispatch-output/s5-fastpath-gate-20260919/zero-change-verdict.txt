@@ -1,0 +1,5 @@
+输入=10 例（5 个 return 点 × {会命中, 中性}），比对方法=compare_zero_change.py 逐字段 diff + dump_sha256
+改前基线 = light-baseline-PRE-change.json (dump_sha256 a9d3e83d…427b9af)
+① 改后·开关默认关 : 差异条数=0，sha 与改前相同 ⇒ §6-③ 成立
+② 改后·开关开+基准日=2026-09-18 : 差异条数=5（恰为 5 个 civil2019 样本，5 条中性样本零变化）
+③ 改后·开关开+缺基准日 : 差异条数=10（全量，因 fail-closed 无条件保守）—— 与②对照可区分「门在判」与「门在保守」
