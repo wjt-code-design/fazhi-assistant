@@ -1174,12 +1174,17 @@ def _fast_path_fact_texts(pre: dict) -> list[str]:
 
 
 def _fast_path_law_as_of(body) -> date:
-    """快车道判定用的法律版本基准日 = R15-lite 契约的**第①半**（缺省时由服务端落当日）。
+    """快车道判定用的法律版本基准日 = R15-lite 第①半里的**"缺省落当日"那一小条**。
 
-    agent 路径那一半在 `agent/repository.py` 的 `create_run`（`law_as_of or date.today()`），
-    而快车道**不经过** `create_run` ⇒ 必须在调用点自己补。漏掉的后果不是"少判一次"，是
-    `None` 被 `_law_version_gate` 当成接线丢失（`LAW_TRIPWIRE_NOT_WIRED`）⇒ 开关一开**每条答复都命中**。
+    agent 路径那一半在 `agent/repository.py` 的 `create_run`，而快车道**不经过** `create_run`
+    ⇒ 必须在调用点自己补。漏掉的后果不是"少判一次"，是 `None` 被 `_law_version_gate` 当成
+    接线丢失（`LAW_TRIPWIRE_NOT_WIRED`）⇒ 开关一开**每条答复都命中**。
     缺省处理本身仍按 `create_run` docstring 的锁定：不改必填、不报错。
+
+    ⚠️ **别把本函数读成"第①半已搬齐"**：`create_run` 那半还包括「随 run 持久化」与
+    「被工具 cutoff / 证据有效性判定消费」，而快车道没有 run 对象可挂 ⇒ 本值**只有绊线门一个消费者**，
+    快车道的检索 cutoff 不随它变。这条不对等是**已知残余**（登记表 E7×版本绊线 取证 + ADR-018 已知残留），
+    不是本函数的实现缺陷。
     流式出口（票 C / S6）复用本函数，别再写第二份 `or date.today()`。
     """
     return body.law_as_of or date.today()

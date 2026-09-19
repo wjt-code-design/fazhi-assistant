@@ -46,12 +46,15 @@
   豁免清单的**内容**在真源侧（`gate_exit_registry.py:411` `EXEMPTIONS: list[dict] = []`，现在是空的），
   它的**上限**在测试侧（`test_gate_exit_registry.py:38` `MAX_EXEMPTIONS = 0`）——
   谁要豁免就得同时加内容并显式改上限，改上限会进 diff、要上线审。
-- 13 处 yield 各加一条 `  # gate-exit: E<n>` 锚点注释。**纯注释**：剥掉标记后的 `main.py` 与加锚点前
-  （`fad2cee~1`）在**归一 EOL 后逐字节相同**（两边行数都是 2667 ⇒ 一条代码行都没多）。
-  ⚠️ 口径：拿它跟 git blob 比**原样字节**会得 False，只因 `core.autocrlf=true` 下 blob 存 LF、
-  工作树是 CRLF —— 这句"逐字节相同"必须带 EOL 归一这个前提。取证脚本
-  `dispatch-output/s5-followup-20260920/verify_anchors_comment_only.py`。
-  出口与行之间用符号/锚点绑定，不用行号绑定。
+- 13 处 yield 各加一条 `  # gate-exit: E<n>` 锚点注释。**纯注释**：口径必须钉在**两个 blob** 上 ——
+  `fad2cee:backend/main.py` 剥掉标记后 == `fad2cee~1:backend/main.py`，且两边行数都是 2667
+  （⇒ 一条代码行都没多）。⚠️ 两种写法都会错：①拿"与 HEAD 逐字节相同"是**自我比对**（锚点就是
+  fad2cee 加进去的）；②拿**当下工作树**去比 `fad2cee~1` 会烂——本 ADR 入库后 `main.py` 又有合法改动，
+  那句话当场变假。"锚点没改代码"是**那一笔提交**的性质，不是当下树的性质。取证脚本
+  `dispatch-output/s5-followup-20260920/verify_anchors_comment_only.py`（另注：`core.autocrlf=true`
+  下 blob 存 LF、工作树是 CRLF，所以"逐字节"必须限定在同一侧取）。
+  出口与行之间用**锚点 ID** 绑定，不用行号、也不用行序（按位 `zip` 在文件中间插入出口时会静默错配，
+  已由 `tests/test_gate_exit_registry.py::test_binding_is_by_anchor_not_by_position` 钉住）。
 
 **三候选与各自否掉的理由**（特性已于 2026-09-20 经 context7 核过官方文档，不是记忆）：
 
@@ -88,13 +91,22 @@
 | E7 缓冲轻量整答 | （本行不是缺口，是**对照**：它的版本绊线是唯一 PASS 的一格） | 与上一行合起来才是最锋利的一句：**接了门的出口零流量，承流量的出口没接门**——单看任一行都会误判"这事做了" |
 | E9 流式空答后 `_invoke_llm` 兜底整答 | 版本绊线未接 | 与 E8 是同一条回答的两种成形方式，只补 E8 会漏这条 |
 | E1 / E2 缓存直返两分支 | 版本绊线未接，且在收口点**之前**就 return | 挂在收口的门永远走不到这两条。**两格严重度不同档**：E1 读的 `answer_cache` 是进程内 LRU + `TTL=6h` + 重启即清 ⇒ 暴露窗 ≤6 小时；E2 读的是 **Chroma 持久预生成语料**，无 TTL、`clear()` 碰不到 ⇒ 这才是真正的存量面（其命中率至今未量） |
-| E5 合同报告流式增量 | 配额降级注记、写缓存闸 | 合同分支**从不跑** `quality.self_check`（全文 `self_check` 只在 `:1240/:1265/:2066`）；且引用告警的判定 `bad = citation_verify(answer)` 在 `:1883` **早就算好了**，`:1884` 的写闸却没看它 ⇒ 带未收录引用的报告会以"无告警"形态进缓存被零 token 复播。**这一格修法近乎免费**（`if cache_key and not bad:`） |
+| E5 合同报告流式增量 | 配额降级注记、写缓存闸 | 合同分支**从不跑** `quality.self_check`（全文三个调用点都在轻量/流式侧，合同分支没有）；且引用告警的判定 `bad = citation_verify(answer)` **早就算好了**，紧跟其后的 `if cache_key:` 写闸却没看它 ⇒ 带未收录引用的报告会以"无告警"形态进缓存被零 token 复播。**这一格修法近乎免费**（`if cache_key and not bad:`） |
 | E6 合同引用告警注记帧 | 写缓存闸 | 同上另一面：注记追加在 `put` 之后 ⇒ 复播时丢掉那条告警 |
-| E7 缓冲轻量整答 | 多选完整性、写缓存闸 | `multi_incomplete` 全文只在 `:2030` 流式侧调用 ⇒ 轻量路径无多选保护；两条写缓存闸的**字面条件集交集只有 `cache_key`**，轻量侧对 `_cache_write_ok` 与 `not multi_bad` **无任何对应物**（`not flag_degraded` 那半由 `verdict == "pass"` 承担，代价是"降级"与"自检 FAIL"两个信号被合进一个条件） |
+| E7 缓冲轻量整答 | 多选完整性、写缓存闸 | `quality.multi_incomplete` 全文只有一个调用点且在流式分支 ⇒ 轻量路径无多选保护；两条写缓存闸的**字面条件集交集只有 `cache_key`**，轻量侧对 `_cache_write_ok` 与 `not multi_bad` **无任何对应物**（`not flag_degraded` 那半由 `verdict == "pass"` 承担，代价是"降级"与"自检 FAIL"两个信号被合进一个条件） |
 
 **已知残留 / 后续**：① 9 格 `GAP-TODO` 目前只写"待开票"，需给真实票号后回表更新并重生成 md
 （不回，`test_committed_md_is_the_generated_artifact` 这条腿会红）；② S5 与票 C 都只拦**新写入**，
-库里已存在的错版本条目不受影响；③ 表不覆盖 `agent_path` 与合同文件端点（`OUT_OF_SCOPE` 两行，各自记了理由）。
+而"清一次缓存"这个动作本轮被实测判为**多余**：`answer_cache` 是进程内 `rc.LRU(512)` + `TTL=6h`、
+重启与知识增删都清空，且开关生效本就要重启（见票 C §4b Q2）——**真正的存量面是 E2 的 Chroma 持久语料**，
+`clear()` 碰不到它；③ 表不覆盖 `agent_path` 与合同文件端点（`OUT_OF_SCOPE` 两行，各自记了理由）；
+④ ⚠️ **R15-lite 第①半只搬了一小条**：`create_run` 那半含「缺省落当日 + 随 run 持久化 + 被工具
+cutoff/证据有效性判定消费」三件事，快车道没有 run 对象 ⇒ `_fast_path_law_as_of` 只搬了第一件，
+其值**只有绊线门一个消费者**，快车道的检索 cutoff 不随它变。这条不对等是结构性的（快车道无状态），
+不是实现缺陷，但**下一个人很可能以为搬齐了**——`_fast_path_law_as_of` 的 docstring 已写明，此处再记一次；
+⑤ `backend/request_bootstrap.py` 那句注释仍在替一个快车道不存在的机制背书
+（"缺省 None = `create_run` 落 `date.today()`"，而快车道不经过 `create_run`）——本轮只读未改，
+**待开票**：要么删那句、要么补一句"仅 agent 路径如此"。
 
 **成本教训（本 ADR 要钉住的那一条）**：仓库**早就把这个事实钉在测试里了**——
 `backend/tests/test_flagship_quality.py` docstring 第三行原文是

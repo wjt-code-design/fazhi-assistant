@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -20,13 +19,13 @@ from types import SimpleNamespace
 BACKEND = Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND))
 
-from dotenv import load_dotenv  # noqa: E402
+from dotenv import load_dotenv
 
 load_dotenv(str(BACKEND / ".env"))
 
-import llm_registry  # noqa: E402
-import main  # noqa: E402
-import quality  # noqa: E402
+import llm_registry
+import main
+import quality
 
 # 答案文本：一组"会跨分水岭"（引用民法典三年时效），一组中性（不含时效表述）。
 CIVIL_TODAY = "依据《民法典》第一百八十八条，诉讼时效期间为三年，自权利人知道或者应当知道权利受到损害之日起计算。"
@@ -44,7 +43,9 @@ class FakeLLM:
         self._tokens = tokens
 
     def invoke(self, messages):
-        return SimpleNamespace(content=self._content, usage_metadata={"total_tokens": self._tokens})
+        return SimpleNamespace(
+            content=self._content, usage_metadata={"total_tokens": self._tokens}
+        )
 
 
 def make_pre(user_text: str) -> dict:
@@ -103,7 +104,9 @@ def install_fakes(case: dict) -> None:
         return ("F", flag)
 
     llm_registry.registry.pick = fake_pick  # 进程内替身，不落盘
-    llm_registry.registry.model_of = lambda k: {"L": "m-light", "F": "m-flag"}.get(k, "")
+    llm_registry.registry.model_of = lambda k: {"L": "m-light", "F": "m-flag"}.get(
+        k, ""
+    )
     llm_registry.registry.deduct = lambda k, t: None
 
     seq: list = {
@@ -146,8 +149,8 @@ def main_run(mode: str) -> int:
     # on      = 开关开、按现网两参数形状调用（拿不到基准日）⇒ 只可能触发 fail-closed
     # on_asof = 开关开、显式给基准日 ⇒ 触发的是**版本判定本身**（与 on 对照才能把两者分开证）
     if hasattr(main.settings, "fast_path_law_version_check"):
-        setattr(main.settings, "fast_path_law_version_check", mode != "baseline")
-        effective = getattr(main.settings, "fast_path_law_version_check")
+        main.settings.fast_path_law_version_check = mode != "baseline"
+        effective = main.settings.fast_path_law_version_check
     else:
         effective = None  # 改前：该开关尚不存在
     as_of = date(2026, 9, 18) if mode == "on_asof" else None
@@ -175,8 +178,13 @@ def main_run(mode: str) -> int:
     out_dir = Path(__file__).resolve().parent
     out_path = out_dir / f"light-baseline-{mode}.json"
     # 坑①：core.autocrlf + Windows 文本模式会把 \n 写成 \r\n ⇒ 写字节
-    out_path.write_bytes(json.dumps(payload, ensure_ascii=False, indent=1).encode("utf-8"))
-    print(f"mode={mode} cases={len(records)} nondeterministic={nondeterministic}", flush=True)
+    out_path.write_bytes(
+        json.dumps(payload, ensure_ascii=False, indent=1).encode("utf-8")
+    )
+    print(
+        f"mode={mode} cases={len(records)} nondeterministic={nondeterministic}",
+        flush=True,
+    )
     print(f"dump_sha256={payload['dump_sha256']}", flush=True)
     print(f"wrote={out_path}", flush=True)
     print("rc=0", flush=True)

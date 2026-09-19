@@ -24,18 +24,33 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import pytest  # noqa: E402
 
-from gate_exit_registry import COLUMNS, EXEMPTIONS, EXITS, STATUSES, scan_content_yields  # noqa: E402
+from gate_exit_registry import (  # noqa: E402
+    ANCHOR_RE,
+    COLUMNS,
+    EXEMPTIONS,
+    EXITS,
+    NON_TEXT_FRAME_KEYS,
+    STATUSES,
+    classify_non_text_frames,
+    exits_by_anchor,
+    scan_content_yields,
+)
 
 BACKEND = pathlib.Path(__file__).resolve().parents[1]
 MAIN_PY = BACKEND / "main.py"
 MD_PATH = BACKEND.parent / "docs" / "gate-exit-registry.md"
 
-MARKER_RE = re.compile(r"#\s*gate-exit:\s*(E\d+)\b")
+# 锚点形状只有一份定义（在真源里），这里不再抄第二份 `[PL#13]`。
+MARKER_RE = ANCHOR_RE
 
 # 豁免总数上限。**当前是 0** —— 有豁免就必须改这里，改这里就要在评审里解释。
 # 存在的理由：R4 的豁免清单是最容易被"顺手加一条"消音的地方（票 G 复审实测过一条
 # 全量零敏感的 load-bearing 闸，就是这么活的）。
 MAX_EXEMPTIONS = 0
+
+# GAP-TODO 的"挂上票了没"判据。**旧版写的是 `票|待开票|Owner` —— 单字「票」即过，等于没断**
+# （CodeReview/c-2）。只认三种：显式『待开票』、`票 X`/`票X` 形式的票号、`S<n>` 形式的票号。
+TICKET_RE = re.compile(r"待开票|票\s*[A-Z]|\bS\d{1,2}\b")
 
 
 def _markers_by_line(src: str) -> dict[int, str]:
@@ -135,6 +150,85 @@ def test_registry_rows_all_exist_in_source():
     assert not findings, "登记表里有源码中不存在的出口（幽灵行）：\n" + "\n".join(findings)
 
 
+def test_binding_is_by_anchor_not_by_position(tmp_path):
+    """防"按行序配对"回潮：真源里在文件中间插一条出口时，按位 zip 会把后面每行的
+    「现在吐什么」静默错配到别的出口，而 `strict=True` 只在条数不等时才炸 ⇒ md 自洽地假。"""
+    p = tmp_path / "fake_stream.py"
+    p.write_text(
+        "import json\n\n\nasync def stream():\n"
+        "    yield f\"data: {json.dumps({'content': 'AAA'}, ensure_ascii=False)}\\n\\n\"  # gate-exit: E2\n"
+        "    yield f\"data: {json.dumps({'content': 'BBB'}, ensure_ascii=False)}\\n\\n\"  # gate-exit: E1\n",
+        encoding="utf-8",
+    )
+    src = p.read_text(encoding="utf-8")
+    by_anchor = exits_by_anchor(src)
+    assert "AAA" in by_anchor["E2"] and "BBB" in by_anchor["E1"], f"按锚点绑却错配了：{by_anchor}"
+    # 同一份输入走"按行序"的绑法必须给出**不同**结果，否则这条自证什么都没证
+    positional = dict(zip(["E1", "E2"], [e for _ln, e in scan_content_yields(src)], strict=True))
+    assert positional["E1"] != by_anchor["E1"], (
+        f"按位与按锚点给出同一结果（都是 {positional['E1']!r}）⇒ 本条腿空转，换输入再试"
+    )
+    # 真码上再钉三个已知配对：将来谁把生成器改回按位，这三条会互换了才炸
+    real = exits_by_anchor(MAIN_PY.read_bytes().decode("utf-8"))
+    assert real["E1"] == "ca" and real["E8"] == "piece" and real["E13"] == "NOTE_QUOTA", (
+        f"真实出口的 ID→表达式 配对了不一样的东西：{real['E1']!r} / {real['E8']!r} / {real['E13']!r}"
+    )
+
+
+def test_duplicate_anchor_rejected(tmp_path):
+    """两条 yield 共用一个 ID 时不许静默合并成一条。"""
+    p = tmp_path / "fake_stream.py"
+    p.write_text(
+        "import json\n\n\nasync def stream():\n"
+        "    yield f\"data: {json.dumps({'content': 'A'}, ensure_ascii=False)}\\n\\n\"  # gate-exit: E1\n"
+        "    yield f\"data: {json.dumps({'content': 'B'}, ensure_ascii=False)}\\n\\n\"  # gate-exit: E1\n",
+        encoding="utf-8",
+    )
+    with pytest.raises(ValueError, match="重复锚点"):
+        exits_by_anchor(p.read_text(encoding="utf-8"))
+
+
+def test_non_text_frame_keys_are_load_bearing():
+    """`NON_TEXT_FRAME_KEYS` 必须真的在管这件事，两头各钉一次。
+
+    md §四 写着"哨兵会把它们分类计出"——这句话在 2026-09-20 之前是**假接线**：那个常量
+    只被生成器渲染成文字，没有任何测试消费它（`[PL#14]`，正是这张表立表要防的形态）。
+    """
+    src = MAIN_PY.read_bytes().decode("utf-8")
+    frames = classify_non_text_frames(src)
+    assert frames, "一条非正文帧都没扫到 ⇒ 本条腿空转（清单和源码可能都变了）"
+    keys_seen = {k for _ln, ks in frames for k in ks}
+    unclassified = [ks for _ln, ks in frames if not set(ks) & set(NON_TEXT_FRAME_KEYS)]
+    assert not unclassified, f"这些帧无法用清单分类（新帧形状？先判它算不算出口）：{unclassified}"
+    unused = set(NON_TEXT_FRAME_KEYS) - keys_seen
+    assert not unused, f"清单里这些键在源码里已经用不到了，清单该删这一项：{sorted(unused)}"
+
+
+def test_leg5_ticket_re_is_not_an_empty_gun():
+    """TICKET_RE 自己也得红过：旧版 `票|待开票|Owner` 让"本票面…"这种句子直接过关。"""
+    for good in ("待开票（本表新发现）", "见票 C 的 §5-4", "S6 的遗留项", "由票G 复核"):
+        assert TICKET_RE.search(good), f"该收的没收：{good!r}"
+    for weak in ("本票已经登记", "票号待补", "Owner 已阅", "这张表的某票事项"):
+        assert not TICKET_RE.search(weak), f"空枪没修好：{weak!r} 仍然被当成挂了票"
+
+
+def test_registry_scope_is_whole_backend_not_just_main_py():
+    """计划步骤2 写的是"全树扫"，而主断言只喂 `main.py` ⇒ 别处新增正文出口没人看得见（CodeReview/a-4）。
+
+    登记表目前**没有**跨文件登记能力（EXITS 的 ID 只绑 main.py 的锚点），所以这条腿的作用是：
+    一旦有第二个文件开始吐正文帧，当场炸，逼下任要么扩表、要么在那文件里显式声明不归本表管，
+    而不是让"表 = 全仓答复出口"这句话静默变成假话。
+    """
+    offenders: dict[str, int] = {}
+    for p in sorted(BACKEND.glob("*.py")):
+        n = len(scan_content_yields(p.read_bytes().decode("utf-8")))
+        if n:
+            offenders[p.name] = n
+    assert offenders == {"main.py": len(EXITS)}, (
+        f"扫描范围与登记表不再吻合：{offenders} ⇒ 出口数应等于 EXITS 行数 {len(EXITS)}，且只应出现在 main.py"
+    )
+
+
 def test_registry_shape_is_complete():
     """每行填满每一列、状态在词表里、取证非空 —— 「不许留空」这条纪律的执行体。"""
     ids = [r["id"] for r in EXITS]
@@ -151,8 +245,8 @@ def test_registry_shape_is_complete():
                 bad.append(f"  {r['id']} × {col} 状态 {status!r} 不在词表里")
             if not evidence.strip():
                 bad.append(f"  {r['id']} × {col} 有状态但没有取证")
-            if status == "GAP-TODO" and not re.search(r"票|待开票|Owner", evidence):
-                bad.append(f"  {r['id']} × {col} 是 GAP-TODO 却没写票号/待开票/Owner")
+            if status == "GAP-TODO" and not TICKET_RE.search(evidence):
+                bad.append(f"  {r['id']} × {col} 是 GAP-TODO 却没写票号（也不是显式『待开票』）")
         extra = set(r["cells"]) - set(COLUMNS)
         if extra:
             bad.append(f"  {r['id']} 有不在 COLUMNS 里的列：{sorted(extra)}")

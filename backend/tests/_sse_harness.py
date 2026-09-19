@@ -2,13 +2,15 @@
 
 存在的理由不是"多一层封装"，而是两件事在单元层证不了：
 
-1. `main.py:1914` 传给 `_light_buffered` 的 `law_as_of` 实参值 —— 只在该行被真实执行时才可观测，
-   单元层"断言函数收到了参数"只钉传没传、不钉值（票 G §2-2 的教训）。
-2. `main.py:1921` 那道"命中不进缓存"闸 —— 它在 `stream()` 里，不在 `_light_buffered` 里；
-   且实测四个变异只跑定向文件时它**存活**（票 G F5）。
+1. `_light_buffered(pre, messages, _fast_path_law_as_of(body))` 那一行传进去的 `law_as_of` **实参值**
+   —— 只在该行被真实执行时才可观测，单元层"断言函数收到了参数"只钉传没传、不钉值（票 G §2-2 的教训）。
+   ⚠️ 本模块**不写行号**（ADR-018/R4：只用符号锚点，行号在本仓已漂过四次）。
+2. `stream()` 里那道"命中不进缓存"闸（认这个形状：
+   `if cache_key and res.verdict == "pass" and not res.law_version_hit:`）—— 它在 `stream()` 里，
+   不在 `_light_buffered` 里；且实测四个变异只跑定向文件时它**存活**（票 G F5）。
 
 历史：`test_flagship_quality.py` 早已写出这套 in-memory + 替身 的端点夹具，但只服务旗舰流式那条路。
-本模块把它抽成工厂并补 `light_buffered` 路线（E6），使 SSE 出口第一次可被两侧复用。
+本模块把它抽成工厂并补 `light_buffered` 路线（登记表里那条叫 **E7**，别和注记帧 E6 混）。
 抽提**不改变** `route="flagship_stream"` 的既有桩点集合——判据是抽前后该文件用例逐字同结果。
 """
 
@@ -25,7 +27,7 @@ from sqlalchemy.pool import StaticPool
 
 # 旗舰流式的两块增量（保持与抽出前 _FakeChain 一字相同）
 FLAGSHIP_PARTS = ("根据《劳动合同法》第十九条，", "试用期最长六个月。")
-# E6 默认答案：民事时效结论 + 分水岭后事实（配合 date.today() 不跨两侧 ⇒ 门不命中）
+# E7（缓冲轻量整答）默认答案：民事时效结论 + 分水岭后事实（配合 date.today() 不跨两侧 ⇒ 门不命中）
 LIGHT_ANSWER = "本案诉讼时效为三年，自 2022 年 6 月 1 日起算。"
 FACT_2022 = "我 2022年6月1日 借给朋友一笔钱，约定一年内还。"
 
@@ -77,7 +79,8 @@ def sse_client(
 
     route="flagship_stream" ⇒ 桩点集合与抽提前的 `client` fixture 一字不差（`has_role` 恒假 ⇒ 走旗舰流式）。
     route="light_buffered" ⇒ 额外把 tier/准入/`has_role`/模型/自检/反问/扣减全替身化，
-    使 `use_light` 为真、真实执行 `main.py:1913-1924` 那段（含 `:1921` 闸）。
+    使 `use_light` 为真、真实执行登记表 **E7** 那条出口整段（含"命中不进缓存"闸，
+    认形状 `if cache_key and res.verdict == "pass" and not res.law_version_hit:`）。
     """
     import answer_cache
     import complexity
@@ -136,7 +139,7 @@ def chat_frames(client, token: str, content: str, extra: dict | None = None) -> 
     """发一次 /api/chat，返回**原始帧序列**（顺序即语义）。
 
     用途：1a 那类"改在调用点"的修复，其零变化证据只能是逐帧字节比对
-    （`capture_light_baseline.py` 直接调 `_light_buffered`，不经 `:1914` ⇒ 对它不可见）。
+    （`capture_light_baseline.py` 直接调 `_light_buffered`，不经 `stream()` 里那行调用点 ⇒ 对它不可见）。
     """
     payload = {"content": content}
     payload.update(extra or {})

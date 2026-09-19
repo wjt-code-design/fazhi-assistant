@@ -24,7 +24,7 @@ from gate_exit_registry import (  # noqa: E402
     EXITS,
     NON_TEXT_FRAME_KEYS,
     OUT_OF_SCOPE,
-    scan_content_yields,
+    exits_by_anchor,
 )
 
 HEADER_AT = "<!-- generated-at"  # 哨兵比对前会剥掉这两行
@@ -52,9 +52,12 @@ def _expressions() -> dict[str, str]:
     表达式名是稳定的：改了它说明那条出口本身变了，正该红一次、回头复核那一行。
     """
     text = (BACKEND / "main.py").read_bytes().decode("utf-8")
-    # strict=True ⇒ 登记表行数与扫出的出口数不一致时当场炸，而不是静默少渲染几行
-    # （那正是这张表要防的"表与真实漂移"）。
-    return {row["id"]: expr for row, (_ln, expr) in zip(EXITS, scan_content_yields(text), strict=True)}
+    exprs = exits_by_anchor(text)  # 按锚点 ID 绑，不按行序（见该函数 docstring：按位 zip 会静默错配）
+    missing = [row["id"] for row in EXITS if row["id"] not in exprs]
+    if missing:
+        # 表里有行、源码里没有对应锚点 ⇒ 宁可炸，也不要在 md 里渲染成"看起来对"的空单元格。
+        raise SystemExit(f"登记表这些 ID 在源码里找不到锚点：{missing} ⇒ 先补锚点或删行，别改生成器")
+    return exprs
 
 
 def render() -> str:

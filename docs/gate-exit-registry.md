@@ -1,5 +1,5 @@
-<!-- generated-at: 2026-09-20 04:43 -->
-<!-- source-commit: 0098d44 -->
+<!-- generated-at: 2026-09-20 05:43 -->
+<!-- source-commit: 953b891 -->
 
 # /api/chat 出口 × 闸门 登记表（生成物，勿手改）
 
@@ -36,10 +36,10 @@
 | **E1** × 版本绊线 | 待开票（**不由票 C 解决**：票 C §4-Q2 于 2026-09-20 裁为"不判读侧"，理由是读侧加判定会把"零 token 直返"这个特性本身打穿）。**结构性走不到**：收口点的门在生成分支上，而本出口在门之前就 return ⇒ 挂到收口处的门对缓存复用型答复永远不命中。⚠️ 但**严重度比 E2 低一档**：本出口读的是 `answer_cache`，它是进程内 `rc.LRU(maxsize=512)` + `TTL=6h`，且重启与知识增删（`retrieval.invalidate()` → `clear()`）都清空 ⇒ 一条错版本答复的暴露窗 **≤ 6 小时**，不是一直到库。⇒ 要修的语义是「生成侧门开了以后，6 小时内仍可能直返开门前的旧答复」，这是清一次缓存能覆盖的、而清缓存又几乎不需要专门动作（开关要生效本来就得重启）。 |
 | **E2** × 版本绊线 | 待开票（**不由票 C 解决**：票 C §4-Q2 已裁"不判读侧"）。同 E1 是结构性走不到，但**本格是 9 格里唯一真正的存量面**：它读的不是 `answer_cache` 而是 **Chroma 持久语料**（`main._qa_direct_return` docstring 原文「QA 持久语义缓存直返（8-23 智谱免费 token 预生成语料）」）⇒ **无 TTL、重启不清、`answer_cache.clear()` 也碰不到它**。三道护栏是 score ≥0.92 / 选项指纹 / 「条文仍在库且有效」，**没有一条是版本判定** ⇒ 预生成那天的法版本会被无限期当成今天的法作答。⚠️ 严重度排不了序：本出口**命中率至今未量**（要量得先跑真实语料检索）。⇒ 修法只有两种，且都不在票 C 射程内：给 E2 补一次判定（则直返不再零成本），或给那份语料**打版本标**（一次性离线，运行时按 `law_as_of` 过滤，保住零 token 直返）。 |
 | **E5** × 配额降级注记 | 待开票：合同分支没有 NOTE_QUOTA/降级出口，failover 全灭时只能落到外层 error 帧（不在本表范围）⇒ 用户看到「无响应」而不是「已降级」。 |
-| **E5** × 写缓存闸 | 待开票（本表 2026-09-20 新发现）：`answer_cache.put(..., model="contract_review")` 发生在追加引用告警注记**之前**，且本出口不跑自检 ⇒ **引用未收录的合同报告会以「无告警」的形态进缓存并被零 token 复播**。⚠️ 判定其实**早就算好了**：`bad = citation_verify(answer)` 在 `:1883`，写闸在 `:1884` 却没看它 ⇒ 修法近乎免费（`if cache_key and not bad:`），代价只是带告警的报告不进缓存。全仓三处写闸（`:1886` / `:1936` / `:2074`）条件集互不相同，另见 E7、E6 两格。 |
+| **E5** × 写缓存闸 | 待开票（本表 2026-09-20 新发现）：`answer_cache.put(..., model="contract_review")` 发生在追加引用告警注记**之前**，且本出口不跑自检 ⇒ **引用未收录的合同报告会以「无告警」的形态进缓存并被零 token 复播**。⚠️ 判定其实**早就算好了**：合同分支在收口后立刻算 `bad = citation_verify(answer)`，**下一行**就是 `if cache_key:` 的写闸，却没看 `bad` ⇒ 修法近乎免费（`if cache_key and not bad:`），代价只是带告警的报告不进缓存。全仓三处 `answer_cache.put(` 调用点（合同分支 / 缓冲轻量分支 / 旗舰流式分支）条件集互不相同，另见 E7、E6 两格。（本格**不写行号**：本仓行号已漂过五次，最近一次是被本表自己的取证改动挤掉的。） |
 | **E6** × 写缓存闸 | 待开票（与 E5 同一个缺陷的另一面）：注记没进被缓存的那份 answer ⇒ 引用未收录的合同报告被零 token 复播时**丢掉那条告警**。 |
 | **E7** × 多选完整性 | 待开票（本表新发现）：`multi_incomplete` 全仓只有流式出口一处调用 ⇒ 轻量缓冲路径的**多选漏答零防护**，而法考多选题恰是最可能被路由到轻量档的题型。 |
-| **E7** × 写缓存闸 | 待开票（本表新发现）：两条闸**字面条件集交集只有 `cache_key`**（`:1933` = cache_key / `res.verdict == "pass"` / `not res.law_version_hit`；`:2071` = cache_key / `not flag_degraded` / `_cache_write_ok` / `not multi_bad`）。逐条对：流式的 `not flag_degraded` 在轻量侧由 `verdict == "pass"` 承担（配额耗尽分支 `:1249-1251` 把 verdict 写成 `v.reason or "low_quota"`）⇒ 不是漏闸，但**降级与自检 FAIL 两个信号被合进同一个条件**，归因粒度比流式粗。轻量侧真正**无任何对应物**的两件：`_cache_write_ok`（确定性写闸，全文只在 `:2071` 出现）与 `not multi_bad`（`quality.multi_incomplete` 全文只在 `:2030` 流式侧调用）⇒ 同一个「拦错答进缓存」的形状两份实现、强弱不同（`[PL#13]`）。已有的那条 `not law_version_hit` 本轮已配端点级用例（能杀删闸变异）。 |
+| **E7** × 写缓存闸 | 待开票（本表新发现）：两条闸**字面条件集交集只有 `cache_key`**（轻量那条 = cache_key / `res.verdict == "pass"` / `not res.law_version_hit`；流式那条 = cache_key / `not flag_degraded` / `_cache_write_ok` / `not multi_bad`）。**认形状不认行号**：两条各是其分支里唯一的 `if cache_key and …:` 行 （本仓行号已漂过五次，最近一次是被本表自己的取证改动挤掉的）。逐条对：流式的 `not flag_degraded` 在轻量侧由 `verdict == "pass"` 承担（`_light_buffered_locked` 里 `except QuotaExhausted` 那一支把 verdict 写成 `v.reason or "low_quota"`）⇒ 不是漏闸，但**降级与自检 FAIL 两个信号被合进同一个条件**，归因粒度比流式粗。轻量侧真正**无任何对应物**的两件：`_cache_write_ok`（确定性写闸，全文只在流式那条上出现）与 `not multi_bad`（`quality.multi_incomplete` 全文只有一个调用点，在流式分支）⇒ 同一个「拦错答进缓存」的形状两份实现、强弱不同（`[PL#13]`）。已有的那条 `not law_version_hit` 本轮已配端点级用例（能杀删闸变异）。 |
 | **E8** × 版本绊线 | **票 C/S6 正题**：这是唯一承流量的生成出口，而它没有版本判定。票面已补前置（§5-4 必须传 `_fast_path_law_as_of(body)`、§6-③ 零变化必须端点级逐帧、§6-④ 变异跑全量）。 |
 | **E9** × 版本绊线 | 票 C/S6 §2c 点名的**第二个答案来源**：只接流式不接兜底 = 门留了个口子。 |
 
@@ -117,7 +117,7 @@
 | 多选完整性 | `NA` | 报告体，非选择题。 |
 | 配额降级注记 | `GAP-TODO` | 待开票：合同分支没有 NOTE_QUOTA/降级出口，failover 全灭时只能落到外层 error 帧（不在本表范围）⇒ 用户看到「无响应」而不是「已降级」。 |
 | 版本绊线 | `GAP-ACCEPTED` | 票 C §4a-Q1（`cd29211`）裁定不接：合同事实来自**上传文本**而非用户自述，`_fast_path_fact_texts` 那套取法在此不成立，硬接只能接出一道恒不命中的空门。遗留风险「按现行法评估 2019 年签的合同」无人管 ⇒ Owner 若不接受须另开票。 |
-| 写缓存闸 | `GAP-TODO` | 待开票（本表 2026-09-20 新发现）：`answer_cache.put(..., model="contract_review")` 发生在追加引用告警注记**之前**，且本出口不跑自检 ⇒ **引用未收录的合同报告会以「无告警」的形态进缓存并被零 token 复播**。⚠️ 判定其实**早就算好了**：`bad = citation_verify(answer)` 在 `:1883`，写闸在 `:1884` 却没看它 ⇒ 修法近乎免费（`if cache_key and not bad:`），代价只是带告警的报告不进缓存。全仓三处写闸（`:1886` / `:1936` / `:2074`）条件集互不相同，另见 E7、E6 两格。 |
+| 写缓存闸 | `GAP-TODO` | 待开票（本表 2026-09-20 新发现）：`answer_cache.put(..., model="contract_review")` 发生在追加引用告警注记**之前**，且本出口不跑自检 ⇒ **引用未收录的合同报告会以「无告警」的形态进缓存并被零 token 复播**。⚠️ 判定其实**早就算好了**：合同分支在收口后立刻算 `bad = citation_verify(answer)`，**下一行**就是 `if cache_key:` 的写闸，却没看 `bad` ⇒ 修法近乎免费（`if cache_key and not bad:`），代价只是带告警的报告不进缓存。全仓三处 `answer_cache.put(` 调用点（合同分支 / 缓冲轻量分支 / 旗舰流式分支）条件集互不相同，另见 E7、E6 两格。（本格**不写行号**：本仓行号已漂过五次，最近一次是被本表自己的取证改动挤掉的。） |
 | 评测可信度 | `NA` | 不在冻结集内。 |
 
 ### E6 — stream() / 分支0.3 合同引用告警注记帧（变量 `note`）
@@ -146,8 +146,8 @@
 | 自检 | `PASS` | `_light_buffered_locked` 内 `quality.self_check(raw, ctx_present)`（至多一次升级旗舰重答后再判）。 |
 | 多选完整性 | `GAP-TODO` | 待开票（本表新发现）：`multi_incomplete` 全仓只有流式出口一处调用 ⇒ 轻量缓冲路径的**多选漏答零防护**，而法考多选题恰是最可能被路由到轻量档的题型。 |
 | 配额降级注记 | `PASS` | 轻量五个 return 点里有 NOTE_QUOTA（配额耗尽不升级）与 NOTE_COMPLEX（升级后仍 FAIL）。 |
-| 版本绊线 | `PASS` | S5 接 + 本轮补契约第①半（`_fast_path_law_as_of`）。判据强度：全量变异复审 4/4 全杀（`dispatch-output/s5-followup-20260920/02-mutation-verdicts.txt`），含 reason 双支各一条端点级用例。⚠️ 但本出口零流量 ⇒ 这格是「代码正确」，不是「线上生效」。 |
-| 写缓存闸 | `GAP-TODO` | 待开票（本表新发现）：两条闸**字面条件集交集只有 `cache_key`**（`:1933` = cache_key / `res.verdict == "pass"` / `not res.law_version_hit`；`:2071` = cache_key / `not flag_degraded` / `_cache_write_ok` / `not multi_bad`）。逐条对：流式的 `not flag_degraded` 在轻量侧由 `verdict == "pass"` 承担（配额耗尽分支 `:1249-1251` 把 verdict 写成 `v.reason or "low_quota"`）⇒ 不是漏闸，但**降级与自检 FAIL 两个信号被合进同一个条件**，归因粒度比流式粗。轻量侧真正**无任何对应物**的两件：`_cache_write_ok`（确定性写闸，全文只在 `:2071` 出现）与 `not multi_bad`（`quality.multi_incomplete` 全文只在 `:2030` 流式侧调用）⇒ 同一个「拦错答进缓存」的形状两份实现、强弱不同（`[PL#13]`）。已有的那条 `not law_version_hit` 本轮已配端点级用例（能杀删闸变异）。 |
+| 版本绊线 | `PASS` | S5 接 + 本轮补上「缺省落当日」这一小条（`_fast_path_law_as_of`）。判据强度：全量变异复审 4/4 全杀（`dispatch-output/s5-followup-20260920/02-mutation-verdicts.txt`），含 reason 双支各一条端点级用例。⚠️ 但本出口零流量 ⇒ 这格是「代码正确」，不是「线上生效」。⚠️ **别说成「契约第①半已搬齐」**：`create_run` 那半还含「随 run 持久化」与「被工具 cutoff/证据有效性判定消费」，快车道无 run 对象 ⇒ 本值只有绊线门一个消费者，检索 cutoff 不随它变（ADR-018 已知残留 ④）。 |
+| 写缓存闸 | `GAP-TODO` | 待开票（本表新发现）：两条闸**字面条件集交集只有 `cache_key`**（轻量那条 = cache_key / `res.verdict == "pass"` / `not res.law_version_hit`；流式那条 = cache_key / `not flag_degraded` / `_cache_write_ok` / `not multi_bad`）。**认形状不认行号**：两条各是其分支里唯一的 `if cache_key and …:` 行 （本仓行号已漂过五次，最近一次是被本表自己的取证改动挤掉的）。逐条对：流式的 `not flag_degraded` 在轻量侧由 `verdict == "pass"` 承担（`_light_buffered_locked` 里 `except QuotaExhausted` 那一支把 verdict 写成 `v.reason or "low_quota"`）⇒ 不是漏闸，但**降级与自检 FAIL 两个信号被合进同一个条件**，归因粒度比流式粗。轻量侧真正**无任何对应物**的两件：`_cache_write_ok`（确定性写闸，全文只在流式那条上出现）与 `not multi_bad`（`quality.multi_incomplete` 全文只有一个调用点，在流式分支）⇒ 同一个「拦错答进缓存」的形状两份实现、强弱不同（`[PL#13]`）。已有的那条 `not law_version_hit` 本轮已配端点级用例（能杀删闸变异）。 |
 | 评测可信度 | `DISABLED` | 分支不可达 ⇒ 任何评测读数里它出现 0 次。**别把「改完评测一分没变」当它被验证过**（本轮实测：frozen-cases-v2 20 例、holdout 5 例均不含可触发该门的形态）。 |
 
 ### E8 — stream() / 分支2 旗舰流式增量（变量 `piece`）

@@ -1,4 +1,4 @@
-"""/api/chat「出口 × 闸门」登记表 · **真源**（ADR-016：借 NeMo 的槽位声明形状，不引依赖）。
+"""/api/chat「出口 × 闸门」登记表 · **真源**（ADR-018：借 NeMo 的槽位声明形状，不引依赖）。
 
 为什么要有这张表（不是文档癖）：本仓两次出现「门接在活代码上、但那条代码今天没人走到 / 某个出口根本没接」，
 第二次比第一次更难发现 —— 它过单元测试（`[PL#14] 假接线` 的具体形态）。
@@ -22,6 +22,10 @@
 from __future__ import annotations
 
 import ast
+import re
+
+# 锚点形状的**唯一定义处**（测试与生成器都从这里取，别再抄第二份 `[PL#13]`）。
+ANCHOR_RE = re.compile(r"#\s*gate-exit:\s*(E\d+)\b")
 
 
 def _json_dumps_dict_keys(node: ast.AST) -> tuple[str, ...] | None:
@@ -60,6 +64,46 @@ def scan_content_yields(src: str) -> list[tuple[int, str]]:
                         expr = ast.unparse(v)
         out.append((node.lineno, expr))
     return sorted(out)
+
+
+def exits_by_anchor(src: str) -> dict[str, str]:
+    """`{锚点 ID: 该出口当前吐的正文表达式}` —— **按 ID 绑，不按位置绑**。
+
+    为什么不用 `zip(EXITS, scan_content_yields(...))`：那是按行序配对。将来在文件中间插一条出口，
+    后面每一行的"现在吐什么"都会**静默错配到别的出口**，而 `strict=True` 只在**条数**不等时才炸 ⇒
+    生成的 md 会自洽地假。行序不参与判定，锚点 ID 才参与。
+    重复锚点（两条 yield 都写 `E7`）在这里会被计数并交给哨兵判红，不静默合并。
+    """
+    lines = src.splitlines()
+    out: dict[str, str] = {}
+    dups: list[str] = []
+    for ln, expr in scan_content_yields(src):
+        m = ANCHOR_RE.search(lines[ln - 1])
+        if not m:
+            continue  # 无锚点由哨兵 leg1 判红，这里不重复报
+        if m.group(1) in out:
+            dups.append(m.group(1))
+        out.setdefault(m.group(1), expr)
+    if dups:
+        raise ValueError(f"重复锚点 {sorted(set(dups))}：一条 ID 只能绑一个出口")
+    return out
+
+
+def classify_non_text_frames(src: str) -> list[tuple[int, tuple[str, ...]]]:
+    """`json.dumps` 帧里**不含 `content`** 的那些：`(行号, 顶层常量键)`。
+
+    存在意义：让 `NON_TEXT_FRAME_KEYS` 变成**被核对的东西**而不是注释。哨兵两头钉它——
+    ①每帧都必须能被清单里的某个键分类（否则是"出现了一种没人判过算不算出口的新帧"）；
+    ②清单里每个键都必须真的还能在源码里用到（否则清单会烂成一段历史说明）。
+    """
+    out: list[tuple[int, tuple[str, ...]]] = []
+    for node in ast.walk(ast.parse(src)):
+        if not isinstance(node, (ast.JoinedStr, ast.Call)):
+            continue
+        keys = _json_dumps_dict_keys(node)
+        if keys and "content" not in keys:
+            out.append((getattr(node, "lineno", 0), keys))
+    return sorted(set(out))
 
 
 # 列顺序 = 生成 md 时的列顺序。
@@ -233,10 +277,11 @@ EXITS: list[dict] = [
                 "待开票（本表 2026-09-20 新发现）：`answer_cache.put(..., model=" + '"contract_review"' + ")` "
                 "发生在追加引用告警注记**之前**，且本出口不跑自检 ⇒ "
                 "**引用未收录的合同报告会以「无告警」的形态进缓存并被零 token 复播**。"
-                "⚠️ 判定其实**早就算好了**：`bad = citation_verify(answer)` 在 `:1883`，"
-                "写闸在 `:1884` 却没看它 ⇒ 修法近乎免费（`if cache_key and not bad:`），"
-                "代价只是带告警的报告不进缓存。全仓三处写闸（`:1886` / `:1936` / `:2074`）"
-                "条件集互不相同，另见 E7、E6 两格。",
+                "⚠️ 判定其实**早就算好了**：合同分支在收口后立刻算 `bad = citation_verify(answer)`，"
+                "**下一行**就是 `if cache_key:` 的写闸，却没看 `bad` ⇒ 修法近乎免费（`if cache_key and not bad:`），"
+                "代价只是带告警的报告不进缓存。全仓三处 `answer_cache.put(` 调用点"
+                "（合同分支 / 缓冲轻量分支 / 旗舰流式分支）条件集互不相同，另见 E7、E6 两格。"
+                "（本格**不写行号**：本仓行号已漂过五次，最近一次是被本表自己的取证改动挤掉的。）",
             ),
             "评测可信度": ("NA", "不在冻结集内。"),
         },
@@ -293,20 +338,26 @@ EXITS: list[dict] = [
             ),
             "版本绊线": (
                 "PASS",
-                "S5 接 + 本轮补契约第①半（`_fast_path_law_as_of`）。判据强度：全量变异复审 4/4 全杀"
+                "S5 接 + 本轮补上「缺省落当日」这一小条（`_fast_path_law_as_of`）。判据强度：全量变异复审 4/4 全杀"
                 "（`dispatch-output/s5-followup-20260920/02-mutation-verdicts.txt`），含 reason 双支各一条端点级用例。"
-                "⚠️ 但本出口零流量 ⇒ 这格是「代码正确」，不是「线上生效」。",
+                "⚠️ 但本出口零流量 ⇒ 这格是「代码正确」，不是「线上生效」。"
+                "⚠️ **别说成「契约第①半已搬齐」**：`create_run` 那半还含「随 run 持久化」与「被工具 cutoff/"
+                "证据有效性判定消费」，快车道无 run 对象 ⇒ 本值只有绊线门一个消费者，检索 cutoff 不随它变"
+                "（ADR-018 已知残留 ④）。",
             ),
             "写缓存闸": (
                 "GAP-TODO",
                 "待开票（本表新发现）：两条闸**字面条件集交集只有 `cache_key`**"
-                '（`:1933` = cache_key / `res.verdict == "pass"` / `not res.law_version_hit`；'
-                "`:2071` = cache_key / `not flag_degraded` / `_cache_write_ok` / `not multi_bad`）。"
+                '（轻量那条 = cache_key / `res.verdict == "pass"` / `not res.law_version_hit`；'
+                "流式那条 = cache_key / `not flag_degraded` / `_cache_write_ok` / `not multi_bad`）。"
+                "**认形状不认行号**：两条各是其分支里唯一的 `if cache_key and …:` 行 "
+                "（本仓行号已漂过五次，最近一次是被本表自己的取证改动挤掉的）。"
                 '逐条对：流式的 `not flag_degraded` 在轻量侧由 `verdict == "pass"` 承担'
-                '（配额耗尽分支 `:1249-1251` 把 verdict 写成 `v.reason or "low_quota"`）⇒ 不是漏闸，'
+                "（`_light_buffered_locked` 里 `except QuotaExhausted` 那一支把 verdict 写成 "
+                '`v.reason or "low_quota"`）⇒ 不是漏闸，'
                 "但**降级与自检 FAIL 两个信号被合进同一个条件**，归因粒度比流式粗。"
-                "轻量侧真正**无任何对应物**的两件：`_cache_write_ok`（确定性写闸，全文只在 `:2071` 出现）"
-                "与 `not multi_bad`（`quality.multi_incomplete` 全文只在 `:2030` 流式侧调用）"
+                "轻量侧真正**无任何对应物**的两件：`_cache_write_ok`（确定性写闸，全文只在流式那条上出现）"
+                "与 `not multi_bad`（`quality.multi_incomplete` 全文只有一个调用点，在流式分支）"
                 "⇒ 同一个「拦错答进缓存」的形状两份实现、强弱不同（`[PL#13]`）。"
                 "已有的那条 `not law_version_hit` 本轮已配端点级用例（能杀删闸变异）。",
             ),

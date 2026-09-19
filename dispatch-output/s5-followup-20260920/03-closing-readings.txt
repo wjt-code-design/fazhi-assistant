@@ -1,0 +1,64 @@
+收口读数（2026-09-20 05:0x 之后全部**当场重跑**，不引用本轮早先的输出）
+====================================================================
+
+跑在哪棵树：**live 工作树** `C:/Users/33393/Desktop/ai-legal-helper`，HEAD = 953b891（写本文件前）。
+分母口径：定向三文件 = 30 条（含 skip 1）；门禁全量 = `tests=1368`（变异审计侧口径）/ `-m 'not slow'` 1358 条。
+（补记：本文件的存在理由是 CodeReview 硬违反 3——`gate-*-verdict.txt` 只记 basetemp 不记树，
+ 在"live 禁止 / 副本允许"这条纪律之后无法审。）
+
+一、三台仪器（每条腿都要求"能红"，故都含自证腿）
+--------------------------------------------------------------------
+verify_doc_claims.py        合计 25 条，FAIL=0
+verify_claim_discipline.py  合计 8 条腿，FAIL=0（4 条实测 + 4 条"喂错读数必须报错"的自证）
+verify_anchors_comment_only.py
+  A) 原样字节 with_m == base          : False   ← 标记本身就是差异
+  B) 剥标记后 vs fad2cee~1（同 LF）   : True    ← 「锚点纯注释」的成立口径
+     两边行数 2667 vs 2667，markers_found 13
+
+二、测试与静态门
+--------------------------------------------------------------------
+pytest tests/test_gate_exit_registry.py + test_fast_path_law_version_gate.py
+       + test_flagship_quality.py        → 30 passed, 1 skipped，rc=0
+       （其中登记表哨兵 14 条：4 自证腿 + 2 主断言 + 结构 + 豁免 + md 相等
+         + 本轮新增 3 条：按锚点非按位 / 重复锚点 / NON_TEXT_FRAME_KEYS 双向被消费
+         + 1 条范围腿：backend/*.py 全扫）
+ruff check  （registry / 生成器 / 哨兵 / _sse_harness / main.py / dispatch-output 全部脚本）→ rc=0
+ruff format --check → rc=0
+mypy  registry + 生成器 + main.py → Success: no issues found in 3 source files
+pre-commit 手跑 → 见提交信息
+
+三、变异审计：从**原始 junit xml** 独立重算（不读当时那份 json）
+--------------------------------------------------------------------
+baseline  failed=21 分母 tests=1368 failures=21 errors=0
+M1_cache_guard_off            failed=22 newly_red=1  KILLED  tests=1368 一致
+M2_callsite_half1_removed     failed=23 newly_red=2  KILLED  tests=1368 一致
+M3_empty_answer_note_appended failed=22 newly_red=1  KILLED  tests=1368 一致
+M4_missing_date_passes        failed=22 newly_red=1  KILLED  tests=1368 一致
+⇒ ALL_KILLED 成立；M2 的两条 newly_red 正是 1a 的两条钉值用例 ⇒「删掉 or date.today() 必红」当场可复跑。
+⚠️ 仪器缺陷（已修，不影响本轮结论）：旧版差分器从不读 `<testsuite tests= errors=>`，
+   基线若整轮崩盘（xml 空 → ∅）则任何红都算 KILLED；且 anchor-error 不计入坏消息，
+   末行照样能打 ALL_KILLED。本轮 5 份分母全等于 1368/errors=0 ⇒ 结论未受影响，但**当时查不到**。
+
+四、门禁（当前 HEAD 重跑，早先那份 1349 属 966a769 那棵树、已过期）
+--------------------------------------------------------------------
+标签 s5-close-20260920 → RUN_VALID，1358 passed / 1 skipped / 0 failed，rc=0，耗时 2.7 分
+真实库零写入：app.db size=20205568 cc=10784→10784 mtime=2026-09-19T00:28:25.716707
+              quota_used.sqlite cc=2→2；chroma fingerprint 前后同值，集合条目三项同值
+1349 → 1358 的 +9 = 哨兵当时的 9 条；.py 计数 239 → 242 = 注册表那三个新文件。
+   ⚠️ 本文件写完后哨兵又加到 14 条（+5），下一次门禁应读到 1363 上下；**别把这两个数当同一个东西**。
+
+五、端点逐帧零变化
+--------------------------------------------------------------------
+e6-frames-BEFORE.json 内层 sha256 = 9744dbb78164177f96233669…  n_frames=8
+2026-09-20 当场重跑采集口 → 内层 sha256 = 9744dbb78164177f96233669…  相同 = True
+限制（必须一起读）：这条只证明"当下代码 == 存档的改前基线"，**不证明**存档那份确实采于改动前
+（mtime 差 4 分钟只是旁证）。"删掉修复就会红"那一半由 §三 的 M2 承担，不由这条承担。
+
+六、硬约束复核（CodeReview 两轴都过了一遍，读数如下）
+--------------------------------------------------------------------
+settings.py  `fast_path_law_version_check: bool = False` 仍唯一、仍默认 False
+backend/agent/**  本轮零改动（`git diff --name-only cd29211...HEAD` 无 agent/ 路径）
+evals/       零改动
+gate2_runner.py sha256 = ae2e412059ed68ac…47e295  未变
+app.db       只读（§四 指纹）
+未推送、未部署、未跑 git gc / prune / repack

@@ -19,11 +19,27 @@ def failed_ids(xml_path: Path) -> set[str]:
     return out
 
 
+def stats(xml_path: Path) -> tuple[int, int, int]:
+    """(tests, failures, errors) —— **分母**。旧版这台仪器从不读它，所以"基线整体崩盘 ⇒
+    任何红都算 KILLED"这条路径当时查不出来（CodeReview/c-4）。补上。"""
+    root = ET.parse(xml_path).getroot()
+    s = root if root.tag == "testsuite" else next(root.iter("testsuite"))
+    return (
+        int(s.get("tests") or 0),
+        int(s.get("failures") or 0),
+        int(s.get("errors") or 0),
+    )
+
+
 base = failed_ids(D / "full-baseline.xml")
+btests, bfail, berr = stats(D / "full-baseline.xml")
 print(f"baseline_failed={len(base)}  （票 G 复审口径应为 21）")
+print(f"baseline 分母 tests={btests} failures={bfail} errors={berr}")
 
 rep = json.loads((D / "mutation-report-full.json").read_text(encoding="utf-8"))
-ok = len(base) == 21
+ok = len(base) == 21 and btests > 0 and berr == 0
+if not (btests > 0 and berr == 0):
+    print("RUN_VOID：基线分母不健全 ⇒ 下面的 newly_red 全部不可信")
 for k, v in rep.items():
     if k == "_self_check":
         continue
@@ -33,6 +49,13 @@ for k, v in rep.items():
         ok = False
         continue
     m = failed_ids(x)
+    mtests, _mfail, merr = stats(x)
+    if mtests != btests or merr > 0:
+        print(
+            f"FAIL  {k}: 分母漂了 tests={mtests} vs {btests}，errors={merr} ⇒ 该结论不可用"
+        )
+        ok = False
+        continue
     newly_red = sorted(m - base)
     newly_green = sorted(base - m)
     verdict = "KILLED" if newly_red else "SURVIVED"
@@ -52,4 +75,6 @@ for k, v in rep.items():
 
 sc = rep.get("_self_check")
 print("\n仪器自证（脚本自己的还原证明）:", json.dumps(sc, ensure_ascii=False)[:200])
-print(f"\nALL_KILLED 独立复算成立 = {ok and all(v['status'] == 'KILLED' for k, v in rep.items() if k != '_self_check')}")
+print(
+    f"\nALL_KILLED 独立复算成立 = {ok and all(v['status'] == 'KILLED' for k, v in rep.items() if k != '_self_check')}"
+)

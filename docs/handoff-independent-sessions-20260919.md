@@ -55,6 +55,16 @@
    `main.py` 里"命中不进缓存"那道 load-bearing 闸被删掉后**全量零反应**（复审 G-M1 存活）。
    判据形状：基线与被审变异体各跑一轮整套，取"基线绿 → 变异红"的**差集**非空才算被杀；
    两份基线口径不同（不同 commit / 不同副本流程）时**不许相减**，要先在同一棵树上重采。
+   ⚠️ **还必须比"分母"**（CodeReview/c-4，2026-09-20）：只取 `failure/error` 集合而不读
+   `<testsuite tests= errors=>` 的差分器，在"基线整轮崩盘 → xml 空 → ∅"时会把**任何**一次红
+   判成 KILLED；而 `anchor-error` / 分母漂移若不计入坏消息，最后一行照样能打出 `ALL_KILLED`。
+   判据：基线 `tests>0 且 errors=0`，且每个变异体的 `tests` 与基线**相等**，否则该条记
+   `denominator-drift` 而不是 KILLED。本轮实测分母 5 份全是 `tests=1368 / errors=0` ⇒ 结论未受影响，
+   但仪器当时**查不到**这件事（已补 `run_mutations_full.py` 与 `recompute_mutation_from_xml.py`）。
+6. **凡"跑了整套"的留痕，必须写明跑在哪棵树 + 分母读数。**
+   `gate-*-verdict.txt` 只记 `basetemp` 与 passed 数 ⇒ 在本条纪律改成"live 禁止 / 副本允许"之后，
+   审阅者**无法判断**那次运行是不是越界（CodeReview 硬违反 3）。合格写法见
+   `dispatch-output/s5-followup-20260920/02-mutation-verdicts.txt`：明确写了副本树路径与 `tests=` 分母。
 
 **通用边界**：不推送、不部署、不改任何开关默认值、不动 `backend/agent/**`、不动 `evals/` 冻结集、
 pytest 的 basetemp **不要设在 `backend/` 内**（`tests/test_log_field_whitelist.py` 递归扫全树）。

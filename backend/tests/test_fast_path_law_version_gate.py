@@ -372,13 +372,21 @@ def test_hit_is_logged_with_judged_text_and_baseline_date(monkeypatch):
 
 # ---------------- ⑥ 端点级（SSE）：闸在 stream() 里，不在 _light_buffered 里 ----------------
 #
+# ⚠️ 命名撞车先说清：本节的 `test_e6_*` / `E6_*` 常量是 **S5 时期的历史命名**，指的是
+#    「缓冲轻量整答」这条出口，它在登记表里叫 **E7**；登记表里的 E6 是「合同引用告警注记帧」。
+#    不改名是因为登记表的取证串按这些测试名引用它们（改名 = 同时改两处，得不偿失），
+#    但读者必须知道：**本节全部用例测的是 E7**。
+#
 # 这一节为什么必须存在（票 G F5/F6 + 本计划 §九-B）：
-#   1. `main.py:1921` 的 `not res.law_version_hit` 是 S5 提交信息里写明"否则门再也走不到"的
-#      load-bearing 闸，但 S5 的四个变异**每个只跑了本文件** ⇒ 删掉它全量 21→21 零反应（G-M1 存活）。
-#      本节的 `test_e6_hit_...` 就是能杀它的那条。
+#   1. `stream()` 里那句 `not res.law_version_hit`（认整行形状
+#      `if cache_key and res.verdict == "pass" and not res.law_version_hit:`）是 S5 提交信息里
+#      写明"否则门再也走不到"的 load-bearing 闸，但 S5 的四个变异**每个只跑了本文件** ⇒
+#      删掉它全量 21→21 零反应（G-M1 存活）。本节的 `test_e6_hit_...` 就是能杀它的那条。
+#      ⚠️ 本文件不写 `main.py:NNNN`：ADR-018/R4 定的是只用符号锚点，行号在本仓已漂过四次。
 #   2. 复审 §6 自陈"缓存全部停写是推的不是看到的" ⇒ 本节把它从推断变成读数。
-#   3. 1a 那行改动在 `main.py:1914`（调用点）。`capture_light_baseline.py` 直接调 `_light_buffered`，
-#      不经该行 ⇒ 对它不可见；唯一能证 1a 零变化的仪器是**端点级逐帧比对**（见 dump 采集口）。
+#   3. 1a 那行改动在 `stream()` 里 `_light_buffered(pre, messages, _fast_path_law_as_of(body))`
+#      这个**调用点**。`capture_light_baseline.py` 直接调 `_light_buffered`，不经该调用点 ⇒
+#      对它不可见；唯一能证 1a 零变化的仪器是**端点级逐帧比对**（见 dump 采集口）。
 
 E6_QUESTION = FACT_W01_2019[0]  # 分水岭**前**事实（2019年3月5日）
 E6_ANSWER = CLAIM_S01_WRONG_CURRENT_LAW  # 分水岭**后**法的民事时效结论

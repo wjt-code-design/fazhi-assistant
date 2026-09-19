@@ -15,7 +15,7 @@ import sys
 BACKEND = pathlib.Path(__file__).resolve().parents[2] / "backend"
 sys.path.insert(0, str(BACKEND))
 
-from gate_exit_registry import EXITS, scan_content_yields  # noqa: E402
+from gate_exit_registry import EXITS, scan_content_yields
 
 MARKER = re.compile(r"#\s*gate-exit:\s*(E\d+)\b")
 
@@ -28,7 +28,9 @@ def main() -> int:
 
     yields = scan_content_yields(raw)
     if len(yields) != len(EXITS):
-        print(f"ABORT: 扫到 {len(yields)} 条 content-yield，登记表有 {len(EXITS)} 行 ⇒ 先对齐再插锚点")
+        print(
+            f"ABORT: 扫到 {len(yields)} 条 content-yield，登记表有 {len(EXITS)} 行 ⇒ 先对齐再插锚点"
+        )
         return 2
 
     rows = []
@@ -37,7 +39,16 @@ def main() -> int:
         old = lines[i]
         found = MARKER.search(old)
         if found:
-            rows.append((lineno, expr, row["id"], found.group(1), "已有锚点" + ("（一致）" if found.group(1) == row["id"] else " ⇒ 不一致!")))
+            rows.append(
+                (
+                    lineno,
+                    expr,
+                    row["id"],
+                    found.group(1),
+                    "已有锚点"
+                    + ("（一致）" if found.group(1) == row["id"] else " ⇒ 不一致!"),
+                )
+            )
             if found.group(1) != row["id"]:
                 return 3
             continue
@@ -48,7 +59,7 @@ def main() -> int:
     print(f"{'行号':<6}{'正文表达式':<28}{'锚点':<6}动作")
     for a, b, c, d, e in rows:
         print(f"{a:<6}{b[:26]:<28}{c:<6}{e}")
-    print(f"wrote={target}  nl={'CRLF' if nl == chr(13)+chr(10) else 'LF'}")
+    print(f"wrote={target}  nl={'CRLF' if nl == chr(13) + chr(10) else 'LF'}")
     return 0
 
 
