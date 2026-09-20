@@ -37,14 +37,19 @@
   "什么算一个出口"也写成代码而非自然语言：`scan_content_yields()` 认
   `Yield → JoinedStr → Call(json.dumps) → Dict 含 'content' 键` 这一条形状，全树扫。
 - `backend/scripts/gen_gate_exit_registry.py` → `docs/gate-exit-registry.md` —— **md 是生成物**，
-  带 `generated-at` / `source-commit` 头，不许手改；快速矩阵刻意**不写行号**（行号在本项目已漂移过四次）。
-- `backend/tests/test_gate_exit_registry.py` —— 哨兵共 9 条，分两类：
-  **四条自证腿**（在 `tmp_path` 里现造一份"有 yield 没锚点"的源、一份"锚点 id 不在表里"的源，
+  带 `generated-at` / `source-commit` 头，不许手改；**全表（含取证列）刻意不写行号**
+  （行号在本项目已漂移过**五**次；最近一次是被一次 5 行的 docstring 改动整体挤掉的。
+  `verify_doc_claims.py` 有一条机检腿拦这个格式，本 ADR 与登记表真源都在它射程内）。
+- `backend/tests/test_gate_exit_registry.py` —— 哨兵共 **14 条**（立表时 9 条，双轴评审后补到 14），分四类：
+  **四条自证腿**（`leg1`–`leg4`：在 `tmp_path` 里现造一份"有 yield 没锚点"的源、一份"锚点 id 不在表里"的源，
   再加一条幽灵行、一条无证据豁免，断哨兵必须报错——防规则本身空转，范本是仓里已有的
-  `tests/test_log_field_whitelist.py`）+ **五条主断言**（真码出口全登记 / 表行全在真码里 /
-  结构完整（每行每列齐、状态在词表内、证据非空、`GAP-TODO` 必须挂票号）/ 豁免合法 / md == 生成物）。
-  豁免清单的**内容**在真源侧（`gate_exit_registry.py:411` `EXEMPTIONS: list[dict] = []`，现在是空的），
-  它的**上限**在测试侧（`test_gate_exit_registry.py:38` `MAX_EXEMPTIONS = 0`）——
+  `tests/test_log_field_whitelist.py`）+ **一条判据自证腿**（`leg5`：给 `TICKET_RE` 喂"本票面已登记"
+  这类弱指称，必须不收 —— 旧判据 `票|待开票|Owner` 单字即过，等于没断）+
+  **三条承重腿**（按锚点绑定而非按位置 / 重复锚点必须炸 / `NON_TEXT_FRAME_KEYS` 两头各钉一次）+
+  **六条主断言**（真码出口全登记 / 表行全在真码里 / 结构完整（每行每列齐、状态在词表内、证据非空、
+  `GAP-TODO` 的取证须点名一张票或诚实写『待开票』）/ 豁免合法 / md == 生成物 / 登记表射程 = 整个 backend 而非只有 main.py）。
+  豁免清单的**内容**在真源侧（`gate_exit_registry.py` 的 `EXEMPTIONS: list[dict] = []`，现在是空的），
+  它的**上限**在测试侧（`test_gate_exit_registry.py` 的 `MAX_EXEMPTIONS = 0`）——
   谁要豁免就得同时加内容并显式改上限，改上限会进 diff、要上线审。
 - 13 处 yield 各加一条 `  # gate-exit: E<n>` 锚点注释。**纯注释**：口径必须钉在**两个 blob** 上 ——
   `fad2cee:backend/main.py` 剥掉标记后 == `fad2cee~1:backend/main.py`，且两边行数都是 2667
@@ -95,8 +100,15 @@
 | E6 合同引用告警注记帧 | 写缓存闸 | 同上另一面：注记追加在 `put` 之后 ⇒ 复播时丢掉那条告警 |
 | E7 缓冲轻量整答 | 多选完整性、写缓存闸 | `quality.multi_incomplete` 全文只有一个调用点且在流式分支 ⇒ 轻量路径无多选保护；两条写缓存闸的**字面条件集交集只有 `cache_key`**，轻量侧对 `_cache_write_ok` 与 `not multi_bad` **无任何对应物**（`not flag_degraded` 那半由 `verdict == "pass"` 承担，代价是"降级"与"自检 FAIL"两个信号被合进一个条件） |
 
-**已知残留 / 后续**：① 9 格 `GAP-TODO` 目前只写"待开票"，需给真实票号后回表更新并重生成 md
-（不回，`test_committed_md_is_the_generated_artifact` 这条腿会红）；② S5 与票 C 都只拦**新写入**，
+**已知残留 / 后续**：① 9 格 `GAP-TODO` **已全部指向真实票号**（2026-09-20 开票；归属的**现值以生成物
+`docs/gate-exit-registry.md` 为准**，本行是当次快照，不是第二处真源）：E1/E2 → 票 I，
+E5/E6 → 票 H，E7 → 票 J（票面 `docs/handoff-gap-tickets-h-i-j-20260920.md`），E8/E9 → 票 C。
+`GAP-TODO` 状态本身要等修完才降级，届时必须回表重生成 md（不回，
+`test_committed_md_is_the_generated_artifact` 会红）。哨兵里那条 `TICKET_RE` 腿**只挡自指空枪**：
+判据是"取证里出现 `票 X` / `S<n>` / 显式『待开票』三者之一"，所以"本票面已登记"这类句子会红，
+而**写『待开票』仍然合法** —— 这是有意的：执行会话有权诚实登记一个自己没票可挂的新缺口，
+开票是要裁一次的（本轮就是 Owner 一句"开票"之后由本会话落的 H/I/J），把 `待开票` 判红只会逼人编一个不存在的票号。今天真源里 `待开票` 出现 0 次；
+② S5 与票 C 都只拦**新写入**，
 而"清一次缓存"这个动作本轮被实测判为**多余**：`answer_cache` 是进程内 `rc.LRU(512)` + `TTL=6h`、
 重启与知识增删都清空，且开关生效本就要重启（见票 C §4b Q2）——**真正的存量面是 E2 的 Chroma 持久语料**，
 `clear()` 碰不到它；③ 表不覆盖 `agent_path` 与合同文件端点（`OUT_OF_SCOPE` 两行，各自记了理由）；
@@ -106,7 +118,7 @@ cutoff/证据有效性判定消费」三件事，快车道没有 run 对象 ⇒ 
 不是实现缺陷，但**下一个人很可能以为搬齐了**——`_fast_path_law_as_of` 的 docstring 已写明，此处再记一次；
 ⑤ `backend/request_bootstrap.py` 那句注释仍在替一个快车道不存在的机制背书
 （"缺省 None = `create_run` 落 `date.today()`"，而快车道不经过 `create_run`）——本轮只读未改，
-**待开票**：要么删那句、要么补一句"仅 agent 路径如此"。
+**已开票**：票 I 的 I-3（纯文本修，要么删那句、要么补一句"仅 agent 路径如此"）。
 
 **成本教训（本 ADR 要钉住的那一条）**：仓库**早就把这个事实钉在测试里了**——
 `backend/tests/test_flagship_quality.py` docstring 第三行原文是

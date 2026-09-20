@@ -152,7 +152,8 @@ EXITS: list[dict] = [
             "配额降级注记": ("NA", "零 LLM ⇒ 不存在降级语义。"),
             "版本绊线": (
                 "GAP-TODO",
-                "待开票（**不由票 C 解决**：票 C §4-Q2 于 2026-09-20 裁为"
+                "票 I（I-1 先量命中率，再在 I-2 的 (a)/(b) 里二选一；E1 若不同修必须回表改成 GAP-ACCEPTED）。"
+                "**不由票 C 解决**：票 C §4-Q2 于 2026-09-20 裁为"
                 '"不判读侧"，理由是读侧加判定会把"零 token 直返"这个特性本身打穿）。'
                 "**结构性走不到**：收口点的门在生成分支上，而本出口在门之前就 return ⇒ "
                 "挂到收口处的门对缓存复用型答复永远不命中。"
@@ -189,7 +190,7 @@ EXITS: list[dict] = [
             "配额降级注记": ("NA", "零 LLM。"),
             "版本绊线": (
                 "GAP-TODO",
-                "待开票（**不由票 C 解决**：票 C §4-Q2 已裁"
+                "票 I（I-1/I-2 (a)：给语料打版本标，保住零 token 直返）。**不由票 C 解决**：票 C §4-Q2 已裁"
                 '"不判读侧"）。同 E1 是结构性走不到，但**本格是 9 格里唯一真正的存量面**：'
                 "它读的不是 `answer_cache` 而是 **Chroma 持久语料**"
                 "（`main._qa_direct_return` docstring 原文「QA 持久语义缓存直返（8-23 智谱免费 token "
@@ -220,7 +221,8 @@ EXITS: list[dict] = [
             "引用校验": (
                 "NA",
                 "固定模板文本，不含模型生成的引用。REFUSE 措辞刻意命中 `quality._HONEST_REFUSE_MARKS`"
-                "（`clarify.py:285-286` 注释），保证意外经过 self_check 也能 PASS。",
+                "（依据是 `clarify.py` 里 `REFUSE_PROMPT` 上方那段注释，**认符号不认行号**），"
+                "保证意外经过 self_check 也能 PASS。",
             ),
             "自检": ("DISABLED", "`record(strategy, ..., checked=False)`。"),
             "多选完整性": ("NA", "模板不是答案。"),
@@ -263,7 +265,7 @@ EXITS: list[dict] = [
             "多选完整性": ("NA", "报告体，非选择题。"),
             "配额降级注记": (
                 "GAP-TODO",
-                "待开票：合同分支没有 NOTE_QUOTA/降级出口，failover 全灭时只能落到外层 error 帧"
+                "票 H（H-2）：先量清合同分支 failover 今天有几种收场再动手。现状：没有 NOTE_QUOTA/降级出口，failover 全灭时只能落到外层 error 帧"
                 "（不在本表范围）⇒ 用户看到「无响应」而不是「已降级」。",
             ),
             "版本绊线": (
@@ -274,7 +276,9 @@ EXITS: list[dict] = [
             ),
             "写缓存闸": (
                 "GAP-TODO",
-                "待开票（本表 2026-09-20 新发现）：`answer_cache.put(..., model=" + '"contract_review"' + ")` "
+                "票 H（H-1，本表 2026-09-20 新发现；近乎免费的一行修）：`answer_cache.put(..., model="
+                + '"contract_review"'
+                + ")` "
                 "发生在追加引用告警注记**之前**，且本出口不跑自检 ⇒ "
                 "**引用未收录的合同报告会以「无告警」的形态进缓存并被零 token 复播**。"
                 "⚠️ 判定其实**早就算好了**：合同分支在收口后立刻算 `bad = citation_verify(answer)`，"
@@ -299,7 +303,7 @@ EXITS: list[dict] = [
             "版本绊线": ("NA", "注记帧不参与版本判定。"),
             "写缓存闸": (
                 "GAP-TODO",
-                "待开票（与 E5 同一个缺陷的另一面）：注记没进被缓存的那份 answer ⇒ "
+                "票 H（H-1，与 E5 同一个缺陷的另一面）：注记没进被缓存的那份 answer ⇒ "
                 "引用未收录的合同报告被零 token 复播时**丢掉那条告警**。",
             ),
             "评测可信度": ("NA", "不在冻结集内。"),
@@ -319,7 +323,8 @@ EXITS: list[dict] = [
             ),
             "引用校验": (
                 "PASS",
-                "经 `quality.self_check` 内的 `citation_verify`（`quality.py:63`）—— 本轮查证，"
+                "经 `quality.self_check`：该函数体内 `R.citation_verify(a, in_kb=in_kb)` 全文唯一一处"
+                "（被调方定义在 `retrieval.py`，`quality.py` 只是调用方）—— 本轮查证，"
                 "别误判成「轻量出口不查引用」。差异只在**呈现**：流式出口追加告警注记帧，"
                 "这里由 verdict 驱动升级/注记。",
             ),
@@ -329,7 +334,7 @@ EXITS: list[dict] = [
             ),
             "多选完整性": (
                 "GAP-TODO",
-                "待开票（本表新发现）：`multi_incomplete` 全仓只有流式出口一处调用 ⇒ "
+                "票 J（J-2，本表新发现）：`multi_incomplete` 全仓只有流式出口一处调用 ⇒ "
                 "轻量缓冲路径的**多选漏答零防护**，而法考多选题恰是最可能被路由到轻量档的题型。",
             ),
             "配额降级注记": (
@@ -347,7 +352,7 @@ EXITS: list[dict] = [
             ),
             "写缓存闸": (
                 "GAP-TODO",
-                "待开票（本表新发现）：两条闸**字面条件集交集只有 `cache_key`**"
+                "票 J（J-2，本表新发现）：两条闸**字面条件集交集只有 `cache_key`**"
                 '（轻量那条 = cache_key / `res.verdict == "pass"` / `not res.law_version_hit`；'
                 "流式那条 = cache_key / `not flag_degraded` / `_cache_write_ok` / `not multi_bad`）。"
                 "**认形状不认行号**：两条各是其分支里唯一的 `if cache_key and …:` 行 "
