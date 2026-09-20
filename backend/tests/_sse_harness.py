@@ -98,6 +98,19 @@ def _contract_data(text: str) -> dict:  # noqa: ARG001 - 形参由 `build_contra
     }
 
 
+def _stub_quota_accounting(monkeypatch, model_name: str) -> None:
+    """桩掉配额扣减与模型名查询（`light_buffered` 与 `contract_review` 两条 route 共用的两行桩）。
+
+    抽出来的理由（code-review Standards 轴：Duplicated Code）：`deduct` 那行在两个分支里**逐字相同**，
+    而它读写真实 registry 状态、与本类用例无关 ⇒ 少一个漂移点。`model_of` 的返回名各 route 不同，
+    故按形参传入（不是把它藏进常量）。
+    """
+    import main
+
+    monkeypatch.setattr(main.registry, "deduct", lambda key, tokens: None)
+    monkeypatch.setattr(main.registry, "model_of", lambda key: model_name)
+
+
 @contextlib.contextmanager
 def sse_client(
     monkeypatch,
@@ -157,9 +170,7 @@ def sse_client(
         )
         monkeypatch.setattr(quality, "self_check", lambda answer, context_present: quality.Verdict(True))
         monkeypatch.setattr(main.clarify, "decide", lambda *a, **kw: "direct")
-        # 配额扣减与模型名查询是真实 registry 状态，与本题无关 ⇒ 桩掉，保持测试封闭。
-        monkeypatch.setattr(main.registry, "deduct", lambda key, tokens: None)
-        monkeypatch.setattr(main.registry, "model_of", lambda key: "test-light")
+        _stub_quota_accounting(monkeypatch, "test-light")
     elif route == "contract_review":
         # 票 H 新增：让请求真走到 `pre["contract_data"]` ⇒ 分支0.3（合同报告）整段执行。
         # 两个替身都按 main 模块全局打桩——`_bootstrap_only` / `_prepare_fast_path_only` 是在
@@ -176,8 +187,7 @@ def sse_client(
         monkeypatch.setattr(main, "_contract_convs", set())
         monkeypatch.setattr(main, "_contract_reviewed_convs", set())
         # 配额扣减与模型名查询是真实 registry 状态，与本题无关 ⇒ 桩掉（同 route="light_buffered" 的理由）。
-        monkeypatch.setattr(main.registry, "deduct", lambda key, tokens: None)
-        monkeypatch.setattr(main.registry, "model_of", lambda key: "test-flag")
+        _stub_quota_accounting(monkeypatch, "test-flag")
         # ⚠️ 本 route 的增量文本请传 `flagship_parts=CONTRACT_PARTS`：合同分支与旗舰分支共用
         # 同一个 `make_chain` 桩点（都是 `_FakeChain`），不另开第二条链工厂。
     elif route != "flagship_stream":

@@ -81,7 +81,7 @@ def main_probe() -> int:
         and out["cache_key_not_none"]
     )
     (OUT / "17-reachability-realconfig.json").write_text(
-        json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8"
+        json.dumps(out, ensure_ascii=False, indent=1), encoding="utf-8", newline=""
     )
     print(json.dumps(out, ensure_ascii=False, indent=1))
     return 0

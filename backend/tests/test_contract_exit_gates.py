@@ -31,9 +31,13 @@ def _contract_client(monkeypatch, **kw):
     return sse_client(monkeypatch, route="contract_review", flagship_parts=CONTRACT_PARTS, **kw)
 
 
-def _contents(frames: list[str]) -> list[str]:
-    """从原始帧序列里取出所有正文帧的 `content`（非正文帧/状态帧/空行一律跳过）。"""
-    out: list[str] = []
+def _payloads(frames: list[str]) -> list[dict]:
+    """原始帧序列 → 已解析的 JSON 载荷（状态帧/空行/`[DONE]`/非 dict 一律跳过）。
+
+    合并自原先两份同形函数（code-review Standards 轴：Duplicated Code）——
+    它们只是"按哪个键抽取"不同，拆两份会让帧解析规则出现两个漂移点。
+    """
+    out: list[dict] = []
     for f in frames:
         if not f.startswith("data: "):
             continue
@@ -44,23 +48,19 @@ def _contents(frames: list[str]) -> list[str]:
             obj = json.loads(payload)
         except ValueError:
             continue
-        if isinstance(obj, dict) and "content" in obj:
-            out.append(obj["content"])
+        if isinstance(obj, dict):
+            out.append(obj)
     return out
+
+
+def _contents(frames: list[str]) -> list[str]:
+    """所有正文帧的 `content`。"""
+    return [p["content"] for p in _payloads(frames) if "content" in p]
 
 
 def _errors(frames: list[str]) -> list[str]:
-    out: list[str] = []
-    for f in frames:
-        if not f.startswith("data: "):
-            continue
-        try:
-            obj = json.loads(f[len("data: ") :].strip())
-        except ValueError:
-            continue
-        if isinstance(obj, dict) and "error" in obj:
-            out.append(obj["error"])
-    return out
+    """所有 error 帧的 `error`。"""
+    return [p["error"] for p in _payloads(frames) if "error" in p]
 
 
 @pytest.fixture
@@ -117,7 +117,7 @@ def test_contract_failover_endings_are_characterized(client, monkeypatch, tmp_pa
         "boom_astream_calls": calls["n"],
     }
     (tmp_path / "contract-failover-endings.json").write_text(
-        json.dumps(readings, ensure_ascii=False, indent=2), encoding="utf-8"
+        json.dumps(readings, ensure_ascii=False, indent=2), encoding="utf-8", newline=""
     )
     print(json.dumps(readings, ensure_ascii=False, indent=2))
 

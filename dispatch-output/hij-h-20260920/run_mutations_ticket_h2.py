@@ -117,7 +117,7 @@ def main() -> int:
         table["newly_green"] = sorted(baseline - mutant)
         table["mutant_failed"] = len(mutant)
     (out_dir / "verdict.json").write_text(
-        json.dumps(table, ensure_ascii=False, indent=1), encoding="utf-8"
+        json.dumps(table, ensure_ascii=False, indent=1), encoding="utf-8", newline=""
     )
     print(json.dumps(table, ensure_ascii=False, indent=1), flush=True)
     return 0 if table["status"] == "KILLED" else 1
