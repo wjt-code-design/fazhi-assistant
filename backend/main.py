@@ -1099,19 +1099,39 @@ def _similar_cache_hit(pre: dict) -> dict | None:
 
 
 _QA_DIRECT_RETURN_THRESHOLD = 0.92  # QA 语义直返阈值（审查护栏：低于则回落 LLM）
+# 民法典分水岭：**不另立日期**，直接别名到 `limitation_calc` 的那一个（全仓唯一真源）。
+# 票 I 的 I-2(a) 靠它判"请求的基准日与语料基准日是否分处分水岭两侧"。
+_CIVIL_WATERSHED = limitation_calc.CIVIL_CODE_EFFECTIVE
 
 
-def _qa_direct_return(pre: dict) -> str | None:
+def _qa_direct_return(pre: dict, law_as_of: date | None = None) -> str | None:
     """QA 持久语义缓存直返（8-23 智谱免费 token 预生成语料）：高阈值 + 指纹 + 时效护栏。
 
     命中返回预生成解析答案（零 LLM）；任一护栏不过 → None（回落 LLM 生成）。
     - score ≥ 0.92（search_qa 余弦，接近同一问法）
     - 选项指纹护栏（审查 C4）：选项题同题干换选项内容必须 miss
     - evidence 时效校验：source|article 在库且仍有效（exact_article_lookup）
+    - **版本适用护栏（票 I 的 I-2(a)，2026-09-20）**：这份语料是 2026 年生成的
+      （`scripts/gen_qa_corpus.py` docstring：「智谱免费 token …（8-23 到期前消耗）」⇒ 生成日 ≤ 2026-08-23），
+      其答案反映的是**民法典时代**的法。若本次请求的 `law_as_of` 落在分水岭之前，直返就是
+      **用后法答前事** ⇒ 必须 miss 回落 LLM。判据复用 `limitation_calc.CIVIL_CODE_EFFECTIVE`
+      （**不另立第二个分水岭**）。
+
+    ⚠️ 三条既有护栏**一个字没动**（票面 I-4 明令），本节是按 I-2 要求新增的**第四**条。
+    ⚠️ 语料若**没有**该字段（空/缺失）⇒ **不拦**（保持旧行为）：这道门的射程只覆盖"已标注基准日"的记录，
+    不因未知记录扩大拦截面。格式不认识的脏值同样不拦（不把安全默认值反着用）。
     """
     qa = pre.get("qa_hit")
     if not qa or qa.get("score", 0) < _QA_DIRECT_RETURN_THRESHOLD:
         return None
+    basis_raw = str(qa.get("law_as_of_basis") or "")
+    if law_as_of is not None and basis_raw:
+        try:
+            basis = date.fromisoformat(basis_raw)
+        except ValueError:
+            basis = None  # 脏值 ⇒ 不拦（保持旧行为）
+        if basis is not None and (basis >= _CIVIL_WATERSHED) != (law_as_of >= _CIVIL_WATERSHED):
+            return None  # 版本适用跨分水岭 → 直返必错（票 I 的 I-2(a)）
     q = pre.get("rewritten") or ""
     q_fp = query_understand._options_fingerprint(q)
     stored_fp = qa.get("fingerprint") or ""
@@ -1768,7 +1788,9 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 分支0.2：QA 持久语义缓存直返（8-23 智谱免费 token 预生成语料，零 LLM）
             # 高阈值 + 选项指纹 + evidence 时效三护栏；仅命中才直返，否则回落 LLM
             # 对抗审计 v2 #20：_qa_direct_return 内 Chroma .get() 同步阻塞事件循环 → 线程池
-            qa_ans = None if body.no_cache else await run_in_threadpool(_qa_direct_return, pre)
+            qa_ans = (
+                None if body.no_cache else await run_in_threadpool(_qa_direct_return, pre, _fast_path_law_as_of(body))
+            )
             if qa_ans:
                 _f0 = time.perf_counter()
                 yield f"data: {json.dumps({'content': qa_ans}, ensure_ascii=False)}\n\n"  # gate-exit: E2

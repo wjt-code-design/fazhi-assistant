@@ -304,6 +304,9 @@ def search_qa(query: str, threshold: float = 0.7):
         "answer": res[0][0].metadata.get("answer", ""),
         "score": round(score, 4),
         "evidence": res[0][0].metadata.get("evidence", ""),
+        # 票 I 的 I-2(a)：把语料的**版本基准日**带到调用方（`main._qa_direct_return` 靠它判分水岭），
+        # 否则那道护栏没有输入。缺字段时给空串 ⇒ 调用方按"未标注"处理（不拦，保持旧行为）。
+        "law_as_of_basis": res[0][0].metadata.get("law_as_of_basis", ""),
         "fingerprint": res[0][0].metadata.get("options_fingerprint", ""),
     }
 

@@ -1,0 +1,63 @@
+{
+  "ticket": "I",
+  "session": "2026-09-20 hij-i",
+  "note": "§0.5.1 开工 6 条自查读数（票 I）。命令与期望值见 docs/handoff-gap-tickets-h-i-j-20260920.md §0.5.1。",
+  "baseline_note": "§0.5.3 要求每票开工前确认上一票已合入 ⇒ 本票基线 = 票 J 的最后一个提交。",
+  "1_baseline_head": {
+    "cmd": "git rev-parse HEAD",
+    "reading": "1e969f2e05bb7598fea63c8f804deb6ea37ecc80",
+    "one_c05599_is_ancestor_rc": 0,
+    "prev_ticket_commits": ["3f3bf0f", "03ced94", "b6f0fcc", "1ddeaf0", "805ad78", "ad56d29", "1e969f2"],
+    "verdict": "PASS（票 H、票 J 均已合入）"
+  },
+  "2_lane_clean": {
+    "cmd": "git status --porcelain backend/main.py backend/gate_exit_registry.py docs/gate-exit-registry.md backend/request_bootstrap.py backend/domain_rules.py backend/retrieval.py",
+    "reading": "",
+    "verdict": "PASS（空）"
+  },
+  "3_interpreter": {
+    "cmd": "backend/venv/Scripts/python.exe -c \"import chromadb, main; print('ok')\" (cwd=backend)",
+    "reading": "ok",
+    "verdict": "PASS"
+  },
+  "4_flag_effective": {
+    "cmd": "backend/venv/Scripts/python.exe dispatch-output/s6-stream-gate-20260920/preflight_p9.py",
+    "reading": {
+      "has_role_text_light": false,
+      "has_role_text_flag": true,
+      "feature_router_effective": true,
+      "agent_enabled_effective": false,
+      "fast_path_law_version_check_effective": false,
+      "law_version_tripwire_check_effective": false,
+      "import_main_rc": 0
+    },
+    "verdict": "PASS（开关默认值未变）",
+    "side_effect": "该脚本会就地重写它自己的 00-pre-flight-readings.json（只差行尾换行）；已 git checkout -- 还原。"
+  },
+  "5_frozen_sha": {
+    "cmd": "sha256sum backend/scripts/gate2_runner.py",
+    "reading": "ae2e412059ed68ac1514c62727cee61c50b8a2d6fe7e38a77c7e05631847e295",
+    "verdict": "PASS"
+  },
+  "6_readonly_assets": {
+    "cmd": "git status --porcelain evals/ backend/agent/",
+    "reading": ["?? evals/probe-results-k4.json"],
+    "verdict": "PASS（backend/agent/ 为空；evals/ 那条 ?? 是既有未跟踪残留，未触碰）"
+  },
+  "scope_decision": {
+    "done_this_session": [
+      "I-6 选型（先报再动手）+ 实现与判据",
+      "I-3 一行注释订正（含刻意不写行号的理由）",
+      "I-5 的处置：**核对后确认开票人已在 E2×版本绊线 格登记**（覆盖 60/166/219 与「三道要打折」）⇒ 不重做",
+      "E1/E2 两格的回表措辞（受 I-2 未决影响的部分留 GAP-TODO 并写明为何）"
+    ],
+    "blocked_on_owner": [
+      "I-2(a) 给语料打版本标 —— 一次性离线标注**要花钱**，票面明令必须 Owner 点头",
+      "对真实 qa_pairs 语料的**任何写入**（含 I-5 的「补采指纹」那条路）—— 同样需 Owner 点头"
+    ],
+    "explicitly_not_done": [
+      "I-2(b) 读侧补判定：与票 C §4b Q2 的裁定相反 ⇒ 若选它必须在回报里写明理由，本会话不擅自选"
+    ]
+  },
+  "i5_note": "票面 I-5 建议「在表里把这道护栏登记成 PARTIAL」——但 `PARTIAL` **不在** STATUSES 词表内（词表只有 PASS/DISABLED/BLOCKED/NA/GAP-ACCEPTED/GAP-TODO），且 `docs/capability-matrix.md` 开篇写「状态只有三种」，注册表本身也明令「状态词汇沿用 capability-matrix.md（别造第三套词）」⇒ 造 PARTIAL 会同时违反 §13 并让哨兵红。因此本会话把覆盖比例与「三道要打折」写进**取证文本**（且开票人已在 E2 格做过同样的事），保留合法状态值；此项作为口径问题上报 Owner。"
+}

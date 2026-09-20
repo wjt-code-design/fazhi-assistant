@@ -1,0 +1,46 @@
+feat(票 I · I-2(a)): 给 QA 语料标版本基准日 + 加第四道护栏；E1/E2 回表收口
+
+票面 §票 I。承接 `beb4d5c`（I-6/I-3）。**Owner 已授权**语料写入；本提交**零花费**——
+票面担心的"重跑一次离线标注"被替换成「从可审计来源派生基准日 + 补元数据 + 一次日期比较」。
+
+**① 语料标注**：真实 `qa_pairs` 集合 **279/279** 条写入
+`law_as_of_basis = 2026-08-23`（生成日**上界**，来自 `scripts/gen_qa_corpus.py` docstring
+「智谱免费 token …（8-23 到期前消耗）」）+ 出处字段 `law_as_of_basis_src = inferred-docstring-8-23`。
+- 写前**逐条备份**（`corpus-backup-qa_pairs.json`，回滚路径）；
+- 写前逐条断言「合并结果 == 原 metadata + 我的两个键」⇒ 既有键
+  （answer/evidence/options_fingerprint/origin）**一个没动**（写后复核确认 6 键齐全）。
+
+**② 运行时护栏**（`main._qa_direct_return` 的**第四**条；票面 I-4 明令前三条一字未动）：
+请求的 `law_as_of` 与语料基准日若分处 `limitation_calc.CIVIL_CODE_EFFECTIVE`（2021-01-01，
+**复用既有常量、不另立分水岭**）两侧 ⇒ miss 回落 LLM。
+`knowledge_service.search_qa` 把该字段带出来（否则护栏没有输入）；
+调用点传 `_fast_path_law_as_of(body)`。
+**生产默认路径不变**：该函数缺省落**当日** ⇒ 普通流量不与语料基准日跨分水岭 ⇒ 仍零 token 直返。
+
+**③ 为什么这条推断安全（承重点）**：护栏只关心"是否跨分水岭"，而 2026-08-23 与真实生成日（≤ 同一天）
+**必然同侧** ⇒ 判定对该推断的误差**不敏感**。已写进代码 docstring 与登记表，防后人把它改成"精确日期"。
+
+判据（1 先红 + 4 控制腿，`tests/test_qa_direct_return_version_guard.py`）：
+先红在**改前树**上红在功能点 —— `AssertionError: assert '（预生成解析答案）试用期最长六个月。' is None`
+（即"用民法典答 2019 年的事"确实发生了），**不是** TypeError；
+⚠️ 第一版让 5 条全红成 `TypeError: takes 1 positional argument but 2 were given`（旧签名只 1 个形参）
+⇒ 票面 §0 判据 1 明确不接受这种红因，改成按签名探测调用后，改前树 `1 failed, 4 passed`。
+4 条控制腿（同侧直返 / 未给基准日 / 未标注记录 / 脏值）**两侧都绿**。
+
+**④ 回表（本票收口的最后两格）**：
+- **E2×版本绊线**：`GAP-TODO` → **`PASS`**（含上述三级读数与 I-5/I-6 的既有读数）。
+- **E1×版本绊线**：`GAP-TODO` → **`GAP-ACCEPTED`**（票面要求：E1 不同修必须改 GAP-ACCEPTED + 理由）：
+  它读 `answer_cache`（进程内 LRU + TTL=6h，重启/知识增删都清空）⇒ 暴露窗 ≤6h，
+  而**开关要生效本来就得重启** ⇒ 开门那刻顺手就清了，不需要专门动作；
+  且结构性走不到（收口点的门在生成分支上，本出口在门之前就 return）。
+  ⚠️ 已同时写明"E2 **不能**照抄这个理由"（它是 Chroma 持久集合，无 TTL、重启不清、`clear()` 碰不到）。
+⇒ `grep -c '"GAP-TODO"'`：**3 → 1**（剩下的 1 处是 `STATUSES` 词表字面量）⇒ **表内已无 GAP-TODO 格子**。
+
+**⑤ 一次自捉的取错对象（必须留痕）**：第一版盘点脚本用 `retrieval.vectorstore._collection`，
+而那指向**法条主库**（10266 条，metadata 是 source/chapter/origin），**不是** QA 语料。
+若直接 `--apply` 就会往主库 10266 条法条上挂垃圾字段。**没出事的原因只有一个：停下来读了条数。**
+⇒ 已把"取集合"收成带双守卫的**唯一入口** `dispatch-output/hij-i-20260920/_qa_corpus.py`
+（集合名须含 `qa_pairs` **且**条数 == 期望 279，任一不符即停、不写任何东西），两个脚本都改走它。
+
+门禁：ruff rc=0 / ruff format --check rc=0 / mypy . rc=0（73 files）；
+受影响面 30 passed / 1 deselected / 0 failed（含 `test_gate_exit_registry` 哨兵 14 passed）。
