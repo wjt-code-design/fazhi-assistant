@@ -1,0 +1,33 @@
+C-M1_fallback_source_ungated: anchor 首行=                        # 由变异 C-M1（删本行）+ test_fallback_answer_also_passes_the_
+C-M2_streaming_source_ungated: anchor 首行=                # 删本行 = 主路径没门（变异 C-M2）。
+C-M3_cache_fifth_condition_removed: anchor 首行=                        and not law_version_hit
+C-M4_context_used_as_facts: anchor 首行=    texts = [pre.get("user_text") or "", pre.get("rewritten") or ""]
+C-M5_stream_callsite_half1_removed: anchor 首行=                # 删本行 = 主路径没门（变异 C-M2）。
+C-M6_empty_answer_note_appended: anchor 首行=    return ((answer + NOTE_LAW_VERSION) if answer else ""), True
+C-M7_missing_date_passes: anchor 首行=        reason = "LAW_TRIPWIRE_NOT_WIRED"
+预检：7 条变异全部锚点唯一、有实际改动、且变异后语法可解析
+复用执行器=C:\Users\33393\Desktop\ai-legal-helper\dispatch-output\s5-followup-20260920\run_mutations_full.py
+变异数=7（全部跑整套 tests/ + junit 差分 + 比分母）
+baseline_failed=2 分母 tests=1378 failures=2 errors=0
+C-M1_fallback_source_ungated: KILLED mutant_failed=4 newly_red=['tests.test_stream_exit_law_version_gate::test_empty_stream_but_nonempty_fallback_is_judged_once', 'tests.test_stream_exit_law_version_gate::test_fallback_answer_also_passes_the_gate']
+C-M2_streaming_source_ungated: KILLED mutant_failed=10 newly_red=['tests.test_stream_exit_law_version_gate::test_default_client_shape_never_reports_tripwire_not_wired', 'tests.test_stream_exit_law_version_gate::test_gate_judges_final_answer_once_across_model_restart', 'tests.test_stream_exit_law_version_gate::test_gate_uses_the_single_truth_source_and_not_a_copy', 'tests.test_stream_exit_law_version_gate::test_hit_answer_does_not_enter_cache', 'tests.test_stream_exit_law_version_gate::test_hit_reason_is_version_rule_not_missing_baseline_date', 'tests.test_stream_exit_law_version_gate::test_independent_expectation_table_on_streaming_exit', 'tests.test_stream_exit_law_version_gate::test_law_text_dates_are_not_facts_on_stream_exit', 'tests.test_stream_exit_law_version_gate::test_streaming_join_hits_gate_and_appends_note_frame']
+C-M3_cache_fifth_condition_removed: KILLED mutant_failed=3 newly_red=['tests.test_stream_exit_law_version_gate::test_hit_answer_does_not_enter_cache']
+C-M4_context_used_as_facts: KILLED mutant_failed=3 newly_red=['tests.test_fast_path_law_version_gate::test_law_text_dates_are_not_facts']
+C-M5_stream_callsite_half1_removed: KILLED mutant_failed=4 newly_red=['tests.test_stream_exit_law_version_gate::test_default_client_shape_never_reports_tripwire_not_wired', 'tests.test_stream_exit_law_version_gate::test_hit_reason_is_version_rule_not_missing_baseline_date']
+C-M6_empty_answer_note_appended: KILLED mutant_failed=3 newly_red=['tests.test_fast_path_law_version_gate::test_empty_answer_still_returns_empty']
+C-M7_missing_date_passes: KILLED mutant_failed=3 newly_red=['tests.test_fast_path_law_version_gate::test_failclosed_when_switch_on_but_law_as_of_missing']
+Traceback (most recent call last):
+  File "C:\Users\33393\Desktop\ai-legal-helper\dispatch-output\s6-stream-gate-20260920\run_mutations_ticket_c.py", line 185, in <module>
+    sys.exit(main())
+             ^^^^^^
+  File "C:\Users\33393\Desktop\ai-legal-helper\dispatch-output\s6-stream-gate-20260920\run_mutations_ticket_c.py", line 181, in main
+    return rmf.main()
+           ^^^^^^^^^^
+  File "C:\Users\33393\Desktop\ai-legal-helper\dispatch-output\s5-followup-20260920\run_mutations_full.py", line 204, in main
+    else ",".join(f"{k}:{table[k]['status']}" for k in not_killed)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Users\33393\Desktop\ai-legal-helper\dispatch-output\s5-followup-20260920\run_mutations_full.py", line 204, in <genexpr>
+    else ",".join(f"{k}:{table[k]['status']}" for k in not_killed)
+                         ~~~~~~~~^^^^^^^^^^
+KeyError: 'status'
+R3_RC=1

@@ -1,0 +1,158 @@
+Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+{"ts": "2026-09-20T14:54:10", "level": "INFO", "logger": "legal.access", "req": "a434661aac75", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 252.6}
+{"ts": "2026-09-20T14:54:10", "level": "INFO", "logger": "legal.access", "req": "fe45e3339c3f", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 228.1}
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  decoded = self.decode_complete(
+{"ts": "2026-09-20T14:54:10", "level": "INFO", "logger": "legal.chat", "req": "368bb04b1bb0", "msg": "chat", "ms": 171.8, "first_ms": 167.9, "model": "probe-model", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 47, "token_est": 29, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:54:10", "level": "INFO", "logger": "legal.access", "req": "368bb04b1bb0", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 284.5}
+{"ts": "2026-09-20T14:54:11", "level": "INFO", "logger": "legal.chat", "req": "8029b36e652a", "msg": "chat", "ms": 79.3, "first_ms": 77.3, "model": "probe-model", "ok": true, "conv_id": 2, "user_id": 1, "q_len": 12, "token_est": 29, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:54:11", "level": "INFO", "logger": "legal.access", "req": "8029b36e652a", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 135.7}
+{"ts": "2026-09-20T14:54:11", "level": "INFO", "logger": "legal.chat", "req": "8c11491ba339", "msg": "chat", "ms": 163.3, "first_ms": 163.2, "model": "rule", "ok": true, "conv_id": 3, "user_id": 1, "q_len": 44, "token_est": 0, "tier": "refuse", "cache": "miss"}
+{"ts": "2026-09-20T14:54:11", "level": "INFO", "logger": "legal.access", "req": "8c11491ba339", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 238.5}
+{
+ "settings_effective": {
+  "fast_path_law_version_check": false,
+  "feature_router": true,
+  "agent_enabled": false
+ },
+ "roles_configured": [
+  [
+   "text",
+   "flag"
+  ]
+ ],
+ "has_role_text_light": false,
+ "per_question": {
+  "long-legal_query": {
+   "gate_calls": 1,
+   "exits": [
+    "旗舰流式出口"
+   ],
+   "light_buffered_calls": 0,
+   "hit": false,
+   "note_frame_in_response": false,
+   "restart_frame": false,
+   "routing_metrics": {
+    "total": 1,
+    "tier_mix": {
+     "light": 1,
+     "flag": 0,
+     "cache": 0,
+     "legacy": 0
+    },
+    "upgrade_count": 0,
+    "upgrade_rate": 0.0,
+    "self_check_pass_rate": 0.0,
+    "checked_count": 1,
+    "cache_hit_rate": 0.0,
+    "verdict_top": {
+     "cite_bad:1": 1
+    },
+    "agent_gate": {
+     "total_predictions": 0,
+     "mode_counts": {},
+     "reason_code_counts": {},
+     "technical_failure_count": 0
+    },
+    "agent_route": {
+     "total_routes": 1,
+     "route_counts": {
+      "fast_path": 1
+     },
+     "fallback_count": 0,
+     "fallback_reason_code_counts": {}
+    }
+   },
+   "response_tail": "\"}data: {\"content\": \"根据《劳动合同法》第十九条，\"}data: {\"content\": \"试用期最长六个月。\"}data: {\"content\": \"\\n\\n> 注：该问题较复杂，本回答仅供参考。\"}data: {\"conversation_id\": 1, \"sources\": [{\"source\": \"劳动合同法\", \"article\": \"第十九条\", \"effective_from\": \"\", \"effective_to\": \"\", \"status\": \"\"}]}data: [DONE]"
+  },
+  "short-legal_query": {
+   "gate_calls": 1,
+   "exits": [
+    "旗舰流式出口"
+   ],
+   "light_buffered_calls": 0,
+   "hit": false,
+   "note_frame_in_response": false,
+   "restart_frame": false,
+   "routing_metrics": {
+    "total": 1,
+    "tier_mix": {
+     "light": 1,
+     "flag": 0,
+     "cache": 0,
+     "legacy": 0
+    },
+    "upgrade_count": 0,
+    "upgrade_rate": 0.0,
+    "self_check_pass_rate": 0.0,
+    "checked_count": 1,
+    "cache_hit_rate": 0.0,
+    "verdict_top": {
+     "cite_bad:1": 1
+    },
+    "agent_gate": {
+     "total_predictions": 0,
+     "mode_counts": {},
+     "reason_code_counts": {},
+     "technical_failure_count": 0
+    },
+    "agent_route": {
+     "total_routes": 1,
+     "route_counts": {
+      "fast_path": 1
+     },
+     "fallback_count": 0,
+     "fallback_reason_code_counts": {}
+    }
+   },
+   "response_tail": "\"}data: {\"content\": \"根据《劳动合同法》第十九条，\"}data: {\"content\": \"试用期最长六个月。\"}data: {\"content\": \"\\n\\n> 注：该问题较复杂，本回答仅供参考。\"}data: {\"conversation_id\": 2, \"sources\": [{\"source\": \"劳动合同法\", \"article\": \"第十九条\", \"effective_from\": \"\", \"effective_to\": \"\", \"status\": \"\"}]}data: [DONE]"
+  },
+  "study_aid": {
+   "gate_calls": 0,
+   "exits": [],
+   "light_buffered_calls": 0,
+   "hit": false,
+   "note_frame_in_response": false,
+   "restart_frame": false,
+   "routing_metrics": {
+    "total": 1,
+    "tier_mix": {
+     "light": 0,
+     "flag": 0,
+     "cache": 0,
+     "legacy": 0
+    },
+    "upgrade_count": 0,
+    "upgrade_rate": 0.0,
+    "self_check_pass_rate": 0.0,
+    "checked_count": 0,
+    "cache_hit_rate": 0.0,
+    "verdict_top": {
+     "pass": 1
+    },
+    "agent_gate": {
+     "total_predictions": 0,
+     "mode_counts": {},
+     "reason_code_counts": {},
+     "technical_failure_count": 0
+    },
+    "agent_route": {
+     "total_routes": 1,
+     "route_counts": {
+      "fast_path": 1
+     },
+     "fallback_count": 0,
+     "fallback_reason_code_counts": {}
+    }
+   },
+   "response_tail": "data: {\"type\": \"status\", \"msg\": \"正在思考…\"}data: {\"content\": \"您的问题所涉法律条文暂未收录在当前知识库中，我暂时无法给出准确的条文依据。若您能补充：① 具体涉及的法律领域（如合同、劳动、侵权）；② 基本事实经过，我可以基于知识库中相关领域的条文尽力分析；您也可直接指明某部法律，我帮您核对是否收录。\"}data: {\"conversation_id\": 3, \"sources\": []}data: [DONE]"
+  }
+ },
+ "TOTAL_gate_calls": 2,
+ "VERDICT": "REACHABLE"
+}
+.
+1 passed in 22.91s

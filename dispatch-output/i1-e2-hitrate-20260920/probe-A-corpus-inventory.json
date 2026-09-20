@@ -1,0 +1,37 @@
+{
+ "resolved": {
+  "copy_backend": "C:\\Users\\33393\\AppData\\Local\\Temp\\i1-e2-hitrate\\tree",
+  "CHROMA_DIR_resolved": "C:\\Users\\33393\\AppData\\Local\\Temp\\i1-e2-hitrate\\tree\\chroma_db",
+  "QA_COLLECTION_NAME": "qa_pairs",
+  "MAIN_COLLECTION_NAME": "legal_provisions_cos",
+  "embedding_provider": "local",
+  "today": "2026-09-20"
+ },
+ "qa_corpus_size": 279,
+ "metadata_key_union": [
+  "answer",
+  "evidence",
+  "options_fingerprint",
+  "origin"
+ ],
+ "evidence_kind": {
+  "pipe": 76,
+  "json": 203,
+  "empty": 0,
+  "other": 0
+ },
+ "fingerprint_present": 60,
+ "evidence_valid_today": 277,
+ "evidence_invalid_samples": [
+  {
+   "question": "关于公民的基本权利，下列说法正确的是？A.公民有言论、出版、集会、结社、游行、示威的自由 B.公民的人身自由不受侵犯 C",
+   "evidence": "宪法|第三十五条"
+  },
+  {
+   "question": "关于我国的政权组织形式，下列说法正确的是？A.我国实行人民代表大会制度 B.全国人民代表大会是最高国家权力机关 C.全国",
+   "evidence": "宪法|第二条"
+  }
+ ],
+ "questions_with_options": 166,
+ "distinct_sources": 1
+}

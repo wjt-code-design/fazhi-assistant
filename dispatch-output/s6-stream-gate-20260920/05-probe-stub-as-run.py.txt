@@ -1,0 +1,127 @@
+"""票 C §6-⑦ 的**临时**探针（跑完即删，不入库）：真实配置下门所在的那条分支真被走到了吗？
+
+为什么要有它：S5 交完才发现自己那道门一天都没被走到（`[PL#14]` 假接线的第二次复发）。
+本探针**不桩任何路由判定量**——`registry.has_role` / `complexity.assess` / `complexity.admit_light` /
+`settings.feature_router` / `clarify.decide` 全部用真实配置的原值（真实 `.env`，未改），
+于是"走哪条出口"这件事是**部署配置决定的读数**，不是测试设定的。
+只有"会花钱/会联网"的两处被桩：`make_chain`（模型）、`retrieve`（Chroma）。
+
+开关保持**默认 False**（Owner 纪律：不许为了验证改默认值）⇒ 计数的是"门被调用了几次"，
+而不是"门命中了几次"——可达性判据本来就该问前者。
+"""
+
+from __future__ import annotations
+
+import json
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from dotenv import load_dotenv
+
+load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
+
+from sqlalchemy import create_engine  # noqa: E402
+from sqlalchemy.orm import sessionmaker  # noqa: E402
+from sqlalchemy.pool import StaticPool  # noqa: E402
+
+from tests._sse_harness import FLAGSHIP_PARTS, _FakeChain, _one_hit_retrieval, login  # noqa: E402
+
+PROBE_OUT = os.environ.get("S6_PROBE_OUT")
+
+# 票 §2a 说的"三种法律问句形态"：长事实问句 / 短问句 / 带选项的法考题。
+# ⚠️ 法考题**不写书名号**：`clarify` 第 3 条规则是"书引《X法》= 确凿点名该部法，不在库 → refuse"，
+#    而本探针把 `retrieve` 桩成只返回《劳动合同法》一条 —— 真跑线上检索时民法典在库、不会被拒。
+#    带书名号会量出一条 E3 拒答出口，那是**探针的桩**造成的，不是部署配置的事实（本探针第一版就
+#    踩到了：三个问句里那个带《》的被判 tier=refuse ⇒ 门调用 0 次）。
+QUESTIONS = [
+    ("long-legal_query", "2019年3月5日对方向我借款10万元，约定当日归还，此后我一直没催过。我现在起诉还能胜诉吗？"),
+    ("short-legal_query", "试用期最长可以约定多久？"),
+    ("study_aid", "根据民法典，下列关于诉讼时效的说法哪一项是正确的？A 一年 B 二年 C 三年 D 五年"),
+]
+
+
+def test_probe_gate_reachable_under_deployed_config(monkeypatch):
+    import answer_cache
+    import database
+    import main
+    from models import Base
+
+    eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(eng)
+    sm = sessionmaker(bind=eng, autoflush=False, autocommit=False)
+    monkeypatch.setattr(database, "SessionLocal", sm)
+    monkeypatch.setattr(main, "SessionLocal", sm)
+
+    # 只桩"会花钱/会联网"的三处；路由判定量一个都不碰。
+    monkeypatch.setattr(main, "make_chain", lambda llm: _FakeChain(FLAGSHIP_PARTS))
+    monkeypatch.setattr(main, "retrieve", _one_hit_retrieval)
+    monkeypatch.setattr(main, "citation_verify", lambda a, in_kb=None: [])
+    monkeypatch.setattr(main.ks, "search_qa", lambda q: None)
+    monkeypatch.setattr(main.registry, "deduct", lambda key, tokens: None)
+    monkeypatch.setattr(main.registry, "model_of", lambda key: "probe-model")
+
+    gate_calls: list[dict] = []
+    light_calls: list[int] = []
+    real_gate = main._law_version_gate
+    real_light = main._light_buffered
+
+    def spy_gate(answer, fact_texts, law_as_of, *, exit_label):
+        out = real_gate(answer, fact_texts, law_as_of, exit_label=exit_label)
+        gate_calls.append({"exit_label": exit_label, "hit": out[1], "n_facts": len(fact_texts)})
+        return out
+
+    def spy_light(*a, **k):
+        light_calls.append(1)
+        return real_light(*a, **k)
+
+    monkeypatch.setattr(main, "_law_version_gate", spy_gate)
+    monkeypatch.setattr(main, "_light_buffered", spy_light)
+
+    from fastapi.testclient import TestClient
+
+    answer_cache.clear()
+    readings = {
+        "settings_effective": {
+            "fast_path_law_version_check": main.settings.fast_path_law_version_check,
+            "feature_router": main.settings.feature_router,
+            "agent_enabled": main.settings.agent_enabled,
+        },
+        "roles_configured": sorted({(e.modality, e.tier) for e in main.registry._entries.values()}),
+        "has_role_text_light": main.registry.has_role("text", "light"),
+        "per_question": {},
+    }
+    with TestClient(main.app) as c:
+        tok = login(c)
+        for name, q in QUESTIONS:
+            gate_calls.clear()
+            light_calls.clear()
+            answer_cache.clear()
+            with c.stream("POST", "/api/chat", json={"content": q}, headers={"Authorization": f"Bearer {tok}"}) as r:
+                assert r.status_code == 200, r.status_code
+                frames = list(r.iter_lines())
+            body = "".join(frames)
+            import routing_metrics
+
+            snap = routing_metrics.snapshot()
+            routing_metrics.reset()
+            readings["per_question"][name] = {
+                "gate_calls": len(gate_calls),
+                "exits": [g["exit_label"] for g in gate_calls],
+                "light_buffered_calls": len(light_calls),
+                "hit": any(g["hit"] for g in gate_calls),
+                "note_frame_in_response": "注：本回答所适用的法律版本" in body,
+                "restart_frame": '"type": "restart"' in body,
+                # 走到哪条出口由这份读数定（tier=refuse/clarify ⇒ E3；cache/qa_cache ⇒ E1/E2）。
+                "routing_metrics": snap,
+                "response_tail": body[-260:],
+            }
+    total = sum(v["gate_calls"] for v in readings["per_question"].values())
+    readings["TOTAL_gate_calls"] = total
+    readings["VERDICT"] = "REACHABLE" if total > 0 else "ZERO_TRAFFIC_LIKE_S5"
+    print(json.dumps(readings, ensure_ascii=False, indent=1), flush=True)
+    if PROBE_OUT:
+        with open(PROBE_OUT, "wb") as fh:
+            fh.write(json.dumps(readings, ensure_ascii=False, indent=1).encode("utf-8"))
+    assert total > 0, "门所在分支在真实配置下没被走到 ⇒ 正是 S5 踩过的坑，本票不许交这种东西"

@@ -1,0 +1,8 @@
+$ (cwd=C:\Users\33393\Desktop\ai-legal-helper\dispatch-output\s6-stream-gate-20260920\copybase\backend) C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Scripts\python.exe -m pytest tests/test_fast_path_law_version_gate.py -k dump_frames --basetemp=\tmp\fz_s6_zero_bt\03-light-BEFORE -p no:cacheprovider -q --no-header -p no:warnings
+rc=0
+
+.                                                                        [100%]
+1 passed, 15 deselected in 21.30s
+
+
+== stderr tail ==

@@ -1,0 +1,90 @@
+{
+ "threshold_in_main": 0.92,
+ "qa_is_cosine": false,
+ "corpus_size": 279,
+ "corpus_evidence_sources_top": [
+  [
+   "民法典",
+   128
+  ],
+  [
+   "刑法",
+   36
+  ],
+  [
+   "劳动合同法",
+   18
+  ],
+  [
+   "刑事诉讼法",
+   12
+  ],
+  [
+   "消费者权益保护法",
+   11
+  ],
+  [
+   "劳动法",
+   10
+  ],
+  [
+   "商标法",
+   9
+  ],
+  [
+   "行政复议法",
+   8
+  ],
+  [
+   "公司法",
+   6
+  ],
+  [
+   "个人信息保护法",
+   6
+  ],
+  [
+   "行政处罚法",
+   5
+  ],
+  [
+   "民事诉讼法",
+   5
+  ]
+ ],
+ "B1_selfquery": {
+  "n": 279,
+  "min": 1.0,
+  "mean": 1.0,
+  "ge_092": 279
+ },
+ "B1_instrument_valid": true,
+ "B2_coverage_probe": {
+  "drop_options": {
+   "n": 60,
+   "fired": 22,
+   "ge_092": 22,
+   "mean_score": 0.8854
+  },
+  "reword": {
+   "n": 60,
+   "fired": 59,
+   "ge_092": 59,
+   "mean_score": 0.9804
+  }
+ },
+ "B3_false_fire": {
+  "consult": {
+   "n": 24,
+   "fired": 0,
+   "ge_092": 0,
+   "max_score": 0.8287
+  },
+  "mcq_outside": {
+   "n": 12,
+   "fired": 0,
+   "ge_092": 0,
+   "max_score": 0.835
+  }
+ }
+}

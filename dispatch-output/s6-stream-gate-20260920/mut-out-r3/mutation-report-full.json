@@ -1,0 +1,77 @@
+{
+ "C-M1_fallback_source_ungated": {
+  "status": "KILLED",
+  "mutant_failed": 4,
+  "tests": 1378,
+  "newly_red": [
+   "tests.test_stream_exit_law_version_gate::test_empty_stream_but_nonempty_fallback_is_judged_once",
+   "tests.test_stream_exit_law_version_gate::test_fallback_answer_also_passes_the_gate"
+  ],
+  "newly_green": []
+ },
+ "C-M2_streaming_source_ungated": {
+  "status": "KILLED",
+  "mutant_failed": 10,
+  "tests": 1378,
+  "newly_red": [
+   "tests.test_stream_exit_law_version_gate::test_default_client_shape_never_reports_tripwire_not_wired",
+   "tests.test_stream_exit_law_version_gate::test_gate_judges_final_answer_once_across_model_restart",
+   "tests.test_stream_exit_law_version_gate::test_gate_uses_the_single_truth_source_and_not_a_copy",
+   "tests.test_stream_exit_law_version_gate::test_hit_answer_does_not_enter_cache",
+   "tests.test_stream_exit_law_version_gate::test_hit_reason_is_version_rule_not_missing_baseline_date",
+   "tests.test_stream_exit_law_version_gate::test_independent_expectation_table_on_streaming_exit",
+   "tests.test_stream_exit_law_version_gate::test_law_text_dates_are_not_facts_on_stream_exit",
+   "tests.test_stream_exit_law_version_gate::test_streaming_join_hits_gate_and_appends_note_frame"
+  ],
+  "newly_green": []
+ },
+ "C-M3_cache_fifth_condition_removed": {
+  "status": "KILLED",
+  "mutant_failed": 3,
+  "tests": 1378,
+  "newly_red": [
+   "tests.test_stream_exit_law_version_gate::test_hit_answer_does_not_enter_cache"
+  ],
+  "newly_green": []
+ },
+ "C-M4_context_used_as_facts": {
+  "status": "KILLED",
+  "mutant_failed": 3,
+  "tests": 1378,
+  "newly_red": [
+   "tests.test_fast_path_law_version_gate::test_law_text_dates_are_not_facts"
+  ],
+  "newly_green": []
+ },
+ "C-M5_stream_callsite_half1_removed": {
+  "status": "KILLED",
+  "mutant_failed": 4,
+  "tests": 1378,
+  "newly_red": [
+   "tests.test_stream_exit_law_version_gate::test_default_client_shape_never_reports_tripwire_not_wired",
+   "tests.test_stream_exit_law_version_gate::test_hit_reason_is_version_rule_not_missing_baseline_date"
+  ],
+  "newly_green": []
+ },
+ "C-M6_empty_answer_note_appended": {
+  "status": "KILLED",
+  "mutant_failed": 3,
+  "tests": 1378,
+  "newly_red": [
+   "tests.test_fast_path_law_version_gate::test_empty_answer_still_returns_empty"
+  ],
+  "newly_green": []
+ },
+ "C-M7_missing_date_passes": {
+  "status": "KILLED",
+  "mutant_failed": 3,
+  "tests": 1378,
+  "newly_red": [
+   "tests.test_fast_path_law_version_gate::test_failclosed_when_switch_on_but_law_as_of_missing"
+  ],
+  "newly_green": []
+ },
+ "_self_check": {
+  "main_py_restored_byte_exact": true
+ }
+}

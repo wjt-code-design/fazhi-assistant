@@ -1190,38 +1190,51 @@ def _fast_path_law_as_of(body) -> date:
     return body.law_as_of or date.today()
 
 
-def _law_version_gate(res: _LightResult, fact_texts: list[str], law_as_of: date | None) -> _LightResult:
-    """S5：缓冲轻量出口的法律版本绊线门。判定规则**只**在 `limitation_calc`（单一真源，§5-1）。
+# 版本绊线门的出口标签。**为什么做成参数**：S5 时期这道门只有一个消费者，日志里那句
+# "（缓冲轻量出口）"是写死的；票 C 把同一道门接到旗舰流式出口上 ⇒ 再有第二个消费者，
+# 写死就是把流式的命中记成轻量的命中（假归因）。默认值一律不给：漏传直接 TypeError，
+# 不给"静默记错出口"留路。
+EXIT_LIGHT = "缓冲轻量出口"
+EXIT_STREAM = "旗舰流式出口"
 
-    开关关 ⇒ 原样返回（行为逐字不变）。开关开而拿不到 `law_as_of` ⇒ fail-closed 按命中处理，
-    口径照抄 agent 路径 `verifier.py:296-297`：开关开而基准日缺失 = 接线丢失 = 判定不可信，
-    **不等于**可以放行（静默放行正是这道门要防的失败模式）。
+
+def _law_version_gate(
+    answer: str, fact_texts: list[str], law_as_of: date | None, *, exit_label: str
+) -> tuple[str, bool]:
+    """法律版本绊线门：进出都是**答案文本**，返回 `(交付文本, 是否命中)`。
+
+    判定规则**只**在 `limitation_calc`（单一真源，票 C §5-1）。入参形态在票 C 改过一次：
+    S5 收的是 `_LightResult`，而旗舰流式出口在收口点只有 `answer` 字符串（没有配额 key、
+    档位、自检 verdict 可填）⇒ 按票 C §5-2「签名不合用就改签名、别开第二份门函数」改成收文本，
+    两个出口各自把 `(answer, hit)` 装回自己的返回形状（判定/注记/日志仍只此一份）。
+
+    开关关 ⇒ 原样返回 `(answer, False)`（行为逐字不变）。开关开而拿不到 `law_as_of` ⇒
+    fail-closed 按命中处理，口径照抄 agent 路径 `verifier.py:296-297`：开关开而基准日缺失 =
+    接线丢失 = 判定不可信，**不等于**可以放行（静默放行正是这道门要防的失败模式）。
     """
     if not settings.fast_path_law_version_check:
-        return res
+        return answer, False
     if law_as_of is None:
         reason = "LAW_TRIPWIRE_NOT_WIRED"
-    elif limitation_calc.law_version_crosses_watershed(res.answer, fact_texts, law_as_of):
+    elif limitation_calc.law_version_crosses_watershed(answer, fact_texts, law_as_of):
         reason = "LAW_VERSION_WATERSHED_MISMATCH"
     else:
-        return res
+        return answer, False
     # 落被判定原文 + 基准日：否则线上只知道"拦了"，不知道按哪版法拦了哪句（5afc8d0 的可归因教训）。
     logging.getLogger("legal.chat").warning(
-        "快车道版本绊线命中（缓冲轻量出口）：%s",
+        "快车道版本绊线命中（%s）：%s",
+        exit_label,
         reason,
         extra={
             "fast_path_law_version_hit": True,
             "fast_path_law_version_reason": reason,
-            "fast_path_law_version_detail": res.answer[:200],
+            "fast_path_law_version_detail": answer[:200],
             "law_as_of": law_as_of.isoformat() if law_as_of else None,
         },
     )
-    return replace(
-        res,
-        # 空答不追加注记：调用方靠"空答 ⇒ error 帧"兜底（约 :1837），给它加字会造出一条假降级回答。
-        answer=(res.answer + NOTE_LAW_VERSION) if res.answer else "",
-        law_version_hit=True,
-    )
+    # 空答不追加注记：两个出口都靠"空答 ⇒ error 帧"兜底（缓冲出口见调用方的 `else`，流式出口见
+    # `if not answer:`），给它加字会把"没答上来"伪装成"答了但仅供参考"。
+    return ((answer + NOTE_LAW_VERSION) if answer else ""), True
 
 
 def _light_buffered(pre: dict, messages: list, law_as_of: date | None = None) -> _LightResult:
@@ -1239,43 +1252,43 @@ def _light_buffered_locked(
     """轻量路径主体（已持有并发位）：缓冲生成 → 自检 → 至多一次升级旗舰重答。"""
     # 开关关 ⇒ 不做无谓的事实扫描（同 verifier.py:338 的省法）。
     fact_texts = _fast_path_fact_texts(pre) if settings.fast_path_law_version_check else []
+
+    def _with_gate(res: _LightResult) -> _LightResult:
+        """五个 return 点共用的**装配**：过门，再把 `(answer, hit)` 装回返回结构。
+
+        判定、注记、日志全在 `_law_version_gate` 一处（票 C §5-2：只此一份门）；本闭包只是
+        把票 C 改过的门签名接回 S5 的 `_LightResult` 形状，五个 return 点的构造一字未动。
+        """
+        answer, hit = _law_version_gate(res.answer, fact_texts, law_as_of, exit_label=EXIT_LIGHT)
+        return replace(res, answer=answer, law_version_hit=hit)
+
     resp = llm.invoke(messages)
     raw = clean_answer(resp.content or "") if resp else ""
     usage = _token_charge(resp, raw)
     v = quality.self_check(raw, ctx_present)
     if v.ok:
-        return _law_version_gate(
-            _LightResult(raw, lkey, modality, "light", usage, False, "pass"), fact_texts, law_as_of
-        )
+        return _with_gate(_LightResult(raw, lkey, modality, "light", usage, False, "pass"))
     # 升级旗舰（配额耗尽则不升级，明说降级）
     try:
         fkey, fllm = registry.pick(modality, "flag")
     except QuotaExhausted:
-        return _law_version_gate(
+        return _with_gate(
             _LightResult(
                 (raw + NOTE_QUOTA) if raw else "", lkey, modality, "light", usage, False, v.reason or "low_quota"
-            ),
-            fact_texts,
-            law_as_of,
+            )
         )
     if fkey == lkey:  # 轻量即旗舰，无更强者可升
-        return _law_version_gate(
-            _LightResult((raw + NOTE_COMPLEX) if raw else "", lkey, modality, "light", usage, False, v.reason),
-            fact_texts,
-            law_as_of,
+        return _with_gate(
+            _LightResult((raw + NOTE_COMPLEX) if raw else "", lkey, modality, "light", usage, False, v.reason)
         )
     fresp = fllm.invoke(messages)
     fraw = clean_answer(fresp.content or "") if fresp else ""
     fusage = _token_charge(fresp, fraw)
     fv = quality.self_check(fraw, ctx_present)
     if fv.ok:
-        return _law_version_gate(
-            _LightResult(fraw, fkey, modality, "flag", usage + fusage, True, "pass"), fact_texts, law_as_of
-        )
-    return _law_version_gate(
-        _LightResult((fraw + NOTE_COMPLEX) if fraw else "", fkey, modality, "flag", usage + fusage, True, fv.reason),
-        fact_texts,
-        law_as_of,
+        return _with_gate(_LightResult(fraw, fkey, modality, "flag", usage + fusage, True, "pass"))
+    return _with_gate(
+        _LightResult((fraw + NOTE_COMPLEX) if fraw else "", fkey, modality, "flag", usage + fusage, True, fv.reason)
     )
 
 
@@ -2001,6 +2014,10 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
 
             chunks = []
             _f0 = None
+            # 票 C/S6：法律版本绊线门的事实集（与缓冲轻量出口同一取法 `_fast_path_fact_texts`，
+            # 只含用户自述、**不含** context/sources 里的法条文本 —— 票 C §2d）。
+            # 开关关 ⇒ 不做无谓扫描（与 `_light_buffered_locked` 同一省法）。
+            fact_texts = _fast_path_fact_texts(pre) if settings.fast_path_law_version_check else []
             async for piece in stream_with_retry(
                 make_chain_fn,
                 messages,
@@ -2018,6 +2035,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 chunks.append(piece)
                 yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E8
             answer = "".join(chunks)
+            # 票 C/S6：把 S5 那道版本绊线门接到本条**唯一承流量**的生成出口上。三个口径照票面：
+            #   §5-4 基准日传 `_fast_path_law_as_of(body)` 而不是 `body.law_as_of`（生产客户端不传
+            #         ⇒ None ⇒ 门当成"接线丢失"先行命中 ⇒ 开关一开每条答复都降级）；
+            #   §4-Q3 判定读 `clean_answer` 之后的模型原文，注记家族（引用/多选/自检/配额）在它之后；
+            #   §5-3 本出口有**两个**答案来源（流式 join / `_invoke_llm` 兜底），逐个来源各过一次性门。
+            law_version_hit = False
             if not answer:
                 try:
                     fb = await run_in_threadpool(_invoke_llm, messages, flag_llm)
@@ -2026,10 +2049,26 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         if _f0 is None:
                             _f0 = time.perf_counter()
                         yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"  # gate-exit: E9
+                        # 来源 2/2：非流式兜底整答。它与流式 join 是两个不同来源，漏接这一行 =
+                        # "流式返回空 ⇒ 走兜底时门整体消失"（票 C §2c 点名的漏 return 点换了形状），
+                        # 由变异 C-M1（删本行）+ test_fallback_answer_also_passes_the_gate 对偶钉住。
+                        answer, law_version_hit = _law_version_gate(
+                            answer, fact_texts, _fast_path_law_as_of(body), exit_label=EXIT_STREAM
+                        )
                 except Exception:
                     answer = ""
             else:
                 answer = clean_answer(answer)
+                # 来源 1/2：流式 join。帧已逐段吐出不收回、不重放 ⇒ 命中时只追加一帧确定性注记 +
+                # 拦写缓存，与本文件既有四段同形状处置（票 C §2b「已经吐出去的帧怎么算」是已解问题）。
+                # 删本行 = 主路径没门（变异 C-M2）。
+                answer, law_version_hit = _law_version_gate(
+                    answer, fact_texts, _fast_path_law_as_of(body), exit_label=EXIT_STREAM
+                )
+            if law_version_hit and answer:
+                # 空答不注记：门已保证 `answer == ""` 时不追加，这里再挡一次 yield，
+                # 免得把下面 `if not answer:` 的"没答上来"error 帧变成"答了但仅供参考"。
+                yield f"data: {json.dumps({'content': NOTE_LAW_VERSION}, ensure_ascii=False)}\n\n"  # gate-exit: E14
             # 多选完整性症状（决策 8）：多选题型 + 回答只声明 1 个正确项 → 疑似漏答。
             # 流式已发出，只能追加确定性核对注（不静默）+ 拦缓存（防错答传播）。纯函数零成本。
             multi_bad = bool(answer) and quality.multi_incomplete(pre.get("user_text") or "", answer)
@@ -2070,10 +2109,18 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             if use_router and answer and pre["intent"] != "chitchat":  # 闲聊豁免质检（无检索语境）
                 sv = quality.self_check(answer, bool(pre["sources"]))
                 if sv.ok:
-                    # 写缓存三闸（审查 C2/C3）：非降级（降级答案不入缓存，防缓存用户
+                    # 写缓存闸（审查 C2/C3 + 票 C §5-6）：非降级（降级答案不入缓存，防缓存用户
                     # 看不到免责注）+ 确定性写闸（study_aid 引用 ⊆ 检索条文）
                     # + 多选漏答不入缓存（决策 8：防错答传播给近重复题）
-                    if cache_key and not flag_degraded and _cache_write_ok(pre, answer) and not multi_bad:
+                    # + 命中版本绊线不入缓存（票 C：分支0 在本门**之前**直返 ⇒ 一条错版答复进了缓存
+                    #   就会被后续同题请求零 token 固化，门再也走不到）。四条件 → 五条件。
+                    if (
+                        cache_key
+                        and not flag_degraded
+                        and _cache_write_ok(pre, answer)
+                        and not multi_bad
+                        and not law_version_hit
+                    ):
                         emb = await run_in_threadpool(_embed_question, pre.get("rewritten") or "")
                         pol, cnt, lab, fp = _cache_guards(pre.get("rewritten") or "")
                         answer_cache.put(

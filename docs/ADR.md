@@ -33,7 +33,10 @@
 **决策**：**不引入任何框架依赖（含 dev 依赖），只借形状。** 落地物是一张「文本出口 × 已挂闸门」登记表
 加一条硬红哨兵：
 
-- `backend/gate_exit_registry.py` —— **真源是 Python dict**（13 个出口 × 8 道闸门，每格 `(状态, 证据)`）。
+- `backend/gate_exit_registry.py` —— **真源是 Python dict**（立表时 13 个出口，票 C/S6 之后是 **14** 个，× 8 道闸门，
+  每格 `(状态, 证据)`；新增的第 14 条 `E14` 是"命中版本绊线时追加的那一帧注记"——它必须单独成行，
+  因为哨兵按**正文帧条数**对账，并进 E8 就会少一行而红）。行数与 `main.py` 里的锚点数由
+  `verify_doc_claims.py` 钉成**等式**而不是两个常数（写死 13 的那版在出口变多的当天就会自己变红）。
   "什么算一个出口"也写成代码而非自然语言：`scan_content_yields()` 认
   `Yield → JoinedStr → Call(json.dumps) → Dict 含 'content' 键` 这一条形状，全树扫。
 - `backend/scripts/gen_gate_exit_registry.py` → `docs/gate-exit-registry.md` —— **md 是生成物**，
@@ -51,7 +54,9 @@
   豁免清单的**内容**在真源侧（`gate_exit_registry.py` 的 `EXEMPTIONS: list[dict] = []`，现在是空的），
   它的**上限**在测试侧（`test_gate_exit_registry.py` 的 `MAX_EXEMPTIONS = 0`）——
   谁要豁免就得同时加内容并显式改上限，改上限会进 diff、要上线审。
-- 13 处 yield 各加一条 `  # gate-exit: E<n>` 锚点注释。**纯注释**：口径必须钉在**两个 blob** 上 ——
+- 13 处 yield 各加一条 `  # gate-exit: E<n>` 锚点注释（**这一批是纯注释**；第 14 条锚点 `E14` 由票 C 随
+  注记帧一起加，那次不是纯注释，所以本句的"剥掉标记后逐字节相同"只适用于 fad2cee 这一笔）。
+  口径必须钉在**两个 blob** 上 ——
   `fad2cee:backend/main.py` 剥掉标记后 == `fad2cee~1:backend/main.py`，且两边行数都是 2667
   （⇒ 一条代码行都没多）。⚠️ 两种写法都会错：①拿"与 HEAD 逐字节相同"是**自我比对**（锚点就是
   fad2cee 加进去的）；②拿**当下工作树**去比 `fad2cee~1` 会烂——本 ADR 入库后 `main.py` 又有合法改动，
@@ -103,6 +108,7 @@
 **已知残留 / 后续**：① 9 格 `GAP-TODO` **已全部指向真实票号**（2026-09-20 开票；归属的**现值以生成物
 `docs/gate-exit-registry.md` 为准**，本行是当次快照，不是第二处真源）：E1/E2 → 票 I，
 E5/E6 → 票 H，E7 → 票 J（票面 `docs/handoff-gap-tickets-h-i-j-20260920.md`），E8/E9 → 票 C。
+**票 C 已合入后现值是 7 格**（E8/E9 两格改判 `PASS`，剩 E1/E2/E5×2/E6/E7×2 —— 就是票 I/H/J 的射程）。
 `GAP-TODO` 状态本身要等修完才降级，届时必须回表重生成 md（不回，
 `test_committed_md_is_the_generated_artifact` 会红）。哨兵里那条 `TICKET_RE` 腿**只挡自指空枪**：
 判据是"取证里出现 `票 X` / `S<n>` / 显式『待开票』三者之一"，所以"本票面已登记"这类句子会红，

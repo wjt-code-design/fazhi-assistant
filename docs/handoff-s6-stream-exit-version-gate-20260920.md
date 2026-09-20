@@ -174,6 +174,11 @@ S5 的自选变异 M4 专门验过这条不被破。
    因为四个变异每个只跑了同一个测试文件）。判据口径见 §6-④。
    现成仪器可直接复用：`backend/tests/_sse_harness.py` 的 `sse_client(route=...)` + `chat_frames()`
    —— 那是本仓第一套能把 SSE 出口打到端点级断言的夹具（`answer_cache.put` 可换 recorder）。
+   ⚠️ **（改后实况，2026-09-20 主会话接手时补）** 第五条件加上之后 `ruff-format` 把这一条 `if` 拆成了
+   多行括号块（`if (` 起首、每个条件各占一行）⇒ 本节上面"同一行里同时出现 `_cache_write_ok` 与 `not multi_bad`"
+   这个**定位用**特征已不成立（它是票写就时的改前形状）。现在的唯一形状是「全文件恰好一块含
+   `_cache_write_ok(pre, answer)` 的 `if (` 块」（`if (` 与 `cache_key` 分在两行，所以
+   ~~`if (cache_key` 开头~~ 这个写法**也**不成立（它是主会话接手后按真码复查登记表时才查出来的）。
 7. 日志沿用 S5 登记的四个字段，**不要**新造字段名（`tests/test_log_field_whitelist.py` 会递归扫全树；
    basetemp 别设在 `backend/` 内）。
 8. **（Q4 复用的代价，必须一并交付）** 改 `settings.py` 里 `fast_path_law_version_check` 那段范围注释：

@@ -1,0 +1,31 @@
+票 C §6-①/§6-③ 读数
+改前树=C:\Users\33393\Desktop\ai-legal-helper\dispatch-output\s6-stream-gate-20260920\copybase
+改后树=C:\Users\33393\Desktop\ai-legal-helper\backend
+
+A. §6-① 改前红（副本树 b40076b + 本轮同一套测试文件）
+   FAILED tests/test_stream_exit_law_version_gate.py::test_streaming_join_hits_gate_and_appends_note_frame
+   FAILED tests/test_stream_exit_law_version_gate.py::test_fallback_answer_also_passes_the_gate
+   FAILED tests/test_stream_exit_law_version_gate.py::test_hit_answer_does_not_enter_cache
+   FAILED tests/test_stream_exit_law_version_gate.py::test_independent_expectation_table_on_streaming_exit
+   FAILED tests/test_stream_exit_law_version_gate.py::test_law_text_dates_are_not_facts_on_stream_exit
+   FAILED tests/test_stream_exit_law_version_gate.py::test_default_client_shape_never_reports_tripwire_not_wired
+   FAILED tests/test_stream_exit_law_version_gate.py::test_hit_reason_is_version_rule_not_missing_baseline_date
+   FAILED tests/test_stream_exit_law_version_gate.py::test_gate_uses_the_single_truth_source_and_not_a_copy
+   FAILED tests/test_stream_exit_law_version_gate.py::test_empty_stream_but_nonempty_fallback_is_judged_once
+   FAILED tests/test_stream_exit_law_version_gate.py::test_gate_judges_final_answer_once_across_model_restart
+   10 failed, 3 passed, 1 skipped in 57.24s
+
+B. §6-③ 端点级逐帧 sha（旗舰流式出口，含 E9 兜底样本；开关默认关、未改默认值）
+   改前 sha256 = a44e7539e8ff130d5d8c61a5b1e281a3008bb44145e57cd5f777c801ca830c9e   n_samples=4
+   改后 sha256 = a44e7539e8ff130d5d8c61a5b1e281a3008bb44145e57cd5f777c801ca830c9e   n_samples=4
+   相同 = True
+
+C. 缓冲轻量出口（E7）逐帧 sha —— 门签名一改就得复证这条
+   改前 sha256 = 9744dbb78164177f96233669e681ad201c499373dca2e6a3890d73d174da59e4
+   改后 sha256 = 9744dbb78164177f96233669e681ad201c499373dca2e6a3890d73d174da59e4
+   相同 = True
+
+VERDICT=ZERO_CHANGE_OK
+（自证：sha 比对对不相同的两个值确实判 False = True）
+限制（必须一起读）：这两条只证明「当下代码 == 存档的改前基线」，不证明存档那份确实采于改动前；
+「删掉修复就会红」那一半由 §6-④ 的变异承担（见 run_mutations_ticket_c.py）。

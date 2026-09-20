@@ -50,8 +50,12 @@ class _FakeResp:
         self.content = content
 
 
-class _FakeLightLLM:
-    """轻量缓冲路径的模型：`_light_buffered_locked` 用 `llm.invoke(messages)` 一次拿整答。"""
+class _FakeInvokableLLM:
+    """`llm.invoke(messages)` 一次拿整答的模型替身。
+
+    两个消费者：`_light_buffered_locked`（轻量缓冲整答）与 `main._invoke_llm`（旗舰流式空答后的
+    非流式兜底，票 C §5-3 点名的**第二个答案来源**）。形状相同 ⇒ 不另立一份。
+    """
 
     def __init__(self, text: str) -> None:
         self._text = text
@@ -74,6 +78,7 @@ def sse_client(
     flagship_parts: tuple[str, ...] = FLAGSHIP_PARTS,
     light_text: str = LIGHT_ANSWER,
     cache_put: Any = None,
+    fallback_text: str | None = None,
 ) -> Iterator[Any]:
     """起一个隔离到内存库的 TestClient，把请求钉到指定出口。
 
@@ -81,6 +86,12 @@ def sse_client(
     route="light_buffered" ⇒ 额外把 tier/准入/`has_role`/模型/自检/反问/扣减全替身化，
     使 `use_light` 为真、真实执行登记表 **E7** 那条出口整段（含"命中不进缓存"闸，
     认形状 `if cache_key and res.verdict == "pass" and not res.law_version_hit:`）。
+
+    `fallback_text`（票 C/S6 新增）：把旗舰那一档的模型换成**可 `invoke`** 的替身，于是
+    `flagship_parts=()`（流式返回空）时 `main._invoke_llm` 真能拿到一份整答 ⇒ 登记表 **E9**
+    那条「第二个答案来源」第一次可在端点级被打到。此前 `flag_llm` 是裸 `object()`，
+    `_invoke_llm` 必抛 AttributeError 被 `except` 吞掉 ⇒ E9 在测试里恒等于"兜底也失败"，
+    任何只接在兜底分支上的代码都测不到（票 C §2c 点名的形状）。
     """
     import answer_cache
     import complexity
@@ -111,7 +122,7 @@ def sse_client(
         monkeypatch.setattr(complexity, "admit_light", lambda *a, **kw: True)
         monkeypatch.setattr(main.registry, "has_role", lambda modality, tier: True)
         monkeypatch.setattr(
-            main, "_safe_pick", lambda modality, tier, **kw: ("light-test", _FakeLightLLM(light_text), False)
+            main, "_safe_pick", lambda modality, tier, **kw: ("light-test", _FakeInvokableLLM(light_text), False)
         )
         monkeypatch.setattr(quality, "self_check", lambda answer, context_present: quality.Verdict(True))
         monkeypatch.setattr(main.clarify, "decide", lambda *a, **kw: "direct")
@@ -120,6 +131,15 @@ def sse_client(
         monkeypatch.setattr(main.registry, "model_of", lambda key: "test-light")
     elif route != "flagship_stream":
         raise ValueError(f"unknown route: {route}")
+
+    if fallback_text is not None:
+        if route != "flagship_stream":
+            # E9 只存在于旗舰流式分支。允许在 light_buffered 下传这个参数，就会造出一条
+            # "参数传了但没人消费"的假断言（票 G §2-2 的同族形状）⇒ 直接炸，不给静默。
+            raise ValueError("fallback_text 只对 route='flagship_stream' 有意义（E9 在那条分支上）")
+        monkeypatch.setattr(
+            main, "_safe_pick", lambda modality, tier, **kw: ("flag-test", _FakeInvokableLLM(fallback_text), False)
+        )
 
     if cache_put is not None:
         monkeypatch.setattr(answer_cache, "put", cache_put)

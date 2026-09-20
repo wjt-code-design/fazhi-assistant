@@ -1,0 +1,14 @@
+票 C §6-⑤ agent_enabled 两态
+
+agent-off: AGENT_ENABLED=false env 设定
+  effective 读数 = {"agent_enabled": false, "agent_traffic_percent": 0, "fast_path_law_version_check": false} (rc=0)
+  pytest rc=0 末行=51 passed, 2 skipped, 64 warnings in 63.71s (0:01:03)
+
+agent-on: AGENT_ENABLED=true env 设定
+  effective 读数 = {"agent_enabled": true, "agent_traffic_percent": 0, "fast_path_law_version_check": false} (rc=0)
+  pytest rc=0 末行=51 passed, 2 skipped, 64 warnings in 74.63s (0:01:14)
+
+两态 effective 是否真的不同 = True（相同 ⇒ 本判据作废，两遍跑的是同一个状态）
+两态下被测开关都仍为默认 False = True（Owner 纪律：不许为了验证改默认值）
+两态 pytest 都 rc=0 = True
+VERDICT=TWO_STATE_OK

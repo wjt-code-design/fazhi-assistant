@@ -16,6 +16,10 @@ import subprocess
 import sys
 import xml.etree.ElementTree as ET
 
+# 追加给 pytest 的参数（默认空）。调用方在自己的脚本里 `rmf.PYTEST_EXTRA = [...]` 覆盖，
+# 这样"判据逻辑"仍然只有一份（复用即判据），只有选择器是各票自己的。
+PYTEST_EXTRA: list[str] = []
+
 MUTANTS: dict[str, tuple[str, str]] = {
     # 票 G G-M1：删掉"命中不进缓存"那道闸（S5 提交信息里写明"否则门再也走不到"）
     "M1_cache_guard_off": (
@@ -89,6 +93,11 @@ def run_suite(tree: pathlib.Path, out_dir: pathlib.Path, tag: str, py: str) -> s
         "no:cacheprovider",
         f"--basetemp={out_dir / 'bt'}",
         f"--junitxml={xml}",
+        # PYTEST_EXTRA：由调用方（票 C 的执行器）追加选择器，默认空 ⇒ 本票 S5 的读数不受影响。
+        # 为什么需要它（票 C r3 实测）：副本树里 conftest 把 CHROMA_DIR 无条件指到空临时库，
+        # `pytestmark = slow` 那 18 条要真实知识库才能过 ⇒ 不排掉就有 5 条**恒定红**混在基线里，
+        # 而"基线红几条"这件事本身必须可解释，不能靠读者自觉。
+        *PYTEST_EXTRA,
     ]
     # check=False 是有意的：pytest 非零退出是**正常结果**（红几条正是我们要量的），
     # rc 被写进 stdout-<tag>.txt 供人核对。
@@ -187,7 +196,10 @@ def main() -> int:
     not_killed = [
         k
         for k, v in table.items()
-        if isinstance(v, dict) and v.get("status") != "KILLED"
+        # `_self_check` 是收尾自证行、没有 `status` 键 —— 票 C r3 实测：漏了这一条
+        # 会让"7/7 全杀"的那一轮在最后一步 KeyError 崩掉（json 已落盘，但 VERDICT 行没打出来，
+        # 退出码还是 1）。修仪器要修在被咬的地方。
+        if k != "_self_check" and isinstance(v, dict) and v.get("status") != "KILLED"
     ]
     verdict = (
         "ALL_KILLED"

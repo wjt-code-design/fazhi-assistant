@@ -1,0 +1,28 @@
+{
+ "today": "2026-09-20",
+ "main_collection_count": 10266,
+ "source_contains_宪法": "ValueError: Expected where operator to be one of $gt, $gte, $lt, $lte, $ne, $eq, $in, $nin, got $contains",
+ "canon": [
+  {
+   "输入": "宪法|第三十五条",
+   "canon_source": "宪法",
+   "normalize_article": "第三十五条",
+   "exact_where_hits": 0,
+   "docs_under_canon_source": 0,
+   "articles_under_canon_source_sample": [],
+   "hits_with_unnormalized_article": 0,
+   "verdict": "② 误杀（canon 后的 source 在库里完全没有文档 ⇒ 实为①库缺）"
+  },
+  {
+   "输入": "宪法|第二条",
+   "canon_source": "宪法",
+   "normalize_article": "第二条",
+   "exact_where_hits": 0,
+   "docs_under_canon_source": 0,
+   "articles_under_canon_source_sample": [],
+   "hits_with_unnormalized_article": 0,
+   "verdict": "② 误杀（canon 后的 source 在库里完全没有文档 ⇒ 实为①库缺）"
+  }
+ ],
+ "note": "本脚本不测查询向量，只测『证据是否可按键取回』与『时效谓词』；『语义检索能否召回宪法条文』要另发 embedding，属另一台仪器。"
+}

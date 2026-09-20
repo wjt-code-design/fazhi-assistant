@@ -1,0 +1,408 @@
+$ (cwd=C:\Users\33393\Desktop\ai-legal-helper\dispatch-output\s6-stream-gate-20260920\copybase\backend) C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Scripts\python.exe -m pytest tests/test_stream_exit_law_version_gate.py -rf --basetemp=\tmp\fz_s6_zero_bt\red -p no:cacheprovider -q --no-header -p no:warnings
+rc=1
+
+FFF..FFFFF.FFs                                                           [100%]
+================================== FAILURES ===================================
+____________ test_streaming_join_hits_gate_and_appends_note_frame _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000227E81B5850>
+
+    def test_streaming_join_hits_gate_and_appends_note_frame(monkeypatch):
+        """来源 1/2（流式 join，登记表 E8）：分水岭前事实 + 分水岭后法的答复 ⇒ 追加一帧版本注记。
+
+        改前 RED：本出口根本没有门 ⇒ 帧序列里没有 NOTE ⇒ 红在断言本身。
+        """
+        run = run_stream_exit(
+            monkeypatch,
+            on=True,
+            question=FACT_W01_2019[0],
+            parts=STREAM_PARTS_HIT,
+            law_as_of=AS_OF_2026,
+        )
+>       assert run.noted, f"开关开 + 跨分水岭却没加版本注记 ⇒ E8 没接到门：{run.body[:240]}"
+E       AssertionError: 开关开 + 跨分水岭却没加版本注记 ⇒ E8 没接到门：data: {"type": "status", "msg": "正在思考…"}data: {"content": "依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自"}data: {"content": "2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。"}data: {"conversation_id": 1, "sources": [{"source": "劳动合同法",
+E       assert False
+E        +  where False = <tests.test_stream_exit_law_version_gate.Run object at 0x00000227E8012950>.noted
+
+tests\test_stream_exit_law_version_gate.py:188: AssertionError
+---------------------------- Captured stderr call -----------------------------
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+{"ts": "2026-09-20T14:44:31", "level": "INFO", "logger": "legal.access", "req": "3edf199eae43", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 274.4}
+{"ts": "2026-09-20T14:44:31", "level": "INFO", "logger": "legal.access", "req": "68326e0031ec", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 233.1}
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  decoded = self.decode_complete(
+{"ts": "2026-09-20T14:44:31", "level": "INFO", "logger": "legal.chat", "req": "8cd5700645f2", "msg": "chat", "ms": 411.2, "first_ms": 303.8, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 65, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:31", "level": "INFO", "logger": "legal.access", "req": "8cd5700645f2", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 546.6}
+------------------------------ Captured log call ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event CollectionQueryEvent: capture() takes 1 positional argument but 3 were given
+__________________ test_fallback_answer_also_passes_the_gate __________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000227E8022E10>
+
+    def test_fallback_answer_also_passes_the_gate(monkeypatch):
+        """来源 2/2（`_invoke_llm` 兜底，登记表 E9）：流式返回空时门**不能消失**。
+
+        票 C §2c：兜底产物与流式 join 是两个不同来源，只接流式 = 空答兜底时门整体失效。
+        改前 RED：E9 那条分支上没有门（且旧夹具下 `_invoke_llm` 根本抛错、到不了这里）。
+        """
+        run = run_stream_exit(
+            monkeypatch,
+            on=True,
+            question=FACT_W01_2019[0],
+            parts=(),  # 流式空答 ⇒ 走 _invoke_llm
+            fallback_text=CLAIM_S01_WRONG_CURRENT_LAW,
+            law_as_of=AS_OF_2026,
+        )
+>       assert run.noted, f"兜底整答没过门 ⇒ 流式一空答门就消失：{run.body[:240]}"
+E       AssertionError: 兜底整答没过门 ⇒ 流式一空答门就消失：data: {"type": "status", "msg": "正在思考…"}data: {"content": "依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。"}data: {"conversation_id": 1, "sources": [{"source": "劳动合同法", "article": "第十九条", "
+E       assert False
+E        +  where False = <tests.test_stream_exit_law_version_gate.Run object at 0x00000227E838EC90>.noted
+
+tests\test_stream_exit_law_version_gate.py:208: AssertionError
+---------------------------- Captured stderr call -----------------------------
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+{"ts": "2026-09-20T14:44:32", "level": "INFO", "logger": "legal.access", "req": "58e8898df0cc", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 258.4}
+{"ts": "2026-09-20T14:44:32", "level": "INFO", "logger": "legal.access", "req": "b1881ff6560f", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 264.0}
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  decoded = self.decode_complete(
+{"ts": "2026-09-20T14:44:33", "level": "INFO", "logger": "legal.chat", "req": "13371da5145b", "msg": "chat", "ms": 1276.6, "first_ms": 1177.1, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 65, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:33", "level": "INFO", "logger": "legal.access", "req": "13371da5145b", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 1377.4}
+____________________ test_hit_answer_does_not_enter_cache _____________________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000227E83EFF50>
+
+    def test_hit_answer_does_not_enter_cache(monkeypatch):
+        """命中答复不进缓存：分支0（缓存直返）早于本门，一旦落缓存就被后续同题零 token 固化。"""
+        run = run_stream_exit(
+            monkeypatch,
+            on=True,
+            question=FACT_W01_2019[0],
+            parts=STREAM_PARTS_HIT,
+            law_as_of=AS_OF_2026,
+        )
+>       assert run.noted
+E       assert False
+E        +  where False = <tests.test_stream_exit_law_version_gate.Run object at 0x00000227E83D0F90>.noted
+
+tests\test_stream_exit_law_version_gate.py:228: AssertionError
+---------------------------- Captured stderr call -----------------------------
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+{"ts": "2026-09-20T14:44:34", "level": "INFO", "logger": "legal.access", "req": "125d5403ef84", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 251.9}
+{"ts": "2026-09-20T14:44:34", "level": "INFO", "logger": "legal.access", "req": "133b441b73cd", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 238.4}
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  decoded = self.decode_complete(
+{"ts": "2026-09-20T14:44:34", "level": "INFO", "logger": "legal.chat", "req": "bc81ce78c945", "msg": "chat", "ms": 188.5, "first_ms": 98.6, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 65, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:34", "level": "INFO", "logger": "legal.access", "req": "bc81ce78c945", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 289.0}
+____________ test_independent_expectation_table_on_streaming_exit _____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000227E8371390>
+
+    def test_independent_expectation_table_on_streaming_exit(monkeypatch):
+        """独立手算表的九条（S01/S02/S03/S04/S06/S07/S09/S12/S15）逐条经 E8 复算。
+
+        与 S5 那份的差别只有一个：同一样本、同一期望，走的出口从"缓冲轻量"换成"旗舰流式"。
+        每条额外断三件"真的走到了门"的事，缺一条这条用例就会**假过**（中途从 E1/E2/E3 出口
+        return 掉同样表现为"没有注记"，S5 那份不需要防这个，换了出口就得防）：
+          · 门被调用恰好一次；
+          · 被判定文本 == 该行答案（不是别的东西）；
+          · 用户实际收到的正文 == 该行答案 (+ 命中时的注记)。
+        """
+        bad: list[str] = []
+        for sid, claim, facts, as_of, expect_hit in EXPECTATIONS:
+            run = run_stream_exit(monkeypatch, on=True, question=facts[0], parts=(claim[:40], claim[40:]), law_as_of=as_of)
+            delivered = "".join(run.content_frames)  # 正文帧按序拼接（流式是分片的，不能拿整行 body 去 in 判断）
+            want = claim + (main.NOTE_LAW_VERSION if expect_hit else "")
+            if len(run.gate_calls) != 1:
+                bad.append(f"{sid}: 门被调用 {len(run.gate_calls)} 次（期望 1 次）⇒ 本条根本没走到 E8")
+            elif run.judged[0] != claim:
+                bad.append(f"{sid}: 被判定文本不是本行答案（{run.judged[0][:30]}…）")
+            elif run.gate_calls[0]["hit"] is not expect_hit:
+                bad.append(f"{sid}: 期望命中={expect_hit} 实得={run.gate_calls[0]['hit']}")
+            elif delivered != want:
+                bad.append(f"{sid}: 交付文本不符（命中注记没落地或被别的注记混进来）实得 {delivered[-60:]!r}")
+>       assert not bad, "；".join(bad)
+E       AssertionError: S01: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8；S02: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8；S03: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8；S04: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8；S06: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8；S07: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8；S09: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8；S12: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8；S15: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8
+E       assert not ['S01: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8', 'S02: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8', 'S03: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8', 'S04: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8', 'S06: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8', 'S07: 门被调用 0 次（期望 1 次）⇒ 本条根本没走到 E8', ...]
+
+tests\test_stream_exit_law_version_gate.py:288: AssertionError
+---------------------------- Captured stderr call -----------------------------
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+{"ts": "2026-09-20T14:44:37", "level": "INFO", "logger": "legal.access", "req": "c951f51fcc9e", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 295.2}
+{"ts": "2026-09-20T14:44:38", "level": "INFO", "logger": "legal.access", "req": "178a7c8d79c0", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 249.3}
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  decoded = self.decode_complete(
+{"ts": "2026-09-20T14:44:38", "level": "INFO", "logger": "legal.chat", "req": "6163aa4ba785", "msg": "chat", "ms": 223.6, "first_ms": 120.3, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 65, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:38", "level": "INFO", "logger": "legal.access", "req": "6163aa4ba785", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 351.4}
+{"ts": "2026-09-20T14:44:38", "level": "INFO", "logger": "legal.access", "req": "8f6672d8a116", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 248.3}
+{"ts": "2026-09-20T14:44:38", "level": "INFO", "logger": "legal.access", "req": "599bda9f0f29", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 251.4}
+{"ts": "2026-09-20T14:44:39", "level": "INFO", "logger": "legal.chat", "req": "372aeb53aa2c", "msg": "chat", "ms": 242.0, "first_ms": 132.9, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 70, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:39", "level": "INFO", "logger": "legal.access", "req": "372aeb53aa2c", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 373.1}
+{"ts": "2026-09-20T14:44:39", "level": "INFO", "logger": "legal.access", "req": "1cbe050862a2", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 268.9}
+{"ts": "2026-09-20T14:44:39", "level": "INFO", "logger": "legal.access", "req": "683b3d961c1a", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 253.2}
+{"ts": "2026-09-20T14:44:40", "level": "INFO", "logger": "legal.chat", "req": "d527ac5f33b2", "msg": "chat", "ms": 272.3, "first_ms": 171.0, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 44, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:40", "level": "INFO", "logger": "legal.access", "req": "d527ac5f33b2", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 390.8}
+{"ts": "2026-09-20T14:44:40", "level": "INFO", "logger": "legal.access", "req": "42a9cf4dfc03", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 246.9}
+{"ts": "2026-09-20T14:44:40", "level": "INFO", "logger": "legal.access", "req": "9e67a071ee0c", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 238.7}
+{"ts": "2026-09-20T14:44:41", "level": "INFO", "logger": "legal.chat", "req": "3b3cdbdd6e51", "msg": "chat", "ms": 229.4, "first_ms": 125.1, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 48, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:41", "level": "INFO", "logger": "legal.access", "req": "3b3cdbdd6e51", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 330.7}
+{"ts": "2026-09-20T14:44:41", "level": "INFO", "logger": "legal.access", "req": "6d50b0aa4e77", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 247.2}
+{"ts": "2026-09-20T14:44:41", "level": "INFO", "logger": "legal.access", "req": "7979bb2d087f", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 250.9}
+{"ts": "2026-09-20T14:44:41", "level": "INFO", "logger": "legal.chat", "req": "2ef398aa4f38", "msg": "chat", "ms": 164.7, "first_ms": 94.3, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 33, "token_est": 39, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:41", "level": "INFO", "logger": "legal.access", "req": "2ef398aa4f38", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 266.5}
+{"ts": "2026-09-20T14:44:42", "level": "INFO", "logger": "legal.access", "req": "c8098a56bcfe", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 254.1}
+{"ts": "2026-09-20T14:44:42", "level": "INFO", "logger": "legal.access", "req": "caf5f67466a1", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 246.5}
+{"ts": "2026-09-20T14:44:42", "level": "INFO", "logger": "legal.chat", "req": "474bc7c74172", "msg": "chat", "ms": 157.4, "first_ms": 86.9, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 33, "token_est": 34, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:42", "level": "INFO", "logger": "legal.access", "req": "474bc7c74172", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 240.9}
+{"ts": "2026-09-20T14:44:42", "level": "INFO", "logger": "legal.access", "req": "b5f0953d3073", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 238.9}
+{"ts": "2026-09-20T14:44:43", "level": "INFO", "logger": "legal.access", "req": "ae3403b8cc4f", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 229.9}
+{"ts": "2026-09-20T14:44:43", "level": "INFO", "logger": "legal.chat", "req": "1413d3744bd6", "msg": "chat", "ms": 157.5, "first_ms": 83.7, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 28, "token_est": 24, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:43", "level": "INFO", "logger": "legal.access", "req": "1413d3744bd6", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 236.4}
+{"ts": "2026-09-20T14:44:43", "level": "INFO", "logger": "legal.access", "req": "b3a7385114e4", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 231.5}
+{"ts": "2026-09-20T14:44:43", "level": "INFO", "logger": "legal.access", "req": "2b5cbd8481fa", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 240.8}
+{"ts": "2026-09-20T14:44:44", "level": "INFO", "logger": "legal.chat", "req": "5b0a7ab6d19c", "msg": "chat", "ms": 186.6, "first_ms": 112.5, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 42, "token_est": 54, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:44", "level": "INFO", "logger": "legal.access", "req": "5b0a7ab6d19c", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 274.1}
+{"ts": "2026-09-20T14:44:44", "level": "INFO", "logger": "legal.access", "req": "359836533729", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 232.5}
+{"ts": "2026-09-20T14:44:44", "level": "INFO", "logger": "legal.access", "req": "7d34d0ce1d3a", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 227.2}
+{"ts": "2026-09-20T14:44:44", "level": "INFO", "logger": "legal.chat", "req": "60487f1023af", "msg": "chat", "ms": 194.5, "first_ms": 110.7, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 49, "token_est": 30, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:44", "level": "INFO", "logger": "legal.access", "req": "60487f1023af", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 282.1}
+______________ test_law_text_dates_are_not_facts_on_stream_exit _______________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000227E84A1890>
+
+    def test_law_text_dates_are_not_facts_on_stream_exit(monkeypatch):
+        """检索到的**法条文本**里带分水岭前的年份，不得被当成本案事实点亮判定。
+
+        鉴别方式（与 S5 那条同形状，但这里在端点级）：事实无任何可解析日期 + 答案写成
+        "按现行法给三年结论"的 S01 形状 ⇒ 正确取法不命中；把 `pre['context']` 当事实喂进去就命中。
+        库内条文换成《民法通则》（含 1986/2021 两个日期），让错取法必然点亮。
+        """
+        from langchain_core.documents import Document
+
+        def old_law_retrieval(q: str, k: int = 4) -> list[Document]:  # noqa: ARG001
+            return [
+                Document(
+                    page_content=(
+                        "第一百三十五条 向人民法院请求保护民事权利的诉讼时效期间为二年。"
+                        "（《民法通则》1986年4月12日通过，2021年1月1日废止）"
+                    ),
+                    metadata={"source": "民法通则", "article": "第一百三十五条"},
+                )
+            ]
+
+        monkeypatch.setattr(main, "retrieve", old_law_retrieval)
+        run = run_stream_exit(
+            monkeypatch,
+            on=True,
+            question=FACT_NO_DATE[0],  # 事实里没有任何可解析日期
+            parts=(CLAIM_S01_WRONG_CURRENT_LAW[:40], CLAIM_S01_WRONG_CURRENT_LAW[40:]),
+            law_as_of=AS_OF_2026,
+        )
+>       assert run.gate_calls, "门没被调用 ⇒ 本条没测到东西"
+E       AssertionError: 门没被调用 ⇒ 本条没测到东西
+E       assert []
+E        +  where [] = <tests.test_stream_exit_law_version_gate.Run object at 0x00000227E85471D0>.gate_calls
+
+tests\test_stream_exit_law_version_gate.py:322: AssertionError
+---------------------------- Captured stderr call -----------------------------
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+{"ts": "2026-09-20T14:44:45", "level": "INFO", "logger": "legal.access", "req": "d7bb8fc1f6e0", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 244.5}
+{"ts": "2026-09-20T14:44:45", "level": "INFO", "logger": "legal.access", "req": "b0d3c4c551ec", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 254.3}
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  decoded = self.decode_complete(
+{"ts": "2026-09-20T14:44:45", "level": "INFO", "logger": "legal.chat", "req": "43ade1aa8064", "msg": "chat", "ms": 226.1, "first_ms": 108.5, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 28, "token_est": 65, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:45", "level": "INFO", "logger": "legal.access", "req": "43ade1aa8064", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 320.1}
+_________ test_default_client_shape_never_reports_tripwire_not_wired __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000228025235D0>
+
+    def test_default_client_shape_never_reports_tripwire_not_wired(monkeypatch):
+        """生产客户端不传 `law_as_of` ⇒ 服务端落 `date.today()`（`_fast_path_law_as_of`），
+        分水岭后事实 + 分水岭后法 ⇒ **不命中**、不停写缓存。
+
+        改前 RED 面：这条在旧代码上是绿的（那时根本没有门 ⇒ 也没 NOT_WIRED）；它钉的是
+        "接线没漏"这件事，与 §5-4 那条一票两面：漏传就变成**每条答复都命中**。
+        与 `test_hit_reason_is_version_rule_not_missing_baseline_date` 配对才完整：
+        只断"不命中"会把"门是哑的"也一起放过。
+        """
+        run = run_stream_exit(
+            monkeypatch,
+            on=True,
+            question=FACT_W02_2023[0],  # 分水岭**后**事实
+            parts=STREAM_PARTS_MISS,
+            law_as_of=None,  # 客户端不传 —— 现网形状
+        )
+        assert run.reasons == [], f"正常路径出现了命中日志（说明基准日仍可能是 None）：{run.reasons!r}"
+        assert "LAW_TRIPWIRE_NOT_WIRED" not in run.body
+        assert not run.noted, "客户端不传基准日 ⇒ 每条答复都被加注记 ⇒ R15-lite 第①半在这条出口仍缺"
+        assert len(run.puts) == 1, "不该命中却仍停写缓存 ⇒ 门在生产形态下是恒命中"
+>       assert run.gate_calls and run.gate_calls[0]["law_as_of"] == date.today()
+E       assert ([])
+E        +  where [] = <tests.test_stream_exit_law_version_gate.Run object at 0x00000227E83ECE10>.gate_calls
+
+tests\test_stream_exit_law_version_gate.py:352: AssertionError
+---------------------------- Captured stderr call -----------------------------
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+{"ts": "2026-09-20T14:44:46", "level": "INFO", "logger": "legal.access", "req": "a53d76e55b15", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 252.8}
+{"ts": "2026-09-20T14:44:46", "level": "INFO", "logger": "legal.access", "req": "1313755bbce7", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 232.4}
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  decoded = self.decode_complete(
+{"ts": "2026-09-20T14:44:46", "level": "INFO", "logger": "legal.chat", "req": "a896daa5b6fb", "msg": "chat", "ms": 219.9, "first_ms": 106.0, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 44, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:46", "level": "INFO", "logger": "legal.access", "req": "a896daa5b6fb", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 328.2}
+__________ test_hit_reason_is_version_rule_not_missing_baseline_date __________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000002280250D410>
+
+    def test_hit_reason_is_version_rule_not_missing_baseline_date(monkeypatch):
+        """命中必须**是按版本判定**命中（reason=LAW_VERSION_WATERSHED_MISMATCH），
+        且日志要说是哪条出口命中的（票 C 之后这道门有两个消费者，写死出口名 = 假归因）。"""
+        run = run_stream_exit(
+            monkeypatch,
+            on=True,
+            question=FACT_W01_2019[0],
+            parts=STREAM_PARTS_HIT,
+            law_as_of=None,  # 不传 ⇒ 由服务端落当日；今天与 2019 分处两侧 ⇒ 该命中
+        )
+>       assert run.reasons == ["LAW_VERSION_WATERSHED_MISMATCH"], f"命中原因不是版本判定：{run.reasons!r}"
+E       AssertionError: 命中原因不是版本判定：[]
+E       assert [] == ['LAW_VERSION...HED_MISMATCH']
+E
+E         Right contains one more item: 'LAW_VERSION_WATERSHED_MISMATCH'
+E         Use -v to get more diff
+
+tests\test_stream_exit_law_version_gate.py:365: AssertionError
+---------------------------- Captured stderr call -----------------------------
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+{"ts": "2026-09-20T14:44:47", "level": "INFO", "logger": "legal.access", "req": "af9397aacc27", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 241.5}
+{"ts": "2026-09-20T14:44:47", "level": "INFO", "logger": "legal.access", "req": "da1df22d92e1", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 231.3}
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  decoded = self.decode_complete(
+{"ts": "2026-09-20T14:44:47", "level": "INFO", "logger": "legal.chat", "req": "19edbbd143d6", "msg": "chat", "ms": 178.5, "first_ms": 100.4, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 65, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:47", "level": "INFO", "logger": "legal.access", "req": "19edbbd143d6", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 280.2}
+____________ test_gate_uses_the_single_truth_source_and_not_a_copy ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000228010BE2D0>
+
+    def test_gate_uses_the_single_truth_source_and_not_a_copy(monkeypatch):
+        """§5-1：判定必须委托 `limitation_calc`，main.py 里不许有第二份规则。恒真/恒假替身各一次。"""
+        monkeypatch.setattr(main.limitation_calc, "law_version_crosses_watershed", lambda *a, **k: True)
+        hit = run_stream_exit(
+            monkeypatch, on=True, question=FACT_W02_2023[0], parts=STREAM_PARTS_MISS, law_as_of=AS_OF_2026
+        )
+>       assert hit.noted, "恒 True 替身下仍不命中 ⇒ 流式出口自己藏了一份判定"
+E       AssertionError: 恒 True 替身下仍不命中 ⇒ 流式出口自己藏了一份判定
+E       assert False
+E        +  where False = <tests.test_stream_exit_law_version_gate.Run object at 0x000002280102E7D0>.noted
+
+tests\test_stream_exit_law_version_gate.py:376: AssertionError
+---------------------------- Captured stderr call -----------------------------
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+{"ts": "2026-09-20T14:44:47", "level": "INFO", "logger": "legal.access", "req": "befd5d154d7a", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 246.3}
+{"ts": "2026-09-20T14:44:48", "level": "INFO", "logger": "legal.access", "req": "7243b5f87097", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 234.9}
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  decoded = self.decode_complete(
+{"ts": "2026-09-20T14:44:48", "level": "INFO", "logger": "legal.chat", "req": "8ff018dda714", "msg": "chat", "ms": 218.7, "first_ms": 124.3, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 44, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:48", "level": "INFO", "logger": "legal.access", "req": "8ff018dda714", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 318.0}
+___________ test_empty_stream_but_nonempty_fallback_is_judged_once ____________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x00000228025AA410>
+
+    def test_empty_stream_but_nonempty_fallback_is_judged_once(monkeypatch):
+        """流式空、兜底有整答 ⇒ 门判的是**兜底那份**，且只判一次（不是对流式空串判一次再对兜底判一次）。"""
+        run = run_stream_exit(
+            monkeypatch,
+            on=True,
+            question=FACT_W01_2019[0],
+            parts=(),
+            fallback_text=CLAIM_S01_WRONG_CURRENT_LAW,
+            law_as_of=AS_OF_2026,
+        )
+>       assert len(run.gate_calls) == 1, f"门调用次数不符：{run.judged!r}"
+E       AssertionError: 门调用次数不符：[]
+E       assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = <tests.test_stream_exit_law_version_gate.Run object at 0x00000228025377D0>.gate_calls
+
+tests\test_stream_exit_law_version_gate.py:418: AssertionError
+---------------------------- Captured stderr call -----------------------------
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+{"ts": "2026-09-20T14:44:50", "level": "INFO", "logger": "legal.access", "req": "f06e93895f1f", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 230.5}
+{"ts": "2026-09-20T14:44:50", "level": "INFO", "logger": "legal.access", "req": "a1cfcfef55fc", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 226.8}
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  decoded = self.decode_complete(
+{"ts": "2026-09-20T14:44:51", "level": "INFO", "logger": "legal.chat", "req": "71dfdb6367f4", "msg": "chat", "ms": 1219.4, "first_ms": 1138.1, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 65, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:51", "level": "INFO", "logger": "legal.access", "req": "71dfdb6367f4", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 1323.1}
+___________ test_gate_judges_final_answer_once_across_model_restart ___________
+
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x0000022801012A90>
+
+    def test_gate_judges_final_answer_once_across_model_restart(monkeypatch):
+        """`_restart_pending` 那条重答环里，门判的是**最终 chunks 拼出来的那一份**、只判一次。
+
+        票 §8 要求用执行回答。做法：第一条链先吐半截再抛错（触发 `on_model_failure` ⇒
+        `chunks` 清空 + 前端收 `restart` 帧），第二条链吐完整答案。若门是"每次重答后各判一次"，
+        这里会看到 ≥2 次调用、且其中一次的被判定文本含被丢弃的半截。
+        """
+
+        class _RestartOnceChain:
+            def __init__(self, parts: tuple[str, ...]) -> None:
+                self._parts = parts
+                self.n = 0
+
+            async def astream(self, messages):  # noqa: ARG002
+                self.n += 1
+                if self.n == 1:
+                    yield CLAIM_S03_IN_PERIOD[:20]  # 半截：会被 chunks 清空丢弃
+                    raise RuntimeError("模拟模型侧失败：触发零重答")  # 非瞬时 ⇒ 走 mark_depleted 分支
+                for p in self._parts:
+                    yield p
+
+        shared = _RestartOnceChain(STREAM_PARTS_HIT)
+        run = run_stream_exit(
+            monkeypatch,
+            on=True,
+            question=FACT_W01_2019[0],
+            law_as_of=AS_OF_2026,
+            chain=shared,
+        )
+        assert shared.n >= 2, f"链只被调用 {shared.n} 次 ⇒ 根本没触发重答，本条是空枪"
+        assert any(isinstance(f, dict) and f.get("type") == "restart" for f in run.frames), "没出现 restart 帧"
+>       assert len(run.gate_calls) == 1, f"重答环里门被判了 {len(run.gate_calls)} 次：{run.judged}"
+E       AssertionError: 重答环里门被判了 0 次：[]
+E       assert 0 == 1
+E        +  where 0 = len([])
+E        +    where [] = <tests.test_stream_exit_law_version_gate.Run object at 0x00000227E864F4D0>.gate_calls
+
+tests\test_stream_exit_law_version_gate.py:456: AssertionError
+---------------------------- Captured stderr call -----------------------------
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  return self._jws.encode(
+{"ts": "2026-09-20T14:44:52", "level": "INFO", "logger": "legal.access", "req": "d12234110e49", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 231.4}
+{"ts": "2026-09-20T14:44:52", "level": "INFO", "logger": "legal.access", "req": "749361bf8c16", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 226.4}
+C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+  decoded = self.decode_complete(
+{"ts": "2026-09-20T14:44:52", "level": "INFO", "logger": "legal.chat", "req": "9e96d8dbfd26", "msg": "chat", "ms": 197.7, "first_ms": 122.0, "model": "LongCat-2.0", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 53, "token_est": 65, "tier": "light", "cache": "miss"}
+{"ts": "2026-09-20T14:44:52", "level": "INFO", "logger": "legal.access", "req": "9e96d8dbfd26", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 301.4}
+=========================== short test summary info ===========================
+FAILED tests/test_stream_exit_law_version_gate.py::test_streaming_join_hits_gate_and_appends_note_frame
+FAILED tests/test_stream_exit_law_version_gate.py::test_fallback_answer_also_passes_the_gate
+FAILED tests/test_stream_exit_law_version_gate.py::test_hit_answer_does_not_enter_cache
+FAILED tests/test_stream_exit_law_version_gate.py::test_independent_expectation_table_on_streaming_exit
+FAILED tests/test_stream_exit_law_version_gate.py::test_law_text_dates_are_not_facts_on_stream_exit
+FAILED tests/test_stream_exit_law_version_gate.py::test_default_client_shape_never_reports_tripwire_not_wired
+FAILED tests/test_stream_exit_law_version_gate.py::test_hit_reason_is_version_rule_not_missing_baseline_date
+FAILED tests/test_stream_exit_law_version_gate.py::test_gate_uses_the_single_truth_source_and_not_a_copy
+FAILED tests/test_stream_exit_law_version_gate.py::test_empty_stream_but_nonempty_fallback_is_judged_once
+FAILED tests/test_stream_exit_law_version_gate.py::test_gate_judges_final_answer_once_across_model_restart
+10 failed, 3 passed, 1 skipped in 57.24s
+
+
+== stderr tail ==

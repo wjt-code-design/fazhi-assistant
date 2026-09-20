@@ -88,11 +88,20 @@ class Settings(BaseSettings):
     law_version_tripwire_check: bool = False
     # S5（2026-09-19）：把上面那道绊线**扩展到快车道**。`agent_enabled=False` 时线上流量走快车道，
     # 而版本判定只挂在 agent 路径（verifier）上 ⇒ 快车道当时**没有任何版本判定**（R15 收口量出的缺口）。
-    # 本开关只覆盖缓冲轻量出口 `main._light_buffered_locked`；两条 `stream_with_retry` 流式出口
-    # 因"答案分片在外"需先定收口策略，**尚未受保护**（另开票，见 docs/handoff-s5-fastpath-version-gate-20260919.md §3）。
+    # 票 C/S6（2026-09-20）订正范围：**本开关覆盖快车道的两条「生成型」答复出口**——
+    #   ① 缓冲轻量出口 `main._light_buffered_locked`（S5；⚠️ 当前部署配置下**零流量**，
+    #      因为 `llm_registry` 没配 `('text','light')` 角色 ⇒ `use_light` 恒假）；
+    #   ② 旗舰流式出口 `main.stream()` 分支2 的**两个**答案来源（流式 join 与 `_invoke_llm` 兜底，
+    #      票 C；这条才是默认配置下真正承接流量的出口）。
+    # **不覆盖**缓存复用型直返：登记表 E1（`answer_cache` 精确/近重复）与 E2（`_qa_direct_return`
+    # QA 持久语料）在收口点之前就 return ⇒ 挂在收口的门永远走不到它们；那是票 I 的量级。
+    # ⇒ 准确的句子是「快车道的生成型答复已受保护；缓存复用型答复未受保护」，
+    #   "快车道已受保护"这句在票 I 落地前**不成立**。合同流式出口（E5/E6）按票 C §4-Q1 裁定不接
+    #   （合同事实日期来自上传文本而非用户自述，`_fast_path_fact_texts` 那套取法在那分支不成立）。
     # 判定真源仍是 agent/limitation_calc.law_version_crosses_watershed（单一真源，快车道只消费）；
-    # 开关开而未拿到 law_as_of = 接线丢失，同 agent 路径 verifier.py 口径 fail-closed（不当作不拦）。
-    # 默认关 = 快车道行为逐字不变；开启属评测批预登记事项。
+    # 开关开而未拿到 law_as_of = 接线丢失，同 agent 路径 verifier.py 口径 fail-closed（不当作不拦）——
+    # 正常请求路径不会走到这一支：两个出口都传 `main._fast_path_law_as_of(body)`（缺省落当日）。
+    # 默认关 = 快车道行为逐字不变；开启属评测批预登记事项。范围沿革见 docs/handoff-s6-stream-exit-version-gate-20260920.md §5-8。
     fast_path_law_version_check: bool = False
 
     # ---- 部门法守卫（R1/R1b，预注册 docs/preregistration-dept-law-filter-r1-20260913.md）----

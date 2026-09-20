@@ -1,0 +1,142 @@
+{
+ "settings_effective": {
+  "fast_path_law_version_check": false,
+  "feature_router": true,
+  "agent_enabled": false
+ },
+ "roles_configured": [
+  [
+   "text",
+   "flag"
+  ]
+ ],
+ "has_role_text_light": false,
+ "per_question": {
+  "long-legal_query": {
+   "gate_calls": 1,
+   "exits": [
+    "旗舰流式出口"
+   ],
+   "light_buffered_calls": 0,
+   "hit": false,
+   "note_frame_in_response": false,
+   "restart_frame": false,
+   "routing_metrics": {
+    "total": 1,
+    "tier_mix": {
+     "light": 1,
+     "flag": 0,
+     "cache": 0,
+     "legacy": 0
+    },
+    "upgrade_count": 0,
+    "upgrade_rate": 0.0,
+    "self_check_pass_rate": 0.0,
+    "checked_count": 1,
+    "cache_hit_rate": 0.0,
+    "verdict_top": {
+     "cite_bad:1": 1
+    },
+    "agent_gate": {
+     "total_predictions": 0,
+     "mode_counts": {},
+     "reason_code_counts": {},
+     "technical_failure_count": 0
+    },
+    "agent_route": {
+     "total_routes": 1,
+     "route_counts": {
+      "fast_path": 1
+     },
+     "fallback_count": 0,
+     "fallback_reason_code_counts": {}
+    }
+   },
+   "response_tail": "\"}data: {\"content\": \"根据《劳动合同法》第十九条，\"}data: {\"content\": \"试用期最长六个月。\"}data: {\"content\": \"\\n\\n> 注：该问题较复杂，本回答仅供参考。\"}data: {\"conversation_id\": 1, \"sources\": [{\"source\": \"劳动合同法\", \"article\": \"第十九条\", \"effective_from\": \"\", \"effective_to\": \"\", \"status\": \"\"}]}data: [DONE]"
+  },
+  "short-legal_query": {
+   "gate_calls": 1,
+   "exits": [
+    "旗舰流式出口"
+   ],
+   "light_buffered_calls": 0,
+   "hit": false,
+   "note_frame_in_response": false,
+   "restart_frame": false,
+   "routing_metrics": {
+    "total": 1,
+    "tier_mix": {
+     "light": 1,
+     "flag": 0,
+     "cache": 0,
+     "legacy": 0
+    },
+    "upgrade_count": 0,
+    "upgrade_rate": 0.0,
+    "self_check_pass_rate": 0.0,
+    "checked_count": 1,
+    "cache_hit_rate": 0.0,
+    "verdict_top": {
+     "cite_bad:1": 1
+    },
+    "agent_gate": {
+     "total_predictions": 0,
+     "mode_counts": {},
+     "reason_code_counts": {},
+     "technical_failure_count": 0
+    },
+    "agent_route": {
+     "total_routes": 1,
+     "route_counts": {
+      "fast_path": 1
+     },
+     "fallback_count": 0,
+     "fallback_reason_code_counts": {}
+    }
+   },
+   "response_tail": "\"}data: {\"content\": \"根据《劳动合同法》第十九条，\"}data: {\"content\": \"试用期最长六个月。\"}data: {\"content\": \"\\n\\n> 注：该问题较复杂，本回答仅供参考。\"}data: {\"conversation_id\": 2, \"sources\": [{\"source\": \"劳动合同法\", \"article\": \"第十九条\", \"effective_from\": \"\", \"effective_to\": \"\", \"status\": \"\"}]}data: [DONE]"
+  },
+  "study_aid": {
+   "gate_calls": 0,
+   "exits": [],
+   "light_buffered_calls": 0,
+   "hit": false,
+   "note_frame_in_response": false,
+   "restart_frame": false,
+   "routing_metrics": {
+    "total": 1,
+    "tier_mix": {
+     "light": 0,
+     "flag": 0,
+     "cache": 0,
+     "legacy": 0
+    },
+    "upgrade_count": 0,
+    "upgrade_rate": 0.0,
+    "self_check_pass_rate": 0.0,
+    "checked_count": 0,
+    "cache_hit_rate": 0.0,
+    "verdict_top": {
+     "pass": 1
+    },
+    "agent_gate": {
+     "total_predictions": 0,
+     "mode_counts": {},
+     "reason_code_counts": {},
+     "technical_failure_count": 0
+    },
+    "agent_route": {
+     "total_routes": 1,
+     "route_counts": {
+      "fast_path": 1
+     },
+     "fallback_count": 0,
+     "fallback_reason_code_counts": {}
+    }
+   },
+   "response_tail": "data: {\"type\": \"status\", \"msg\": \"正在思考…\"}data: {\"content\": \"您的问题所涉法律条文暂未收录在当前知识库中，我暂时无法给出准确的条文依据。若您能补充：① 具体涉及的法律领域（如合同、劳动、侵权）；② 基本事实经过，我可以基于知识库中相关领域的条文尽力分析；您也可直接指明某部法律，我帮您核对是否收录。\"}data: {\"conversation_id\": 3, \"sources\": []}data: [DONE]"
+  }
+ },
+ "TOTAL_gate_calls": 2,
+ "VERDICT": "REACHABLE"
+}

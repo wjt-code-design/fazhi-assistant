@@ -26,7 +26,27 @@ CONTRACT_PUT = (
 )
 LOW_QUOTA = 'v.reason or "low_quota"'
 LIGHT_GUARD = 'if cache_key and res.verdict == "pass" and not res.law_version_hit:'
-STREAM_GUARD = "if cache_key and not flag_degraded and _cache_write_ok(pre, answer) and not multi_bad:"
+
+
+def stream_guard_block(text: str) -> str:
+    """定位**流式那条写缓存闸**并返回整块文本 —— 认形状，不认字面行。
+
+    票 C 之前它是单行 `if cache_key and … and not multi_bad:`；加上第五条件后被 `ruff-format`
+    拆成多行 `if ( … ):` 块 ⇒ 任何"整行字面匹配"都变成**恒假**（更糟的是它还会绿着骗过评审，
+    如果断言写成"字面常量里有 3 个 and"那种自我比对的话）。本轮就把那种写法换掉了。
+    唯一稳定形状：全文件里**恰好一块**包含 `_cache_write_ok(pre, answer)` 的 `if (` 块。
+    """
+    lines = text.splitlines()
+    hits = [i for i, ln in enumerate(lines) if "_cache_write_ok(pre, answer)" in ln]
+    if len(hits) != 1:
+        raise SystemExit(
+            f"_cache_write_ok(pre, answer) 命中 {len(hits)} 行，无法唯一定位写缓存闸"
+        )
+    i = hits[0]
+    start = max(j for j in range(i, -1, -1) if lines[j].strip() == "if (")
+    end = min(j for j in range(i, len(lines)) if lines[j].strip().startswith("):"))
+    return "\n".join(lines[start : end + 1]).strip()
+
 
 rows: list[tuple[str, bool, str]] = []
 
@@ -50,9 +70,9 @@ check(
     f"实测行号={n}",
 )
 check(
-    "settings 注释仍写「只覆盖缓冲轻量出口」",
-    "只覆盖" in SETTINGS and "_light_buffered_locked" in SETTINGS,
-    f"命中「只覆盖」={('只覆盖' in SETTINGS)}",
+    "settings 范围注释已按票 C §5-8 改写（旧的「只覆盖缓冲轻量出口」必须消失）",
+    "只覆盖" not in SETTINGS and "生成型" in SETTINGS and "缓存复用型" in SETTINGS,
+    f"仍含「只覆盖」={'只覆盖' in SETTINGS} 含「生成型」={'生成型' in SETTINGS} 含「缓存复用型」={'缓存复用型' in SETTINGS}",
 )
 
 # --- 2. answer_cache: 进程内 LRU(512) + TTL 6h + 只有 clear() 一个删除口 ---
@@ -104,14 +124,17 @@ check(
     f"put={line_of(MAIN, CONTRACT_PUT)} +=note={line_of(MAIN, 'answer += note')}",
 )
 check(
-    "两条写缓存闸各形状唯一（这才是能当锚点的条件）",
-    count_of(LIGHT_GUARD) == 1 and count_of(STREAM_GUARD) == 1,
-    f"轻量={line_of(MAIN, LIGHT_GUARD)} 流式={line_of(MAIN, STREAM_GUARD)}",
+    "两条写缓存闸各自可唯一定位（轻量=单行字面，流式=多行 if ( 块）",
+    count_of(LIGHT_GUARD) == 1 and stream_guard_block(MAIN).startswith("if ("),
+    f"轻量={line_of(MAIN, LIGHT_GUARD)} 流式首行={line_of(MAIN, '_cache_write_ok(pre, answer)')}",
 )
+# ⚠️ 这条以前是**自我比对**（拿字面常量 STREAM_GUARD 数 `and`），文件里那条闸没了它照样绿 ——
+# 正是本 ADR 要防的"能骗过评审的空枪"。现在条件数从**文件里那块**数出来。
+_SG = stream_guard_block(MAIN)
 check(
-    "流式那条确实是 4 条件（3 个 and）",
-    STREAM_GUARD.count(" and ") == 3 and count_of(STREAM_GUARD) == 1,
-    f"and 数={STREAM_GUARD.count(' and ')}",
+    "流式那条闸从四条件变成**五**条件，且第五条就是 `not law_version_hit`（票 C §5-6）",
+    _SG.count(" and ") == 4 and "and not law_version_hit" in _SG,
+    f"块内 and 数={_SG.count(' and ')} 含第五条={'and not law_version_hit' in _SG}",
 )
 check(
     "except QuotaExhausted 那一支把 verdict 写成 v.reason or low_quota",
@@ -197,11 +220,20 @@ check(
     h[:16] + "…" + h[-6:],
 )
 
-# --- 8. 锚点 13 个、且注册表 13 行 ---
+# --- 8. 锚点数与注册表行数**同源**（票 C 加 E14 之后，写死 13 的那版会自己变红）---
+# 旧写法 `ANCH == 13` / `ROWS_N == 13` 把两张不同的表各抄了一份常数，正是本 ADR 立的规矩要防的
+# "同一契约两处写法"：出口一多，先红的是仪器，而它一红就会被下一个人当成"过时断言"删掉。
+# 现在钉的是**等式**（锚点数 == 登记行数）+ 一条只增不减的下界。
 ANCH = len(re.findall(r"#\s*gate-exit:", MAIN))
 ROWS_N = len(re.findall(r'"id": "E\d+"', REG))
-check("main.py 里 gate-exit 锚点 = 13", ANCH == 13, f"实测={ANCH}")
-check("注册表 EXITS 行数 = 13", ROWS_N == 13, f"实测={ROWS_N}")
+check(
+    "锚点数 == 登记表行数（两计数同源，不许各抄常数）",
+    ANCH == ROWS_N,
+    f"锚点={ANCH} 行={ROWS_N}",
+)
+check(
+    "出口数 ≥ 13（本表立起来时的量；变小=有人删了出口）", ROWS_N >= 13, f"实测={ROWS_N}"
+)
 TODAY = datetime.now().astimezone().date()
 check("今天仍是 2026-09-20（票面日期自洽）", str(TODAY) == "2026-09-20", str(TODAY))
 

@@ -1,0 +1,114 @@
+{
+ "sha256": "a44e7539e8ff130d5d8c61a5b1e281a3008bb44145e57cd5f777c801ca830c9e",
+ "n_samples": 4,
+ "samples": {
+  "stream_join": [
+   {
+    "type": "status",
+    "msg": "正在思考…"
+   },
+   "",
+   {
+    "content": "依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自"
+   },
+   "",
+   {
+    "content": "2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。"
+   },
+   "",
+   {
+    "sources": [
+     {
+      "source": "劳动合同法",
+      "article": "第十九条",
+      "effective_from": "",
+      "effective_to": "",
+      "status": ""
+     }
+    ]
+   },
+   "",
+   "data: [DONE]",
+   ""
+  ],
+  "fallback_invoke_llm": [
+   {
+    "type": "status",
+    "msg": "正在思考…"
+   },
+   "",
+   {
+    "content": "依据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年，自2019年3月5日约定还款日起算至2022年3月5日届满，你现在起诉已经超过诉讼时效，对方提出时效抗辩法院就会驳回。"
+   },
+   "",
+   {
+    "sources": [
+     {
+      "source": "劳动合同法",
+      "article": "第十九条",
+      "effective_from": "",
+      "effective_to": "",
+      "status": ""
+     }
+    ]
+   },
+   "",
+   "data: [DONE]",
+   ""
+  ],
+  "no_baseline_date_sent": [
+   {
+    "type": "status",
+    "msg": "正在思考…"
+   },
+   "",
+   {
+    "content": "依据《民法典》第一百八十八条，诉讼时效期间为三年，自2023"
+   },
+   "",
+   {
+    "content": "年8月1日起算至2026年8月1日届满，你现在起诉仍在三年诉讼时效之内。"
+   },
+   "",
+   {
+    "sources": [
+     {
+      "source": "劳动合同法",
+      "article": "第十九条",
+      "effective_from": "",
+      "effective_to": "",
+      "status": ""
+     }
+    ]
+   },
+   "",
+   "data: [DONE]",
+   ""
+  ],
+  "neutral_answer": [
+   {
+    "type": "status",
+    "msg": "正在思考…"
+   },
+   "",
+   {
+    "content": "该问题需要结合合同约定与履行情况综合判断，建议核对条文原文。"
+   },
+   "",
+   {
+    "sources": [
+     {
+      "source": "劳动合同法",
+      "article": "第十九条",
+      "effective_from": "",
+      "effective_to": "",
+      "status": ""
+     }
+    ]
+   },
+   "",
+   "data: [DONE]",
+   ""
+  ]
+ }
+}

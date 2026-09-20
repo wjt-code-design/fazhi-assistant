@@ -1,0 +1,45 @@
+{
+ "qa_rows": 279,
+ "qa_evidence_json_unparseable": 0,
+ "qa_distinct_sources": 51,
+ "kb_distinct_sources": 99,
+ "qa_sources_not_in_kb": [
+  "宪法"
+ ],
+ "qa_rows_affected_by_missing_source": 2,
+ "prefix_candidates_in_kb": {
+  "宪法": [
+   "宪法（1982年）"
+  ]
+ },
+ "hypothesis_test_fullname_lookup": [
+  {
+   "简称": "宪法",
+   "全名": "宪法（1982年）",
+   "article": "第二条",
+   "取回条数": 1,
+   "meta样例": [
+    {
+     "article": "第二条",
+     "status": "现行",
+     "effective_from": ""
+    }
+   ]
+  },
+  {
+   "简称": "宪法",
+   "全名": "宪法（1982年）",
+   "article": "第三十五条",
+   "取回条数": 1,
+   "meta样例": [
+    {
+     "article": "第三十五条",
+     "status": "现行",
+     "effective_from": ""
+    }
+   ]
+  }
+ ],
+ "canon_source_maps_宪法": "宪法",
+ "canon_source_maps_宪法全名": "宪法（1982年）"
+}

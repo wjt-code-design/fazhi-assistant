@@ -1,0 +1,15 @@
+{
+ "roles_configured": [
+  [
+   "text",
+   "flag"
+  ]
+ ],
+ "has_role_text_light": false,
+ "has_role_text_flag": true,
+ "feature_router_effective": true,
+ "agent_enabled_effective": false,
+ "fast_path_law_version_check_effective": false,
+ "law_version_tripwire_check_effective": false,
+ "import_main_rc": 0
+}
