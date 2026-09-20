@@ -1,0 +1,92 @@
+FF.FFF                                                                   [100%]
+================================== FAILURES ===================================
+________________ test_id5_statutory_inheritance_prepends_1155 _________________
+
+    def test_id5_statutory_inheritance_prepends_1155():
+        q = (
+            "关于法定继承，下列说法正确的是？A.第一顺序继承人为配偶、子女、父母 "
+            "B.第二顺序继承人为兄弟姐妹、祖父母、外祖父母 "
+            "C.丧偶儿媳对公婆、丧偶女婿对岳父母尽了主要赡养义务的，不作为第一顺序继承人 "
+            "D.遗产分割时，应当为胎儿保留继承份额"
+        )
+        arts = _ids(scenario_supplement_docs(q))
+>       assert "第一千一百五十五条" in arts  # 胎儿继承份额（原检索缺口）
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: assert '第一千一百五十五条' in []
+
+tests\test_scenario_supplement.py:35: AssertionError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+_________________ test_id16_labor_dispute_prepends_47_and_53 __________________
+
+    def test_id16_labor_dispute_prepends_47_and_53():
+        q = (
+            "关于劳动争议的解决，下列说法正确的是？A.劳动争议需先申请劳动仲裁，对仲裁裁决不服才可起诉 "
+            "B.劳动争议可以直接向人民法院提起诉讼 "
+            "C.追索劳动报酬的仲裁裁决为终局裁决 "
+            "D.劳动争议仲裁免费"
+        )
+        arts = _ids(scenario_supplement_docs(q))
+>       assert "第四十七条" in arts  # 终局裁决
+        ^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: assert '第四十七条' in []
+
+tests\test_scenario_supplement.py:46: AssertionError
+__________________ test_guarantee_contract_triggers_692_693 ___________________
+
+    def test_guarantee_contract_triggers_692_693():
+        """保证期间题（连带责任保证）→ 命中 guarantee_contract 组核心条文（2026-08-07 召回缺口修复）。"""
+        q = "连带责任保证未约定保证期间，保证期间怎么算？"
+        arts = _ids(scenario_supplement_docs(q))
+>       assert "第六百九十二条" in arts  # 保证期间
+        ^^^^^^^^^^^^^^^^^^^^^^^^
+E       AssertionError: assert '第六百九十二条' in []
+
+tests\test_scenario_supplement.py:61: AssertionError
+__________________ test_company_law_49_no_old_breach_clause ___________________
+
+    def test_company_law_49_no_old_breach_clause():
+        """金标版本冲突固化：库内 2023 新公司法 49(3) 无旧法 28(2)'违约责任'表述（id13 检索修不了）。"""
+        doc = exact_article_lookup("公司法", "第四十九条")
+>       assert doc, "公司法第49条应存在于知识库"
+E       AssertionError: 公司法第49条应存在于知识库
+E       assert []
+
+tests\test_scenario_supplement.py:68: AssertionError
+_____________________ test_all_supplement_articles_exist ______________________
+
+    def test_all_supplement_articles_exist():
+        """补充组每条 (source, article) 必须在知识库（对抗审计 v2 #16：数据文件在库一致性）。
+    
+        纯数据校验（JSON 结构/关键词/跨组重复）在非 slow 的 test_scenario_data.py；
+        本用例需拉 BGE（exact_article_lookup），保持 slow，CI 由 -m 'not slow' 之外的覆盖层补齐。
+        """
+        import json
+        import os
+    
+        data_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scenario_supplements.json")
+        data = json.load(open(data_path, encoding="utf-8"))
+        missing = []
+        for g in data:
+            for a in g["articles"]:
+                if not exact_article_lookup(a["source"], a["article"]):
+                    missing.append((g["scenario"], a["source"], a["article"]))
+>       assert not missing, f"补充组条文不在知识库: {missing}"
+E       AssertionError: 补充组条文不在知识库: [('death_review', '刑事诉讼法', '第二百四十六条'), ('death_review', '刑事诉讼法', '第二百四十七条'), ('death_review', '刑事诉讼法', '第二百四十九条'), ('death_review', '刑事诉讼法', '第二百五十条'), ('death_review', '刑事诉讼法', '第二百五十一条'), ('self_defense', '刑法', '第二十条'), ('self_defense', '刑法', '第二十一条'), ('drug_crime', '刑法', '第三百四十七条'), ('drug_crime', '刑法', '第三百四十八条'), ('statutory_inheritance', '民法典', '第一千一百二十七条'), ('statutory_inheritance', '民法典', '第一千一百二十九条'), ('statutory_inheritance', '民法典', '第一千一百五十五条'), ('labor_dispute', '劳动争议调解仲裁法', '第五条'), ('labor_dispute', '劳动争议调解仲裁法', '第四十七条'), ('labor_dispute', '劳动争议调解仲裁法', '第五十三条'), ('tort_liability', '民法典', '第一千一百六十五条'), ('tort_liability', '民法典', '第一千一百六十六条'), ('tort_liability', '民法典', '第一百八十二条'), ('tort_liability', '民法典', '第一千一百七十四条'), ('tort_liability', '民法典', '第一千一百七十五条'), ('property_crime', '刑法', '第二百六十四条'), ('property_crime', '刑法', '第二百七十条'), ('property_crime', '刑法', '第二百六十九条'), ('property_crime', '刑法', '第二百六十三条'), ('property_crime', '刑法', '第二百六十七条'), ('property_crime', '刑法', '第二十三条'), ('property_crime', '刑法', '第二百六十六条'), ('property_crime', '刑法', '第二百七十四条'), ('property_crime', '刑法', '第二百八十条'), ('fraud_extortion', '刑法', '第二百六十六条'), ('fraud_extortion', '刑法', '第二百七十四条'), ('fraud_extortion', '刑法', '第二百八十条'), ('assault_crime', '刑法', '第二百三十四条'), ('assault_crime', '刑法', '第二百三十二条'), ('assault_crime', '刑法', '第二百九十三条'), ('assault_crime', '刑法', '第二十三条'), ('assault_crime', '刑法', '第二十四条'), ('office_economic_crime', '刑法', '第三百八十二条'), ('office_economic_crime', '刑法', '第三百八十五条'), ('office_economic_crime', '刑法', '第三百八十四条'), ('office_economic_crime', '刑法', '第二百七十二条'), ('office_economic_crime', '刑法', '第二百七十一条'), ('traffic_crime', '刑法', '第一百三十三条'), ('traffic_crime', '刑法', '第一百三十三条之一'), ('personal_freedom', '刑法', '第二百三十九条'), ('personal_freedom', '刑法', '第二百三十八条'), ('labor_law', '劳动合同法', '第十条'), ('labor_law', '劳动合同法', '第十九条'), ('labor_law', '劳动合同法', '第二十九条'), ('labor_law', '劳动合同法', '第三十八条'), ('labor_law', '劳动合同法', '第三十九条'), ('labor_law', '劳动合同法', '第四十条'), ('labor_law', '劳动合同法', '第四十一条'), ('labor_law', '劳动合同法', '第四十六条'), ('labor_law', '劳动合同法', '第四十七条'), ('labor_law', '劳动合同法', '第四十八条'), ('labor_law', '劳动合同法', '第八十二条'), ('public_security', '治安管理处罚法', '第二十三条'), ('public_security', '治安管理处罚法', '第二十五条'), ('public_security', '治安管理处罚法', '第二十六条'), ('public_security', '治安管理处罚法', '第二十九条'), ('public_security', '治安管理处罚法', '第三十条'), ('public_security', '治安管理处罚法', '第四十二条'), ('public_security', '治安管理处罚法', '第四十三条'), ('public_security', '治安管理处罚法', '第四十九条'), ('public_security', '治安管理处罚法', '第五十条'), ('public_security', '治安管理处罚法', '第六十六条'), ('public_security', '治安管理处罚法', '第七十条'), ('public_security', '治安管理处罚法', '第七十二条'), ('traffic_law', '道路交通安全法', '第十九条'), ('traffic_law', '道路交通安全法', '第二十二条'), ('traffic_law', '道路交通安全法', '第四十九条'), ('traffic_law', '道路交通安全法', '第七十六条'), ('traffic_law', '道路交通安全法', '第九十一条'), ('traffic_law', '道路交通安全法', '第九十九条'), ('traffic_law', '道路交通安全法', '第一百零一条'), ('negotiable_instrument', '票据法', '第十条'), ('negotiable_instrument', '票据法', '第十九条'), ('negotiable_instrument', '票据法', '第二十二条'), ('negotiable_instrument', '票据法', '第二十七条'), ('negotiable_instrument', '票据法', '第三十八条'), ('negotiable_instrument', '票据法', '第三十九条'), ('negotiable_instrument', '票据法', '第五十三条'), ('negotiable_instrument', '票据法', '第六十一条'), ('civil_contract', '民法典', '第四百八十二条'), ('civil_contract', '民法典', '第五百零二条'), ('civil_contract', '民法典', '第五百零九条'), ('civil_contract', '民法典', '第五百二十七条'), ('civil_contract', '民法典', '第五百六十三条'), ('civil_contract', '民法典', '第五百七十七条'), ('civil_contract', '民法典', '第五百八十五条'), ('civil_contract', '民法典', '第五百九十五条'), ('civil_contract', '民法典', '第六百一十一条'), ('civil_tort_family', '民法典', '第一千一百六十五条'), ('civil_tort_family', '民法典', '第一千一百六十六条'), ('civil_tort_family', '民法典', '第一千一百六十七条'), ('civil_tort_family', '民法典', '第一千一百七十九条'), ('civil_tort_family', '民法典', '第一千一百九十一条'), ('civil_tort_family', '民法典', '第一千二百一十三条'), ('civil_tort_family', '民法典', '第二百零九条'), ('civil_tort_family', '民法典', '第二百三十五条'), ('civil_tort_family', '民法典', '第四百零六条'), ('civil_tort_family', '民法典', '第一千零四十二条'), ('civil_tort_family', '民法典', '第一千一百二十七条'), ('civil_tort_family', '民法典', '第一千一百六十一条'), ('criminal_procedure', '刑事诉讼法', '第三十四条'), ('criminal_procedure', '刑事诉讼法', '第五十六条'), ('criminal_procedure', '刑事诉讼法', '第六十七条'), ('criminal_procedure', '刑事诉讼法', '第八十一条'), ('criminal_procedure', '刑事诉讼法', '第一百五十六条'), ('criminal_procedure', '刑事诉讼法', '第二百零八条'), ('criminal_procedure', '刑事诉讼法', '第二百三十三条'), ('criminal_procedure', '刑事诉讼法', '第二百三十七条'), ('criminal_procedure', '刑事诉讼法', '第二百三十八条'), ('criminal_procedure', '刑事诉讼法', '第二百九十一条'), ('civil_procedure', '民事诉讼法', '第二十一条'), ('civil_procedure', '民事诉讼法', '第三十四条'), ('civil_procedure', '民事诉讼法', '第六十六条'), ('civil_procedure', '民事诉讼法', '第六十八条'), ('civil_procedure', '民事诉讼法', '第一百零三条'), ('civil_procedure', '民事诉讼法', '第一百四十四条'), ('civil_procedure', '民事诉讼法', '第一百五十七条'), ('civil_procedure', '民事诉讼法', '第一百七十条'), ('civil_procedure', '民事诉讼法', '第二百条'), ('civil_procedure', '民事诉讼法', '第二百三十六条'), ('company_law', '公司法', '第十六条'), ('company_law', '公司法', '第二十六条'), ('company_law', '公司法', '第三十四条'), ('company_law', '公司法', '第三十五条'), ('company_law', '公司法', '第三十七条'), ('company_law', '公司法', '第四十六条'), ('company_law', '公司法', '第七十一条'), ('company_law', '公司法', '第一百八十一条'), ('company_law', '公司法', '第一百八十二条'), ('company_law', '公司法', '第一百八十三条'), ('company_law', '公司法', '第五十七条'), ('admin_penalty', '行政处罚法', '第五十九条'), ('admin_penalty', '行政处罚法', '第九条'), ('admin_penalty', '行政处罚法', '第二十九条'), ('admin_penalty', '行政处罚法', '第三十三条'), ('admin_penalty', '行政处罚法', '第五十一条'), ('admin_penalty', '行政处罚法', '第六十三条'), ('admin_penalty', '行政处罚法', '第六十六条'), ('admin_penalty', '行政处罚法', '第七十五条'), ('admin_penalty', '行政处罚法', '第五十四条'), ('admin_penalty', '行政处罚法', '第四十一条'), ('admin_penalty', '行政处罚法', '第七十二条'), ('admin_review', '行政复议法', '第二条'), ('admin_review', '行政复议法', '第十一条'), ('admin_review', '行政复议法', '第三十条'), ('admin_review', '行政复议法', '第三十五条'), ('admin_review', '行政复议法', '第四十四条'), ('admin_review', '行政复议法', '第二十八条'), ('admin_review', '行政复议法', '第四十二条'), ('admin_review', '行政复议法', '第四十八条'), ('admin_review', '行政复议法', '第五十四条'), ('admin_review', '行政复议法', '第六十七条'), ('admin_litigation', '行政诉讼法', '第二条'), ('admin_litigation', '行政诉讼法', '第四十六条'), ('admin_litigation', '行政诉讼法', '第十二条'), ('admin_litigation', '行政诉讼法', '第二十五条'), ('admin_litigation', '行政诉讼法', '第二十六条'), ('admin_litigation', '行政诉讼法', '第三十四条'), ('admin_litigation', '行政诉讼法', '第七十条'), ('admin_litigation', '行政诉讼法', '第七十二条'), ('admin_litigation', '行政诉讼法', '第七十七条'), ('admin_litigation', '行政诉讼法', '第八十七条'), ('insurance_law', '保险法', '第十二条'), ('insurance_law', '保险法', '第十六条'), ('insurance_law', '保险法', '第十七条'), ('insurance_law', '保险法', '第二十七条'), ('insurance_law', '保险法', '第三十一条'), ('insurance_law', '保险法', '第四十九条'), ('insurance_law', '保险法', '第六十条'), ('insurance_law', '保险法', '第六十一条'), ('insurance_law', '保险法', '第六十六条'), ('insurance_law', '保险法', '第八十八条'), ('securities_law', '证券法', '第四十四条'), ('securities_law', '证券法', '第六十三条'), ('securities_law', '证券法', '第八十条'), ('securities_law', '证券法', '第五十四条'), ('securities_law', '证券法', '第一百九十三条'), ('securities_law', '证券法', '第一百九十六条'), ('securities_law', '证券法', '第一百九十七条'), ('securities_law', '证券法', '第二百零三条'), ('securities_law', '证券法', '第五十七条'), ('securities_law', '证券法', '第七十一条'), ('bankruptcy_law', '企业破产法', '第二条'), ('bankruptcy_law', '企业破产法', '第七条'), ('bankruptcy_law', '企业破产法', '第十九条'), ('bankruptcy_law', '企业破产法', '第三十条'), ('bankruptcy_law', '企业破产法', '第三十一条'), ('bankruptcy_law', '企业破产法', '第三十七条'), ('bankruptcy_law', '企业破产法', '第四十二条'), ('bankruptcy_law', '企业破产法', '第四十五条'), ('bankruptcy_law', '企业破产法', '第四十六条'), ('bankruptcy_law', '企业破产法', '第一百一十三条'), ('social_insurance', '社会保险法', '第十六条'), ('social_insurance', '社会保险法', '第三十三条'), ('social_insurance', '社会保险法', '第三十六条'), ('social_insurance', '社会保险法', '第四十四条'), ('social_insurance', '社会保险法', '第五十三条'), ('social_insurance', '社会保险法', '第五十八条'), ('social_insurance', '社会保险法', '第六十二条'), ('social_insurance', '社会保险法', '第三十七条'), ('social_insurance', '社会保险法', '第三十八条'), ('social_insurance', '社会保险法', '第四十六条'), ('social_insurance', '社会保险法', '第四十八条'), ('civil_property', '民法典', '第二百零九条'), ('civil_property', '民法典', '第二百三十五条'), ('civil_property', '民法典', '第三百一十一条'), ('civil_property', '民法典', '第三百一十二条'), ('civil_property', '民法典', '第四百二十五条'), ('civil_property', '民法典', '第四百零六条'), ('civil_agency', '民法典', '第一百六十二条'), ('civil_agency', '民法典', '第一百六十五条'), ('civil_agency', '民法典', '第一百七十一条'), ('civil_agency', '民法典', '第一百七十二条'), ('medical_negligence', '刑法', '第三百三十五条'), ('mortgage_lien', '民法典', '第四百零一条'), ('mortgage_lien', '民法典', '第三百九十四条'), ('mortgage_lien', '民法典', '第四百一十条'), ('mortgage_lien', '民法典', '第四百二十八条'), ('mortgage_lien', '民法典', '第四百二十五条'), ('mortgage_lien', '民法典', '第四百零六条'), ('guarantee_contract', '民法典', '第六百八十一条'), ('guarantee_contract', '民法典', '第六百八十六条'), ('guarantee_contract', '民法典', '第六百八十七条'), ('guarantee_contract', '民法典', '第六百八十八条'), ('guarantee_contract', '民法典', '第六百九十二条'), ('guarantee_contract', '民法典', '第六百九十三条'), ('guarantee_contract', '民法典', '第六百九十四条'), ('guarantee_contract', '民法典', '第六百九十五条'), ('guarantee_contract', '民法典', '第六百九十九条'), ('guarantee_contract', '民法典', '第一百四十八条'), ('guarantee_contract', '民法典', '第一百四十九条'), ('guarantee_contract', '民法典', '第一百五十二条'), ('copyright_law', '著作权法', '第十条'), ('copyright_law', '著作权法', '第二十四条'), ('copyright_law', '著作权法', '第三十二条'), ('copyright_law', '著作权法', '第十八条'), ('copyright_law', '著作权法', '第十九条'), ('copyright_law', '著作权法', '第二十三条'), ('copyright_law', '著作权法', '第三十九条'), ('copyright_law', '著作权法', '第五十二条'), ('copyright_law', '著作权法', '第五十四条'), ('copyright_law', '著作权法', '第四十六条'), ('trademark_law', '商标法', '第十条'), ('trademark_law', '商标法', '第十一条'), ('trademark_law', '商标法', '第十三条'), ('trademark_law', '商标法', '第三十二条'), ('trademark_law', '商标法', '第三十九条'), ('trademark_law', '商标法', '第四十条'), ('trademark_law', '商标法', '第四十五条'), ('trademark_law', '商标法', '第四十九条'), ('trademark_law', '商标法', '第五十七条'), ('trademark_law', '商标法', '第五十九条'), ('patent_law', '专利法', '第六条'), ('patent_law', '专利法', '第十一条'), ('patent_law', '专利法', '第二十二条'), ('patent_law', '专利法', '第二十五条'), ('patent_law', '专利法', '第二十九条'), ('patent_law', '专利法', '第三十九条'), ('patent_law', '专利法', '第四十二条'), ('patent_law', '专利法', '第四十八条'), ('patent_law', '专利法', '第五十九条'), ('patent_law', '专利法', '第十五条'), ('partnership_law', '合伙企业法', '第二条'), ('partnership_law', '合伙企业法', '第十六条'), ('partnership_law', '合伙企业法', '第二十一条'), ('partnership_law', '合伙企业法', '第二十二条'), ('partnership_law', '合伙企业法', '第三十九条'), ('partnership_law', '合伙企业法', '第四十四条'), ('partnership_law', '合伙企业法', '第四十九条'), ('partnership_law', '合伙企业法', '第五十三条'), ('partnership_law', '合伙企业法', '第五十七条'), ('partnership_law', '合伙企业法', '第六十四条'), ('partnership_law', '合伙企业法', '第六十八条'), ('consumer_protection', '消费者权益保护法', '第八条'), ('consumer_protection', '消费者权益保护法', '第十八条'), ('consumer_protection', '消费者权益保护法', '第二十三条'), ('consumer_protection', '消费者权益保护法', '第二十四条'), ('consumer_protection', '消费者权益保护法', '第二十五条'), ('consumer_protection', '消费者权益保护法', '第二十六条'), ('consumer_protection', '消费者权益保护法', '第二十九条'), ('consumer_protection', '消费者权益保护法', '第四十条'), ('consumer_protection', '消费者权益保护法', '第四十四条'), ('consumer_protection', '消费者权益保护法', '第四十五条'), ('consumer_protection', '消费者权益保护法', '第五十五条')]
+E       assert not [('death_review', '刑事诉讼法', '第二百四十六条'), ('death_review', '刑事诉讼法', '第二百四十七条'), ('death_review', '刑事诉讼法', '第二百四十九条'), ('death_review', '刑事诉讼法', '第二百五十条'), ('death_review', '刑事诉讼法', '第二百五十一条'), ('self_defense', '刑法', '第二十条'), ...]
+
+tests\test_scenario_supplement.py:88: AssertionError
+============================== warnings summary ===============================
+tests/test_scenario_supplement.py::test_id5_statutory_inheritance_prepends_1155
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_scenario_supplement.py::test_id5_statutory_inheritance_prepends_1155
+FAILED tests/test_scenario_supplement.py::test_id16_labor_dispute_prepends_47_and_53
+FAILED tests/test_scenario_supplement.py::test_guarantee_contract_triggers_692_693
+FAILED tests/test_scenario_supplement.py::test_company_law_49_no_old_breach_clause
+FAILED tests/test_scenario_supplement.py::test_all_supplement_articles_exist
+5 failed, 1 passed, 1 warning in 14.35s

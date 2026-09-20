@@ -1,0 +1,179 @@
+{
+ "total_docs": 10266,
+ "cases": {
+  "民法典|第一千一百五十五条": {
+   "L4_source_docs": 1260,
+   "L4_article_present": true,
+   "L4_article_sample": [
+    "第一千一百一十一条",
+    "第一千一百一十七条",
+    "第一千一百一十三条",
+    "第一千一百一十九条",
+    "第一千一百一十二条",
+    "第一千一百一十五条"
+   ],
+   "L4_status_values": [
+    "现行"
+   ],
+   "L4_effective_from": [
+    ""
+   ],
+   "L4_effective_to": [
+    ""
+   ],
+   "L2_exact_article_lookup": 1,
+   "L4_sample_metadata": {
+    "source": "民法典",
+    "article": "第一百零五条",
+    "status": "现行",
+    "effective_from": "",
+    "effective_to": ""
+   }
+  },
+  "劳动合同法|第四十七条": {
+   "L4_source_docs": 98,
+   "L4_article_present": true,
+   "L4_article_sample": [
+    "第一条",
+    "第七十一条",
+    "第七十七条",
+    "第七十三条",
+    "第七十九条",
+    "第七十二条"
+   ],
+   "L4_status_values": [
+    "现行"
+   ],
+   "L4_effective_from": [
+    ""
+   ],
+   "L4_effective_to": [
+    ""
+   ],
+   "L2_exact_article_lookup": 1,
+   "L4_sample_metadata": {
+    "source": "劳动合同法",
+    "article": "第五条",
+    "status": "现行",
+    "effective_from": "",
+    "effective_to": ""
+   }
+  },
+  "民法典|第六百九十二条": {
+   "L4_source_docs": 1260,
+   "L4_article_present": true,
+   "L4_article_sample": [
+    "第一千一百一十一条",
+    "第一千一百一十七条",
+    "第一千一百一十三条",
+    "第一千一百一十九条",
+    "第一千一百一十二条",
+    "第一千一百一十五条"
+   ],
+   "L4_status_values": [
+    "现行"
+   ],
+   "L4_effective_from": [
+    ""
+   ],
+   "L4_effective_to": [
+    ""
+   ],
+   "L2_exact_article_lookup": 1,
+   "L4_sample_metadata": {
+    "source": "民法典",
+    "article": "第一百零五条",
+    "status": "现行",
+    "effective_from": "",
+    "effective_to": ""
+   }
+  },
+  "公司法|第四十九条": {
+   "L4_source_docs": 266,
+   "L4_article_present": true,
+   "L4_article_sample": [
+    "第一条",
+    "第一百一十一条",
+    "第一百一十七条",
+    "第一百一十三条",
+    "第一百一十九条",
+    "第一百一十二条"
+   ],
+   "L4_status_values": [
+    "现行"
+   ],
+   "L4_effective_from": [
+    ""
+   ],
+   "L4_effective_to": [
+    ""
+   ],
+   "L2_exact_article_lookup": 1,
+   "L4_sample_metadata": {
+    "source": "公司法",
+    "article": "第十条",
+    "status": "现行",
+    "effective_from": "",
+    "effective_to": ""
+   }
+  },
+  "刑法|第二十条": {
+   "L4_source_docs": 507,
+   "L4_article_present": true,
+   "L4_article_sample": [
+    "第一条",
+    "第一百一十一条",
+    "第一百一十七条",
+    "第一百一十三条",
+    "第一百一十九条",
+    "第一百一十二条"
+   ],
+   "L4_status_values": [
+    "现行"
+   ],
+   "L4_effective_from": [
+    ""
+   ],
+   "L4_effective_to": [
+    ""
+   ],
+   "L2_exact_article_lookup": 1,
+   "L4_sample_metadata": {
+    "source": "刑法",
+    "article": "第三百九十九条",
+    "status": "现行",
+    "effective_from": "",
+    "effective_to": ""
+   }
+  },
+  "刑事诉讼法|第二百四十六条": {
+   "L4_source_docs": 308,
+   "L4_article_present": true,
+   "L4_article_sample": [
+    "第一条",
+    "第一百一十一条",
+    "第一百一十七条",
+    "第一百一十三条",
+    "第一百一十九条",
+    "第一百一十二条"
+   ],
+   "L4_status_values": [
+    "现行"
+   ],
+   "L4_effective_from": [
+    ""
+   ],
+   "L4_effective_to": [
+    ""
+   ],
+   "L2_exact_article_lookup": 1,
+   "L4_sample_metadata": {
+    "source": "刑事诉讼法",
+    "article": "第二百五十四条",
+    "status": "现行",
+    "effective_from": "",
+    "effective_to": ""
+   }
+  }
+ }
+}
