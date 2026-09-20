@@ -12,7 +12,6 @@
 声称"拦住了"的用例必须配一条"该放行时确实放行"的控制腿。
 """
 
-import json
 import os
 import sys
 
@@ -23,7 +22,18 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
 from llm_registry import QuotaExhausted
-from tests._sse_harness import LIGHT_ANSWER, chat_frames, login, sse_client
+from tests._sse_harness import (
+    LIGHT_ANSWER,
+    chat_frames,
+    login,
+    sse_client,
+)
+from tests._sse_harness import (
+    cache_put_spy as _put_spy,
+)
+from tests._sse_harness import (
+    content_of as _contents,
+)
 from tests.test_quality import _ANS_FULL, _ANS_SINGLE, _MULTI_Q
 
 PLAIN_QUESTION = "试用期最长多久"
@@ -36,48 +46,13 @@ def _light_client(monkeypatch, **kw):
     return sse_client(monkeypatch, route="light_buffered", **kw)
 
 
-def _payloads(frames: list[str]) -> list[dict]:
-    """原始帧序列 → 已解析的 JSON 载荷（状态帧/空行/`[DONE]`/非 dict 一律跳过）。"""
-    out: list[dict] = []
-    for f in frames:
-        if not f.startswith("data: "):
-            continue
-        payload = f[len("data: ") :].strip()
-        if payload == "[DONE]":
-            continue
-        try:
-            obj = json.loads(payload)
-        except ValueError:
-            continue
-        if isinstance(obj, dict):
-            out.append(obj)
-    return out
-
-
-def _contents(frames: list[str]) -> list[str]:
-    return [p["content"] for p in _payloads(frames) if "content" in p]
-
-
-def _put_spy(monkeypatch) -> list[dict]:
-    """把 `answer_cache.put` 换成记录器（同票 H：桩点必须是 `answer_cache.put`）。"""
-    import answer_cache
-
-    sink: list[dict] = []
-
-    def _put(key, answer, sources, **kw):
-        sink.append({"key": key, "answer": answer, "model": kw.get("model", "")})
-
-    monkeypatch.setattr(answer_cache, "put", _put)
-    return sink
-
-
 def _multi_note() -> str:
     """取多选注记文本（**唯一真源** = `main.NOTE_MULTI_INCOMPLETE`，见票 J §J-2「不许重写规则」）。
 
     刻意用**显式断言**而不是 `getattr(..., "")` 兜底：
-    - 常量缺失时这里给出 `AssertionError: main 里没有 NOTE_MULTI_INCOMPLETE 常量`——
-      是"功能缺失"的干净红因，而不是 `AttributeError`（票面 §0 判据 1 要求红因不是 TypeError/笔误）；
-    - 反过来也不给"默认空串"留路：若有人日后删了常量，`"" in joined` 会恒真 ⇒ 那才是空枪。
+    - 常量缺失时给出 `AssertionError: main 里没有 NOTE_MULTI_INCOMPLETE 常量` —— 是"功能缺失"的
+      干净红因，而不是 `AttributeError`（票面 §0 判据 1 不接受把 TypeError/AttributeError 当证据）；
+    - 也不给"默认空串"留路：若常量被删，`"" in joined` 会恒真 ⇒ 那才是空枪。
     """
     import main
 

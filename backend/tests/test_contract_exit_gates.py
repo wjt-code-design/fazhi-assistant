@@ -22,45 +22,28 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 import pytest
 
-from tests._sse_harness import CONTRACT_ANSWER, CONTRACT_PARTS, chat_frames, login, sse_client
+from tests._sse_harness import (
+    CONTRACT_ANSWER,
+    CONTRACT_PARTS,
+    chat_frames,
+    login,
+    sse_client,
+)
+from tests._sse_harness import (
+    cache_put_spy as _put_spy,
+)
+from tests._sse_harness import (
+    content_of as _contents,
+)
+from tests._sse_harness import (
+    error_of as _errors,
+)
 
 CONTRACT_QUESTION = "帮我审一下这份租赁合同"
 
 
 def _contract_client(monkeypatch, **kw):
     return sse_client(monkeypatch, route="contract_review", flagship_parts=CONTRACT_PARTS, **kw)
-
-
-def _payloads(frames: list[str]) -> list[dict]:
-    """原始帧序列 → 已解析的 JSON 载荷（状态帧/空行/`[DONE]`/非 dict 一律跳过）。
-
-    合并自原先两份同形函数（code-review Standards 轴：Duplicated Code）——
-    它们只是"按哪个键抽取"不同，拆两份会让帧解析规则出现两个漂移点。
-    """
-    out: list[dict] = []
-    for f in frames:
-        if not f.startswith("data: "):
-            continue
-        payload = f[len("data: ") :].strip()
-        if payload == "[DONE]":
-            continue
-        try:
-            obj = json.loads(payload)
-        except ValueError:
-            continue
-        if isinstance(obj, dict):
-            out.append(obj)
-    return out
-
-
-def _contents(frames: list[str]) -> list[str]:
-    """所有正文帧的 `content`。"""
-    return [p["content"] for p in _payloads(frames) if "content" in p]
-
-
-def _errors(frames: list[str]) -> list[str]:
-    """所有 error 帧的 `error`。"""
-    return [p["error"] for p in _payloads(frames) if "error" in p]
 
 
 @pytest.fixture
@@ -142,23 +125,6 @@ class _FakeChainEmpty:
 
 
 # ───────────────────────── H-1：引用未收录的合同报告不得进缓存 ─────────────────────────
-
-
-def _put_spy(monkeypatch) -> list[dict]:
-    """把 `answer_cache.put` 换成记录器。
-
-    桩点必须是 `answer_cache.put`（main 是以模块属性调用的），不是 `main.answer_cache`——
-    两者都行，但认前者更贴近真实调用形状。
-    """
-    import answer_cache
-
-    sink: list[dict] = []
-
-    def _put(key, answer, sources, **kw):
-        sink.append({"key": key, "answer": answer, "sources": sources, "model": kw.get("model", "")})
-
-    monkeypatch.setattr(answer_cache, "put", _put)
-    return sink
 
 
 def test_bad_citation_report_is_not_cached(monkeypatch):

@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import contextlib
+import json
 from collections.abc import Iterator
 from typing import Any
 
@@ -109,6 +110,57 @@ def _stub_quota_accounting(monkeypatch, model_name: str) -> None:
 
     monkeypatch.setattr(main.registry, "deduct", lambda key, tokens: None)
     monkeypatch.setattr(main.registry, "model_of", lambda key: model_name)
+
+
+# ════════ SSE 帧解析 / 缓存探针（票 J 的双轴审查抽出来的共用件） ════════
+# 原先在 `test_light_exit_gates.py` 与 `test_contract_exit_gates.py` 里各有一份几乎逐字相同的实现
+# （Duplicated Code）。抽到这里而不是再造一个 util 模块：本文件本来就是这些端点级用例的**共享夹具**，
+# 且 project-quality-guide §4.4 明令"不为两处短小重复建通用框架"——用既有共享模块不算造框架。
+
+
+def payload_frames(frames: list[str]) -> list[dict]:
+    """原始帧序列 → 已解析的 JSON 载荷（状态帧/空行/`[DONE]`/非 dict 一律跳过）。"""
+    out: list[dict] = []
+    for f in frames:
+        if not f.startswith("data: "):
+            continue
+        payload = f[len("data: ") :].strip()
+        if payload == "[DONE]":
+            continue
+        try:
+            obj = json.loads(payload)
+        except ValueError:
+            continue
+        if isinstance(obj, dict):
+            out.append(obj)
+    return out
+
+
+def content_of(frames: list[str]) -> list[str]:
+    """所有正文帧的 `content`。"""
+    return [p["content"] for p in payload_frames(frames) if "content" in p]
+
+
+def error_of(frames: list[str]) -> list[str]:
+    """所有 error 帧的 `error`。"""
+    return [p["error"] for p in payload_frames(frames) if "error" in p]
+
+
+def cache_put_spy(monkeypatch) -> list[dict]:
+    """把 `answer_cache.put` 换成记录器。
+
+    桩点必须是 `answer_cache.put`（`main` 是以模块属性调用的），不是 `main.answer_cache` ——
+    两者都行，但认前者更贴近真实调用形状（票 H 的合同出口用例原注）。
+    """
+    import answer_cache
+
+    sink: list[dict] = []
+
+    def _put(key, answer, sources, **kw):
+        sink.append({"key": key, "answer": answer, "model": kw.get("model", "")})
+
+    monkeypatch.setattr(answer_cache, "put", _put)
+    return sink
 
 
 @contextlib.contextmanager
