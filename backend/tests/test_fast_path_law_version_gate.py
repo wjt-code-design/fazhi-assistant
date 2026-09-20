@@ -549,4 +549,11 @@ def test_fast_path_law_as_of_uses_server_today_not_a_constant(monkeypatch):
 
     monkeypatch.setattr(main, "date", _FrozenDay)
     assert main._fast_path_law_as_of(SimpleNamespace(law_as_of=None)) == date(2019, 7, 1)
+    # R15 安全观察整改（Owner 2026-09-21 裁定）：客户端显式值现在走**评测通道闸**，
+    # 默认关 ⇒ 被忽略（落当日）；开 ⇒ 原样透传（本断言验证的就是透传语义 ⇒ 需开闸）。
+    monkeypatch.setattr(main.settings, "allow_client_law_as_of", True)
     assert main._fast_path_law_as_of(SimpleNamespace(law_as_of=date(2021, 1, 1))) == date(2021, 1, 1)
+    monkeypatch.setattr(main.settings, "allow_client_law_as_of", False)
+    assert main._fast_path_law_as_of(SimpleNamespace(law_as_of=date(2021, 1, 1))) == date(2019, 7, 1), (
+        "默认关时客户端值必须被忽略（落当日）—— 这是评测通道闸的新契约"
+    )

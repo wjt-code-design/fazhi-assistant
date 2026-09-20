@@ -123,6 +123,10 @@ def run_stream_exit(
     （= 空枪，S5 的 `test_empty_answer_still_returns_empty` 第一代就是这个形状）。
     于是 ON/OFF 两腿之间唯一的变化就是门本身。
     """
+    # R15 安全观察整改（Owner 2026-09-21）：客户端 `law_as_of` 收进**评测通道闸**。
+    # 本表就是评测通道（独立手算期望 + 显式 law_as_of 的分水岭场景）⇒ 必须开闸，
+    # 否则闸会把显式值忽略成"当日"，整张期望表作废。
+    main.settings.allow_client_law_as_of = True
     import answer_cache
     import quality
 
