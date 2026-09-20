@@ -1,0 +1,10 @@
+Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event CollectionGetEvent: capture() takes 1 positional argument but 3 were given
+✅ 目标集合='qa_pairs' 条数=279（与期望一致）
+备份条数=279（fp-backfill-backup.json）
+交叉表={'A_both': 60, 'A_diff': 0, 'B_fill': 18, 'C_anomaly': 0, 'D': 57, 'E_fill': 90, 'F': 54}
+存量非空(改前)=60  待回填=108（期望 = T7 的缺口 108；A_diff 不一致 0 条只报不改）
+（dry-run：未写库。加 --apply 才真正写入）

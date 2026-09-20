@@ -1,0 +1,14 @@
+{
+ "crosstab": {
+  "A_both": 60,
+  "A_diff": 0,
+  "B_fill": 18,
+  "C_anomaly": 0,
+  "D": 57,
+  "E_fill": 90,
+  "F": 54
+ },
+ "n_total": 279,
+ "n_nonempty_after": 168,
+ "n_written": 108
+}
