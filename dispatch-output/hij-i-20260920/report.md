@@ -193,7 +193,22 @@ if law_as_of is not None and basis_raw:
 
 ### 基线那 1 条红：**不是**先前登记的那 8 条之一
 
+> **⚠️ 勘误（2026-09-21，T2 验收时发现）：这一条其实是本票引入的回归，不是 flaky。** 详见下方勘误块。
+> 下段原文保留，作为"我当时怎么归因错的"记录。
+
 本轮基线的唯一红是 `tests.test_phase3::test_chat_streams_persists_and_request_id`。
 ⇒ 与票 H/J 登记的 flaky 簇（`test_backup_data`×4 / `test_capture_eval`×1 / `test_request_bootstrap`×3）
 **不重叠**。四条独立基线读数合起来是 **0 / 3 / 8 / 1** 条红，且第 4 轮的受害者是**另一个文件**
 ⇒ **flaky 面比先前登记的更宽**。已作为新输入补进 T1 的卡（它本来就要 ≥5 次重复并逐条归因）。
+
+**勘误正文**：
+
+- 真红因：`tests/test_phase3.py` 用 `monkeypatch.setattr(main, "_qa_direct_return", lambda pre: None)`
+  桩掉 QA 直返；而本票 I-2(a) 把调用点改成 **2 参**（`_qa_direct_return(pre, law_as_of)`）
+  ⇒ 桩抛 `TypeError: lambda() takes 1 positional argument but 2 were given`
+  ⇒ 被 `stream()` 的 `[chat-stream]` `except` 吞掉 ⇒ 用例收不到任何 content 而失败。
+- **回归窗口 = `1fb8ef1`**：票 J 基线（805ad78）无此红、票 I 基线（1fb8ef1）有此红 ⇒ 恰是本票提交。
+- 已修（`a97082b`）：桩改为 `lambda pre, law_as_of=None: None` 并注明教训；修后 `test_phase3.py` **5 passed**。
+- **两条教训**：① 改函数**签名/调用元数**时，必须全仓清点该名字的**测试桩**——
+  monkeypatch 桩不在导入期暴露，只在被调用时炸，且炸了会被 `except` 吞成"没输出"这种**无信息形状**；
+  ② "基线红不在已知 flaky 名单"**不等于**"与本票无关"——那恰恰是**优先怀疑自己**的信号。

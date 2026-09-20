@@ -52,7 +52,10 @@ def test_chat_streams_persists_and_request_id(client, monkeypatch):
                 yield p
 
     monkeypatch.setattr(main, "make_chain", lambda llm: FakeChain())
-    monkeypatch.setattr(main, "_qa_direct_return", lambda pre: None)  # 隔离 QA 直返，测 LLM 流式路径
+    monkeypatch.setattr(main, "_qa_direct_return", lambda pre, law_as_of=None: None)  # 隔离 QA 直返，测 LLM 流式路径
+    # ⚠️ 形参须与真签名同步（票 I-2(a) 加了第二参）：桩是 1 参时，stream() 以 2 参调用会
+    # TypeError ⇒ 被 [chat-stream] 的 except 吞掉 ⇒ 用例表现为"收不到任何 content"。
+    # 教训：改函数签名/调用元数时，必须全仓清点该名字的**测试桩**（monkeypatch 桩不在导入期暴露）。
     tok = _login(client)
     headers = {"Authorization": f"Bearer {tok}"}
 
