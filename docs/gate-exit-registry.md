@@ -1,5 +1,5 @@
-<!-- generated-at: 2026-09-21 02:08 -->
-<!-- source-commit: b14e2ef -->
+<!-- generated-at: 2026-09-21 04:23 -->
+<!-- source-commit: a2f6b35 -->
 
 # /api/chat 出口 × 闸门 登记表（生成物，勿手改）
 
@@ -17,8 +17,8 @@
 |---|---|---|---|---|---|---|---|---|---|---|---|
 | **E1** | stream() / 分支0 缓存命中直返（变量 `ca`） | `ca` | 有执行取证 | PASS | GAP-ACCEPTED | DISABLED | DISABLED | NA | GAP-ACCEPTED | NA | BLOCKED |
 | **E2** | stream() / 分支0.2 QA 持久语义缓存直返（变量 `qa_ans`） | `qa_ans` | 命中率未量 | PASS | GAP-ACCEPTED | DISABLED | DISABLED | NA | PASS | NA | BLOCKED |
-| **E3** | stream() / 分支0.5 低置信反问 / 诚实拒答（变量 `msg`，零 LLM 模板） | `msg` | 静态可达（执行未证） | PASS | NA | DISABLED | NA | NA | GAP-ACCEPTED | NA | PASS |
-| **E4** | stream() / 分支0.3 合同信息确认闸（常量 `CONTRACT_CLARIFY_PROMPT`，零 LLM） | `CONTRACT_CLARIFY_PROMPT` | 静态可达（执行未证） | PASS | NA | DISABLED | NA | NA | GAP-ACCEPTED | NA | NA |
+| **E3** | stream() / 分支0.5 低置信反问 / 诚实拒答（变量 `msg`，零 LLM 模板） | `msg` | 静态可达（执行未证） | PASS | NA | DISABLED | NA | NA | NA | NA | PASS |
+| **E4** | stream() / 分支0.3 合同信息确认闸（常量 `CONTRACT_CLARIFY_PROMPT`，零 LLM） | `CONTRACT_CLARIFY_PROMPT` | 静态可达（执行未证） | PASS | NA | DISABLED | NA | NA | NA | NA | NA |
 | **E5** | stream() / 分支0.3 合同报告流式增量（变量 `piece`） | `piece` | 有执行取证（真实配置下入口可达；报告产出未端到端取证） | PASS | PASS | DISABLED | NA | PASS | GAP-ACCEPTED | PASS | NA |
 | **E6** | stream() / 分支0.3 合同引用告警注记帧（变量 `note`） | `note` | 条件命中（bad 非空） | PASS | PASS | NA | NA | NA | NA | PASS | NA |
 | **E7** | stream() / 分支1 缓冲轻量整答（变量 `answer`，来自 `_light_buffered`） | `answer` | 零流量（配置不可达） | DISABLED | PASS | PASS | PASS | PASS | PASS | PASS | DISABLED |
@@ -80,7 +80,7 @@
 | 自检 | `DISABLED` | `record(strategy, ..., checked=False)`。 |
 | 多选完整性 | `NA` | 模板不是答案。 |
 | 配额降级注记 | `NA` | 零 LLM。 |
-| 版本绊线 | `GAP-ACCEPTED` | 本轮实测两条模板全文均不含 `_CIVIL_KEYWORDS`（诉讼时效 / 时效期间 / 时效）任一词，挂门必然恒不命中 = 空门 ⇒ 接它只会多一处假接线。 |
+| 版本绊线 | `NA` | **2026-09-21 由 `GAP-ACCEPTED` 改判 `NA`（Owner 裁定；不造新词）**：原判据是「挂门恒不命中 ⇒ 空门 ⇒ 接受这个缺口」，但「结构性走不到」在词表里的正确落点是 `NA`（本格不适用），`GAP-ACCEPTED` 说的是「该修但接受」——两者语义不同，登记词用错了。事实不变：本轮实测两条模板全文均不含 `_CIVIL_KEYWORDS`（诉讼时效 / 时效期间 / 时效）任一词，挂门必然恒不命中 = 空门 ⇒ 接它只会多一处假接线。 |
 | 写缓存闸 | `NA` | 不写缓存（模板不进 cache）。 |
 | 评测可信度 | `PASS` | 确定性模板 ⇒ 评测读数与模型无关，可信。 |
 
@@ -95,7 +95,7 @@
 | 自检 | `DISABLED` | `record("contract_clarify", ..., checked=False)`。 |
 | 多选完整性 | `NA` | 模板不是答案。 |
 | 配额降级注记 | `NA` | 零 LLM。 |
-| 版本绊线 | `GAP-ACCEPTED` | 同 E3：`prompts.py::CONTRACT_CLARIFY_PROMPT` 全文无时效表述 ⇒ 挂门成空门。 |
+| 版本绊线 | `NA` | **2026-09-21 由 `GAP-ACCEPTED` 改判 `NA`（同 E3，Owner 裁定；不造新词）**：`prompts.py::CONTRACT_CLARIFY_PROMPT` 全文无时效表述 ⇒ 挂门成空门 ⇒ 属「本格不适用」（`NA`），而非「该修但接受」（`GAP-ACCEPTED`）。事实不变。 |
 | 写缓存闸 | `NA` | 不写缓存。 |
 | 评测可信度 | `NA` | 合同类不在 `evals/` 冻结集内（frozen-cases-v2 20 例 / holdout 5 例均为法律问答）。 |
 

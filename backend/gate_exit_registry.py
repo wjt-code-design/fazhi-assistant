@@ -273,8 +273,11 @@ EXITS: list[dict] = [
             "多选完整性": ("NA", "模板不是答案。"),
             "配额降级注记": ("NA", "零 LLM。"),
             "版本绊线": (
-                "GAP-ACCEPTED",
-                "本轮实测两条模板全文均不含 `_CIVIL_KEYWORDS`（诉讼时效 / 时效期间 / 时效）任一词，"
+                "NA",
+                "**2026-09-21 由 `GAP-ACCEPTED` 改判 `NA`（Owner 裁定；不造新词）**："
+                "原判据是「挂门恒不命中 ⇒ 空门 ⇒ 接受这个缺口」，但「结构性走不到」在词表里的正确落点是 "
+                "`NA`（本格不适用），`GAP-ACCEPTED` 说的是「该修但接受」——两者语义不同，登记词用错了。"
+                "事实不变：本轮实测两条模板全文均不含 `_CIVIL_KEYWORDS`（诉讼时效 / 时效期间 / 时效）任一词，"
                 "挂门必然恒不命中 = 空门 ⇒ 接它只会多一处假接线。",
             ),
             "写缓存闸": ("NA", "不写缓存（模板不进 cache）。"),
@@ -291,7 +294,12 @@ EXITS: list[dict] = [
             "自检": ("DISABLED", "`record(" + '"contract_clarify"' + ", ..., checked=False)`。"),
             "多选完整性": ("NA", "模板不是答案。"),
             "配额降级注记": ("NA", "零 LLM。"),
-            "版本绊线": ("GAP-ACCEPTED", "同 E3：`prompts.py::CONTRACT_CLARIFY_PROMPT` 全文无时效表述 ⇒ 挂门成空门。"),
+            "版本绊线": (
+                "NA",
+                "**2026-09-21 由 `GAP-ACCEPTED` 改判 `NA`（同 E3，Owner 裁定；不造新词）**："
+                "`prompts.py::CONTRACT_CLARIFY_PROMPT` 全文无时效表述 ⇒ 挂门成空门 ⇒ 属「本格不适用」"
+                "（`NA`），而非「该修但接受」（`GAP-ACCEPTED`）。事实不变。",
+            ),
             "写缓存闸": ("NA", "不写缓存。"),
             "评测可信度": ("NA", "合同类不在 `evals/` 冻结集内（frozen-cases-v2 20 例 / holdout 5 例均为法律问答）。"),
         },
