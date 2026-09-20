@@ -1203,6 +1203,19 @@ def _fast_path_fact_texts(pre: dict) -> list[str]:
     return [t for t in texts if t]
 
 
+def _client_law_as_of(body) -> date | None:
+    """客户端传入的 `law_as_of`，经**评测通道闸**过滤（R15 安全观察，Owner 2026-09-21 裁定）。
+
+    定位：该值直接改变"用哪天的法"与证据 cutoff，是**评测/灰度输入**，不是普通用户的偏好。
+    `settings.allow_client_law_as_of=False`（默认）⇒ 返回 None ⇒ 各消费方落当日，
+    行为与"客户端没传"完全一致（生产默认路径零变化，已验证）。
+    `case_domain` 的同款限制待 agent 路径启用时一并处理（当前 Agent Path 零流量）。
+    """
+    if not settings.allow_client_law_as_of:
+        return None
+    return body.law_as_of
+
+
 def _fast_path_law_as_of(body) -> date:
     """快车道判定用的法律版本基准日 = R15-lite 第①半里的**"缺省落当日"那一小条**。
 
@@ -1217,7 +1230,7 @@ def _fast_path_law_as_of(body) -> date:
     不是本函数的实现缺陷。
     流式出口（票 C / S6）复用本函数，别再写第二份 `or date.today()`。
     """
-    return body.law_as_of or date.today()
+    return _client_law_as_of(body) or date.today()
 
 
 # 版本绊线门的出口标签。**为什么做成参数**：S5 时期这道门只有一个消费者，日志里那句
@@ -1643,7 +1656,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     image,
                     body.truncated,
                     body.case_domain,
-                    body.law_as_of,
+                    _client_law_as_of(body),
                 )
                 correlation_id = make_agent_correlation_id(conversation_id=bootstrap.conv_id)
                 try:

@@ -41,6 +41,12 @@ class Settings(BaseSettings):
         False  # 方案C（2026-08-08）：默认关闭公开注册，仅管理员开户；.env FEATURE_SELF_REGISTER=true 重开
     )
     feature_router: bool = True  # 多模型分级路由总开关；False 时主回答退化为旧单模型（get()）
+    # R15 安全观察（Owner 2026-09-21 裁定）：`law_as_of`/`case_domain` 定位为**评测通道**。
+    # False（默认）⇒ 客户端传的 `law_as_of` 被忽略（各消费方落当日，行为与"没传"一致）；
+    # True ⇒ 评测/灰度放行。理由：该值直接改变"用哪天的法"与证据 cutoff，不是偏好设置；
+    # 且票 I-2(a) 的护栏会把分水岭前的值变成回落 LLM ⇒ 不限通道就成了公开用户的成本口子。
+    allow_client_law_as_of: bool = False
+
     feature_study_retrieval: bool = True  # ADR-012：study_aid 具体题分步检索（False 一键回滚"不检索"）
     feature_study_cache: bool = True  # 法考题(study_aid)进回答缓存白名单（False 回滚=仅 legal_query 可缓存）
     feature_similar_cache: bool = True  # BGE 近重复命中（结构护栏防错答；False 只精确 key 命中）
