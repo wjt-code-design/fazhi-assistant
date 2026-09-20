@@ -1,0 +1,262 @@
+{
+  "verified_at": "20260920-231937",
+  "cards": [
+    {
+      "id": "T1",
+      "wave": "W1a",
+      "priority": "P0",
+      "artifacts_ok": 0,
+      "artifacts_total": 3,
+      "problems": [
+        {
+          "artifact": "matrix.json",
+          "status": "MISSING",
+          "found": 0,
+          "need": 1,
+          "files": []
+        },
+        {
+          "artifact": "report.md",
+          "status": "MISSING",
+          "found": 0,
+          "need": 1,
+          "files": []
+        },
+        {
+          "artifact": "run-1..N.stdout.txt (N>=5)",
+          "status": "MISSING",
+          "found": 4,
+          "need": 5,
+          "files": [
+            "C:\\Users\\33393\\Desktop\\ai-legal-helper\\dispatch-output\\t1-flaky-20260920\\run-1.stdout.txt",
+            "C:\\Users\\33393\\Desktop\\ai-legal-helper\\dispatch-output\\t1-flaky-20260920\\run-2.stdout.txt",
+            "C:\\Users\\33393\\Desktop\\ai-legal-helper\\dispatch-output\\t1-flaky-20260920\\run-3.stdout.txt",
+            "C:\\Users\\33393\\Desktop\\ai-legal-helper\\dispatch-output\\t1-flaky-20260920\\run-4.stdout.txt"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "T2",
+      "wave": "W2",
+      "priority": "P1",
+      "artifacts_ok": 0,
+      "artifacts_total": 4,
+      "problems": [
+        {
+          "artifact": "slow-run.stdout.txt",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "slow-run.xml",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "notslow-run.xml",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "report.md",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        }
+      ]
+    },
+    {
+      "id": "T3",
+      "wave": "W1a",
+      "priority": "P2",
+      "artifacts_ok": 2,
+      "artifacts_total": 2,
+      "problems": []
+    },
+    {
+      "id": "T4",
+      "wave": "W1a",
+      "priority": "P3",
+      "artifacts_ok": 0,
+      "artifacts_total": 2,
+      "problems": [
+        {
+          "artifact": "inventory.md",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "classification.json",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        }
+      ]
+    },
+    {
+      "id": "T6",
+      "wave": "W1a",
+      "priority": "P1",
+      "artifacts_ok": 2,
+      "artifacts_total": 2,
+      "problems": []
+    },
+    {
+      "id": "T7",
+      "wave": "W1a",
+      "priority": "P1",
+      "artifacts_ok": 0,
+      "artifacts_total": 2,
+      "problems": [
+        {
+          "artifact": "report.md",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "recompute.json",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        }
+      ]
+    },
+    {
+      "id": "T8",
+      "wave": "W1a",
+      "priority": "P2",
+      "artifacts_ok": 0,
+      "artifacts_total": 2,
+      "problems": [
+        {
+          "artifact": "report.md",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "probe.json",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        }
+      ]
+    },
+    {
+      "id": "T9",
+      "wave": "W1a",
+      "priority": "P2",
+      "artifacts_ok": 2,
+      "artifacts_total": 2,
+      "problems": []
+    },
+    {
+      "id": "T10",
+      "wave": "W1a",
+      "priority": "P2",
+      "artifacts_ok": 0,
+      "artifacts_total": 2,
+      "problems": [
+        {
+          "artifact": "taxonomy.md",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "cells.json",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        }
+      ]
+    },
+    {
+      "id": "T11",
+      "wave": "W2",
+      "priority": "P1",
+      "artifacts_ok": 0,
+      "artifacts_total": 3,
+      "problems": [
+        {
+          "artifact": "gate-<标签>.log",
+          "status": "MISSING",
+          "found": 0,
+          "need": 1,
+          "files": []
+        },
+        {
+          "artifact": "gate-<标签>-source-sha.json",
+          "status": "MISSING",
+          "found": 0,
+          "need": 1,
+          "files": []
+        },
+        {
+          "artifact": "gate-<标签>-verdict.txt",
+          "status": "MISSING",
+          "found": 0,
+          "need": 1,
+          "files": []
+        }
+      ]
+    },
+    {
+      "id": "T12",
+      "wave": "W1b",
+      "priority": "P3",
+      "artifacts_ok": 0,
+      "artifacts_total": 1,
+      "problems": [
+        {
+          "artifact": "report.md",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        }
+      ]
+    }
+  ],
+  "t1_matrix": {
+    "status": "MISSING",
+    "runs": 0
+  },
+  "sentinel": {
+    "alarm": [
+      {
+        "path": "backend/gate_exit_registry.py",
+        "why": "SHA_DRIFT",
+        "owner": "registry-owner",
+        "baseline": "62d43e9abb3dda32fe3358166855b18b0ff46098aaf373ae22429fdb20d6908b",
+        "now": "a449396853254a4c34a16eba02764120024dff4e73e3cd026ce16b7198f0e4fb"
+      },
+      {
+        "path": "docs/gate-exit-registry.md",
+        "why": "SHA_DRIFT",
+        "owner": "registry-owner",
+        "baseline": "66cbc94c1465b74f5acefbd50f0937373ed7abe2ba71e44cefa44c57d4945f2f",
+        "now": "b83e49aa4e08d40e6126c6e320fd576cd1446f6b1743cdb0cec79d510048605d"
+      }
+    ],
+    "recorded_external_drift": [
+      {
+        "path": "backend/main.py",
+        "why": "SHA_DRIFT",
+        "owner": "ticket-I",
+        "baseline": "6a320e42ce034bc500a55a7dee9ad6684619011cfc2fcf3d5ed721016d767603",
+        "now": "4807cc9e4b9dd14334b754f63dea53ff9c1b669157647b93de21bab5be4cbe5f"
+      }
+    ],
+    "backend_dirty_tracked": [],
+    "backend_untracked": [
+      "?? backend/.ptmp-s4-run2/"
+    ]
+  },
+  "note": "结构性验收：只判产物落地/可解析/计数行。语义正确性仍需人工复跑。"
+}

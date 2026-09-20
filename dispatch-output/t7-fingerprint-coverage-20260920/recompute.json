@@ -1,0 +1,152 @@
+{
+  "card": "T7",
+  "counted_collection": "qa_pairs",
+  "guard": "count=279 (expect 279)",
+  "denominator_clarification": "分母对谁：见 coverage 两档口径；qa_pairs_te4(21) 单独隔离不混入",
+  "total_records_qa_pairs": 279,
+  "stored_state": {
+    "options_fingerprint_key_present": 135,
+    "options_fingerprint_nonempty": 60,
+    "options_fingerprint_empty_or_absent": 219
+  },
+  "recomputed_state": {
+    "options_fingerprint_nonempty_now": 168,
+    "meaning": "对当前 qa_pairs 全部记录用 _options_fingerprint 现算一遍，非空的条数 = 带真实选项、理论上可提取指纹的条数"
+  },
+  "crosstab": {
+    "A_both_nonempty_already_fingerprinted": 60,
+    "B_stored_empty_but_has_options_gap_fillable": 18,
+    "C_stored_nonempty_but_no_options_anomaly": 0,
+    "D_both_empty_no_options": 57,
+    "E_no_key_but_has_options": 90,
+    "F_no_key_no_options": 54
+  },
+  "gap_examples": [
+    {
+      "id": "0808ddd8-8fd2-4830-af66-47d5c2aa02e4",
+      "origin": "qa",
+      "stored_fp": "",
+      "recomp_fp_head": "向人民法院请求保护民事权利的诉讼时效期间为三年\u001f诉讼时效期间自权利人知道或应当知",
+      "q_head": "关于诉讼时效，下列说法正确的是？A.向人民法院请求保护民事权利的诉讼时效期间为三年 B.诉讼时效期间自权利人知道或应当知道权利受损害及义务人"
+    },
+    {
+      "id": "18205a14-409b-4dc1-8816-65ed8ed67b44",
+      "origin": "qa",
+      "stored_fp": "",
+      "recomp_fp_head": "当事人在保证合同中约定保证人与债务人对债务承担连带责任的，为连带责任保证\u001f一般保",
+      "q_head": "关于保证担保，下列说法正确的是？A.当事人在保证合同中约定保证人与债务人对债务承担连带责任的，为连带责任保证 B.一般保证的保证人在主合同纠"
+    },
+    {
+      "id": "2199b191-629d-4108-b58a-b83e47b119aa",
+      "origin": "qa",
+      "stored_fp": "",
+      "recomp_fp_head": "当事人可以约定一方向对方给付定金作为债权的担保\u001f定金合同自实际交付定金时成立\u001f给",
+      "q_head": "关于定金，下列说法正确的是？A.当事人可以约定一方向对方给付定金作为债权的担保 B.定金合同自实际交付定金时成立 C.给付定金的一方不履行约"
+    },
+    {
+      "id": "2a29d50b-3e60-44b7-a998-e68b8385e9ba",
+      "origin": "qa",
+      "stored_fp": "",
+      "recomp_fp_head": "死刑由最高人民法院核准\u001f中级人民法院判处死刑缓期执行的案件由最高人民法院核准\u001f最",
+      "q_head": "关于死刑复核程序，下列说法正确的是？A.死刑由最高人民法院核准 B.中级人民法院判处死刑缓期执行的案件由最高人民法院核准 C.最高人民法院复"
+    },
+    {
+      "id": "3baf56f6-0776-48a1-9f46-67b341f44406",
+      "origin": "qa",
+      "stored_fp": "",
+      "recomp_fp_head": "提供格式条款一方不合理地免除或减轻其责任、加重对方责任的条款无效\u001f对格式条款有两",
+      "q_head": "关于格式条款，下列说法正确的是？A.提供格式条款一方不合理地免除或减轻其责任、加重对方责任的条款无效 B.对格式条款有两种以上解释的，应当作"
+    },
+    {
+      "id": "4127412c-fc8f-4192-b249-f34201edd547",
+      "origin": "qa",
+      "stored_fp": "",
+      "recomp_fp_head": "一般侵权责任的构成要件包括过错、违法行为、损害事实和因果关系\u001f无过错责任原则不以",
+      "q_head": "关于侵权责任的构成，下列说法正确的是？A.一般侵权责任的构成要件包括过错、违法行为、损害事实和因果关系 B.无过错责任原则不以行为人有过错为"
+    },
+    {
+      "id": "63386d0f-a6aa-41a7-814a-3ce3802ef9c5",
+      "origin": "qa",
+      "stored_fp": "",
+      "recomp_fp_head": "应当遵循合法、正当、必要和诚信原则\u001f应当遵循最小必要原则\u001f处理敏感个人信息应当取",
+      "q_head": "关于处理个人信息，下列说法正确的是？A.应当遵循合法、正当、必要和诚信原则 B.应当遵循最小必要原则 C.处理敏感个人信息应当取得个人单独同"
+    },
+    {
+      "id": "6ba02f81-20d9-4231-8750-ed8339a45848",
+      "origin": "qa",
+      "stored_fp": "",
+      "recomp_fp_head": "第一顺序继承人为配偶、子女、父母\u001f第二顺序继承人为兄弟姐妹、祖父母、外祖父母\u001f丧",
+      "q_head": "关于法定继承，下列说法正确的是？A.第一顺序继承人为配偶、子女、父母 B.第二顺序继承人为兄弟姐妹、祖父母、外祖父母 C.丧偶儿媳对公婆尽了"
+    },
+    {
+      "id": "6e0ea7ce-bb24-4b12-8b85-1cc46d702e0c",
+      "origin": "qa",
+      "stored_fp": "",
+      "recomp_fp_head": "应当向公司足额缴纳\u001f还应当向已按期足额缴纳出资的股东承担违约责任\u001f公司可以要求其",
+      "q_head": "关于股东未按期足额缴纳出资的责任，下列说法正确的是？A.应当向公司足额缴纳 B.还应当向已按期足额缴纳出资的股东承担违约责任 C.公司可以要"
+    },
+    {
+      "id": "824593ed-787d-480b-b439-168d51ee1b46",
+      "origin": "qa",
+      "stored_fp": "",
+      "recomp_fp_head": "判决体现了道德主义对自由的限制\u001f判决体现了家长主义对自由的限制\u001f秩序是法的最高价",
+      "q_head": "李某与孙某离婚后，双方协议约定李某不能在5年内再婚，否则将对孙某支付赔偿，但李某在离婚的第三年再婚，遂孙某起诉要求李某赔偿，法院认为，该协议"
+    },
+    {
+      "id": "91abef17-ae87-4376-9518-fcc22bdb187b",
+      "origin": "qa",
+      "stored_fp": "",
+      "recomp_fp_head": "协议离婚的，自婚姻登记机关收到离婚登记申请之日起三十日内可以撤回申请\u001f三十日届满",
+      "q_head": "关于离婚冷静期，下列说法正确的是？A.协议离婚的，自婚姻登记机关收到离婚登记申请之日起三十日内可以撤回申请 B.三十日届满后三十日内双方应亲"
+    },
+    {
+      "id": "a0a8a8d7-200c-461e-9d42-1052fa550c75",
+      "origin": "qa",
+      "stored_fp": "",
+      "recomp_fp_head": "对行政处罚决定不服的可以申请行政复议\u001f对行政强制措施不服的可以申请行政复议\u001f对行",
+      "q_head": "关于行政复议的受案范围，下列说法正确的是？A.对行政处罚决定不服的可以申请行政复议 B.对行政强制措施不服的可以申请行政复议 C.对行政机关"
+    }
+  ],
+  "origin_distribution": {
+    "qa": 279
+  },
+  "metadata_keys_distribution": {
+    "answer": 279,
+    "evidence": 279,
+    "law_as_of_basis": 279,
+    "law_as_of_basis_src": 279,
+    "options_fingerprint": 135,
+    "origin": 279
+  },
+  "qa_pairs_te4_separate": {
+    "count": 21,
+    "fp_key_present": 0,
+    "fp_nonempty": 0,
+    "note": "与 qa_pairs 完全隔离，本卡不计入分母/分子"
+  },
+  "coverage": {
+    "current_over_total_279": {
+      "numerator": 60,
+      "denominator": 279,
+      "fraction": 0.2151
+    },
+    "current_over_option_records": {
+      "numerator": 60,
+      "denominator": 168,
+      "fraction": 0.3571,
+      "note": "指纹只对带选项记录有意义，这是更公平的分母"
+    },
+    "after_backfill_over_total_279": {
+      "numerator": 168,
+      "denominator": 279,
+      "fraction": 0.6022,
+      "gain_records": 108
+    },
+    "after_backfill_over_option_records": {
+      "numerator": 168,
+      "denominator": 168,
+      "fraction": 1.0,
+      "note": "补采后带选项记录 100% 有指纹"
+    }
+  }
+}

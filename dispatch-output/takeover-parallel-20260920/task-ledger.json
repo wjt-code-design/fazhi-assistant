@@ -1,0 +1,282 @@
+{
+  "schema": "parallel-task-ledger/v1",
+  "generated_at": "2026-09-20T22:21:58+08:00",
+  "run_root": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\dispatch-output\\takeover-parallel-20260920",
+  "source_of_truth_for_cards": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\dispatch-output\\hij-h-20260920\\ALL-PARALLEL-TASKS.md",
+  "global_rules": [
+    "R1 禁写 git：所有执行卡不得执行 add/commit/stash/checkout/restore/push；入库由主会话串行执行。",
+    "R2 只写自己的交付目录；越界写 = 停手 + 回报（唯一例外：T12 跑既有构建命令，须报告写了哪些目录）。",
+    "R3 不改 backend/** 任何产品码；不改生产开关默认值；不推送、不部署。",
+    "R4 跑 pytest 必须用自己唯一的 --basetemp（共用会撞沙箱 safe-delete 批量守卫）。",
+    "R5 判成败看产物（junit/verdict.json），不看退出码。",
+    "R6 读 main.py/retrieval.py 的卡必须记录 sha256(backend/main.py) + sha256(backend/retrieval.py) + HEAD 作为结论基线。",
+    "R7 回报固定 5 段：结论 / 产物+读数 / 逐条对照判据 / 我复跑的命令 / 诚实登记含越界写声明。",
+    "R8 T1 搭副本树用 commit 1e969f2，不得 --overlay 票 I 的在途文件（retrieval.py / test_exact_article_lookup_sourcekey.py）。",
+    "R9 W2 开门三判据：backend 无未提交已跟踪改动 + hij-i 目录静默 >=5 分钟 + 票 I report 落地。三条同时成立才跑 T2/T11。",
+    "R10 票 I 名下的资源漂移（main.py / retrieval.py）只记录不报警；本波任何卡造成的 backend 改动 = 报警 + 停手。"
+  ],
+  "tasks": [
+    {
+      "id": "T1",
+      "title": "定位全量 lane 的 flaky 簇",
+      "priority": "P0",
+      "wave": "W1a",
+      "write_set": ["dispatch-output/t1-flaky-20260920/"],
+      "read_set": [
+        "dispatch-output/hij-h-20260920/mut-r2/baseline/full-baseline.xml",
+        "dispatch-output/hij-h-20260920/mut-r2b/baseline/full-baseline.xml",
+        "dispatch-output/hij-j-20260920/mut/baseline/full-baseline.xml"
+      ],
+      "forbidden": ["live 树全量 pytest", "改产品码", "写 copytree 之外的 backend/.env"],
+      "required_artifacts": ["matrix.json", "report.md", "run-1..N.stdout.txt (N>=5)"],
+      "acceptance": [
+        "同一命令重复 >=5 次的红/绿矩阵",
+        "每条 flaky 的最小复现 + 根因（不接受『可能跟负载有关』）",
+        "归类到 顺序依赖/共享状态/时间敏感/外部依赖 且逐条给证据",
+        ">=5 次里 0 次复现的不算 flaky"
+      ],
+      "my_recheck": "复跑卡内命令 >=3 次，矩阵逐格比对；格数 <5 或缺格即打回",
+      "blocked_by": [],
+      "resources": ["copybase_commit=1e969f2（实测可取）"],
+      "extra_rules": [
+        "C5：T12 的 build 必须等本卡收工；本卡若要用『负载敏感』作根因，必须自起受控负载腿",
+        "R8：副本树用 1e969f2（早于票 I 的 22:24 改动）⇒ 读数天然干净；不得 overlay 票 I 在途文件"
+      ]
+    },
+    {
+      "id": "T2",
+      "title": "-m slow 那 18 条能不能跑通",
+      "priority": "P1",
+      "wave": "W2",
+      "write_set": ["dispatch-output/t2-slow-20260920/"],
+      "read_set": ["backend/chroma_db（只读）"],
+      "forbidden": ["改 backend/.env", "改产品码"],
+      "required_artifacts": ["slow-run.stdout.txt", "slow-run.xml", "notslow-run.xml", "report.md"],
+      "acceptance": [
+        "passed/failed/skipped/deselected 逐项 + 分母对账 1408 = 1390 + 18",
+        "有红逐条给红因原文，并判『环境缺 KB』还是『真回归』",
+        "skip 与 failed 必须分开数（conftest real_kb 在主库 <1000 条时 skip）"
+      ],
+      "my_recheck": "复跑两条命令；分离核对 skip / failed",
+      "blocked_by": ["票 I 收工（独占 live 树）"],
+      "resources": ["live 树", "真实 backend/chroma_db"]
+    },
+    {
+      "id": "T3",
+      "title": "两份 app.db 的口径统一",
+      "priority": "P2",
+      "wave": "W1a",
+      "write_set": ["dispatch-output/t3-appdb-20260920/"],
+      "read_set": [
+        "backend/data/app.db",
+        "backend/data/quota_used.sqlite",
+        "dispatch-output/appdb-lastwrite-forensics-20260919/report.md"
+      ],
+      "forbidden": ["开事务", "VACUUM", "改 schema"],
+      "required_artifacts": ["report.md", "readings.json"],
+      "acceptance": [
+        "文件→路径→cc/size/mtime→谁在写→是否生产真源 的一张表",
+        "一条可复跑命令",
+        "容器那份必须真读到才许下结论"
+      ],
+      "my_recheck": "用同一脚本独立读一遍，cc/size/mtime 三列对齐",
+      "blocked_by": [],
+      "resources": ["只读"]
+    },
+    {
+      "id": "T4",
+      "title": "未跟踪资产清点（只出建议）",
+      "priority": "P3",
+      "wave": "W1a",
+      "write_set": ["dispatch-output/t4-assets-20260920/"],
+      "read_set": ["全仓 git status", "dispatch-output/ 磁盘占用"],
+      "forbidden": ["任何删除"],
+      "required_artifacts": ["inventory.md", "classification.json"],
+      "acceptance": [
+        "四类逐项归类（必须入库/建议入库/可清理/别动）+ 每项理由",
+        "dispatch-output 按占用前 10 排序 + 各自回答『背后还有没有没落地的事』",
+        "可清理项只列清单，不执行"
+      ],
+      "my_recheck": "抽 10 项核 status 真伪；确认零删除动作",
+      "blocked_by": [],
+      "resources": ["只读"],
+      "extra_rules": [
+        "C4：必须标注读数快照时刻；t1..t12-*-20260920/ 单列为『本波自产』，不计入存量分类"
+      ]
+    },
+    {
+      "id": "T6",
+      "title": "I-6 同族普查：还会漏掉带年份括注源名的调用点",
+      "priority": "P1",
+      "wave": "W1a",
+      "write_set": ["dispatch-output/t6-sourcekey-survey-20260920/"],
+      "read_set": [
+        "backend/knowledge_service.py",
+        "backend/scripts/gen_gate1_law_check.py",
+        "backend/scripts/import_laws.py",
+        "backend/scripts/import_docs.py",
+        "backend/retrieval.py（_source_key）",
+        "backend/tests/test_citation.py"
+      ],
+      "forbidden": ["改码", "另写一份『去括注』正则"],
+      "required_artifacts": ["survey.md", "call-sites.json"],
+      "acceptance": [
+        "逐调用点给『要不要 _source_key 容错』+ 理由 + 最小修法（或不需修的证据）",
+        "不接受只说『建议统一』"
+      ],
+      "my_recheck": "逐点回读代码核对行号；确认报告里没有第二份规则实现",
+      "blocked_by": [],
+      "resources": ["只读源码"],
+      "extra_rules": [
+        "C3：exact_article_lookup 本体归票 I（I-6 已于 22:24 落笔 +46/-10），本卡只普查其余调用点；禁止改 retrieval.py",
+        "C1：报告须锚定 sha256(retrieval.py)，并声明结论不含 exact_article_lookup 本体"
+      ]
+    },
+    {
+      "id": "T7",
+      "title": "options_fingerprint 只有 60/279 的根因",
+      "priority": "P1",
+      "wave": "W1a",
+      "write_set": ["dispatch-output/t7-fingerprint-coverage-20260920/"],
+      "read_set": [
+        "真实 qa_pairs 语料（只读）",
+        "backend/scripts/gen_qa_corpus.py",
+        "backend/qa_seeds.py",
+        "backend/query_understand.py（_options_fingerprint）",
+        "dispatch-output/i1-e2-hitrate-20260920/"
+      ],
+      "forbidden": ["写真实语料", "重做已有清点"],
+      "required_artifacts": ["report.md", "recompute.json"],
+      "acceptance": [
+        "60 条指纹是谁在哪一步写入（代码出处）",
+        "用 _options_fingerprint 对 279 条现算，给『理论可提取』条数",
+        "补采能把覆盖提到多少（给数）",
+        "分母口径写明（60 / 166 / 279 不许混）"
+      ],
+      "my_recheck": "复算一遍『理论可提取』条数；核对分母口径",
+      "blocked_by": [],
+      "resources": ["真实语料单写者=票 I（本卡只读）"],
+      "extra_rules": ["补采的『实现』是独立后续项，必须排在票 I 之后"]
+    },
+    {
+      "id": "T8",
+      "title": "E2 出口有没有票 J 那类多选缺口",
+      "priority": "P2",
+      "wave": "W1a",
+      "write_set": ["dispatch-output/t8-e2-multi-20260920/"],
+      "read_set": [
+        "backend/gate_exit_registry.py（E2 段）",
+        "backend/main.py（_qa_direct_return）",
+        "backend/quality.py（multi_incomplete）",
+        "backend/tests/_sse_harness.py",
+        "backend/tests/test_light_exit_gates.py"
+      ],
+      "forbidden": ["改 E2 的三道护栏"],
+      "required_artifacts": ["report.md", "probe.json"],
+      "acceptance": [
+        "实测多选+语料只声明一个正确项能否直返",
+        "判定属『会命中』还是『理论可达』",
+        "结论必须带权衡（零 token 卖点 vs 判定成本）"
+      ],
+      "my_recheck": "复跑探针；核对报告含 sha256(main.py) + HEAD 基线",
+      "blocked_by": [],
+      "resources": ["只读 main.py"],
+      "extra_rules": ["C1：必须钉 main.py sha256（票 I 在途，读数会漂移）"]
+    },
+    {
+      "id": "T9",
+      "title": "评测可信度两格 BLOCKED 的绕开清单",
+      "priority": "P2",
+      "wave": "W1a",
+      "write_set": ["dispatch-output/t9-eval-credibility-20260920/"],
+      "read_set": [
+        "backend/main.py（record(qa_cache) / body.no_cache）",
+        "backend/tests/test_light_exit_gates.py",
+        "dispatch-output/i1-e2-hitrate-20260920/",
+        "docs/project-quality-guide-20260914.md"
+      ],
+      "forbidden": ["改码"],
+      "required_artifacts": ["checklist.md", "findings.json"],
+      "acceptance": [
+        "逐条『绕开什么 + 文件+符号 + 今天是否已被防住（是/否+证据）』",
+        "可直接贴进评测批 checklist",
+        "不接受只说『要注意缓存』"
+      ],
+      "my_recheck": "抽查每条 文件:符号 是否真存在；核对 main.py sha256 基线",
+      "blocked_by": [],
+      "resources": ["只读"],
+      "extra_rules": ["C1：必须钉 main.py sha256"]
+    },
+    {
+      "id": "T10",
+      "title": "DISABLED 11 格 + GAP-ACCEPTED 5 格的语义分类",
+      "priority": "P2",
+      "wave": "W1a",
+      "write_set": ["dispatch-output/t10-disabled-taxonomy-20260920/"],
+      "read_set": [
+        "backend/gate_exit_registry.py",
+        "docs/capability-matrix.md",
+        "dispatch-output/hij-h-20260920/23-sweep-nonpass-cells.json"
+      ],
+      "forbidden": ["改词表", "改登记表真源或生成物"],
+      "required_artifacts": ["taxonomy.md", "cells.json"],
+      "acceptance": [
+        "16 格逐格判入 结构不适用/今天零流量/已裁定接受/待修 + 引用取证原文",
+        "对『该不该拆词』给建议但不许改",
+        "不许把『今天零流量』与『结构不适用』混谈"
+      ],
+      "my_recheck": "11+5=16 格逐格核数目；确认登记表 md 未被写",
+      "blocked_by": [],
+      "resources": ["只读"]
+    },
+    {
+      "id": "T11",
+      "title": "补一次全量测试门禁（给 HEAD 补绿证）",
+      "priority": "P1",
+      "wave": "W2",
+      "write_set": ["dispatch-output/te-chroma-isolation-20260918/（gate-<标签> 三件套）"],
+      "read_set": [
+        "docs/handoff-takeover-20260919.md（权威细节，必读）",
+        "backend/chroma_db 整目录（隔离判据）",
+        "backend/data/app.db",
+        "backend/data/quota_used.sqlite"
+      ],
+      "forbidden": ["裸跑 pytest", "改 backend/scripts/gate2_runner.py", "RUN_VOID 时报绿"],
+      "required_artifacts": ["gate-<标签>.log", "gate-<标签>-source-sha.json", "gate-<标签>-verdict.txt"],
+      "acceptance": [
+        "回归判据（退出码+末行计数）仅在 verdict=RUN_VALID 时有效",
+        "隔离判据（chroma_db 清单前后一致）RUN_VOID 时依然有效",
+        "不得把 database is locked 照抄成已知 flake"
+      ],
+      "my_recheck": "读 verdict 三件套；不满足 RUN_VALID 一律不认绿",
+      "blocked_by": ["票 I 收工"],
+      "resources": ["live 树独占", "backend/**/*.py 全程冻结（实测 walk 范围，非仅 main.py）"]
+    },
+    {
+      "id": "T12",
+      "title": "前端面普查",
+      "priority": "P3",
+      "wave": "W1b",
+      "write_set": ["dispatch-output/t12-frontend-sweep-20260920/", "frontend/.next（仅既有构建命令可写）"],
+      "read_set": ["frontend/（不递归 node_modules）", "docs/frontend-*.md", "docs/ADR.md"],
+      "forbidden": ["npm install", "改 package.json / 前端源码", "递归读 node_modules"],
+      "required_artifacts": ["report.md"],
+      "acceptance": [
+        "① 有无可执行的待办（有给出处，无则明说无）",
+        "② 构建今天能否跑通（产物+退出码；跑不通区分缺依赖/真失败）",
+        "③ 与后端契约不一致的证据（路径/字段/错误码逐项）",
+        "必须写明构建实际写了哪些目录"
+      ],
+      "my_recheck": "查 frontend/ 源码未被改；核对『写了哪些目录』与实测一致",
+      "blocked_by": [],
+      "resources": ["唯一允许越界写的卡（构建产物）"],
+      "extra_rules": ["C5：重 IO，必须等 T1 收工后再起"]
+    }
+  ],
+  "not_dispatched": [
+    {"id": "票I", "former_id": "T5", "reason": "另一会话在途，独占 backend/main.py + retrieval.py + 真实语料写入"},
+    {"id": "R15 四项 P1", "reason": "属他人产出，需 Owner 立项；且抢 main.py"},
+    {"id": "ADR-018 残留④", "reason": "结构性不对等，ADR 自认非实现缺陷"},
+    {"id": "progress-and-backlog §5 的 9 项", "reason": "需 Owner 裁决（改判据/生产语义/付费额度）"}
+  ]
+}

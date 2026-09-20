@@ -1,0 +1,189 @@
+{
+  "captured_at_HEAD": "2a48f3ec0f4b906302755504131c5da252e38f77",
+  "registry_sha256": "30f582116c6ca213ad0b3edfbbc8940940637259817a3eb4800d29f04841175e",
+  "n_exits": 16,
+  "exit_ids": [
+    "E1",
+    "E10",
+    "E11",
+    "E12",
+    "E13",
+    "E14",
+    "E15",
+    "E16",
+    "E2",
+    "E3",
+    "E4",
+    "E5",
+    "E6",
+    "E7",
+    "E8",
+    "E9"
+  ],
+  "status_counts_all": {
+    "PASS": 55,
+    "GAP-ACCEPTED": 6,
+    "DISABLED": 11,
+    "NA": 54,
+    "BLOCKED": 2
+  },
+  "non_pass_cells": [
+    {
+      "exit": "E1",
+      "where": "stream() / 分支0 缓存命中直返（变量 `ca`）",
+      "traffic": "有执行取证",
+      "col": "引用校验",
+      "status": "GAP-ACCEPTED",
+      "evidence": "本出口不复判；引用是在**写入侧**过的（E8 的 `_cache_write_ok` + `quality.self_check` 内含 `citation_verify`）。复判只加延迟、改不了已定内容。"
+    },
+    {
+      "exit": "E1",
+      "where": "stream() / 分支0 缓存命中直返（变量 `ca`）",
+      "traffic": "有执行取证",
+      "col": "自检",
+      "status": "DISABLED",
+      "evidence": "`routing_metrics.record(\"cache\", ..., checked=False)` ⇒ 本出口不跑自检（零 token 直返的定义）。"
+    },
+    {
+      "exit": "E1",
+      "where": "stream() / 分支0 缓存命中直返（变量 `ca`）",
+      "traffic": "有执行取证",
+      "col": "多选完整性",
+      "status": "DISABLED",
+      "evidence": "本出口不调 `quality.multi_incomplete`；选项指纹只在写侧参与存盘。"
+    },
+    {
+      "exit": "E1",
+      "where": "stream() / 分支0 缓存命中直返（变量 `ca`）",
+      "traffic": "有执行取证",
+      "col": "版本绊线",
+      "status": "GAP-ACCEPTED",
+      "evidence": "**2026-09-20 裁为 `GAP-ACCEPTED`（票 I 收口时的回表）**：E2 **已修**（语料标版本基准日 + 第四道护栏），而 E1 **不同修**——理由是它的暴露面比 E2 低一档、且同一手段治不了它：本出口读的是 `answer_cache`（进程内 `rc.LRU(maxsize=512)` + `TTL=6h`），重启与知识增删（`retrieval.invalidate()` → `clear()`）都清空 ⇒ 一条错版本答复的暴露窗 **≤ 6 小时**；而**开关要生效本来就得重启** ⇒ 开门那一刻顺手就把它清了，不需要专门动作。**结构性走不到**（这是技术理由，不是偷懒）：收口点的门在生成分支上，而本出口在门之前就 `return` ⇒ 挂到收口处的门对缓存复用型答复永远不命中。**不由票 C 解决**：票 C §4-Q2 于 2026-09-20 已裁「不判读侧」（读侧加判定会把「零 token 直返」这个特性本身打穿）。⚠️ **E2 不能照抄这个理由**：它是 **Chroma 持久**集合，无 TTL、重启不清、`clear()` 也碰不到 ⇒ 所以 E2 必须**真修**（票 I 的 I-2(a) 已修）。"
+    },
+    {
+      "exit": "E1",
+      "where": "stream() / 分支0 缓存命中直返（变量 `ca`）",
+      "traffic": "有执行取证",
+      "col": "评测可信度",
+      "status": "BLOCKED",
+      "evidence": "评测必须 `no_cache` 绕本出口，否则测的是缓存不是模型。前科 `[fz]`：qa_cache 曾让 multi_ok 0.43/0.57/0.64 三个数全失真 —— 数字失真比没数字危险。"
+    },
+    {
+      "exit": "E2",
+      "where": "stream() / 分支0.2 QA 持久语义缓存直返（变量 `qa_ans`）",
+      "traffic": "命中率未量",
+      "col": "引用校验",
+      "status": "GAP-ACCEPTED",
+      "evidence": "预生成语料（8-23 智谱免费 token 离线生成），读侧不复判；写侧护栏=高阈值+选项指纹+evidence 时效三闸。"
+    },
+    {
+      "exit": "E2",
+      "where": "stream() / 分支0.2 QA 持久语义缓存直返（变量 `qa_ans`）",
+      "traffic": "命中率未量",
+      "col": "自检",
+      "status": "DISABLED",
+      "evidence": "`record(\"qa_cache\", ..., checked=False)`。"
+    },
+    {
+      "exit": "E2",
+      "where": "stream() / 分支0.2 QA 持久语义缓存直返（变量 `qa_ans`）",
+      "traffic": "命中率未量",
+      "col": "多选完整性",
+      "status": "DISABLED",
+      "evidence": "选项指纹参与**命中判定**（防跨题误命中），但不跑 `multi_incomplete` 注记。"
+    },
+    {
+      "exit": "E2",
+      "where": "stream() / 分支0.2 QA 持久语义缓存直返（变量 `qa_ans`）",
+      "traffic": "命中率未量",
+      "col": "评测可信度",
+      "status": "BLOCKED",
+      "evidence": "`[fz]` 污染 judge 基线的前科**就是这一条通道**。judge 与语料同源时会「和 LLM 一起错」，一致率 ≥0.7 的自评不可信；0/1 判定必须走确定性金标。"
+    },
+    {
+      "exit": "E3",
+      "where": "stream() / 分支0.5 低置信反问 / 诚实拒答（变量 `msg`，零 LLM 模板）",
+      "traffic": "静态可达（执行未证）",
+      "col": "自检",
+      "status": "DISABLED",
+      "evidence": "`record(strategy, ..., checked=False)`。"
+    },
+    {
+      "exit": "E3",
+      "where": "stream() / 分支0.5 低置信反问 / 诚实拒答（变量 `msg`，零 LLM 模板）",
+      "traffic": "静态可达（执行未证）",
+      "col": "版本绊线",
+      "status": "GAP-ACCEPTED",
+      "evidence": "本轮实测两条模板全文均不含 `_CIVIL_KEYWORDS`（诉讼时效 / 时效期间 / 时效）任一词，挂门必然恒不命中 = 空门 ⇒ 接它只会多一处假接线。"
+    },
+    {
+      "exit": "E4",
+      "where": "stream() / 分支0.3 合同信息确认闸（常量 `CONTRACT_CLARIFY_PROMPT`，零 LLM）",
+      "traffic": "静态可达（执行未证）",
+      "col": "自检",
+      "status": "DISABLED",
+      "evidence": "`record(\"contract_clarify\", ..., checked=False)`。"
+    },
+    {
+      "exit": "E4",
+      "where": "stream() / 分支0.3 合同信息确认闸（常量 `CONTRACT_CLARIFY_PROMPT`，零 LLM）",
+      "traffic": "静态可达（执行未证）",
+      "col": "版本绊线",
+      "status": "GAP-ACCEPTED",
+      "evidence": "同 E3：`prompts.py::CONTRACT_CLARIFY_PROMPT` 全文无时效表述 ⇒ 挂门成空门。"
+    },
+    {
+      "exit": "E5",
+      "where": "stream() / 分支0.3 合同报告流式增量（变量 `piece`）",
+      "traffic": "有执行取证（真实配置下入口可达；报告产出未端到端取证）",
+      "col": "自检",
+      "status": "DISABLED",
+      "evidence": "`record(\"contract_review\", ..., checked=False)` ⇒ 合同分支**不跑** `quality.self_check`。"
+    },
+    {
+      "exit": "E5",
+      "where": "stream() / 分支0.3 合同报告流式增量（变量 `piece`）",
+      "traffic": "有执行取证（真实配置下入口可达；报告产出未端到端取证）",
+      "col": "版本绊线",
+      "status": "GAP-ACCEPTED",
+      "evidence": "票 C §4a-Q1（`cd29211`）裁定不接：合同事实来自**上传文本**而非用户自述，`_fast_path_fact_texts` 那套取法在此不成立，硬接只能接出一道恒不命中的空门。遗留风险「按现行法评估 2019 年签的合同」无人管 ⇒ Owner 若不接受须另开票。"
+    },
+    {
+      "exit": "E7",
+      "where": "stream() / 分支1 缓冲轻量整答（变量 `answer`，来自 `_light_buffered`）",
+      "traffic": "零流量（配置不可达）",
+      "col": "可达性",
+      "status": "DISABLED",
+      "evidence": "**三份独立证据同向**：① `docs/capability-matrix.md` §0 部署态角色表只有 longcat_text_flag / vision_omni / voice_omni，无 text-light；② 票 G `measure_roles.py` 读数 tier 全集=['flag'] ⇒ `has_role('text','light')=False`；③ `test_flagship_quality.py` docstring 第 3 行原文就写着：「text 无 light 档 ⇒ use_light=False」。⇒ S5 那道门今天**没有线上流量经过**。"
+    },
+    {
+      "exit": "E7",
+      "where": "stream() / 分支1 缓冲轻量整答（变量 `answer`，来自 `_light_buffered`）",
+      "traffic": "零流量（配置不可达）",
+      "col": "评测可信度",
+      "status": "DISABLED",
+      "evidence": "分支不可达 ⇒ 任何评测读数里它出现 0 次。**别把「改完评测一分没变」当它被验证过**（本轮实测：frozen-cases-v2 20 例、holdout 5 例均不含可触发该门的形态）。"
+    },
+    {
+      "exit": "E16",
+      "where": "stream() / 分支1 缓冲轻量出口的多选漏答注记帧（常量 `NOTE_MULTI_INCOMPLETE`）",
+      "traffic": "零流量（随 E7 不可达）",
+      "col": "可达性",
+      "status": "DISABLED",
+      "evidence": "`use_light` 恒假（`llm_registry` 实配只有 `('text','flag')`，见 E7 的「可达性」格）⇒ 本帧今天**零流量**。端点级判据把它打通了：`tests/test_light_exit_gates.py::test_light_path_flags_multi_incomplete_and_blocks_cache` （夹具把 tier/准入/`has_role` 造真）。⚠️ 这**不是**「线上生效」的证据。"
+    },
+    {
+      "exit": "E16",
+      "where": "stream() / 分支1 缓冲轻量出口的多选漏答注记帧（常量 `NOTE_MULTI_INCOMPLETE`）",
+      "traffic": "零流量（随 E7 不可达）",
+      "col": "评测可信度",
+      "status": "DISABLED",
+      "evidence": "分支不可达 ⇒ 评测读数里出现 0 次（同 E7）。"
+    }
+  ],
+  "n_non_pass": 19,
+  "disabled_count": 11,
+  "gap_accepted_count": 6,
+  "blocked_count": 2,
+  "gap_todo_count": 0
+}

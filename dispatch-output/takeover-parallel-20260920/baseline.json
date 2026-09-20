@@ -1,0 +1,75 @@
+{
+  "captured_at": "2026-09-20T22:21:58+08:00",
+  "last_rebaseline_at": "2026-09-20T23:41:00+08:00",
+  "captured_by": "takeover session (parallel orchestration)",
+  "head": "2a48f3ec0f4b906302755504131c5da252e38f77",
+  "head_note": "23:41 重锚。22:21 是 33ec34b → 22:30 beb4d5c（票I I-6/I-3）→ 23:05 d10dea5（票I 报告入库）→ 23:34 2a48f3e（三票双轴审查整改：只动 backend/tests/** 与文档，产品码未动）。",
+  "why": "W0 冻结基线：本轮 12 张卡开工前的只读读数。verify_deliverables.py 用它做『越界写哨兵』。",
+  "drift_policy": {
+    "alarm": "owner = this-batch / registry-owner / frozen 的资源出现 sha 漂移 ⇒ 判『越界写』，立即停手查。",
+    "record_only": "owner = ticket-I 的资源出现漂移 ⇒ 允许（本波无权冻结它），但必须记录；相关卡的结论要重新锚定。",
+    "rebaseline": "每次开新波次前重测一遍本文件；票 I 已提交过的文件（retrieval.py / gate_exit_registry.py）以其**提交版**为稳定基线。"
+  },
+  "single_writer_resources": {
+    "backend/main.py": {
+      "sha256": "4807cc9e4b9dd14334b754f63dea53ff9c1b669157647b93de21bab5be4cbe5f",
+      "size_bytes": 136165,
+      "mtime": "2026-09-20 22:36",
+      "owner": "ticket-I",
+      "drift_alarm": false,
+      "clean_at_capture": true,
+      "note": "票 I 已收工：其改动随 1fb8ef1/d10dea5 入库，工作树干净（23:41 实测 backend 无已跟踪脏项）。此哈希 = 提交版。"
+    },
+    "backend/retrieval.py": {
+      "sha256": "59596c826ab11dc7c036242d90545fe2ddd77f387facb52e4f87f25f0dfc0476",
+      "mtime": "2026-09-20 22:24",
+      "owner": "ticket-I",
+      "drift_alarm": false,
+      "clean_at_capture": true,
+      "note": "I-6 已由票 I 在 beb4d5c 合入（diff +57/-…）。此哈希 = 提交版，稳定。",
+      "superseded_hashes": ["c23814ff17b0b5979e49c0cf07605c1e4c4cdb2603c2620c41d60748d2076fac"]
+    },
+    "backend/gate_exit_registry.py": {
+      "sha256": "a449396853254a4c34a16eba02764120024dff4e73e3cd026ce16b7198f0e4fb",
+      "mtime": "2026-09-20 23:05",
+      "owner": "registry-owner",
+      "drift_alarm": true,
+      "clean_at_capture": true,
+      "note": "票 I 已在 1fb8ef1 回表收口 ⇒ 代码真源与生成物重新同步（此前 22:44-22:48 的『不同步』状态解除）。本波任何改动 = 报警。",
+      "superseded_hashes": ["326c50d26ec6d23deaa8710b647f7e8b5d41b7ea9c08bcad4e15a5f31861f8f0", "62d43e9abb3dda32fe3358166855b18b0ff46098aaf373ae22429fdb20d6908b"]
+    },
+    "docs/gate-exit-registry.md": {
+      "sha256": "b83e49aa4e08d40e6126c6e320fd576cd1446f6b1743cdb0cec79d510048605d",
+      "mtime": "2026-09-20 23:05",
+      "owner": "registry-owner",
+      "drift_alarm": true,
+      "clean_at_capture": true,
+      "superseded_hashes": ["cab3237818a39b74177591fd51cbf81c0750bb60a0c7cc86d6ac036f40874b7e", "66cbc94c1465b74f5acefbd50f0937373ed7abe2ba71e44cefa44c57d4945f2f"]
+    },
+    "backend/scripts/gate2_runner.py": {
+      "sha256": "ae2e412059ed68ac1514c62727cee61c50b8a2d6fe7e38a77c7e05631847e295",
+      "mtime": "2026-09-19 01:12",
+      "owner": "frozen",
+      "drift_alarm": true,
+      "frozen": true,
+      "cross_check": "与 hij-i-20260920/00-pre-flight.json 的 5_frozen_sha 逐字一致；22:21 与 22:37 两次读数相同 ⇒ 全程未被触碰"
+    }
+  },
+  "in_flight_outside_this_batch": {
+    "backend/main.py": "票 I 在途（22:36 仍在写）",
+    "backend/.ptmp-s4-run2/": "票 I 的临时目录（未跟踪）—— 本波禁止触碰，也不计入 T4 的『存量资产』",
+    "docs/code-review-report-02e3851-20260918.md": "另一会话在途（21:12→22:17 被改），本波禁止触碰"
+  },
+  "untracked_count_at_rebaseline": 431,
+  "untracked_count_history": {"22:21": 396, "22:37": 409, "23:41": 431},
+  "untracked_count_note": "源清单 ALL-PARALLEL-TASKS.md 写的 360 已过期两轮；T4 必须现读并标注快照时刻。",
+  "t1_copybase_commit": "1e969f2e05bb7598fea63c8f804deb6ea37ecc80",
+  "t1_copybase_reachable": true,
+  "t1_copybase_note": "1e969f2（21:49）早于票 I 的全部 backend 改动（22:24 起）⇒ T1 副本树天然不含票 I 在途改动，读数干净；**不得**手动 overlay 票 I 的文件。",
+  "rebaseline_log": [
+    {"at": "2026-09-20T22:21:58+08:00", "head": "33ec34b", "why": "首次采集"},
+    {"at": "2026-09-20T22:25:29+08:00", "head": "33ec34b", "why": "发现 retrieval.py 已在采集期间被票 I 写入 ⇒ 订正该格口径"},
+    {"at": "2026-09-20T22:37:15+08:00", "head": "beb4d5c", "why": "票 I 提交 I-6/I-3 后 HEAD 前移、registry 回表、main.py 转入在途 ⇒ 整表重锚"},
+    {"at": "2026-09-20T23:41:00+08:00", "head": "2a48f3e", "why": "票 I 收工（1fb8ef1 回表 + d10dea5 报告入库）+ 三票双轴审查整改 2a48f3e（只动 tests/**）⇒ W2 判据 3/3 成立，整表重锚后开 W2"}
+  ]
+}

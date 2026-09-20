@@ -1,0 +1,270 @@
+{
+  "verified_at": "20260920-224826",
+  "cards": [
+    {
+      "id": "T1",
+      "wave": "W1a",
+      "priority": "P0",
+      "artifacts_ok": 0,
+      "artifacts_total": 3,
+      "problems": [
+        {
+          "artifact": "matrix.json",
+          "status": "MISSING",
+          "found": 0,
+          "need": 1,
+          "files": []
+        },
+        {
+          "artifact": "report.md",
+          "status": "MISSING",
+          "found": 0,
+          "need": 1,
+          "files": []
+        },
+        {
+          "artifact": "run-1..N.stdout.txt (N>=5)",
+          "status": "MISSING",
+          "found": 0,
+          "need": 5,
+          "files": []
+        }
+      ]
+    },
+    {
+      "id": "T2",
+      "wave": "W2",
+      "priority": "P1",
+      "artifacts_ok": 0,
+      "artifacts_total": 4,
+      "problems": [
+        {
+          "artifact": "slow-run.stdout.txt",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "slow-run.xml",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "notslow-run.xml",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "report.md",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        }
+      ]
+    },
+    {
+      "id": "T3",
+      "wave": "W1a",
+      "priority": "P2",
+      "artifacts_ok": 2,
+      "artifacts_total": 2,
+      "problems": []
+    },
+    {
+      "id": "T4",
+      "wave": "W1a",
+      "priority": "P3",
+      "artifacts_ok": 0,
+      "artifacts_total": 2,
+      "problems": [
+        {
+          "artifact": "inventory.md",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "classification.json",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        }
+      ]
+    },
+    {
+      "id": "T6",
+      "wave": "W1a",
+      "priority": "P1",
+      "artifacts_ok": 2,
+      "artifacts_total": 2,
+      "problems": []
+    },
+    {
+      "id": "T7",
+      "wave": "W1a",
+      "priority": "P1",
+      "artifacts_ok": 0,
+      "artifacts_total": 2,
+      "problems": [
+        {
+          "artifact": "report.md",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "recompute.json",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        }
+      ]
+    },
+    {
+      "id": "T8",
+      "wave": "W1a",
+      "priority": "P2",
+      "artifacts_ok": 0,
+      "artifacts_total": 2,
+      "problems": [
+        {
+          "artifact": "report.md",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "probe.json",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        }
+      ]
+    },
+    {
+      "id": "T9",
+      "wave": "W1a",
+      "priority": "P2",
+      "artifacts_ok": 0,
+      "artifacts_total": 2,
+      "problems": [
+        {
+          "artifact": "checklist.md",
+          "status": "MISSING",
+          "found": 0,
+          "need": 1,
+          "files": []
+        },
+        {
+          "artifact": "findings.json",
+          "status": "MISSING",
+          "found": 0,
+          "need": 1,
+          "files": []
+        }
+      ]
+    },
+    {
+      "id": "T10",
+      "wave": "W1a",
+      "priority": "P2",
+      "artifacts_ok": 0,
+      "artifacts_total": 2,
+      "problems": [
+        {
+          "artifact": "taxonomy.md",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        },
+        {
+          "artifact": "cells.json",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        }
+      ]
+    },
+    {
+      "id": "T11",
+      "wave": "W2",
+      "priority": "P1",
+      "artifacts_ok": 0,
+      "artifacts_total": 3,
+      "problems": [
+        {
+          "artifact": "gate-<标签>.log",
+          "status": "MISSING",
+          "found": 0,
+          "need": 1,
+          "files": []
+        },
+        {
+          "artifact": "gate-<标签>-source-sha.json",
+          "status": "MISSING",
+          "found": 0,
+          "need": 1,
+          "files": []
+        },
+        {
+          "artifact": "gate-<标签>-verdict.txt",
+          "status": "MISSING",
+          "found": 0,
+          "need": 1,
+          "files": []
+        }
+      ]
+    },
+    {
+      "id": "T12",
+      "wave": "W1b",
+      "priority": "P3",
+      "artifacts_ok": 0,
+      "artifacts_total": 1,
+      "problems": [
+        {
+          "artifact": "report.md",
+          "status": "MISSING_DIR",
+          "found": 0,
+          "need": 1
+        }
+      ]
+    }
+  ],
+  "t1_matrix": {
+    "status": "MISSING",
+    "runs": 0
+  },
+  "sentinel": {
+    "alarm": [
+      {
+        "path": "backend/gate_exit_registry.py",
+        "why": "SHA_DRIFT",
+        "owner": "registry-owner",
+        "baseline": "62d43e9abb3dda32fe3358166855b18b0ff46098aaf373ae22429fdb20d6908b",
+        "now": "340ce56b912339ab86774cfd913fb80dd34e8fe4f1d45e8e8f1640f3d84ffb82"
+      }
+    ],
+    "recorded_external_drift": [
+      {
+        "path": "backend/main.py",
+        "why": "SHA_DRIFT",
+        "owner": "ticket-I",
+        "baseline": "6a320e42ce034bc500a55a7dee9ad6684619011cfc2fcf3d5ed721016d767603",
+        "now": "4807cc9e4b9dd14334b754f63dea53ff9c1b669157647b93de21bab5be4cbe5f"
+      }
+    ],
+    "backend_dirty_tracked": [
+      " M backend/gate_exit_registry.py",
+      " M backend/knowledge_service.py",
+      " M backend/main.py"
+    ],
+    "backend_untracked": [
+      "?? backend/.ptmp-s4-run2/",
+      "?? backend/tests/test_qa_direct_return_version_guard.py"
+    ]
+  },
+  "note": "结构性验收：只判产物落地/可解析/计数行。语义正确性仍需人工复跑。"
+}

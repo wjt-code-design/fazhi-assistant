@@ -1,0 +1,106 @@
+{
+  "task": "T9-eval-credibility-20260920",
+  "trace_id": "t9-eval-credibility-20260920",
+  "anchoring": {
+    "git_head": "beb4d5c09a7a28e2987488b86031780f6ed7d8c5",
+    "sha256_backend_main_py": "a31b7b4c34c71692f860e1730fe1e7188e6b49f46790ab8211b328137e50be83",
+    "sha256_backend_retrieval_py": "59596c826ab11dc7c036242d90545fe2ddd77f387facb52e4f87f25f0dfc0476",
+    "main_py_status": "owner=ticket-I, in-flight; sha is a snapshot at T9 start, not a fixed baseline per takeover brief",
+    "registry_cells": {
+      "E1_eval_credibility": "BLOCKED (gate_exit_registry.py:167-170)",
+      "E2_eval_credibility": "BLOCKED (gate_exit_registry.py:224-227)",
+      "E8_eval_credibility": "PASS conditional on no_cache (gate_exit_registry.py:494)"
+    },
+    "incident_numbers": "multi_ok 0.43 / 0.57 / 0.64 (gate_exit_registry.py:169-170)"
+  },
+  "mechanism": "A judge scores the system's returned `content`. If a request is served by E1 in-process `answer_cache` (exact/near-dup) or E2 persistent semantic cache `_qa_direct_return` (Chroma `qa_pairs` pre-generated corpus), the judge scores the corpus's old answer, not the current model's. When judge and corpus are同源, they 'err together' (registry E2), inflating agreement. The single hard switch is request-body `no_cache: true`, which sets `cache_key=None` (E1) and short-circuits `_qa_direct_return` (E2), bypassing all three caches (exact key / feature_similar_cache / QA persistent).",
+  "checklist": [
+    {
+      "id": "C1",
+      "exit": "E2",
+      "avoids": "QA persistent semantic cache direct-return (Chroma qa_pairs pre-generated corpus) instead of current-model generation",
+      "code_refs": [
+        {"file": "backend/main.py", "symbol": "stream() branch 0.2", "lines": "1793", "detail": "qa_ans = None if body.no_cache else await run_in_threadpool(_qa_direct_return, ...)"},
+        {"file": "backend/main.py", "symbol": "_qa_direct_return", "lines": "1107", "detail": "returns pre-generated qa.get('answer'); reads Chroma qa_pairs"},
+        {"file": "backend/schemas.py", "symbol": "ChatIn.no_cache", "lines": "55", "detail": "no_cache: bool = False  (default OFF)"}
+      ],
+      "prevented_today": false,
+      "prevented_detail": "NOT prevented. Two calibers (do NOT mix the denominators): (a) grep caliber — bare _client.chat( / chat_stream( under backend/scripts: 13 call sites, only 4 pass no_cache=True (capture_eval.py:308, eval_contract.py:104, eval_exam.py:120, eval_exam_professional.py:69), 7 sites across 6 EVAL scripts OMIT it (eval_consistency.py:67 & :68, eval_hallucination.py:40, eval_negative_run.py:41, eval_quality.py:60, eval_redteam.py:58, eval_relevance.py:41). (b) AST caliber — same walk but counts local same-name `def chat` wrapper call sites too: 22 call sites / 18 alarms, of which 8 are wrapper FALSE-POSITIVES (acceptance.py:19 wrapper passes no_cache=True internally => its calls :65/:79/:89/:152/:154 don't leak; smoke_b1b5.py:15 wrapper likewise => calls :50/:71/:80 don't leak) and 3 are NEW REAL LEAKS (smoke_citation_full.py:42 wrapper uses bare urllib, no no_cache field at all => calls :109/:117/:131 really leak, smoke class). CONSOLIDATED REAL LEAK = 10 sites / 7 scripts (6 eval + smoke_citation_full). Readings untrustworthy as-is. gate2_* (gate2_probe.py:64, gate2_runner.py:80 & :542) are a separate direct-payload class that pass True and gate2_runner is unit-locked (test_r15_runner_injection.py:40). This PRESENT-DAY omission (not a future new-entry risk) is one hard proof E1/E2 '评测可信度' remain BLOCKED.",
+      "prevented_evidence": "Default False (schemas.py:55); _client.chat default no_cache=False (_client.py:57). grep caliber: 13 call sites, 4 pass True, 6 eval scripts/7 sites omit (each has if __name__=='__main__'). AST caliber: 22 call sites/18 alarms = 8 wrapper false-positives (acceptance.py 5 calls + smoke_b1b5.py 3 calls, both wrappers pass True internally) + 3 new real leaks (smoke_citation_full.py:109/:117/:131, bare urllib, no no_cache) + the 7 eval-site leaks. Consolidated real leak = 10 sites/7 scripts. gate2_runner unit-locked by test_r15_runner_injection.py:40. Registry requirement gate_exit_registry.py:170; still BLOCKED gate_exit_registry.py:224-225 (E2) and 167-170 (E1). Incident numbers multi_ok 0.43/0.57/0.64 (gate_exit_registry.py:169-170).",
+      "command": "per-request body must include \"no_cache\": true; via _client.chat(token, q, no_cache=True) or curl -d '{\"content\":\"<q>\",\"no_cache\":true}'",
+      "batch_gate": "Convention check (NOT runtime-enforced). ① Quick grep (flawed, assistive only): first ENUMERATE the full call-site set with grep -rnE \"_client\\.chat\\(|chat_stream\\(\" backend/scripts evals, then judge each line — do NOT grep for 'no_cache' to 'find guard evidence' (that is selection bias and hides omissions). Limitations: (a) false-positive — it flags capture_eval.py:183 METHOD DEFINITION 'def chat_stream(self, ..., no_cache: bool, ...)' as a call site => must exclude 'def ' lines; (b) false-negative — single-line grep cannot see multi-line calls '_client.chat(\\n token,\\n q,\\n)'. ② AST version (recommended, fixes false-negative): walk ast.Call, check func tail-name in {chat, chat_stream} and keywords has no_cache=True; shape follows repo precedent observability._ACCOUNT_FIELDS. Write as a .py file and run (avoid -c inline expansion pitfalls):\n  import ast, pathlib\n  ROOT = pathlib.Path(\"backend/scripts\")\n  for p in ROOT.rglob(\"*.py\"):\n      try: tree = ast.parse(p.read_text(encoding=\"utf-8\"))\n      except SyntaxError: continue\n      for n in ast.walk(tree):\n          if isinstance(n, ast.Call):\n              name = getattr(n.func, \"attr\", getattr(n.func, \"id\", \"\"))\n              if name in (\"chat\", \"chat_stream\"):\n                  has = any(kw.arg == \"no_cache\" and isinstance(kw.value, ast.Constant) and kw.value.value is True for kw in n.keywords)\n                  if not has:\n                      print(f\"LEAK {p.relative_to(ROOT)}:{n.lineno} {name}\")\n  => printed lines are the omitted call sites; reject pre-batch. ③ KNOWN DEFECT (bare-name false-positive): the func tail-name match also reports call sites of a LOCAL same-name 'def chat(...)' wrapper in the same file, even when that wrapper body already passes no_cache=True (e.g. acceptance.py:19, smoke_b1b5.py:15) — those do NOT actually leak. Two handling options: (a) manual dereference — after the gate prints a LEAK line, open that file and confirm whether it is a bare _client.chat( omission or a local wrapper that already passes True (the three-class split in prevented_detail is the worked example); (b) advanced (suggested shape, NOT implemented this round) — follow ast to the same-file FunctionDef of that name, recursively check whether its body contains the no_cache literal (one level of indirection dissolves the wrapper false-positive). Registry E2 stays BLOCKED precisely because this cannot be enforced at the request layer."
+    },
+    {
+      "id": "C2",
+      "exit": "E1",
+      "avoids": "in-process answer_cache exact hit + feature_similar_cache near-dup hit returning a stale answer",
+      "code_refs": [
+        {"file": "backend/main.py", "symbol": "cache_key = None if body.no_cache else ...", "lines": "1740", "detail": "no_cache forces cache_key=None"},
+        {"file": "backend/main.py", "symbol": "answer_cache.get(cache_key)", "lines": "1741", "detail": "cache_key None => skip exact hit"},
+        {"file": "backend/main.py", "symbol": "_similar_cache_hit gated by cache_key", "lines": "1761-1762", "detail": "cache_key None => skip near-dup hit"},
+        {"file": "backend/answer_cache.py", "symbol": "_cache = rc.LRU(maxsize=512)", "lines": "17", "detail": "module-level in-process LRU, TTL=6h"}
+      ],
+      "prevented_today": false,
+      "prevented_detail": "NOT prevented. Same switch as C1 (no_cache=True => cache_key=None, bypasses BOTH E1 and E2; an omission exposes both caches). Default OFF (schemas.py:55). CONSOLIDATED REAL LEAK = 10 sites / 7 scripts (same audit as C1): 6 eval scripts/7 sites OMIT no_cache (eval_consistency.py:67 & :68, eval_hallucination.py:40, eval_negative_run.py:41, eval_quality.py:60, eval_redteam.py:58, eval_relevance.py:41) + smoke_citation_full.py:109/:117/:131 (smoke class, bare urllib, no no_cache field at all). AST caliber also flags 8 wrapper false-positives (acceptance.py / smoke_b1b5.py wrappers already pass True) — see C1. This PRESENT-DAY omission (not a future new-entry risk) is one hard proof E1/E2 '评测可信度' remain BLOCKED. Cross-file pollution is real: test_light_exit_gates.py _focus_route docstring (~96-111) shows the module-level LRU written by a flagship test pollutes the light branch in a full lane.",
+      "prevented_evidence": "Default False (schemas.py:55); _client.chat default no_cache=False (_client.py:57). grep caliber 13 call sites/4 pass True/6 eval scripts 7 omit; AST caliber 22/18 = 8 wrapper false-positives + 3 new real leaks (smoke_citation_full) + 7 eval leaks => consolidated 10 sites/7 scripts. gate2_runner unit-locked by test_r15_runner_injection.py:40. Registry requirement gate_exit_registry.py:170; still BLOCKED gate_exit_registry.py:167-170 (E1). Incident numbers multi_ok 0.43/0.57/0.64 (gate_exit_registry.py:169-170). Pollution proof: test_light_exit_gates.py _focus_route docstring (~96-111) — flagship write to module-level LRU blocks the light branch from ever entering branch 1.",
+      "command": "same no_cache=true as C1 (same switch, two bypass points); if measuring cache hit-rate, run only on a fresh/isolated process (see C3) and never mixed with model-quality eval; batch-gate convention check same as C1"
+    },
+    {
+      "id": "C3",
+      "avoids": "pointing the eval at a shared/warm worker whose in-process answer_cache is warm from production traffic or a previous run",
+      "code_refs": [
+        {"file": "backend/answer_cache.py", "symbol": "_cache LRU + clear()", "lines": "17,113", "detail": "in-process; cleared only by restart or retrieval.invalidate()/clear()"}
+      ],
+      "prevented_today": false,
+      "prevented_evidence": "Nothing in the repo forces eval to use a clean process; the warm-cache mechanism exists and relies on human discipline. Risk only materializes when no_cache is omitted (C1/C2 nullify it via cache_key=None).",
+      "command": "restart the server before eval (or run an isolated eval-only instance); if reusing a process, call answer_cache.clear() (answer_cache.py:113) before each eval batch; safest is strict no_cache=true so warm cache is never read"
+    },
+    {
+      "id": "C4",
+      "avoids": "judge using routing tier / cache_hit_rate as the quality score (cache hits are recorded as verdict=pass, tier=cache/qa_cache)",
+      "code_refs": [
+        {"file": "backend/main.py", "symbol": "routing_metrics.record('cache'/'qa_cache', ..., 'pass', 'hit')", "lines": "1767,1799", "detail": "cache hits recorded as verdict=pass"},
+        {"file": "backend/routing_metrics.py", "symbol": "record / snapshot()['cache_hit_rate']", "lines": "85,143", "detail": "aggregation round(_cache_hit/total,3)"}
+      ],
+      "prevented_today": false,
+      "prevented_evidence": "Registry E2 (gate_exit_registry.py:226-227) mandates 0/1 scoring against deterministic gold standard and warns that judge-corpus同源 agreement >=0.7 is untrustworthy — a documented discipline, not code-enforced. project-quality-guide-20260914.md:137 forbids LLM self-grading as acceptance. routing_metrics records cache hits as verdict='pass' (main.py:1767/1799) so any judge misreading aggregates is distorted.",
+      "command": "judge must score returned content text against deterministic gold standard (0/1); forbid agreement>=0.7 self-eval / LLM self-grading; add batch assertion routing_metrics.snapshot()['cache_hit_rate']==0"
+    },
+    {
+      "id": "C5",
+      "avoids": "qa_pairs corpus version != current law_as_of (answering with post-law for pre-law events)",
+      "code_refs": [
+        {"file": "backend/main.py", "symbol": "_qa_direct_return version-applicability guard (I-2(a))", "lines": "1114-1134", "detail": "misses only across civil-code watershed; other version drift still direct-returns"}
+      ],
+      "prevented_today": false,
+      "prevented_evidence": "Registry E2 '版本绊线' still GAP-TODO (gate_exit_registry.py:191-221); no version check among the three guards originally; options-fingerprint guard is a no-op for 219/279 records (gate_exit_registry.py:202-204, ticket-I I-5 not fully landed). baseline.json marks backend/main.py owner=ticket-I in-flight => guard may still drift today. Conclusion: partial mitigation, NOT a reliable bypass; only no_cache=true is reliable.",
+      "command": "always no_cache=true (C1) so _qa_direct_return is short-circuited and the corpus is never read; do not treat post-no_cache hit-rate as model quality"
+    },
+    {
+      "id": "C6",
+      "avoids": "eval question set overlapping the qa_pairs 279-entry corpus => high hit-rate that measures corpus coverage not model ability",
+      "code_refs": [
+        {"file": "backend/main.py", "symbol": "_qa_direct_return depends on ks.search_qa (Chroma qa_pairs, 279 entries)", "lines": "1107", "detail": "corpus present and reachable (registry E2 可达性:180-183)"}
+      ],
+      "prevented_today": false,
+      "prevented_evidence": "No script in the repo checks eval question set against the 279 qa_pairs entries. Eval entry points (project-quality-guide-20260914.md:189: evals/retrieval_probe.py, evals/validate_cases.py, backend/scripts/gate2_runner.py) do no overlap validation. qa_pairs count from dispatch-output/i1-e2-hitrate-20260920/probe-A-corpus-inventory.json.",
+      "command": "before eval, verify the question set does not overlap the 279 qa_pairs entries (or simply enforce no_cache=true per C1); if measuring true hit-rate, use a disjoint set on an isolated clean process (C3)"
+    }
+  ],
+  "verification_commands": [
+    "git rev-parse HEAD  # expect beb4d5c...",
+    "sha256sum backend/main.py backend/retrieval.py",
+    "grep -n 'no_cache: bool = False' backend/schemas.py  # :55",
+    "grep -n 'cache_key = None if body.no_cache' backend/main.py  # :1740",
+    "grep -n 'if body.no_cache' backend/main.py  # :1793",
+    "grep -n '评测可信度' backend/gate_exit_registry.py  # E1:167-170, E2:224-227 BLOCKED",
+    "grep -rn 'no_cache=True' backend/scripts/eval_exam.py backend/scripts/capture_eval.py backend/scripts/_client.py",
+    "python -c \"import routing_metrics; print(routing_metrics.snapshot()['cache_hit_rate'])\"  # expect 0.0 after an eval batch; non-zero => a request omitted no_cache, batch void"
+  ],
+  "honesty_register": {
+    "not_measured": "No eval process was launched; 'cache_hit_rate==0 during a real eval batch' is unverified — only the verification command is provided, no conclusion asserted.",
+    "not_prevented_overclaim": "No item claims 'already prevented'; all six are 'false / unverified' with code/registry evidence.",
+    "out_of_scope_writes": "No writes to backend/**, retrieval.py, test_exact_article_lookup_sourcekey.py, docs/code-review-report-02e3851-20260918.md; no git write ops. Only writes: dispatch-output/t9-eval-credibility-20260920/ (checklist.md, findings.json).",
+    "unverified": "C5 version-guard completeness today: judged 'false(partial)' from registry GAP-TODO + baseline owner=ticket-I; runtime interception rate of I-2(a) not measured."
+  }
+}

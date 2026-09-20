@@ -1,0 +1,147 @@
+{
+  "task": "t3-appdb-20260920",
+  "method": "open(path,'rb').read(100) 纯字节读 SQLite 头 + os.stat；未 import sqlite3 / 未 connect / 未开事务 / 未 VACUUM / 未改 schema",
+  "reading_r1_at": "2026-09-20 (see readings-r1.json mtime)",
+  "reading_r2_at": "2026-09-20 (see readings-r2.json mtime)",
+  "alignment": {
+    "aligned": true,
+    "diffs": [],
+    "verdict": "两次读数对齐，终止条件满足"
+  },
+  "readings_r1": {
+    "backend/app.db": {
+      "name": "backend/app.db",
+      "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\app.db",
+      "exists": true,
+      "size_bytes": 20205568,
+      "mtime_epoch": 1789748905.7167075,
+      "mtime_human": "2026-09-19 00:28:25.716",
+      "magic_ok": true,
+      "page_size": 4096,
+      "read_format": 1,
+      "write_format": 1,
+      "change_counter": 10784,
+      "schema_cookie": 46,
+      "version_valid_for": 10784,
+      "wal_mode": false,
+      "header_synced": true
+    },
+    "backend/data/app.db": {
+      "name": "backend/data/app.db",
+      "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\data\\app.db",
+      "exists": true,
+      "size_bytes": 19939328,
+      "mtime_epoch": 1789583851.913059,
+      "mtime_human": "2026-09-17 02:37:31.913",
+      "magic_ok": true,
+      "page_size": 4096,
+      "read_format": 1,
+      "write_format": 1,
+      "change_counter": 10710,
+      "schema_cookie": 46,
+      "version_valid_for": 10710,
+      "wal_mode": false,
+      "header_synced": true
+    },
+    "backend/data/quota_used.sqlite": {
+      "name": "backend/data/quota_used.sqlite",
+      "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\data\\quota_used.sqlite",
+      "exists": true,
+      "size_bytes": 12288,
+      "mtime_epoch": 1789747971.569789,
+      "mtime_human": "2026-09-19 00:12:51.569",
+      "magic_ok": true,
+      "page_size": 4096,
+      "read_format": 2,
+      "write_format": 2,
+      "change_counter": 2,
+      "schema_cookie": 1,
+      "version_valid_for": 2,
+      "wal_mode": true,
+      "header_synced": true
+    }
+  },
+  "readings_r2": {
+    "backend/app.db": {
+      "name": "backend/app.db",
+      "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\app.db",
+      "exists": true,
+      "size_bytes": 20205568,
+      "mtime_epoch": 1789748905.7167075,
+      "mtime_human": "2026-09-19 00:28:25.716",
+      "magic_ok": true,
+      "page_size": 4096,
+      "read_format": 1,
+      "write_format": 1,
+      "change_counter": 10784,
+      "schema_cookie": 46,
+      "version_valid_for": 10784,
+      "wal_mode": false,
+      "header_synced": true
+    },
+    "backend/data/app.db": {
+      "name": "backend/data/app.db",
+      "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\data\\app.db",
+      "exists": true,
+      "size_bytes": 19939328,
+      "mtime_epoch": 1789583851.913059,
+      "mtime_human": "2026-09-17 02:37:31.913",
+      "magic_ok": true,
+      "page_size": 4096,
+      "read_format": 1,
+      "write_format": 1,
+      "change_counter": 10710,
+      "schema_cookie": 46,
+      "version_valid_for": 10710,
+      "wal_mode": false,
+      "header_synced": true
+    },
+    "backend/data/quota_used.sqlite": {
+      "name": "backend/data/quota_used.sqlite",
+      "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\data\\quota_used.sqlite",
+      "exists": true,
+      "size_bytes": 12288,
+      "mtime_epoch": 1789747971.569789,
+      "mtime_human": "2026-09-19 00:12:51.569",
+      "magic_ok": true,
+      "page_size": 4096,
+      "read_format": 2,
+      "write_format": 2,
+      "change_counter": 2,
+      "schema_cookie": 1,
+      "version_valid_for": 2,
+      "wal_mode": true,
+      "header_synced": true
+    }
+  },
+  "derived": {
+    "backend/app.db": {
+      "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\app.db",
+      "change_counter": 10784,
+      "size_bytes": 20205568,
+      "mtime_human": "2026-09-19 00:28:25.716",
+      "wal_mode": false,
+      "header_synced": true,
+      "no_write_since_mtime": true
+    },
+    "backend/data/app.db": {
+      "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\data\\app.db",
+      "change_counter": 10710,
+      "size_bytes": 19939328,
+      "mtime_human": "2026-09-17 02:37:31.913",
+      "wal_mode": false,
+      "header_synced": true,
+      "no_write_since_mtime": true
+    },
+    "backend/data/quota_used.sqlite": {
+      "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\data\\quota_used.sqlite",
+      "change_counter": 2,
+      "size_bytes": 12288,
+      "mtime_human": "2026-09-19 00:12:51.569",
+      "wal_mode": true,
+      "header_synced": true,
+      "no_write_since_mtime": true
+    }
+  },
+  "assembled_at": "2026-09-20 22:41:57"
+}

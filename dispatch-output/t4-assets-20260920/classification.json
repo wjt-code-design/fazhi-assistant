@@ -1,0 +1,225 @@
+{
+  "meta": {
+    "head": "2a48f3ec0f4b906302755504131c5da252e38f77",
+    "snapshot": "2026-09-21T00:16:42+08:00",
+    "untracked_entry_count_porcelain": 445,
+    "untracked_file_count_git_ls_files": 30331,
+    "baseline_note": "baseline.json 记录未跟踪数 22:21=396 → 22:37=409 → 23:41=431（均为 git status --porcelain 目录折叠后的 entry 计数）；本快照 entry=445。file_count=30331 为 git ls-files --others --exclude-standard 的实际文件数，二者口径不同（目录折叠 vs 逐文件），并不矛盾：绝大多数文件位于 dispatch-output 的 copytree/beforetree 等整目录未跟踪树下。",
+    "rule": "只读清点，零删除，只写 dispatch-output/t4-assets-20260920/"
+  },
+  "this_wave_self_produced": [
+    {
+      "path": "dispatch-output/t1-flaky-20260920",
+      "note": "本波自产，不计入存量分类"
+    },
+    {
+      "path": "dispatch-output/t10-disabled-taxonomy-20260920",
+      "note": "本波自产，不计入存量分类"
+    },
+    {
+      "path": "dispatch-output/t2-slow-20260920",
+      "note": "本波自产，不计入存量分类"
+    },
+    {
+      "path": "dispatch-output/t3-appdb-20260920",
+      "note": "本波自产，不计入存量分类"
+    },
+    {
+      "path": "dispatch-output/t4-assets-20260920",
+      "note": "本波自产，不计入存量分类"
+    },
+    {
+      "path": "dispatch-output/t6-sourcekey-survey-20260920",
+      "note": "本波自产，不计入存量分类"
+    },
+    {
+      "path": "dispatch-output/t7-fingerprint-coverage-20260920",
+      "note": "本波自产，不计入存量分类"
+    },
+    {
+      "path": "dispatch-output/t8-e2-multi-20260920",
+      "note": "本波自产，不计入存量分类"
+    },
+    {
+      "path": "dispatch-output/t9-eval-credibility-20260920",
+      "note": "本波自产，不计入存量分类"
+    },
+    {
+      "path": "dispatch-output/takeover-parallel-20260920",
+      "note": "本波自产，不计入存量分类"
+    }
+  ],
+  "this_wave_summary": {
+    "dirs": 10,
+    "files": 4048,
+    "takeover_files": 16,
+    "note": "t5=票 I（不派发）；t11 复用 te-chroma-isolation-20260918、t12 未见 20260920 同名目录，故未列入。"
+  },
+  "external_in_transit": [
+    {
+      "path": "backend/.ptmp-s4-run2/",
+      "note": "外部在途，别动（票 I 临时目录）"
+    },
+    {
+      "path": "docs/code-review-report-02e3851-20260918.md",
+      "note": "外部在途，别动（另一会话正改的已跟踪文件）"
+    }
+  ],
+  "dispatch_output_top10": [
+    {
+      "name": "hij-h-20260920",
+      "bytes": 812168247,
+      "human": "775MB",
+      "behind_unfinished": "本波 T1–T12 派发总任务书母本（ALL-PARALLEL-TASKS.md + 各卡启动语）+ 内部 copytree/beforetree（整份 backend 副本含 .venv）。结论：它是本波输入源，12 卡正在消费它；容器与任务书已是权威派发，无『未落地工作』，体量来自整份 backend 副本而非结论。→ 容器别动（取证母本），内部 copytree/beforetree 属可清理。"
+    },
+    {
+      "name": "hij-j-20260920",
+      "bytes": 802943609,
+      "human": "766MB",
+      "behind_unfinished": "票 J 相关派发件 + 副本树（copytree/pretree）。结论：票 J 派发与副本，无未落地；本波 T 卡已引用它。同 hij-h：容器别动、副本可清。"
+    },
+    {
+      "name": "s6-stream-gate-20260920",
+      "bytes": 774257420,
+      "human": "738MB",
+      "behind_unfinished": "副本树搭器 make_copytree.py + 副本（aftertree/copybase/mut-out/mut-out-r2）。结论：工具与副本，无未落地工作；是 T1 等副本的来源，工具本身有持久价值。"
+    },
+    {
+      "name": "hij-i-20260920",
+      "bytes": 455205443,
+      "human": "434MB",
+      "behind_unfinished": "票 I 副本树/证据（probe_i2_corpus_inventory.py 等）+ copytree。结论：票 I 已于 23:41 收工（回表 + 报告入库），证据可留；无未落地。"
+    },
+    {
+      "name": "t1-flaky-20260920",
+      "bytes": 453420622,
+      "human": "432MB",
+      "behind_unfinished": "本波 T1 自产（copytree + 5 轮 pytest 跑次 + matrix.json/report.md）。结论：T1 自己的交付，归 T1 卡管理（规则②单列），不计入存量。背后是 T1 未完成的判定工作由其卡负责。"
+    },
+    {
+      "name": "t0-baseline-checkpoint-20260916",
+      "bytes": 287005854,
+      "human": "274MB",
+      "behind_unfinished": "较早的基线检查点副本（112 文件）。结论：历史基线证据，无未落地；作为历史参照可留。"
+    },
+    {
+      "name": "quality-fix-20260915",
+      "bytes": 139830070,
+      "human": "133MB",
+      "behind_unfinished": "质量修复波次的副本/证据（80 文件）。结论：历史质量波次，无未落地。"
+    },
+    {
+      "name": "pytest-full-20260917",
+      "bytes": 112542097,
+      "human": "107MB",
+      "behind_unfinished": "全量 pytest 跑次产物。结论：一次性跑次产物，结论已在别处沉淀，无未落地。"
+    },
+    {
+      "name": "quality-item2-20260915",
+      "bytes": 63934495,
+      "human": "61MB",
+      "behind_unfinished": "同上质量波次（45 文件）。结论：无未落地。"
+    },
+    {
+      "name": "t2-evidence-replay-20260916",
+      "bytes": 57771521,
+      "human": "55MB",
+      "behind_unfinished": "t2 证据回放（63 文件）。结论：历史证据回放，无未落地。"
+    }
+  ],
+  "classification": {
+    "must_archive": [
+      {
+        "path": "docs/ (29 files, ~2.46 MB)",
+        "reason": "项目文档/交接件/计划/质量指南，是结论与上下文，未入库即丢；全部为手写 markdown 交付物，非可再生。"
+      },
+      {
+        "path": "backend/tests/test_contract_silent_empty_probe.py (1 file)",
+        "reason": "新增测试源码，应入库以免丢失；属 backend 测试，不可再生。"
+      }
+    ],
+    "suggest_archive": [
+      {
+        "path": "outputs/ (54 files, ~678 KB)",
+        "reason": "p5-review-20260917 评审交付物（zip + 各章节 markdown + json），有留存价值。"
+      },
+      {
+        "path": "evals/probe-results-k4.json (~97 KB)",
+        "reason": "评测探针结果，属评测证据，建议入库。"
+      },
+      {
+        "path": "dispatch-output/<prior-wave>/*/{report.md,findings.json,taxonomy.md,checklist.md,readings.json,matrix.json,*verdict*.txt,*.json结论件}",
+        "reason": "各历史波次（hij-h/hij-j/hij-i/s6/te-chroma-isolation/ticket*-evidence/review-*/quality-*/t0-baseline 等 101 个 prior-wave 目录，共 26163 文件）内的结论件，留存可复现；其中 copytree/bt*/mut* 等可再生副本不在此列（见可清理）。"
+      }
+    ],
+    "can_clean": [
+      "dispatch-output/*/copytree/ （整份 backend 副本，可经 make_copytree.py + 对应 commit 重建）",
+      "dispatch-output/*/beforetree/ 、*/pretree/ 、*/aftertree/ 、*/copybase/",
+      "dispatch-output/*/bt*/ （pytest --basetemp 产物）",
+      "dispatch-output/*/mut-*/ 、*/mut-out*/ 、*/mut-out-r2/ （变异基线）",
+      "dispatch-output/**/__pycache__/ 与 **/*.pyc",
+      "dispatch-output/*/.venv/ 、*/node_modules/ 、*/chroma_db/ 、*/data/ （副本内数据库/venv）",
+      "*.junit.xml 、run-*.xml 、*.stdout.txt 、full-baseline.xml （跑次日志/基线 xml）",
+      "outputs/p5-review-20260917/_build/ （23 个构建脚本，可重建）",
+      ".qoder/ （3 文件，IDE 工具状态，可重建）"
+    ],
+    "do_not_touch": [
+      {
+        "path": "backend/.ptmp-s4-run2/ （外部在途：票 I 临时目录；未跟踪 ~2.2MB + 含 gitignored 内容约 3.9GB）",
+        "reason": "规则③：票 I 在途物，本波禁止触碰，也不计入存量分类。标『外部在途，别动』。"
+      },
+      {
+        "path": "docs/code-review-report-02e3851-20260918.md （外部在途：另一会话正改的已跟踪文件）",
+        "reason": "规则③：另一会话在途物（已跟踪但正被改），本波禁止触碰。标『外部在途，别动』。"
+      },
+      {
+        "path": "caddy_config/ 、caddy_data/ （运行时状态）",
+        "reason": "caddy 反向代理运行时状态；服务在跑时别动，停机后方可清。标『别动』。"
+      },
+      {
+        "path": "根级中文句命名的 26 个目录（含 0 / E04 / FAIL 及 23 个中文句目录，如『本文是下一位执行助手的唯一启动入口。...』『宿主：127.0.0.1：18126，AGENT_ENABLED=true』等）",
+        "reason": "来历不明、疑似误将文档正文当路径建目录（明显数据质量事故）；别动，需 Owner 排查是否误建、有无内容需抢救。"
+      },
+      {
+        "path": "dispatch-output/<prior-wave> 容器目录（hij-h/hij-j/hij-i/s6/te-chroma-isolation/ticket*-evidence/review-*/quality-*/t0-baseline 等 101 个）整体",
+        "reason": "历史取证母本，整体别动；其内 copytree/bt*/mut* 已单列可清理、report.md 已单列建议入库。删除需 Owner 裁决。"
+      },
+      {
+        "path": "dispatch-output/t1..t12-*-20260920/ 与 takeover-parallel-20260920/ （本波自产，共 4048 文件）",
+        "reason": "规则②：本波 12 卡 + 接管会话自产，单列不计入存量；归各卡交付纪律管理。标『本波自产，别动（T4 不碰）』。"
+      }
+    ]
+  },
+  "anomalies": {
+    "weird_root_dirs_count": 26,
+    "weird_root_dirs": [
+      "0",
+      "E04",
+      "FAIL",
+      "修正为",
+      "判据文件：（2026-09-13",
+      "历史文档仅在本文明确要求查证时使用。若历史描述与当前代码、测试或本文冲突，以当前代码和可复现证据为准，并记录差异。",
+      "口径：C",
+      "命名说明：R1=检索层过滤（已冻结开关默认",
+      "定位：存档",
+      "实现提交：（R1",
+      "宿主：127.0.0.118126，AGENT_ENABLED=true",
+      "批次产物：",
+      "教训锚点：R1（2026-09-13",
+      "教训锚点：statute_supplement_docs（2026-09-10）双集验收过拟合被回退——评测",
+      "方案版本：新版（nodeId",
+      "本文是下一位执行助手的唯一启动入口。无需读取聊天记录，也不要先通读全部历史文档。",
+      "本文是接手者的第一入口",
+      "核验方式：方案侧压成",
+      "生成时间：2026-09-18",
+      "留出",
+      "签发：2026-09-15",
+      "被评方案：知识库文档《legal-agent-harness-review-optimization-plan》（外部人士编写，原作者对法智项目一无所知）",
+      "R1-OB=判域输入扩展方案，三者独立开关、独立可回滚。",
+      "勘误（2026-09-16，验证执行前数据核对）：本节初稿误写「E01",
+      "本文件是唯一的后续任务执行入口。",
+      "本文档为预注册：判据先于实现冻结。任何实现代码在本文档提交后另开窗口执行。"
+    ],
+    "note": "26 个根级目录名是完整中文句子/状态 token，强烈疑似某脚本误将文档正文或状态文本当作路径建目录，属数据质量事故，需 Owner 排查。"
+  }
+}

@@ -1,0 +1,80 @@
+{
+ "task": "T8 E2 多选缺口只读调查",
+ "head": "2a48f3ec0f4b906302755504131c5da252e38f77",
+ "sha_main": "4807cc9e4b9dd14334b754f63dea53ff9c1b669157647b93de21bab5be4cbe5f",
+ "code_probe": {
+  "multi_incomplete_on_same_input": true,
+  "_qa_direct_return_returned_answer": true,
+  "returned_exactly_single_answer": true,
+  "note": "若 _qa_direct_return 返回答案且 multi_incomplete 为 True ⇒ E2 确实不查多选完整性即直返"
+ },
+ "corpus_inventory": {
+  "collection": "qa_pairs",
+  "n_total": 279,
+  "n_multi_keyword": 38,
+  "n_has_options": 168,
+  "n_declared_one": 53,
+  "n_mi_true_keyword": 0,
+  "n_multi_choice_and_single_correct": 52,
+  "examples": [
+   {
+    "q": "关于紧急避险，下列说法正确的是？A.为了使国家、公共利益、本人或者他人的人身、财产和其他权利免受正在发生的危险，不得已采取的紧急避险行为，造成损害的，不负刑事责",
+    "answer_head": "# 考点识别\n本题考查\"紧急避险\"的法律制度，涉及刑法和民法典中关于紧急避险的规定。\n\n## 逐项分析\n\n### 选项A\n【判断】正确  \n【条文依据】根据《刑法》第二十一条第一款：\"为了使国家、公共利益、本人或者他人的人身、财产和其他权利",
+    "declared": [
+     "D"
+    ],
+    "qtype": "unknown",
+    "optn": 4
+   },
+   {
+    "q": "张某从高楼抛下物品致楼下行人受伤。关于侵权责任，下列说法正确的是？A.由侵权人承担侵权责任 B.难以确定具体侵权人的，由可能加害的建筑物使用人平均补偿 C.物业",
+    "answer_head": "**结论：A 正确。**\n\n以下是对各选项的逐项判断与法律依据分析：\n\n**1. 选项 A：由侵权人承担侵权责任（正确）**\n根据《民法典》第一千二百五十四条第一款规定：“从建筑物中抛掷物品或者从建筑物上坠落的物品造成他人损害的，由侵权人依",
+    "declared": [
+     "A"
+    ],
+    "qtype": "unknown",
+    "optn": 4
+   },
+   {
+    "q": "关于劳动争议的处理，下列说法正确的是？A.劳动争议需先申请劳动仲裁，对仲裁裁决不服的可以自收到裁决书之日起十五日内向人民法院起诉 B.劳动争议仲裁的时效期间为一",
+    "answer_head": "# 考点识别\n本题考查劳动争议处理制度，主要包括仲裁前置原则、仲裁时效、裁决效力等内容。\n\n## 逐项分析\n\n### A. 劳动争议需先申请劳动仲裁，对仲裁裁决不服的可以自收到裁决书之日起十五日内向人民法院起诉\n【判断】部分正确  \n【条文",
+    "declared": [
+     "B"
+    ],
+    "qtype": "unknown",
+    "optn": 4
+   },
+   {
+    "q": "甲深夜回家遭乙持刀抢劫，甲在搏斗中夺刀将乙刺成重伤。关于甲的行为，下列说法正确的是？A.甲构成正当防卫，不负刑事责任 B.甲构成故意伤害罪 C.甲构成防卫过当 ",
+    "answer_head": "你好！这是一道关于**特殊防卫权（无限防卫权）**适用的经典刑法案例题。我们需要结合《刑法》第二十条的规定，分析甲的行为性质及法律后果。\n\n以下是结合法条对四个选项的深度拆解：\n\n### 1. 核心法条依据\n本题主要涉及以下条文：\n*   ",
+    "declared": [
+     "A"
+    ],
+    "qtype": "unknown",
+    "optn": 4
+   },
+   {
+    "q": "关于毒品犯罪，下列说法正确的是？A.贩卖毒品无论数量多少，都应当追究刑事责任 B.非法持有毒品数量较少的，构成非法持有毒品罪 C.运输毒品罪与贩卖毒品罪不可能同",
+    "answer_head": "**结论：选项 A 正确。**\n\n以下是对各选项的逐项判断与法律依据分析：\n\n**1. 选项 A：贩卖毒品无论数量多少，都应当追究刑事责任（正确）**\n*   **依据：** 根据《刑法》第三百四十七条第一款规定：“走私、贩卖、运输、制造毒",
+    "declared": [
+     "A"
+    ],
+    "qtype": "unknown",
+    "optn": 4
+   }
+  ]
+ },
+ "robustness_check": {
+  "n_multi_choice_and_single_correct_loose": 52,
+  "thereof_strict_one_correct_no_conclusion": 0,
+  "thereof_loose_only_hedge_or_conclusion": 52,
+  "interpretation": "strict_one = 最稳的『真·只给一个正确项』计数；loose_only = 含 hedge/结论表述的疑似项"
+ },
+ "investigate_summary": {
+  "n_all_option_hit": 7,
+  "n_all_option_and_declared_it": 4,
+  "n_single_question": 0,
+  "n_residual_gap_lower_bound": 48,
+  "note": "52 条候选里，4 条是'点中全选项'(声明全对,非缺口)；其余 48 为残留疑似下界。抽样显示这 48 条多为抽取器对 markdown 逐项判断('### 选项X\\n【判断】正确')的漏识(答案实际声明多个正确项,只被抽到 1 个) ⇒ 真实缺口条数不可靠量化。"
+ }
+}
