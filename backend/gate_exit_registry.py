@@ -278,9 +278,21 @@ EXITS: list[dict] = [
             ),
             "多选完整性": ("NA", "报告体，非选择题。"),
             "配额降级注记": (
-                "GAP-TODO",
-                "票 H（H-2）：先量清合同分支 failover 今天有几种收场再动手。现状：没有 NOTE_QUOTA/降级出口，failover 全灭时只能落到外层 error 帧"
-                "（不在本表范围）⇒ 用户看到「无响应」而不是「已降级」。",
+                "PASS",
+                "票 H-2 已接：`degraded = use_router and flag_degraded`（收口点求值）⇒ 追加 NOTE_QUOTA 注记帧"
+                "（**本表 E15**，与流式 E13 同族）。判据：端点级 `tests/test_contract_exit_gates.py` 的 "
+                "`test_degraded_contract_report_carries_quota_note`（先红：断言原文 "
+                "`assert '\\n\\n> 注：模型配额紧张，本回答仅供参考。' in '<报告正文>'`）+ 控制腿 "
+                "`test_control_non_degraded_report_has_no_quota_note`。"
+                "**先量的收场（打桩计数，非推断）**：三次 config 全抛异常 ⇒ 上抛到外层 `except Exception` ⇒ "
+                "error 帧「服务暂时无响应，请稍后重试」（实测 `boom_astream_calls=3`）；"
+                '**三次尝试全「空内容且无异常」 ⇒ `answer == ""` ⇒ 既不产 error 帧也不产任何注记帧（静默收场）**'
+                "—— 票面 H-2 假设的「只能落到外层 error 帧」在这一支**不成立**，"
+                "读数在 `dispatch-output/hij-h-20260920/00-smoke.stdout.txt` 与 "
+                "`test_contract_failover_endings_are_characterized` 落盘的 `contract-failover-endings.json`。"
+                "⚠️ 如实登记未覆盖：**「静默空」这一支今天仍不受保护**"
+                "（合同分支是唯一不产 error 帧的生成出口；补 error 帧会改用户可见行为、超票 H-2 射程 ⇒ "
+                "须 Owner 另裁，别当成已修）。",
             ),
             "版本绊线": (
                 "GAP-ACCEPTED",
@@ -289,17 +301,20 @@ EXITS: list[dict] = [
                 "遗留风险「按现行法评估 2019 年签的合同」无人管 ⇒ Owner 若不接受须另开票。",
             ),
             "写缓存闸": (
-                "GAP-TODO",
-                "票 H（H-1，本表 2026-09-20 新发现；近乎免费的一行修）：`answer_cache.put(..., model="
-                + '"contract_review"'
-                + ")` "
-                "发生在追加引用告警注记**之前**，且本出口不跑自检 ⇒ "
-                "**引用未收录的合同报告会以「无告警」的形态进缓存并被零 token 复播**。"
-                "⚠️ 判定其实**早就算好了**：合同分支在收口后立刻算 `bad = citation_verify(answer)`，"
-                "**下一行**就是 `if cache_key:` 的写闸，却没看 `bad` ⇒ 修法近乎免费（`if cache_key and not bad:`），"
-                "代价只是带告警的报告不进缓存。全仓三处 `answer_cache.put(` 调用点"
-                "（合同分支 / 缓冲轻量分支 / 旗舰流式分支）条件集互不相同，另见 E7、E6 两格。"
-                "（本格**不写行号**：本仓行号已漂过五次，最近一次是被本表自己的取证改动挤掉的。）",
+                "PASS",
+                "票 H-1 + H-2 已接，认形状 `if cache_key and not bad and not degraded:`"
+                '（本合同分支里唯一的 `answer_cache.put(..., model="contract_review")` 就在它下面）。'
+                "两道条件的由来：`bad = citation_verify(answer)` 在**上一行**就算好了（判定本来就有，"
+                "不需要新造），漏的只是「有没有看它」；`degraded` 与 E15 同源。"
+                "判据：`test_bad_citation_report_is_not_cached`（先红原文 "
+                "`AssertionError: 引用未收录的合同报告进了缓存：[{... 'model': 'contract_review'}]`，"
+                "即改前该报告确实以「无告警」形态入了缓存）+ 控制腿 "
+                "`test_control_good_report_is_still_cached_once` + 降级腿 "
+                "（`test_degraded_contract_report_carries_quota_note` 里的 `assert sink == []` 一条）。"
+                "⚠️ 一起登记的代价：带告警（或降级）的报告从此不进缓存 ⇒ 同一份合同重问会重烧 token。"
+                "Owner 若不接受，替代方案是「照写，但把注记一并写进被缓存的那份」——那要改缓存条目语义，"
+                "须另裁（本格不预设该结论）。"
+                "⚠️ 认形状不认行号：本仓行号已漂过五次，最近一次是被本表自己的取证改动挤掉的。",
             ),
             "评测可信度": ("NA", "不在冻结集内。"),
         },
@@ -316,9 +331,12 @@ EXITS: list[dict] = [
             "配额降级注记": ("NA", "同上。"),
             "版本绊线": ("NA", "注记帧不参与版本判定。"),
             "写缓存闸": (
-                "GAP-TODO",
-                "票 H（H-1，与 E5 同一个缺陷的另一面）：注记没进被缓存的那份 answer ⇒ "
-                "引用未收录的合同报告被零 token 复播时**丢掉那条告警**。",
+                "PASS",
+                "票 H-1 已接。改前：注记在 `answer += note` 之后才追加，而写缓存发生在**注记之前、且不看 `bad`**"
+                " ⇒ 被缓存的那份永远不含本条注记，零 token 复播时告警消失（本格与 E5 是同一缺陷的两面）。"
+                "改后：`bad` 非空 ⇒ 整块 `put` 不执行 ⇒ **不存在「缓存掉告警」这个形状**。"
+                "判据：`test_bad_citation_report_is_not_cached` 同一条用例同时断言"
+                "「注记帧仍在下发」与「缓存零写入」。",
             ),
             "评测可信度": ("NA", "不在冻结集内。"),
         },
@@ -568,10 +586,46 @@ EXITS: list[dict] = [
             ),
         },
     },
+    {
+        # 票 H/H-2 新增的第 15 条正文出口：合同报告降级（`flag_degraded`）时追加的那一帧 NOTE_QUOTA。
+        # 为什么必须单独成行而不是并进 E5：本表的一条铁律是「每条 content 帧都要有自己的格子」——
+        # `test_main_py_exits_are_all_registered` 按 `scan_content_yields` 的**条数**对账，少一行就红。
+        # 另一条理由与 E14 相同：并进 E5 会让「报告本体」与「降级免责」共用一个格子，归因反而变粗。
+        "id": "E15",
+        "where": "stream() / 分支0.3 合同报告降级产出的 NOTE_QUOTA 注记帧",
+        "traffic": "条件命中（flag_degraded 且报告正文非空）",
+        "cells": {
+            "可达性": (
+                "PASS",
+                "`degraded = use_router and flag_degraded`（在收口点求值、由 `if answer:` 兜住空答）。"
+                "票 H-2 打桩计数：把 `_safe_pick` 的第三元（degraded）桩成 True 后，本帧在**端点级**"
+                "实测出现（`tests/test_contract_exit_gates.py::test_degraded_contract_report_carries_quota_note`，"
+                "改前先红、改后绿）。⚠️ 这条与 E14 的性质不同：E14 的读数是**真实配置**下打桩计数，"
+                "本条是**桩住一个运行时状态**（默认模型被标不可用）后计数 ⇒ 它证明「接线有反应」，"
+                "不证明「线上今天正在命中」。",
+            ),
+            "引用校验": ("NA", "注记帧。"),
+            "自检": ("NA", "注记帧（且合同分支本就不跑 `quality.self_check`，见 E5 的「自检」格）。"),
+            "多选完整性": ("NA", "注记帧；报告体非选择题。"),
+            "配额降级注记": (
+                "PASS",
+                "本帧即合同分支「降级明说」的唯一载体（S2 / E13 同族：不静默烧耗尽模型）。"
+                "合同分支此前没有任何降级出口 ⇒ 用户看到一份「看起来正常」的报告。",
+            ),
+            "版本绊线": ("NA", "注记帧不参与版本判定（合同分支的版本绊线另见 E5 的「版本绊线」格）。"),
+            "写缓存闸": (
+                "PASS",
+                "`not degraded` 是 E5 写闸的第二道条件 ⇒ 降级报告不进缓存（否则零 token 复播时本帧消失，"
+                "与 E13 的 `not flag_degraded` 完全同族）。",
+            ),
+            "评测可信度": ("NA", "注记帧；合同类不在 `evals/` 冻结集内。"),
+        },
+    },
 ]
 
 # agent 路径**不在本表**（它不是 `stream()` 的出口，闸门在 `agent/verifier.py`），
-# 但登记一句免得下任重画一遍：`AGENT_ENABLED=False` 时线上流量 100% 走上面 14 条。
+# 但登记一句免得下任重画一遍：`AGENT_ENABLED=False` 时线上流量 100% 走本表登记的这些出口。
+# （这里**不写条数**：那是会随别票变化的计数，写死了下一票就得回来改。）
 OUT_OF_SCOPE: dict = {
     "agent_path": "版本绊线由 `settings.law_version_tripwire_check` 管（默认 False），判定在 `agent/verifier.py`；"
     "它消费的是**落库后**的 `run.law_as_of`（`create_run` 已 `or date.today()`）⇒ 那边 None 是异常、这里是日常。",

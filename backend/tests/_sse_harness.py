@@ -30,6 +30,10 @@ FLAGSHIP_PARTS = ("根据《劳动合同法》第十九条，", "试用期最长
 # E7（缓冲轻量整答）默认答案：民事时效结论 + 分水岭后事实（配合 date.today() 不跨两侧 ⇒ 门不命中）
 LIGHT_ANSWER = "本案诉讼时效为三年，自 2022 年 6 月 1 日起算。"
 FACT_2022 = "我 2022年6月1日 借给朋友一笔钱，约定一年内还。"
+# E5（合同报告流式增量）默认增量：引用《劳动合同法》第十九条（与 _one_hit_retrieval 命中同一条，
+# 便于用例把 `citation_verify` 替身做成"在库/不在库"两态而不必改答案文本）。
+CONTRACT_PARTS = ("【风险评估】第一条 试用期约定超过法定上限，", "依据《劳动合同法》第十九条，建议不超过六个月。")
+CONTRACT_ANSWER = "".join(CONTRACT_PARTS)
 
 
 class _FakeChain:
@@ -70,6 +74,30 @@ def _one_hit_retrieval(q: str, k: int = 4) -> list[Document]:  # noqa: ARG002
     ]
 
 
+def _contract_data(text: str) -> dict:  # noqa: ARG001 - 形参由 `build_contract_data` 决定
+    """`domain_rules.build_contract_data` 的替身（票 H 新增 route 用）。
+
+    形状照 `request_bootstrap.prepare_fast_path` 的消费点给全：`docs`（供 `sources`/`_hit_arts`）、
+    `blocks`（供 `_contract_messages` 组装证据段）、`level`（供步骤帧）。
+    `need_clarify=False` ⇒ 走**报告生成**那条，不是零 LLM 的信息确认反问（那是 E4）。
+    """
+    return {
+        "docs": _one_hit_retrieval(""),
+        "blocks": [
+            {
+                "n": 1,
+                "label": "第一条",
+                "articles": ["第十九条"],
+                "tags": ["试用期"],
+                "text": "试用期为十二个月。",
+            }
+        ],
+        "level": "中",
+        "basis": "harness",
+        "need_clarify": False,
+    }
+
+
 @contextlib.contextmanager
 def sse_client(
     monkeypatch,
@@ -86,6 +114,9 @@ def sse_client(
     route="light_buffered" ⇒ 额外把 tier/准入/`has_role`/模型/自检/反问/扣减全替身化，
     使 `use_light` 为真、真实执行登记表 **E7** 那条出口整段（含"命中不进缓存"闸，
     认形状 `if cache_key and res.verdict == "pass" and not res.law_version_hit:`）。
+    route="contract_review"（票 H 新增）⇒ 把 `is_contract_review`/`build_contract_data`/扣减/模型名
+    替身化，使 `pre["contract_data"]` 在场且 `need_clarify` 为假，真实执行登记表 **E5/E6** 那一整段
+    （含写缓存闸与引用告警注记帧）。增量文本请传 `flagship_parts=CONTRACT_PARTS`。
 
     `fallback_text`（票 C/S6 新增）：把旗舰那一档的模型换成**可 `invoke`** 的替身，于是
     `flagship_parts=()`（流式返回空）时 `main._invoke_llm` 真能拿到一份整答 ⇒ 登记表 **E9**
@@ -129,6 +160,26 @@ def sse_client(
         # 配额扣减与模型名查询是真实 registry 状态，与本题无关 ⇒ 桩掉，保持测试封闭。
         monkeypatch.setattr(main.registry, "deduct", lambda key, tokens: None)
         monkeypatch.setattr(main.registry, "model_of", lambda key: "test-light")
+    elif route == "contract_review":
+        # 票 H 新增：让请求真走到 `pre["contract_data"]` ⇒ 分支0.3（合同报告）整段执行。
+        # 两个替身都按 main 模块全局打桩——`_bootstrap_only` / `_prepare_fast_path_only` 是在
+        # **调用时**从 main 取这两个名字（不是定义时闭包），所以打桩能生效。
+        monkeypatch.setattr(main.settings, "feature_multi_analyze", True)
+        monkeypatch.setattr(main, "is_contract_review", lambda t: True)
+        monkeypatch.setattr(main, "build_contract_data", _contract_data)
+        # ⚠️ **模块级会话集必须隔离**（票 H 实测踩到，症状极具误导性）：`request_bootstrap` 会把
+        # 本轮的 `conv_id` 写进 `main._contract_convs`，而每个用例的内存库都从 id=1 重新发号 ⇒
+        # 不隔离的话，本 route 跑完后再跑其他文件（实测：`test_stream_exit_law_version_gate.py`
+        # 与 `test_fast_path_law_version_gate.py`），它们的 conv_id 也会是 1，于是被判成
+        # `active_contract` ⇒ 请求被路由到**合同澄清**（E4）而不是旗舰流式（E8）⇒ 那两个文件
+        # 十几条"门没被调用"的红。`monkeypatch` 退出时自动还原，不需要手工清理。
+        monkeypatch.setattr(main, "_contract_convs", set())
+        monkeypatch.setattr(main, "_contract_reviewed_convs", set())
+        # 配额扣减与模型名查询是真实 registry 状态，与本题无关 ⇒ 桩掉（同 route="light_buffered" 的理由）。
+        monkeypatch.setattr(main.registry, "deduct", lambda key, tokens: None)
+        monkeypatch.setattr(main.registry, "model_of", lambda key: "test-flag")
+        # ⚠️ 本 route 的增量文本请传 `flagship_parts=CONTRACT_PARTS`：合同分支与旗舰分支共用
+        # 同一个 `make_chain` 桩点（都是 `_FakeChain`），不另开第二条链工厂。
     elif route != "flagship_stream":
         raise ValueError(f"unknown route: {route}")
 

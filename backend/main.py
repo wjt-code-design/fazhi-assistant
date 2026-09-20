@@ -1899,13 +1899,26 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                             registry.deduct, _ccur["key"], est * registry.thinking_mult(_ccur["key"])
                         )
                     bad = citation_verify(answer)
-                    if cache_key:
-                        # 继承回答缓存（code-review #5：重复贴同一合同零重烧）
+                    # 降级信号（S2 同族）：`_safe_pick` 起初就落到"本身已不可用"的默认模型。
+                    # 短路保护：`flag_degraded` 只在 `use_router and not use_light` 那一支被赋过值
+                    # （合同分支里 use_router 为真 ⇒ use_light 已被强制 False ⇒ 该支必已执行），
+                    # 而本分支在 `use_router` 为假时同样会走到 ⇒ 直接把裸名读出来会 NameError。
+                    degraded = use_router and flag_degraded
+                    if cache_key and not bad and not degraded:
+                        # 继承回答缓存（code-review #5：重复贴同一合同零重烧）。
+                        # 两道闸（票 H）：**引用未收录**（bad 非空）与**降级产出**的报告都不得进缓存 ——
+                        # 写进去的是追加注记**之前**的那一份，被零 token 复播时告警/免责注会一起丢掉
+                        # （同族形状：E10 的注记也在 `put` 之后 ⇒ 该处靠"命中不入缓存"那道闸兜住）。
                         answer_cache.put(cache_key, answer, pre["sources"], model="contract_review")
                     if bad:
                         note = "\n\n> 注：报告引用 " + "、".join(bad) + " 未在知识库中检索到，建议核对。"
                         answer += note
                         yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"  # gate-exit: E6
+                    if degraded:
+                        # 与流式出口同族的"降级明说"（登记表 E13 / S2：不静默烧耗尽模型）。
+                        # 本合同分支此前没有任何降级出口 ⇒ 用户看到一份"看起来正常"的报告。
+                        answer += NOTE_QUOTA
+                        yield f"data: {json.dumps({'content': NOTE_QUOTA}, ensure_ascii=False)}\n\n"  # gate-exit: E15
                 routing_metrics.record("contract_review", False, "pass", "miss", checked=False)
                 log_account(
                     model="contract_review",
