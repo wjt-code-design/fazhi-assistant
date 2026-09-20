@@ -94,13 +94,25 @@ def _log_spy(monkeypatch) -> list[dict]:
 
 
 def _focus_route(monkeypatch) -> None:
-    """把请求钉死在分支1（轻量）上：合同分支与相似缓存都得让路，否则判据会串到别的出口。
+    """把请求钉死在分支1（轻量）上：合同分支、相似缓存、**以及进程级回答缓存**都得让路。
 
     ⚠️ 这些桩必须写在 `with sse_client(...)` **块内**：夹具内部对 `main.citation_verify` /
     `main._safe_pick` 有默认桩，写在块外会被它覆盖（票 H 红错过一次）。
+
+    ⚠️⚠️ **`answer_cache.clear()` 不是可选项**：`answer_cache` 是**模块级** LRU，而本文件与
+    `test_flagship_quality.py` 用的是**同一个问题 + 同一份单条命中检索**（都来自
+    `_sse_harness._one_hit_retrieval`）⇒ `_cache_key(pre)` **逐字相同**。全量 lane 里旗舰那个文件先跑
+    并写入该 key，于是分支0（缓存命中）在本文件之前就直返 ⇒ 请求**根本走不到分支1**。
+    实测症状极具误导性：断言失败信息里返回的是**旗舰那份答案**
+    （`'根据《劳动合同法》第十九条，试用期最长六个月。' == '本案诉讼时效为三年…'`），
+    看着像"轻量分支坏了"，其实是"根本没进轻量分支"。
+    定向单跑（`pytest tests/test_light_exit_gates.py`）**看不见**这个问题 —— 复现读数见
+    `dispatch-output/hij-j-20260920/10-pollution-repro.stdout.txt`（同跑旗舰 + 本文件即复现）。
     """
+    import answer_cache
     import main
 
+    answer_cache.clear()  # 与 `test_flagship_quality.py` 同款卫生：清掉进程级缓存再做判据
     monkeypatch.setattr(main, "is_contract_review", lambda t: False)
     monkeypatch.setattr(main, "_similar_cache_hit", lambda pre: None)
 
