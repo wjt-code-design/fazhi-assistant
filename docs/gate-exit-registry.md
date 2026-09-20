@@ -1,5 +1,5 @@
-<!-- generated-at: 2026-09-20 19:18 -->
-<!-- source-commit: 2693745 -->
+<!-- generated-at: 2026-09-20 19:33 -->
+<!-- source-commit: 3f3bf0f -->
 
 # /api/chat 出口 × 闸门 登记表（生成物，勿手改）
 
@@ -19,7 +19,7 @@
 | **E2** | stream() / 分支0.2 QA 持久语义缓存直返（变量 `qa_ans`） | `qa_ans` | 命中率未量 | PASS | GAP-ACCEPTED | DISABLED | DISABLED | NA | GAP-TODO | NA | BLOCKED |
 | **E3** | stream() / 分支0.5 低置信反问 / 诚实拒答（变量 `msg`，零 LLM 模板） | `msg` | 静态可达（执行未证） | PASS | NA | DISABLED | NA | NA | GAP-ACCEPTED | NA | PASS |
 | **E4** | stream() / 分支0.3 合同信息确认闸（常量 `CONTRACT_CLARIFY_PROMPT`，零 LLM） | `CONTRACT_CLARIFY_PROMPT` | 静态可达（执行未证） | PASS | NA | DISABLED | NA | NA | GAP-ACCEPTED | NA | NA |
-| **E5** | stream() / 分支0.3 合同报告流式增量（变量 `piece`） | `piece` | 静态可达（执行未证） | PASS | PASS | DISABLED | NA | PASS | GAP-ACCEPTED | PASS | NA |
+| **E5** | stream() / 分支0.3 合同报告流式增量（变量 `piece`） | `piece` | 有执行取证（真实配置下入口可达；报告产出未端到端取证） | PASS | PASS | DISABLED | NA | PASS | GAP-ACCEPTED | PASS | NA |
 | **E6** | stream() / 分支0.3 合同引用告警注记帧（变量 `note`） | `note` | 条件命中（bad 非空） | PASS | PASS | NA | NA | NA | NA | PASS | NA |
 | **E7** | stream() / 分支1 缓冲轻量整答（变量 `answer`，来自 `_light_buffered`） | `answer` | 零流量（配置不可达） | DISABLED | PASS | PASS | GAP-TODO | PASS | PASS | GAP-TODO | DISABLED |
 | **E8** | stream() / 分支2 旗舰流式增量（变量 `piece`） | `piece` | 有执行取证（主承流量） | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
@@ -104,11 +104,11 @@
 
 ### E5 — stream() / 分支0.3 合同报告流式增量（变量 `piece`）
 
-- 流量程度：静态可达（执行未证）
+- 流量程度：有执行取证（真实配置下入口可达；报告产出未端到端取证）
 
 | 闸门 | 状态 | 取证 |
 |---|---|---|
-| 可达性 | `PASS` | `pre[contract_data]` 在场且不需澄清 ⇒ 流式产出报告。 |
+| 可达性 | `PASS` | `pre[contract_data]` 在场且不需澄清 ⇒ 流式产出报告。**票 H 补的真实配置读数**（`dispatch-output/hij-h-20260920/probe_contract_reachability.py`，只读、不桩判定函数、不调模型）：一份 4 条的真实租赁合同文本下 `is_contract_review=True` / `need_clarify=False` / `n_blocks=5` / `n_docs=24` / `main._cacheable=True` / `cache_key` 非 None / `feature_router=True` / `feature_multi_analyze=True` ⇒ 本分支的入口在真实配置下确实进得去（读数 `17-reachability-realconfig.json`）。⚠️ 仍**未**端到端取证的是「一次真实模型调用产出一份真实报告」——那要花钱，属评测批事项；本节的两道闸判据一律在端点级用替身模型取得。 |
 | 引用校验 | `PASS` | `bad = citation_verify(answer)` ⇒ 未收录引用追加告警注记（见 E6 帧）。 |
 | 自检 | `DISABLED` | `record("contract_review", ..., checked=False)` ⇒ 合同分支**不跑** `quality.self_check`。 |
 | 多选完整性 | `NA` | 报告体，非选择题。 |
@@ -258,7 +258,7 @@
 
 | 闸门 | 状态 | 取证 |
 |---|---|---|
-| 可达性 | `PASS` | `degraded = use_router and flag_degraded`（在收口点求值、由 `if answer:` 兜住空答）。票 H-2 打桩计数：把 `_safe_pick` 的第三元（degraded）桩成 True 后，本帧在**端点级**实测出现（`tests/test_contract_exit_gates.py::test_degraded_contract_report_carries_quota_note`，改前先红、改后绿）。⚠️ 这条与 E14 的性质不同：E14 的读数是**真实配置**下打桩计数，本条是**桩住一个运行时状态**（默认模型被标不可用）后计数 ⇒ 它证明「接线有反应」，不证明「线上今天正在命中」。 |
+| 可达性 | `PASS` | `degraded = use_router and flag_degraded`（在收口点求值、由 `if answer:` 兜住空答）。票 H-2 打桩计数：把 `_safe_pick` 的第三元（degraded）桩成 True 后，本帧在**端点级**实测出现（`tests/test_contract_exit_gates.py::test_degraded_contract_report_carries_quota_note`，改前先红、改后绿）。⚠️ 这条与 E14 的性质不同：E14 的读数是**真实配置**下打桩计数，本条是**桩住一个运行时状态**（默认模型被标不可用）后计数 ⇒ 它证明「接线有反应」。**并且已量清它今天不会命中**：真实配置下 `registry.is_unavailable(registry.default_key())=False`（默认模型 `agent_text_37max0608` 可用）⇒ `flag_degraded` 恒假 ⇒ 本帧**零命中**（读数 `dispatch-output/hij-h-20260920/17-reachability-realconfig.json`）。⇒ 如实登记：本格是「接线正确、今天不生效」，不是「线上已生效」。 |
 | 引用校验 | `NA` | 注记帧。 |
 | 自检 | `NA` | 注记帧（且合同分支本就不跑 `quality.self_check`，见 E5 的「自检」格）。 |
 | 多选完整性 | `NA` | 注记帧；报告体非选择题。 |
