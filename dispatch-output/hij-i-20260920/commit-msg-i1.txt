@@ -1,0 +1,29 @@
+fix(票 I · I-6/I-3): exact_article_lookup 补源名容错；订正 request_bootstrap 那句注释
+
+票面 docs/handoff-gap-tickets-h-i-j-20260920.md §票 I。基线 = 票 J 的最后一个提交 `1e969f2`。
+本提交只做**不需要 Owner 放行**的两件（I-2 的语料版本标另批；I-5 经核对已由开票人登记在表里）。
+
+**I-6（选型 ②，先报后动手）**：`exact_article_lookup` 在 source 精确取空时，**复用全仓唯一的源名归一
+规则 `_source_key`** 再做**一次**候选解析（按 article 取一遍 + Python 侧筛源名 —— 与 `article_in_kb`
+同形态）。**不加版本承诺**；**不另写「去括注」正则**（那是第二份规则，会各自漂移）。
+
+真实 KB 先红/后绿读数（只读探针，`dispatch-output/hij-i-20260920/`）：
+- 改前：`宪法（1982年）` 抽样 5 个条号，`exact_article_lookup("宪法", <条号>)` **全为 0 条**；
+  同族 `article_in_kb("宪法", <条号>)` **全为 True** ⇒ 容忍能力早有，只此函数没用。
+- 改后：同一抽样**全为 1 条**。
+- blast radius：主库 **99 个源名里唯一带括注的就是 `宪法（1982年）`**（138 行）。
+
+单元判据（4 条 = 2 先红 + 2 控制腿，`tests/test_exact_article_lookup_sourcekey.py`）：
+先红腿在**票 J 提交时的副本树**上跑 ⇒ `AssertionError: 应恰好取到 1 条（实得 0）`，两条控制腿两侧都绿。
+控制腿钉住两件事：① 精确命中时**不得**走回退；② 回退**不得**把同条号的其它法条一起端出来（防假修）。
+
+**I-3**：`request_bootstrap.py` 里 `law_as_of` 上方那句注释原文只写「缺省 None = create_run 落
+date.today()」——那是替一个**快车道不存在**的机制背书（快车道不经过 `create_run`）。
+改成分清两条路径（agent 走 `create_run`；快车道走 `main._fast_path_law_as_of()`，且该值在快车道
+只被绊线门消费、检索 cutoff 不随它变＝ADR-018 已知残留④）。**只改注释，行为逐字不变。**
+
+**回表**：E2×版本绊线 格里原写着「第三道也不比它好…（票 I 的 I-6）」——该句在 I-6 修完后会**变陈旧**，
+故就地改成「第三道已修」+ 读数与 blast radius。**该格状态仍为 `GAP-TODO`**（I-2 那半未做）。
+`gen_gate_exit_registry.py` 已跑；`test_gate_exit_registry.py` 在全量受影响面里 150 passed / 0 failed。
+
+门禁：ruff rc=0 / ruff format --check rc=0 / mypy . rc=0（73 files）。

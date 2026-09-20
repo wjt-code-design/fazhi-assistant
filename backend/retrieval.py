@@ -11,9 +11,10 @@ import logging
 import re
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
+from typing import Any
 
 import httpx
 from langchain_core.documents import Document
@@ -342,8 +343,39 @@ def parse_article_query(query: str):
     return name, _normalize_article(m.group(2))
 
 
+def _valid_docs(data: Mapping[str, Any], cutoff: str, only: list[int] | None = None) -> list[Document]:
+    """`collection.get` 结果 → 通过时效过滤的 Document 列表（`only` 可限定行下标）。
+
+    抽出来是为了让"精确命中"与"票 I-6 的回退候选"**共用同一段取文与时效过滤**：
+    两份拷贝会让时效口径出现第二个漂移点。
+    """
+    metas = data["metadatas"] or []
+    documents = data["documents"] or []
+    idxs = range(len(data["ids"])) if only is None else only
+    docs: list[Document] = []
+    for i in idxs:
+        meta = metas[i]
+        if not rc.is_valid_by_time(meta, cutoff):
+            continue
+        docs.append(Document(page_content=documents[i], metadata=meta))
+    return docs
+
+
 def exact_article_lookup(source: str, article: str, cutoff: str | None = None) -> list[Document]:
-    """精确条号查找（含时效过滤，与检索同口径）。返回匹配 Document 列表。"""
+    """精确条号查找（含时效过滤，与检索同口径）。返回匹配 Document 列表。
+
+    **票 I-6**：精确匹配取空时，按 `_source_key` 再做**一次**候选解析。
+    库内源名可能带年份/版本括注（`宪法（1982年）`），而调用方（QA 语料、模型引用）写的是简称
+    ⇒ 精确匹配会把**其实有据可查**的记录判成 miss。实测（2026-09-20，真实 KB）：
+    `宪法（1982年）` 抽样 5 个条号，`exact_article_lookup("宪法", <条号>)` **全为 0 条**，
+    而同族的 `article_in_kb("宪法", <条号>)` **全为 True**、`_source_key` 两边都归一成 `宪法`
+    ⇒ 容忍源名差异的能力本仓早有（`_source_key` 的 docstring 原文就点名了这个例子），
+    只是本函数此前是唯一没用它的读侧。
+
+    刻意**不加版本承诺**（不猜"哪个年份版本才对"），只加一次候选解析，
+    并且**复用全仓唯一的源名归一规则** `_source_key` —— 不另写一份"去括注"正则
+    （那就是第二份规则，会各自漂移）。
+    """
     cutoff = cutoff or date.today().isoformat()
     source = canon_source(source)  # 简称→全称（库内存全称，民诉法→民事诉讼法）
     article = _normalize_article(article)
@@ -351,15 +383,18 @@ def exact_article_lookup(source: str, article: str, cutoff: str | None = None) -
         where={"$and": [{"source": source}, {"article": article}]},
         include=["documents", "metadatas"],
     )
-    docs = []
-    metas = data["metadatas"] or []
-    documents = data["documents"] or []
-    for i in range(len(data["ids"])):
-        meta = metas[i]
-        if not rc.is_valid_by_time(meta, cutoff):
-            continue
-        docs.append(Document(page_content=documents[i], metadata=meta))
-    return docs
+    docs = _valid_docs(data, cutoff)
+    if docs:
+        return docs
+    # —— 回退（票 I-6）：只按 article 取一遍，再用 `_source_key` 在 Python 侧筛源名。
+    # 之所以按 article 取而不是枚举全部源名：article 的过滤性足够强（同条号跨法条数量级几十），
+    # 且本仓已有同样的形态在用（`article_in_kb` 就是 `where={"article": art}` + `_source_key` 比对）。
+    data = vectorstore._collection.get(where={"article": article}, include=["documents", "metadatas"])
+    sk = _source_key(source)
+    rows = [
+        i for i, m in enumerate(data["metadatas"] or []) if _source_key(str((m or {}).get("source", "") or "")) == sk
+    ]
+    return _valid_docs(data, cutoff, only=rows)
 
 
 def _norm_source(name: str) -> str:

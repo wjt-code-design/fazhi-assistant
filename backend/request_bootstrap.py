@@ -43,9 +43,14 @@ class RequestBootstrap:
     # 生产链路缺省 None（代码路径存在但恒不触发）；合法值见 agent/r1ob.VALID_CASE_DOMAINS。
     case_domain: str | None = None
     # R15-lite（2026-09-18，外部 harness 方案差距分析 P0-2）：法律版本基准日服务端注入。
-    # 缺省 None = create_run 落 date.today()（行为逐字不变）；评测通道可显式传入
-    # （如 2021-01-01 民法典分水岭场景）。**server-owned**：模型输出被 runtime/gateway
-    # 的 server-owned 字段清单拒收，该值只能由服务端代码设置。
+    # 缺省 None 时**分两条路径**（票 I-3 订正：原文只写了 `create_run` 那一半，等于替一个快车道
+    # 不存在的机制背书 —— 快车道不经过 `create_run`）：
+    #   · **agent 路径**：由 `create_run` 落 `date.today()`，随 run 持久化；
+    #   · **快车道**：不经过 `create_run`，由 `main._fast_path_law_as_of()` 落当日，
+    #     且该值在快车道**只被版本绊线门消费**，检索 cutoff 不随它变（ADR-018 已知残留 ④，
+    #     结构性不对等、非实现缺陷，见 `main._fast_path_law_as_of` 的 docstring）。
+    # 评测通道可显式传入（如 2021-01-01 民法典分水岭场景）。**server-owned**：模型输出被
+    # runtime/gateway 的 server-owned 字段清单拒收，该值只能由服务端代码设置。
     law_as_of: date | None = None
 
 
