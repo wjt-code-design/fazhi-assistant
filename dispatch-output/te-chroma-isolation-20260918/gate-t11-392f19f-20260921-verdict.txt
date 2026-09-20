@@ -1,0 +1,14 @@
+标签: t11-392f19f-20260921
+结论: RUN_VALID（源码全程未变，passed/failed 可用作 T-E 判据）
+pytest 退出码: 0   耗时: 2.7 分   basetemp: fazhi_gate_t11-392f19f-20260921
+末行: 1397 passed, 2 skipped, 18 deselected, 150 warnings in 156.17s (0:02:36)
+真实库隔离: 零写入 ✅
+  前: fingerprint=f1459fdac647b93303595c48d22130f042660c71617be7b9ec2cea413ecd0230-n38-s364566986
+  后: fingerprint=f1459fdac647b93303595c48d22130f042660c71617be7b9ec2cea413ecd0230-n38-s364566986
+  sqlite cc 5462 → 5462；集合条目 {'legal_provisions_cos': 10266, 'legal_provisions_te4': 10266, 'qa_pairs': 279, 'qa_pairs_te4': 21}
+源码变动文件 (0): []
+python 进程数 观测: 前 2 → 后 2
+其余真实产物指纹（前==后 ⇒ 测试 lane 未写）:
+  app.db  不变 ✅cc 10784 → 10784
+  quota   不变 ✅cc 2 → 2
+注意: 隔离判据与 RUN_VOID 无关——源码被改只让『0 failed』失效，不让『零写入』失效。
