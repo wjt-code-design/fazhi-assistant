@@ -60,6 +60,16 @@ _DATE_RE = re.compile(r"(?:(\d{4})年(\d{1,2})月(\d{1,2})日|(?<!\d)(\d{4})[-/]
 _LABOR_KEYWORDS = ("仲裁时效", "劳动仲裁", "劳动争议仲裁")
 _CIVIL_KEYWORDS = ("诉讼时效", "时效期间", "时效")
 
+# R15-B（2026-09-21）：判"版本冲突"必须先看 claim **引用的是哪部法**与**是否作衔接说明**，
+# 不能仅凭两个日期直接判错（需求真源 `evals/watershed-cases-r15.json`：critical 只有
+# 「对2019年事实直接按《民法典》第188条给出三年时效结论**而不作新旧法衔接说明**」）。
+#   · 未明确引用新法（民法典）⇒ 适用法**不确定** ⇒ 不拦（fail-open，宁可不拦也不错拦）；
+#   · 引用了新法但作了衔接/旧法说明 ⇒ 需求上不是 critical ⇒ 不拦；
+#   · 只有"明确按新法答 + 无衔接说明"才进入分水岭日期比较。
+# 全确定性（不引入模型判定器，票面明令）。
+_NEW_LAW_MARKERS = ("民法典",)
+_TRANSITION_MARKERS = ("衔接", "法释〔2018〕12号", "不直接适用", "当时有效", "旧法")
+
 # 与 writer.numeric_tokens 的 token 契约对齐：duration:{N}:{单位}，N 经
 # _canonical_number 归一（阿拉伯数字字符串）。此处只产出整数年，格式恒定。
 _DURATION_TOKEN = "duration:{n}:年"
@@ -271,6 +281,11 @@ def law_version_crosses_watershed(
             continue  # 该段是劳动口径（劳调法 27 条，与民法典分水岭无关）⇒ 跳过这一段
         if not any(keyword in segment for keyword in _CIVIL_KEYWORDS):
             continue  # 该段不是民事时效结论
+        # R15-B：先看引用了哪部法 / 是否衔接，再谈日期（顺序不可颠倒——否则又回到"仅凭两个日期判错"）
+        if not any(marker in segment for marker in _NEW_LAW_MARKERS):
+            continue  # 未明确引用新法 ⇒ 适用法不确定 ⇒ 不拦
+        if any(marker in segment for marker in _TRANSITION_MARKERS):
+            continue  # 已作新旧法衔接说明 ⇒ 需求上不是 critical
         if (dates[0] < CIVIL_CODE_EFFECTIVE) != (law_as_of < CIVIL_CODE_EFFECTIVE):
             return True
     return False

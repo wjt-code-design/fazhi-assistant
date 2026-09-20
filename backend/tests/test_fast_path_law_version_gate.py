@@ -99,7 +99,11 @@ EXPECTATIONS = [
     ("S07", CLAIM_S07_EVE, FACT_2020, AS_OF_2020_EVE, False),
     ("S09", CLAIM_S09_NO_DATE, FACT_NO_DATE, AS_OF_2026, False),
     ("S12", CLAIM_S12_LABOR, FACT_LABOR, AS_OF_2026, False),
-    ("S15", CLAIM_S15_RECALC_AFTER_INTERRUPTION, FACT_EARLY_AND_LATE, AS_OF_2026, True),
+    # R15-B（2026-09-21）改判：S15 的 claim **未引用《民法典》**（只说“自2022-05-20重新计算”），
+    # 按需求真源它不属于 critical（critical = 直接按民法典答且不衔接）⇒ 修复后命中=False。
+    # 且本条事实的**真实起算点在分水岭后**（2022-05-20 重新起算）——原先的 True 正是
+    # R15-2「用最早日期代理起算日」的误拦形状；R15-2 修好后会得到同一个 False。
+    ("S15", CLAIM_S15_RECALC_AFTER_INTERRUPTION, FACT_EARLY_AND_LATE, AS_OF_2026, False),
 ]
 
 
