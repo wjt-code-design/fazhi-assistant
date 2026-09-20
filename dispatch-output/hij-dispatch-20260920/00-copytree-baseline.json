@@ -1,0 +1,48 @@
+{
+ "purpose": "票 H/I/J 派发前的**开工基线**取证：在干净副本树上量出'哪些红与本票无关'，省掉执行会话重演 19 红归因的那一轮。",
+ "archived_commit": "1c05599",
+ "copy_tree": "C:\\Users\\33393\\AppData\\Local\\Temp\\fazhi_hij_copy_1c05599",
+ "how_built": "backend/venv/Scripts/python.exe dispatch-output/s6-stream-gate-20260920/make_copytree.py 1c05599 <copy_tree>",
+ "lane_A_with_dummy_env": {
+  "dummy_env_lines": [
+   "JWT_SECRET",
+   "LLM_API_KEY",
+   "LLM_BASE_URL=http://127.0.0.1:9/v1",
+   "EMBEDDING_PROVIDER=local"
+  ],
+  "dummy_env_bytes": 142,
+  "cmd": "cd <copy_tree>/backend && <live>/backend/venv/Scripts/python.exe -m pytest tests -m 'not slow' -q --basetemp=%TEMP%/fazhi_hij_basetemp -p no:cacheprovider --junitxml=...",
+  "counts": "2 failed, 1366 passed, 10 skipped, 18 deselected",
+  "junit_totals": {
+   "tests": "1378",
+   "failures": "2",
+   "errors": "0",
+   "skipped": "10"
+  },
+  "failed_ids": [
+   "tests/test_eval_agent.py::test_report_with_adapter_contains_versioned_recomputable_case_evidence",
+   "tests/test_eval_agent.py::test_cli_evaluates_only_same_hash_frozen_artifact_and_records_source_provenance"
+  ],
+  "shared_assertion": "两条红在同一句：assert report[\"release_eligible\"] is True（tests/test_eval_agent.py，按符号锚定不写行号）"
+ },
+ "lane_B_no_env": {
+  "cmd": "同上，但把 <copy_tree>/backend/.env 移走",
+  "counts": "16 failed, 1352 passed, 10 skipped, 18 deselected",
+  "by_file": {
+   "tests/test_gate2_runner.py": 14,
+   "tests/test_eval_agent.py": 2
+  },
+  "conclusion": "缺 .env 只多红 tests/test_gate2_runner.py 一整文件 14 条 ⇒ 环境红，不是回归"
+ },
+ "lane_C_live_tree_targeted": {
+  "cmd": "cd <live>/backend && venv/Scripts/python.exe -m pytest <那两条 ID> -q --basetemp=%TEMP%/fazhi_hij_live2",
+  "counts": "2 passed",
+  "conclusion": "同一对 ID 在 live 树绿 ⇒ 那 2 条红属于副本车道，与票 H/I/J 无关"
+ },
+ "denominator_reconciliation": {
+  "live_gate_run": "1376 passed + 2 skipped = 1378",
+  "copy_lane_A": "1366 passed + 10 skipped + 2 failed = 1378",
+  "skip_delta_explanation": "副本比 live 多 8 条 skip = conftest 对『真实语料不可用』的主动 skip（backend/tests/conftest.py 里 pytest.skip(f'真实语料不可用…')），不是红"
+ },
+ "cost": "两次全量副本跑各约 100-108 秒；本地 embedder ⇒ 零 API 花费"
+}
