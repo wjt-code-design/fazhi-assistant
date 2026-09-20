@@ -85,6 +85,10 @@
   - 解析函数：用 `...\dispatch-output\s5-followup-20260920\run_mutations_full.py` 的 `failed_set()` / `suite_stats()`，**别另写一份**。
 - **已知红名单（起点，不是结论）**：`test_backup_data`×4、`test_capture_eval::test_capture_rejects_non_20_case_set_and_existing_output`、
   `test_request_bootstrap::test_persisted_image_files_are_cleaned_after_later_failure[classify|commit|describe]`
+- **⚠️ 补记（2026-09-20 22:5x，票 I 的基线）**：第四条独立基线读数是 `tests=1399 failures=1`，
+  而那条红是 **`tests.test_phase3::test_chat_streams_persists_and_request_id`** —— 与上面 8 条
+  **不重叠**。四次读数合起来 0 / 3 / 8 / 1 条红，**受害者集合在变** ⇒ flaky 面比上面登记的更宽。
+  **⇒ 别把上面那份名单当穷举**；你的矩阵要能覆盖"每次跑都换人红"这个形态。
 - **副本树搭法（跑全量必须在副本树）**：
   1) 先记下用哪个 commit：**优先 `1e969f2`**（它与本文件已有的 0 红 / 3 红 / 8 红三次读数**同一棵树** ⇒ 可直接对账）；
      若该提交在你的克隆里取不到，改用你开工时的 `git rev-parse HEAD`，**并把该 hash 写进报告**。

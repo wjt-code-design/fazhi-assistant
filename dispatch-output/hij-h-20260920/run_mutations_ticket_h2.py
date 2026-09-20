@@ -60,8 +60,6 @@ def main() -> int:
     baseline_src = pathlib.Path(sys.argv[4]).resolve() if len(sys.argv) == 5 else None
     out_dir = root / tag
     out_dir.mkdir(parents=True, exist_ok=True)
-    main_py = tree / "backend" / "main.py"
-    orig, nl = rmf.read_main(main_py)
 
     # ---- 基线：R2 根目录只跑一次；之后每个变异直接读它的 junit ----
     root_baseline_xml = root / "full-baseline.xml"
@@ -89,16 +87,27 @@ def main() -> int:
         print("VERDICT=RUN_VOID（基线分母不健全）", flush=True)
         return 2
 
-    old, new = MUTANTS[tag]
+    entry = MUTANTS[tag]
+    # 变异目标文件：默认 `backend/main.py`（票 H/J 全是它）；三元组首元素可指定别的相对路径。
+    # ⚠️ 为什么要这个：共用执行器 `run_mutations_full.main()` 只读写 `main.py`，
+    # 票 I 有两个变异的锚点在 `backend/retrieval.py` ⇒ 会报 `ANCHOR-NOT-UNIQUE count=0`
+    # **看起来像 SURVIVED，其实是"根本没执行"**（判据要求"不是 KILLED 就是坏消息"，
+    # 所以这种读数是坏消息，必须修仪器重跑，不能记成存活）。
+    if len(entry) == 3:
+        rel, old, new = entry
+    else:
+        rel, (old, new) = "backend/main.py", entry
+    target = tree / rel
+    orig, nl = rmf.read_main(target)
     if orig.count(old) != 1:
-        print(f"{tag}: ANCHOR-NOT-UNIQUE count={orig.count(old)}", flush=True)
+        print(f"{tag}: ANCHOR-NOT-UNIQUE({rel}) count={orig.count(old)}", flush=True)
         return 1
-    rmf.write_main(main_py, orig.replace(old, new, 1), nl)
+    rmf.write_main(target, orig.replace(old, new, 1), nl)
     try:
         mutant = rmf.run_suite(tree, out_dir, tag, sys.executable)
     finally:
-        rmf.write_main(main_py, orig, nl)
-    restored, _ = rmf.read_main(main_py)
+        rmf.write_main(target, orig, nl)
+    restored, _ = rmf.read_main(target)
     mtests, mfail, merr = rmf.suite_stats(out_dir / f"full-{tag}.xml")
     table = {
         "tag": tag,
@@ -106,7 +115,11 @@ def main() -> int:
         "mutant_tests": mtests,
         "mutant_failures": mfail,
         "mutant_errors": merr,
-        "main_py_restored_byte_exact": restored == orig,
+        "target_file": rel,
+        # 字段名**改准**：原来叫 `main_py_restored_byte_exact`，但目标文件现在可能是
+        # `backend/retrieval.py` 等任一文件 ⇒ 那个名字会对非 main.py 的变异说谎。
+        # （票 H/J 的 verdict.json 是历史产物，仍用旧键名，不追改。）
+        "target_restored_byte_exact": restored == orig,
     }
     if mtests != btests or merr > 0:
         table["status"] = "denominator-drift"
