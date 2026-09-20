@@ -1,0 +1,21 @@
+{
+ "tag": "R15A-M3_whole_text_labor_restored",
+ "baseline_tests": 1413,
+ "mutant_tests": 1413,
+ "mutant_failures": 7,
+ "mutant_errors": 0,
+ "target_file": "backend/agent/limitation_calc.py",
+ "target_restored_byte_exact": true,
+ "status": "KILLED",
+ "newly_red": [
+  "tests.test_backup_data::test_backup_fails_closed_when_manifest_construction_raises",
+  "tests.test_backup_data::test_manifest_media_items_degrade_to_counts_when_over_limit",
+  "tests.test_capture_eval::test_capture_rejects_non_20_case_set_and_existing_output",
+  "tests.test_r15a_date_and_segments::test_r15a_labor_sentence_elsewhere_no_longer_shields_civil_error",
+  "tests.test_request_bootstrap::test_persisted_image_files_are_cleaned_after_later_failure[classify]",
+  "tests.test_request_bootstrap::test_persisted_image_files_are_cleaned_after_later_failure[commit]",
+  "tests.test_request_bootstrap::test_persisted_image_files_are_cleaned_after_later_failure[describe]"
+ ],
+ "newly_green": [],
+ "mutant_failed": 7
+}

@@ -1,0 +1,17 @@
+{
+ "tag": "R15A-M1_date_iso_removed",
+ "baseline_tests": 1413,
+ "mutant_tests": 1413,
+ "mutant_failures": 3,
+ "mutant_errors": 0,
+ "target_file": "backend/agent/limitation_calc.py",
+ "target_restored_byte_exact": true,
+ "status": "KILLED",
+ "newly_red": [
+  "tests.test_r15a_date_and_segments::test_r15a_iso_date_feeds_the_gate",
+  "tests.test_r15a_date_and_segments::test_r15a_iso_date_is_parsed",
+  "tests.test_r15a_date_and_segments::test_r15a_slash_date_is_parsed"
+ ],
+ "newly_green": [],
+ "mutant_failed": 3
+}
