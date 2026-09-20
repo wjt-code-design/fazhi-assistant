@@ -48,9 +48,12 @@ CIVIL_GENERAL_PROVISIONS_EFFECTIVE = date(2017, 10, 1)
 
 _CLAIM_TYPES = ("civil", "labor_arbitration", "labor_remuneration")
 
-# 仅认 NFKC 归一后的阿拉伯数字日期（2021年1月1日 / ２０２１年０１月０１日）。
-# 中文数字日期（二〇二一年…）刻意不解析 → fail-open，不引入口径分叉。
-_DATE_RE = re.compile(r"(\d{4})年(\d{1,2})月(\d{1,2})日")
+# 仅认 NFKC 归一后的明确日期格式（R15-5，2026-09-21 扩两种，Owner 批准的票 R15-A）：
+#   ① 2021年1月1日 / ２０２１年０１月０１日（NFKC 归一后即阿拉伯数字）；
+#   ② ISO：2021-01-01；③ 斜杠：2021/1/1。
+# ISO/斜杠带 (?<!\d)(?!\d) 边界：编号串（12021-01-01-XYZ）不得被截成 2021-01-01 误读。
+# 中文数字日期（二〇二一年…）**仍刻意不解析** → fail-open，不引入口径分叉（契约测试锁定）。
+_DATE_RE = re.compile(r"(?:(\d{4})年(\d{1,2})月(\d{1,2})日|(?<!\d)(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?!\d))")
 
 # 白名单触发关键词：claim 文本必须**断言时效结论**才允许放行年数 token，
 # 防止把年份常量泄漏给无关 claim（如"借款 3 年后到期"不含时效关键词则不触发）。
@@ -63,15 +66,21 @@ _DURATION_TOKEN = "duration:{n}:年"
 
 
 def extract_dates(texts: Iterable[str]) -> list[date]:
-    """一组文本中的全部可解析日期（升序去重）；无可解析日期 → 空列表。"""
+    """一组文本中的全部可解析日期（升序去重）；无可解析日期 → 空列表。
+
+    R15-5：同时认「年月日」与「ISO/斜杠」两种数字形态（组布局不同 ⇒ 按命中的分支取组）。
+    """
     found: set[date] = set()
     for text in texts or []:
         normalized = unicodedata.normalize("NFKC", text or "")
         for match in _DATE_RE.finditer(normalized):
+            y, m, d = match.group(1), match.group(2), match.group(3)
+            if y is None:  # 命中的是 ISO/斜杠分支
+                y, m, d = match.group(4), match.group(5), match.group(6)
             try:
-                found.add(date(int(match.group(1)), int(match.group(2)), int(match.group(3))))
+                found.add(date(int(y), int(m), int(d)))
             except ValueError:
-                continue  # 非法日期（2021年2月30日）→ 逐个跳过，不整体放弃
+                continue  # 非法日期（2021年2月30日 / 2021-02-30）→ 逐个跳过，不整体放弃
     return sorted(found)
 
 
@@ -179,8 +188,13 @@ def calc_limitation(
         notes.append("普通时效经中断重新起算后仍受最长权利保护期间（20年）约束，已按上限截断。")
     return {
         "claim_type": claim_type,
-        "law_basis": ("《民法典》第188条" if start >= CIVIL_CODE_EFFECTIVE else
-                      "《民法总则》第188条（法释〔2018〕12号衔接）" if years == 3 else "《民法通则》第135条"),
+        "law_basis": (
+            "《民法典》第188条"
+            if start >= CIVIL_CODE_EFFECTIVE
+            else "《民法总则》第188条（法释〔2018〕12号衔接）"
+            if years == 3
+            else "《民法通则》第135条"
+        ),
         "general_years": years,
         "start_date": start,
         "expiry_date": expiry,
@@ -243,16 +257,23 @@ def law_version_crosses_watershed(
     ——而证据池本身就是按 law_as_of 做 cutoff 捞的，必然只捞得到分水岭后的法。
     """
     text = unicodedata.normalize("NFKC", claim_text or "")
-    if any(keyword in text for keyword in _LABOR_KEYWORDS):
-        return False
-    if not any(keyword in text for keyword in _CIVIL_KEYWORDS):
-        return False
     if law_as_of is None:
         return False
     dates = extract_dates(fact_texts)
     if not dates:
         return False
-    return (dates[0] < CIVIL_CODE_EFFECTIVE) != (law_as_of < CIVIL_CODE_EFFECTIVE)
+    # R15-4（2026-09-21，票 R15-A）：按**确定性句段**拆分后逐段应用同一判据。
+    # 修复的缺陷：此前把整段答案当 claim，任何位置出现劳动关键词就整段跳过民事检查
+    # ⇒ 混合答案（民事错答句 + 别处的劳动句）里的民事错答绕过版本门。
+    # 劳动排除现在只作用于**实际命中劳动关键词的句段**；不加第二套版本门（票面明令）。
+    for segment in re.split(r"[。！？；\n]", text):
+        if any(keyword in segment for keyword in _LABOR_KEYWORDS):
+            continue  # 该段是劳动口径（劳调法 27 条，与民法典分水岭无关）⇒ 跳过这一段
+        if not any(keyword in segment for keyword in _CIVIL_KEYWORDS):
+            continue  # 该段不是民事时效结论
+        if (dates[0] < CIVIL_CODE_EFFECTIVE) != (law_as_of < CIVIL_CODE_EFFECTIVE):
+            return True
+    return False
 
 
 __all__ = [
