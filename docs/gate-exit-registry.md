@@ -1,5 +1,5 @@
-<!-- generated-at: 2026-09-20 19:33 -->
-<!-- source-commit: 3f3bf0f -->
+<!-- generated-at: 2026-09-20 21:13 -->
+<!-- source-commit: b6f0fcc -->
 
 # /api/chat 出口 × 闸门 登记表（生成物，勿手改）
 
@@ -21,7 +21,7 @@
 | **E4** | stream() / 分支0.3 合同信息确认闸（常量 `CONTRACT_CLARIFY_PROMPT`，零 LLM） | `CONTRACT_CLARIFY_PROMPT` | 静态可达（执行未证） | PASS | NA | DISABLED | NA | NA | GAP-ACCEPTED | NA | NA |
 | **E5** | stream() / 分支0.3 合同报告流式增量（变量 `piece`） | `piece` | 有执行取证（真实配置下入口可达；报告产出未端到端取证） | PASS | PASS | DISABLED | NA | PASS | GAP-ACCEPTED | PASS | NA |
 | **E6** | stream() / 分支0.3 合同引用告警注记帧（变量 `note`） | `note` | 条件命中（bad 非空） | PASS | PASS | NA | NA | NA | NA | PASS | NA |
-| **E7** | stream() / 分支1 缓冲轻量整答（变量 `answer`，来自 `_light_buffered`） | `answer` | 零流量（配置不可达） | DISABLED | PASS | PASS | GAP-TODO | PASS | PASS | GAP-TODO | DISABLED |
+| **E7** | stream() / 分支1 缓冲轻量整答（变量 `answer`，来自 `_light_buffered`） | `answer` | 零流量（配置不可达） | DISABLED | PASS | PASS | PASS | PASS | PASS | PASS | DISABLED |
 | **E8** | stream() / 分支2 旗舰流式增量（变量 `piece`） | `piece` | 有执行取证（主承流量） | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
 | **E9** | stream() / 分支2 流式空答后的 `_invoke_llm` 兜底整答（变量 `answer`） | `answer` | 条件命中（流式返回空） | PASS | PASS | PASS | PASS | PASS | PASS | PASS | PASS |
 | **E10** | stream() / 分支2 引用告警注记帧（变量 `note`） | `note` | 条件命中（bad_cites 非空） | PASS | PASS | NA | NA | NA | NA | PASS | NA |
@@ -30,15 +30,14 @@
 | **E13** | stream() / 分支2 回退不可用的 NOTE_QUOTA 注记帧 | `NOTE_QUOTA` | 条件命中（flag_degraded 且非闲聊） | PASS | NA | NA | NA | PASS | NA | PASS | NA |
 | **E14** | stream() / 分支2 版本绊线命中的 NOTE_LAW_VERSION 注记帧 | `NOTE_LAW_VERSION` | 条件命中（law_version_hit 且答案非空） | PASS | NA | NA | NA | NA | PASS | PASS | NA |
 | **E15** | stream() / 分支0.3 合同报告降级产出的 NOTE_QUOTA 注记帧 | `NOTE_QUOTA` | 条件命中（flag_degraded 且报告正文非空） | PASS | NA | NA | NA | PASS | NA | PASS | NA |
+| **E16** | stream() / 分支1 缓冲轻量出口的多选漏答注记帧（常量 `NOTE_MULTI_INCOMPLETE`） | `NOTE_MULTI_INCOMPLETE` | 零流量（随 E7 不可达） | DISABLED | NA | NA | PASS | NA | NA | PASS | DISABLED |
 
-## 二、缺口清单（GAP-TODO 共 4 格）
+## 二、缺口清单（GAP-TODO 共 2 格）
 
 | 出口 × 闸门 | 该格说什么 |
 |---|---|
 | **E1** × 版本绊线 | 票 I（I-1 先量命中率，再在 I-2 的 (a)/(b) 里二选一；E1 若不同修必须回表改成 GAP-ACCEPTED）。**不由票 C 解决**：票 C §4-Q2 于 2026-09-20 裁为"不判读侧"，理由是读侧加判定会把"零 token 直返"这个特性本身打穿）。**结构性走不到**：收口点的门在生成分支上，而本出口在门之前就 return ⇒ 挂到收口处的门对缓存复用型答复永远不命中。⚠️ 但**严重度比 E2 低一档**：本出口读的是 `answer_cache`，它是进程内 `rc.LRU(maxsize=512)` + `TTL=6h`，且重启与知识增删（`retrieval.invalidate()` → `clear()`）都清空 ⇒ 一条错版本答复的暴露窗 **≤ 6 小时**，不是一直到库。⇒ 要修的语义是「生成侧门开了以后，6 小时内仍可能直返开门前的旧答复」，这是清一次缓存能覆盖的、而清缓存又几乎不需要专门动作（开关要生效本来就得重启）。 |
 | **E2** × 版本绊线 | 票 I（I-1/I-2 (a)：给语料打版本标，保住零 token 直返）。**不由票 C 解决**：票 C §4-Q2 已裁"不判读侧"）。同 E1 是结构性走不到，但**本格是全表唯一真正的存量面**（⚠️ 这里原来写的『9 格里』已作废：那个数是开票时的缺口计数，票 C 收口后就不成立了 ⇒ **取证里不许再写会随别票变化的计数**）：它读的不是 `answer_cache` 而是 **Chroma 持久语料**（`main._qa_direct_return` docstring 原文「QA 持久语义缓存直返（8-23 智谱免费 token 预生成语料）」）⇒ **无 TTL、重启不清、`answer_cache.clear()` 也碰不到它**。三道护栏名义上是 score ≥0.92 / 选项指纹 / 「条文仍在库且有效」，**没有一条是版本判定** ⇒ 预生成那天的法版本会被无限期当成今天的法作答。⚠️ **但「三道」这句话本身要打折**（2026-09-20 全量清点 `probe-A`）：279 条里带选项的有 166 条，而存了 `options_fingerprint` 的只有 **60** 条，护栏条件是 `q_fp and stored_fp and 不等` ⇒ **指纹这道门对 219 条是空转的**（票 I 的 I-5）。第三道也不比它好：QA 语料写 `宪法` 而主库存成 `宪法（1982年）`、`canon_source` 没有这条别名 ⇒ 2 条**其实有据可查**的记录被当成 miss 掉（票 I 的 I-6）。**命中率已于 2026-09-20 量过（票 I 的 I-1，全部本地 embedder 零花费）**，口径是三条互不合并的读数：① 自问 279/279 全部 ≥0.92（min=1.0，仪器有效性门）；② 覆盖探针 60 条抽样里「换问法」**59 条仍直返**、而「剥掉选项只剩题干」只有 **22 条**⇒ 暴露面真实存在且不需要逐字重复；③ 误命中探针（24 条自述式咨询 + 12 条语料外部门法题）**直返 0 条**（最高分 0.8287 / 0.8350）⇒ 0.92 不误伤无关问题。⚠️ 这三条都**不是线上命中率**（本地无流量分布），引用必须带口径。⚠️ 严重度是**前瞻性**的：语料 metadata 里没有生成时间戳，日期只能从 docstring 的「8-23」推，所以今天**没有证据**说它在答旧法；成立的说法是「修法时它没有任何失效机制」。⇒ 修法两种，都不在票 C 射程内：给 E2 补一次判定（则直返不再零成本），或给那份语料**打版本标 + 生成时间戳**（一次性离线，运行时按 `law_as_of` 过滤，保住零 token 直返）。 |
-| **E7** × 多选完整性 | 票 J（J-2，本表新发现）：`multi_incomplete` 全仓只有流式出口一处调用 ⇒ 轻量缓冲路径的**多选漏答零防护**，而法考多选题恰是最可能被路由到轻量档的题型。 |
-| **E7** × 写缓存闸 | 票 J（J-2，本表新发现）：两条闸**字面条件集交集只有 `cache_key`**（轻量那条 = cache_key / `res.verdict == "pass"` / `not res.law_version_hit`；流式那条 = 票 C 之后已是**五**条件（cache_key / `not flag_degraded` / `_cache_write_ok` / `not multi_bad` / `not law_version_hit`，逐条见 E8 的「写缓存闸」格）。**认形状不认行号**：轻量那条仍是分支里唯一的 `if cache_key and …:` 单行；流式那条加到 第五条后被 ruff-format 拆成 `if (\n cache_key\n and …)` 多行块（本仓行号已漂过五次， 最近一次是被本表自己的取证改动挤掉的）。逐条对：流式的 `not flag_degraded` 在轻量侧由 `verdict == "pass"` 承担（`_light_buffered_locked` 里 `except QuotaExhausted` 那一支把 verdict 写成 `v.reason or "low_quota"`）⇒ 不是漏闸，但**降级与自检 FAIL 两个信号被合进同一个条件**，归因粒度比流式粗。轻量侧真正**无任何对应物**的两件：`_cache_write_ok`（确定性写闸，全文只在流式那条上出现）与 `not multi_bad`（`quality.multi_incomplete` 全文只有一个调用点，在流式分支）⇒ 同一个「拦错答进缓存」的形状两份实现、强弱不同（`[PL#13]`）。已有的那条 `not law_version_hit` 本轮已配端点级用例（能杀删闸变异）。 |
 
 ## 三、逐格取证
 
@@ -141,10 +140,10 @@
 | 可达性 | `DISABLED` | **三份独立证据同向**：① `docs/capability-matrix.md` §0 部署态角色表只有 longcat_text_flag / vision_omni / voice_omni，无 text-light；② 票 G `measure_roles.py` 读数 tier 全集=['flag'] ⇒ `has_role('text','light')=False`；③ `test_flagship_quality.py` docstring 第 3 行原文就写着：「text 无 light 档 ⇒ use_light=False」。⇒ S5 那道门今天**没有线上流量经过**。 |
 | 引用校验 | `PASS` | 经 `quality.self_check`：该函数体内 `R.citation_verify(a, in_kb=in_kb)` 全文唯一一处（被调方定义在 `retrieval.py`，`quality.py` 只是调用方）—— 本轮查证，别误判成「轻量出口不查引用」。差异只在**呈现**：流式出口追加告警注记帧，这里由 verdict 驱动升级/注记。 |
 | 自检 | `PASS` | `_light_buffered_locked` 内 `quality.self_check(raw, ctx_present)`（至多一次升级旗舰重答后再判）。 |
-| 多选完整性 | `GAP-TODO` | 票 J（J-2，本表新发现）：`multi_incomplete` 全仓只有流式出口一处调用 ⇒ 轻量缓冲路径的**多选漏答零防护**，而法考多选题恰是最可能被路由到轻量档的题型。 |
+| 多选完整性 | `PASS` | 票 J-2 已接：调用点复用流式那份**纯函数** `quality.multi_incomplete`（全仓仍只有这一处规则，没有写第二份判定），症状命中 ⇒ 追加注记帧（**本表 E16**）+ 拦缓存 + 落 `kind=”multi_incomplete”` 日志（与流式 E11 同形状）。注记措辞也收成**唯一真源** `main.NOTE_MULTI_INCOMPLETE`（流式 E11 一并改读它，防两处文案漂移）。判据：端点级 `tests/test_light_exit_gates.py` —— 先红 `test_light_path_flags_multi_incomplete_and_blocks_cache`（改前红因原文 `AssertionError: 多选漏答的答复进了缓存：[{… 'model': ''}]`）+ 控制腿 `test_control_light_path_does_not_flag_full_multi_answer` / `test_control_light_path_plain_question_still_cached`（两条都断言「同一请求形状照常写一次缓存」⇒ 上一条的 `sink == []` 是被闸拦下，不是「压根没有 cache_key」）。⚠️ 本出口仍**零流量**（见「可达性」格）⇒ 本格是「代码正确」，不是「线上生效」。 |
 | 配额降级注记 | `PASS` | 轻量五个 return 点里有 NOTE_QUOTA（配额耗尽不升级）与 NOTE_COMPLEX（升级后仍 FAIL）。 |
 | 版本绊线 | `PASS` | S5 接 + 本轮补上「缺省落当日」这一小条（`_fast_path_law_as_of`）。判据强度：全量变异复审 4/4 全杀（`dispatch-output/s5-followup-20260920/02-mutation-verdicts.txt`），含 reason 双支各一条端点级用例。⚠️ 但本出口零流量 ⇒ 这格是「代码正确」，不是「线上生效」。⚠️ **别说成「契约第①半已搬齐」**：`create_run` 那半还含「随 run 持久化」与「被工具 cutoff/证据有效性判定消费」，快车道无 run 对象 ⇒ 本值只有绊线门一个消费者，检索 cutoff 不随它变（ADR-018 已知残留 ④）。 |
-| 写缓存闸 | `GAP-TODO` | 票 J（J-2，本表新发现）：两条闸**字面条件集交集只有 `cache_key`**（轻量那条 = cache_key / `res.verdict == "pass"` / `not res.law_version_hit`；流式那条 = 票 C 之后已是**五**条件（cache_key / `not flag_degraded` / `_cache_write_ok` / `not multi_bad` / `not law_version_hit`，逐条见 E8 的「写缓存闸」格）。**认形状不认行号**：轻量那条仍是分支里唯一的 `if cache_key and …:` 单行；流式那条加到 第五条后被 ruff-format 拆成 `if (\n cache_key\n and …)` 多行块（本仓行号已漂过五次， 最近一次是被本表自己的取证改动挤掉的）。逐条对：流式的 `not flag_degraded` 在轻量侧由 `verdict == "pass"` 承担（`_light_buffered_locked` 里 `except QuotaExhausted` 那一支把 verdict 写成 `v.reason or "low_quota"`）⇒ 不是漏闸，但**降级与自检 FAIL 两个信号被合进同一个条件**，归因粒度比流式粗。轻量侧真正**无任何对应物**的两件：`_cache_write_ok`（确定性写闸，全文只在流式那条上出现）与 `not multi_bad`（`quality.multi_incomplete` 全文只有一个调用点，在流式分支）⇒ 同一个「拦错答进缓存」的形状两份实现、强弱不同（`[PL#13]`）。已有的那条 `not law_version_hit` 本轮已配端点级用例（能杀删闸变异）。 |
+| 写缓存闸 | `PASS` | 票 J-2 已接，认形状 `if (\n cache_key\n and not res.degraded\n and _cache_write_ok(pre, answer)\n and res.verdict == "pass"\n and not multi_bad\n and not res.law_version_hit\n ):`——**六**条件，与流式 E8 那一组逐条对齐：`cache_key`（安全形态）· `not res.degraded`（票 J 新增的**独立**降级信号，对应流式的 `not flag_degraded`）· `_cache_write_ok(pre, answer)`（确定性写闸，此前轻量侧**无任何对应物**）· `res.verdict == "pass"`（自检 PASS）· `not multi_bad`（多选漏答不入缓存）· `not res.law_version_hit`（命中版本绊线不入缓存）。归因粒度也已对齐：票 J 给 `_LightResult` 补了 `degraded: bool`（**不复用 verdict**），并把它记进 account 日志（`observability._ACCOUNT_FIELDS` 已登记 `degraded`）⇒ 「自检 FAIL」与「配额降级」两条原因能同时出现在一张日志里（改前只能从 verdict 里那个 `"low_quota"` 字符串反推）。判据：端点级 `tests/test_light_exit_gates.py` 四条 —— 先红 `test_light_path_cache_write_ok_blocks_foreign_citation`（改前红因原文 `AssertionError: 引用不在检索条文内的答案进了缓存：[{… 'model': ''}]`）与 `test_light_path_degraded_signal_is_independent_from_verdict`（改前红因 `assert None is True`，即日志里根本没有 `degraded` 键）；控制腿 `test_control_light_path_cache_write_ok_allows_retrieved_citation` 与 `test_control_light_path_non_degraded_records_false_and_caches`。⚠️ 认形状不认行号：本仓行号已漂过五次，最近一次是被本表自己的取证改动挤掉的。⚠️ 本出口仍**零流量** ⇒ 本格是「代码正确 + 两条出口对称」，不是「线上生效」。 |
 | 评测可信度 | `DISABLED` | 分支不可达 ⇒ 任何评测读数里它出现 0 次。**别把「改完评测一分没变」当它被验证过**（本轮实测：frozen-cases-v2 20 例、holdout 5 例均不含可触发该门的形态）。 |
 
 ### E8 — stream() / 分支2 旗舰流式增量（变量 `piece`）
@@ -266,6 +265,21 @@
 | 版本绊线 | `NA` | 注记帧不参与版本判定（合同分支的版本绊线另见 E5 的「版本绊线」格）。 |
 | 写缓存闸 | `PASS` | `not degraded` 是 E5 写闸的第二道条件 ⇒ 降级报告不进缓存（否则零 token 复播时本帧消失，与 E13 的 `not flag_degraded` 完全同族）。 |
 | 评测可信度 | `NA` | 注记帧；合同类不在 `evals/` 冻结集内。 |
+
+### E16 — stream() / 分支1 缓冲轻量出口的多选漏答注记帧（常量 `NOTE_MULTI_INCOMPLETE`）
+
+- 流量程度：零流量（随 E7 不可达）
+
+| 闸门 | 状态 | 取证 |
+|---|---|---|
+| 可达性 | `DISABLED` | `use_light` 恒假（`llm_registry` 实配只有 `('text','flag')`，见 E7 的「可达性」格）⇒ 本帧今天**零流量**。端点级判据把它打通了：`tests/test_light_exit_gates.py::test_light_path_flags_multi_incomplete_and_blocks_cache` （夹具把 tier/准入/`has_role` 造真）。⚠️ 这**不是**「线上生效」的证据。 |
+| 引用校验 | `NA` | 注记帧。 |
+| 自检 | `NA` | 注记帧（自检已在 `_light_buffered_locked` 内跑过，见 E7 的「自检」格）。 |
+| 多选完整性 | `PASS` | 本帧即其产物，且 `not multi_bad` 是写闸条件之一 ⇒ 漏答不入缓存。 |
+| 配额降级注记 | `NA` | 与配额无关（配额走 `NOTE_QUOTA`，在 `_light_buffered_locked` 内）。 |
+| 版本绊线 | `NA` | 注记帧不参与版本判定。 |
+| 写缓存闸 | `PASS` | 注记在 `answer += NOTE_MULTI_INCOMPLETE` 之后才写缓存，且 `not multi_bad` 是写闸条件 ⇒ **不存在「缓存掉注记」这个形状**（与流式 E10/E11 同族：那里靠 `not multi_bad` 兜住）。 |
+| 评测可信度 | `DISABLED` | 分支不可达 ⇒ 评测读数里出现 0 次（同 E7）。 |
 
 ## 四、不归本表的东西（显式登记，免得下任重画一遍）
 

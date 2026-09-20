@@ -1016,6 +1016,10 @@ NOTE_COMPLEX = "\n\n> 注：该问题较复杂，本回答仅供参考。"
 NOTE_QUOTA = "\n\n> 注：模型配额紧张，本回答仅供参考。"
 # S5（2026-09-19）快车道版本绊线命中时的明说降级注记（同 NOTE_* 惯用法，不静默替换答案）。
 NOTE_LAW_VERSION = "\n\n> 注：本回答所适用的法律版本与所述事实的发生时间可能不一致，本回答仅供参考。"
+# 多选漏答症状注记（决策 8）。**全仓只此一份措辞**：流式出口（登记表 E11）与轻量缓冲出口
+# （票 J 新增，登记表 E16）共用它 —— 两处各抄一份字面量会让"同一症状两句话"漂移，
+# 而它们本该是同一条告警（票 J §J-2：「复用流式那份纯函数，不许重写规则」同理）。
+NOTE_MULTI_INCOMPLETE = "\n\n> ⚠️ 本题可能为多选题，上述回答似乎只给出了一个正确选项，请核对是否遗漏。"
 
 # 低置信反问计数（任务2）：conv_id → 已反问（最多一次，防死循环）。进程内状态，
 # 单 worker 下有效（ADR-008 单 worker 约束）；重启清零可接受——反问上限防的是同会话循环。
@@ -1157,6 +1161,12 @@ class _LightResult:
     # 刻意不复用 verdict 承载该信号 —— verdict 是自检归因（pass/vague/low_quota/…），覆盖它就会
     # 丢掉"为什么降级"的那一半信息，两条降级原因得能同时出现在一张日志里。
     law_version_hit: bool = False
+    # 票 J：**独立的降级信号**，与 verdict 分开（同 S5 那条字段注释立下的规矩）。语义严格对齐流式的
+    # `flag_degraded`（= "本来该用的模型不可用，这条答复是在降级下产出的"），**只有**
+    # `_light_buffered_locked` 里 `except QuotaExhausted` 那一支为 True（升级旗舰时配额耗尽 ⇒ 退回
+    # 轻量产物 + NOTE_QUOTA）。刻意**不含**"轻量即旗舰、无更强者可升"那一支：那是能力上限，不是降级；
+    # 也不含自检 FAIL —— 那是 verdict 的归因域。两条必须能同时出现在一张日志里（见调用点的 log_account）。
+    degraded: bool = False
 
 
 def _fast_path_fact_texts(pre: dict) -> list[str]:
@@ -1272,9 +1282,18 @@ def _light_buffered_locked(
     try:
         fkey, fllm = registry.pick(modality, "flag")
     except QuotaExhausted:
+        # 票 J：这是轻量路径**唯一**的降级点 ⇒ 独立信号在这里点亮（不是靠 verdict 里那个
+        # "low_quota" 字符串表达的：verdict 还同时承载自检归因，两个信号必须能分开读）。
         return _with_gate(
             _LightResult(
-                (raw + NOTE_QUOTA) if raw else "", lkey, modality, "light", usage, False, v.reason or "low_quota"
+                (raw + NOTE_QUOTA) if raw else "",
+                lkey,
+                modality,
+                "light",
+                usage,
+                False,
+                v.reason or "low_quota",
+                degraded=True,
             )
         )
     if fkey == lkey:  # 轻量即旗舰，无更强者可升
@@ -1961,9 +1980,35 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"  # gate-exit: E7
                 else:
                     yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
-                if cache_key and res.verdict == "pass" and not res.law_version_hit:
-                    # 命中版本绊线的答复**不进缓存**：否则一条按错版本法作答的答复会被后续同题请求
-                    # 零 token 直返（分支0 早于本门 ⇒ 门再也走不到），等于把这一次命中固化成常态。
+                # 票 J/J-2：多选漏答症状（决策 8）——**复用**流式那份纯函数
+                # （`quality.multi_incomplete` 全仓只此一份规则，见 J-2「不许重写规则」）。
+                # 整答已在此刻发完 ⇒ 与流式同族处置：只追加确定性注记（不静默、不收回已发帧）+ 拦缓存。
+                multi_bad = bool(answer) and quality.multi_incomplete(pre.get("user_text") or "", answer)
+                if multi_bad:
+                    answer += NOTE_MULTI_INCOMPLETE
+                    yield f"data: {json.dumps({'content': NOTE_MULTI_INCOMPLETE}, ensure_ascii=False)}\n\n"  # gate-exit: E16
+                    log_account(
+                        kind="multi_incomplete",
+                        conv_id=pre["conv_id"],
+                        user_id=user.id,
+                        detail=f"len={len(pre.get('user_text') or '')}",
+                    )
+                # 写缓存闸（票 J/J-2：把轻量出口的条件集**对齐**到流式 E8 的五条件形状）：
+                #   cache_key               —— 安全形态（见 `_cacheable`）
+                #   not res.degraded        —— 降级产物不入缓存（票 J 新增的**独立**降级信号）
+                #   _cache_write_ok(pre, answer) —— 确定性写闸：study_aid 的引用必须 ⊆ 本轮检索条文
+                #   res.verdict == "pass"   —— 自检 PASS（"升级后仍 FAIL"与"配额耗尽"两支都不是 pass）
+                #   not multi_bad           —— 多选漏答不入缓存（防错答传播给近重复题）
+                #   not res.law_version_hit —— 命中版本绊线不入缓存：分支0 在本门**之前**直返 ⇒
+                #                              一条错版答复进了缓存就会被零 token 固化，门再也走不到
+                if (
+                    cache_key
+                    and not res.degraded
+                    and _cache_write_ok(pre, answer)
+                    and res.verdict == "pass"
+                    and not multi_bad
+                    and not res.law_version_hit
+                ):
                     answer_cache.put(cache_key, answer, pre["sources"])
                 if res.key:
                     # 对抗审计 v2 #20：SQLite 扣减同步阻塞事件循环 → 线程池
@@ -1974,6 +2019,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     tier=res.tier,
                     escalated=res.escalated,
                     verdict=res.verdict,
+                    degraded=res.degraded,
                     cache="miss",
                     token_est=res.usage,
                     first_ms=round((_f0 - t0) * 1000, 1) if answer else None,
@@ -2099,7 +2145,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         detail=";".join(bad_cites)[:300],
                     )
                 if multi_bad:
-                    note = "\n\n> ⚠️ 本题可能为多选题，上述回答似乎只给出了一个正确选项，请核对是否遗漏。"
+                    note = NOTE_MULTI_INCOMPLETE
                     answer += note
                     yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"  # gate-exit: E11
                     log_account(

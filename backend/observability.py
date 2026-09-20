@@ -47,6 +47,7 @@ _ACCOUNT_FIELDS = (
     "cache",
     "escalated",
     "verdict",
+    "degraded",
     "kind",
     "detail",
     "agent_correlation_id",
