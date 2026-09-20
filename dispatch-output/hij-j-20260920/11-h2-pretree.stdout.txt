@@ -1,0 +1,128 @@
+F                                                                        [100%]
+================================== FAILURES ===================================
+______________ test_contract_failover_endings_are_characterized _______________
+
+client = <starlette.testclient.TestClient object at 0x000001BBC6D5B150>
+monkeypatch = <_pytest.monkeypatch.MonkeyPatch object at 0x000001BBF63C7A90>
+tmp_path = WindowsPath('C:/tmp/fazhi_h2_pre/test_contract_failover_endings0')
+
+    def test_contract_failover_endings_are_characterized(client, monkeypatch, tmp_path):
+        """把"failover 全灭"的收场逐个数出来（打桩计数，不推断），读数落盘成证据文件。
+
+        三种收场各自构造：
+        ① 正常产出（既有 `client` 夹具）→ 报告正文帧；
+        ② **三次尝试全部"空内容、无异常"** → `stream_with_retry` 正常返回、`answer == ""`；
+        ③ **末次尝试抛异常** → `stream_with_retry` 上抛 → 外层 `except Exception`。
+        """
+        import answer_cache
+        import main
+
+        token = login(client)
+
+        # ① 正常
+        answer_cache.clear()
+        normal = chat_frames(client, token, CONTRACT_QUESTION)
+
+        # ② 全空内容：`flagship_parts=()` ⇒ `_FakeChain.astream` 一个非空块都不产
+        monkeypatch.setattr(main, "make_chain", lambda llm: _FakeChainEmpty())
+        answer_cache.clear()
+        empty = chat_frames(client, token, CONTRACT_QUESTION)
+
+        # ③ 末次尝试抛异常：三次都抛 ⇒ 只有 i == len(configs)-1 那一次会上抛
+        calls = {"n": 0}
+
+        class _Boom:
+            async def astream(self, messages):  # noqa: ARG002
+                calls["n"] += 1
+                raise RuntimeError("boom")
+                yield  # pragma: no cover - 让它成为异步生成器
+
+        monkeypatch.setattr(main, "make_chain", lambda llm: _Boom())
+        answer_cache.clear()
+        raised = chat_frames(client, token, CONTRACT_QUESTION)
+
+        readings = {
+            "normal_contents": _contents(normal),
+            "normal_errors": _errors(normal),
+            "empty_contents": _contents(empty),
+            "empty_errors": _errors(empty),
+            "raised_contents": _contents(raised),
+            "raised_errors": _errors(raised),
+            "boom_astream_calls": calls["n"],
+        }
+        (tmp_path / "contract-failover-endings.json").write_text(
+            json.dumps(readings, ensure_ascii=False, indent=2), encoding="utf-8", newline=""
+        )
+        print(json.dumps(readings, ensure_ascii=False, indent=2))
+
+        # ① 正常收场：报告正文可达（且引用校验替身恒返回空 ⇒ 无告警注记）
+        assert "".join(_contents(normal)) == CONTRACT_ANSWER
+        assert _errors(normal) == []
+        # ② 全空收场（票 H-2 尾支，Owner 2026-09-20 裁定补 error 帧）：
+        #    改前这里**无 content 也无 error** ⇒ 用户端一片空白；先红读数就是 `[] != ["服务暂时无响应…"]`。
+        assert _contents(empty) == []
+>       assert _errors(empty) == ["服务暂时无响应，请稍后重试"]
+E       AssertionError: assert [] == ['服务暂时无响应，请稍后重试']
+E
+E         Right contains one more item: '服务暂时无响应，请稍后重试'
+E         Use -v to get more diff
+
+tests\test_contract_exit_gates.py:113: AssertionError
+----------------------------- Captured log setup ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+---------------------------- Captured stdout call -----------------------------
+[chat-stream] RuntimeError: boom
+{
+  "normal_contents": [
+    "【风险评估】第一条 试用期约定超过法定上限，",
+    "依据《劳动合同法》第十九条，建议不超过六个月。"
+  ],
+  "normal_errors": [],
+  "empty_contents": [],
+  "empty_errors": [],
+  "raised_contents": [],
+  "raised_errors": [
+    "服务暂时无响应，请稍后重试"
+  ],
+  "boom_astream_calls": 3
+}
+---------------------------- Captured stderr call -----------------------------
+{"ts": "2026-09-21T00:17:45", "level": "INFO", "logger": "legal.access", "req": "acef1a25ab00", "msg": "req", "method": "POST", "path": "/api/auth/register", "status": 200, "ms": 271.0}
+{"ts": "2026-09-21T00:17:45", "level": "INFO", "logger": "legal.access", "req": "2860fa814f37", "msg": "req", "method": "POST", "path": "/api/auth/login", "status": 200, "ms": 248.5}
+{"ts": "2026-09-21T00:17:45", "level": "INFO", "logger": "legal.chat", "req": "2cf2a0472381", "msg": "chat", "ms": 112.2, "first_ms": 270451713.6, "model": "contract_review", "ok": true, "conv_id": 1, "user_id": 1, "q_len": 11, "tier": "contract_review", "cache": "miss"}
+{"ts": "2026-09-21T00:17:45", "level": "INFO", "logger": "legal.access", "req": "2cf2a0472381", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 131.4}
+{"ts": "2026-09-21T00:17:46", "level": "INFO", "logger": "legal.chat", "req": "f47003b1bf8f", "msg": "chat", "ms": 1062.3, "first_ms": 0.0, "model": "contract_review", "ok": true, "conv_id": 2, "user_id": 1, "q_len": 11, "tier": "contract_review", "cache": "miss"}
+{"ts": "2026-09-21T00:17:46", "level": "INFO", "logger": "legal.access", "req": "f47003b1bf8f", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 1069.0}
+{"ts": "2026-09-21T00:17:47", "level": "INFO", "logger": "legal.access", "req": "315b6d4373b6", "msg": "req", "method": "POST", "path": "/api/chat", "status": 200, "ms": 541.7}
+------------------------------ Captured log call ------------------------------
+INFO     legal.access:observability.py:184 req
+INFO     legal.access:observability.py:184 req
+INFO     legal.chat:observability.py:201 chat
+INFO     legal.access:observability.py:184 req
+INFO     legal.chat:observability.py:201 chat
+INFO     legal.access:observability.py:184 req
+INFO     legal.access:observability.py:184 req
+============================== warnings summary ===============================
+tests/test_contract_exit_gates.py::test_contract_failover_endings_are_characterized
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+tests/test_contract_exit_gates.py::test_contract_failover_endings_are_characterized
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\httpx\_client.py:690: DeprecationWarning: The 'app' shortcut is now deprecated. Use the explicit style 'transport=WSGITransport(app=...)' instead.
+    warnings.warn(message, DeprecationWarning)
+
+tests/test_contract_exit_gates.py::test_contract_failover_endings_are_characterized
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:147: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    return self._jws.encode(
+
+tests/test_contract_exit_gates.py::test_contract_failover_endings_are_characterized
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\jwt\api_jwt.py:368: InsecureKeyLengthWarning: The HMAC key is 27 bytes long, which is below the minimum recommended length of 32 bytes for SHA256. See RFC 7518 Section 3.2.
+    decoded = self.decode_complete(
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_contract_exit_gates.py::test_contract_failover_endings_are_characterized
+1 failed, 4 deselected, 4 warnings in 16.03s

@@ -1,0 +1,27 @@
+{
+ "log_tiers": [
+  "contract_review"
+ ],
+ "log_kinds": [],
+ "contents": [],
+ "errors": [
+  "服务暂时无响应，请稍后重试"
+ ],
+ "frame_keys": [
+  [
+   "msg",
+   "type"
+  ],
+  [
+   "steps",
+   "type"
+  ],
+  [
+   "error"
+  ],
+  [
+   "conversation_id",
+   "sources"
+  ]
+ ]
+}

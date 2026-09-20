@@ -1960,6 +1960,13 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         # 本合同分支此前没有任何降级出口 ⇒ 用户看到一份"看起来正常"的报告。
                         answer += NOTE_QUOTA
                         yield f"data: {json.dumps({'content': NOTE_QUOTA}, ensure_ascii=False)}\n\n"  # gate-exit: E15
+                if not answer:
+                    # 票 H-2 尾支（Owner 2026-09-20 裁定补）：`stream_with_retry` 三次尝试全部
+                    # 「空内容、无异常」时，这里此前**既不产 content 帧也不产 error 帧**
+                    # （实测探针：`log_tiers=["contract_review"]`、帧序列无 content/error）⇒ 用户端一片空白。
+                    # 复用轻量出口（E7 空答支）的现成文案与帧形状。不写缓存（空答本来就不写）；
+                    # 之后的 conversation_id/[DONE] 帧照常发 ⇒ 流是**正常收尾**的，只是多了这条 error。
+                    yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
                 routing_metrics.record("contract_review", False, "pass", "miss", checked=False)
                 log_account(
                     model="contract_review",
@@ -1967,7 +1974,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     cache="miss",
                     first_ms=round((_f0 or 0.0) * 1000, 1),
                     ms=round((time.perf_counter() - t0) * 1000, 1),
-                    ok=True,
+                    ok=bool(answer),
                     conv_id=pre["conv_id"],
                     user_id=user.id,
                     q_len=len(text),

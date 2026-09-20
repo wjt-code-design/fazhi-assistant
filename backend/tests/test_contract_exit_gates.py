@@ -107,9 +107,10 @@ def test_contract_failover_endings_are_characterized(client, monkeypatch, tmp_pa
     # ① 正常收场：报告正文可达（且引用校验替身恒返回空 ⇒ 无告警注记）
     assert "".join(_contents(normal)) == CONTRACT_ANSWER
     assert _errors(normal) == []
-    # ② 全空收场：**静默**——没有 error 帧（票面 H-2 假设的"落到外层 error 帧"在"全空内容"这一支不成立）
+    # ② 全空收场（票 H-2 尾支，Owner 2026-09-20 裁定补 error 帧）：
+    #    改前这里**无 content 也无 error** ⇒ 用户端一片空白；先红读数就是 `[] != ["服务暂时无响应…"]`。
     assert _contents(empty) == []
-    assert _errors(empty) == []
+    assert _errors(empty) == ["服务暂时无响应，请稍后重试"]
     # ③ 异常上抛收场：外层 error 帧（票面 H-2 描述的那一支）
     assert _errors(raised) == ["服务暂时无响应，请稍后重试"]
     assert calls["n"] == 3, "三次 config 都应被尝试过（否则 on_model_failure 的推进语义变了）"
