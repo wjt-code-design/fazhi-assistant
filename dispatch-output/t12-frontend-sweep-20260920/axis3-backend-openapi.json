@@ -1,0 +1,165 @@
+{
+ "openapi_version": "3.1.0",
+ "paths": [
+  {
+   "path": "/api/admin/analysis-runs",
+   "method": "GET"
+  },
+  {
+   "path": "/api/admin/audit",
+   "method": "GET"
+  },
+  {
+   "path": "/api/admin/conversations",
+   "method": "GET"
+  },
+  {
+   "path": "/api/admin/feedback",
+   "method": "GET"
+  },
+  {
+   "path": "/api/admin/knowledge",
+   "method": "GET"
+  },
+  {
+   "path": "/api/admin/knowledge",
+   "method": "POST"
+  },
+  {
+   "path": "/api/admin/knowledge/preview-chunk",
+   "method": "POST"
+  },
+  {
+   "path": "/api/admin/knowledge/test",
+   "method": "POST"
+  },
+  {
+   "path": "/api/admin/knowledge/upload",
+   "method": "POST"
+  },
+  {
+   "path": "/api/admin/knowledge/{doc_id}",
+   "method": "DELETE"
+  },
+  {
+   "path": "/api/admin/llm",
+   "method": "POST"
+  },
+  {
+   "path": "/api/admin/llm-disable",
+   "method": "POST"
+  },
+  {
+   "path": "/api/admin/llm-promote",
+   "method": "POST"
+  },
+  {
+   "path": "/api/admin/llm-quota",
+   "method": "POST"
+  },
+  {
+   "path": "/api/admin/llm-status",
+   "method": "GET"
+  },
+  {
+   "path": "/api/admin/qa/candidates",
+   "method": "GET"
+  },
+  {
+   "path": "/api/admin/qa/{cand_id}/decision",
+   "method": "POST"
+  },
+  {
+   "path": "/api/admin/stats",
+   "method": "GET"
+  },
+  {
+   "path": "/api/admin/users",
+   "method": "GET"
+  },
+  {
+   "path": "/api/admin/users",
+   "method": "POST"
+  },
+  {
+   "path": "/api/admin/users/{user_id}",
+   "method": "PATCH"
+  },
+  {
+   "path": "/api/admin/users/{user_id}",
+   "method": "DELETE"
+  },
+  {
+   "path": "/api/auth/login",
+   "method": "POST"
+  },
+  {
+   "path": "/api/auth/me",
+   "method": "GET"
+  },
+  {
+   "path": "/api/auth/register",
+   "method": "POST"
+  },
+  {
+   "path": "/api/chat",
+   "method": "POST"
+  },
+  {
+   "path": "/api/chat/file",
+   "method": "POST"
+  },
+  {
+   "path": "/api/chat/transcribe",
+   "method": "POST"
+  },
+  {
+   "path": "/api/conversations",
+   "method": "GET"
+  },
+  {
+   "path": "/api/conversations",
+   "method": "POST"
+  },
+  {
+   "path": "/api/conversations/{conv_id}",
+   "method": "GET"
+  },
+  {
+   "path": "/api/conversations/{conv_id}",
+   "method": "PATCH"
+  },
+  {
+   "path": "/api/conversations/{conv_id}",
+   "method": "DELETE"
+  },
+  {
+   "path": "/api/feedback",
+   "method": "POST"
+  },
+  {
+   "path": "/api/health",
+   "method": "GET"
+  },
+  {
+   "path": "/api/law",
+   "method": "GET"
+  },
+  {
+   "path": "/api/law/search",
+   "method": "GET"
+  },
+  {
+   "path": "/api/media/{filepath}",
+   "method": "GET"
+  },
+  {
+   "path": "/api/utility/quota",
+   "method": "GET"
+  },
+  {
+   "path": "/healthz",
+   "method": "GET"
+  }
+ ]
+}

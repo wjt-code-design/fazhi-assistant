@@ -1,0 +1,57 @@
+{
+ "backend_path_count": 34,
+ "frontend_call_sites": 35,
+ "frontend_distinct_paths": 26,
+ "matched": [
+  "/api/admin/conversations",
+  "/api/admin/knowledge",
+  "/api/admin/knowledge/preview-chunk",
+  "/api/admin/knowledge/test",
+  "/api/admin/knowledge/upload",
+  "/api/admin/knowledge/{x}",
+  "/api/admin/llm",
+  "/api/admin/llm-status",
+  "/api/admin/qa/{x}/decision",
+  "/api/admin/stats",
+  "/api/admin/users",
+  "/api/admin/users/{x}",
+  "/api/auth/login",
+  "/api/auth/me",
+  "/api/auth/register",
+  "/api/chat",
+  "/api/chat/file",
+  "/api/chat/transcribe",
+  "/api/conversations",
+  "/api/conversations/{x}",
+  "/api/feedback",
+  "/api/health",
+  "/api/media/{x}",
+  "/api/utility/quota"
+ ],
+ "frontend_only": [
+  {
+   "file": "public\\sw.js",
+   "line": 52,
+   "raw": "/api/",
+   "norm": "/api"
+  },
+  {
+   "file": "next.config.js",
+   "line": 9,
+   "raw": "/api/:path",
+   "norm": "/api/:path"
+  }
+ ],
+ "backend_only": [
+  "/api/admin/analysis-runs",
+  "/api/admin/audit",
+  "/api/admin/feedback",
+  "/api/admin/llm-disable",
+  "/api/admin/llm-promote",
+  "/api/admin/llm-quota",
+  "/api/admin/qa/candidates",
+  "/api/law",
+  "/api/law/search",
+  "/healthz"
+ ]
+}

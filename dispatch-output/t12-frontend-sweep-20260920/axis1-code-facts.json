@@ -1,0 +1,66 @@
+{
+ "T0.1_eslint_config": [
+  ".eslintrc.json"
+ ],
+ "T0.2_prettier_config": [
+  ".prettierignore",
+  ".prettierrc"
+ ],
+ "T0.3_vitest_config": [
+  "vitest.config.ts"
+ ],
+ "T0.3_test_files": [
+  "tests\\annotate.test.ts",
+  "tests\\coverage.test.ts",
+  "tests\\law-card-api.test.ts",
+  "tests\\law-card-state.test.ts",
+  "tests\\law-card.test.ts",
+  "tests\\scope.test.ts",
+  "tests\\sse-frame.test.ts"
+ ],
+ "T0.3_test_count": 7,
+ "T1.1_write_build_id_mjs": true,
+ "T1.1_build_wires_it": true,
+ "T1.2_aria_live_hits": 1,
+ "T1.3_streaming_guard_hits": 1,
+ "T1.4_globals_css_root": true,
+ "T1.5_enter_send_hits": 3,
+ "T1.6_touch_target_hits": 8,
+ "T1.7_format_ts": true,
+ "T2.1_constants_ts": true,
+ "T2.2_components_chat_dir": true,
+ "T2.2_chat_components": [
+  "ChatImage.tsx",
+  "InputBar.tsx",
+  "LawPanel.tsx",
+  "MessageBubble.tsx",
+  "MessageHtml.tsx",
+  "MessageList.tsx",
+  "QuotaBanner.tsx",
+  "Sidebar.tsx",
+  "lawCardHtml.ts"
+ ],
+ "T2.3_lib_hooks_dir": true,
+ "T2.3_hooks_files": [
+  "useChatStream.ts",
+  "useConversations.ts",
+  "useFeedback.ts",
+  "useLawCards.ts",
+  "useVoice.ts"
+ ],
+ "T2.4_admin_sections_dir": true,
+ "T2.4_admin_sections": [
+  "AuditSection.tsx",
+  "ConversationsSection.tsx",
+  "KnowledgeSection.tsx",
+  "StatsSection.tsx",
+  "UploadSection.tsx",
+  "UsersSection.tsx"
+ ],
+ "T2.5_api_ts_exists": true,
+ "T2.5_any_hits": 0,
+ "T2.5_lines": 382,
+ "B4_chat_page": "app\\page.tsx",
+ "B4_useState_count": 0,
+ "B4_lines": 27
+}
