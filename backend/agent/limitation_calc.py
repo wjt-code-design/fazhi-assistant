@@ -53,11 +53,17 @@ _CLAIM_TYPES = ("civil", "labor_arbitration", "labor_remuneration")
 #   ② ISO：2021-01-01；③ 斜杠：2021/1/1。
 # ISO/斜杠带 (?<!\d)(?!\d) 边界：编号串（12021-01-01-XYZ）不得被截成 2021-01-01 误读。
 # 中文数字日期（二〇二一年…）**仍刻意不解析** → fail-open，不引入口径分叉（契约测试锁定）。
-_DATE_RE = re.compile(r"(?:(\d{4})年(\d{1,2})月(\d{1,2})日|(?<!\d)(\d{4})[-/](\d{1,2})[-/](\d{1,2})(?!\d))")
+_DATE_RE = re.compile(
+    r"(?:(?P<ymd_y>\d{4})年(?P<ymd_m>\d{1,2})月(?P<ymd_d>\d{1,2})日"
+    r"|(?<!\d)(?P<iso_y>\d{4})[-/](?P<iso_m>\d{1,2})[-/](?P<iso_d>\d{1,2})(?!\d))"
+)
 
 # 白名单触发关键词：claim 文本必须**断言时效结论**才允许放行年数 token，
 # 防止把年份常量泄漏给无关 claim（如"借款 3 年后到期"不含时效关键词则不触发）。
-_LABOR_KEYWORDS = ("仲裁时效", "劳动仲裁", "劳动争议仲裁")
+# 命名注意（Standards 轴评审 2026-09-21）：domain_rules.py 另有一个同名的 `_LABOR_KEYWORDS`
+# （合同劳动条款关键词，语义不同）。这里改叫 `_LABOR_TIMING_KEYWORDS` 以示区别——
+# 两处是**不同规则**，不能合并，但同名会让单一真源检索误报。
+_LABOR_TIMING_KEYWORDS = ("仲裁时效", "劳动仲裁", "劳动争议仲裁")
 _CIVIL_KEYWORDS = ("诉讼时效", "时效期间", "时效")
 
 # R15-B（2026-09-21）：判"版本冲突"必须先看 claim **引用的是哪部法**与**是否作衔接说明**，
@@ -75,6 +81,11 @@ _TRANSITION_MARKERS = ("衔接", "法释〔2018〕12号", "不直接适用", "�
 _DURATION_TOKEN = "duration:{n}:年"
 
 
+def _mentions(text: str, keywords: tuple[str, ...]) -> bool:
+    """Standards 轴（Repeated Switches）：segment/text × 关键词表的命中判断只此一份。"""
+    return any(keyword in text for keyword in keywords)
+
+
 def extract_dates(texts: Iterable[str]) -> list[date]:
     """一组文本中的全部可解析日期（升序去重）；无可解析日期 → 空列表。
 
@@ -84,9 +95,10 @@ def extract_dates(texts: Iterable[str]) -> list[date]:
     for text in texts or []:
         normalized = unicodedata.normalize("NFKC", text or "")
         for match in _DATE_RE.finditer(normalized):
-            y, m, d = match.group(1), match.group(2), match.group(3)
-            if y is None:  # 命中的是 ISO/斜杠分支
-                y, m, d = match.group(4), match.group(5), match.group(6)
+            g = match.groupdict()  # 命名组（Standards 轴：去魔数下标）
+            y = g["ymd_y"] or g["iso_y"]
+            m = g["ymd_m"] or g["iso_m"]
+            d = g["ymd_d"] or g["iso_d"]
             try:
                 found.add(date(int(y), int(m), int(d)))
             except ValueError:
@@ -230,7 +242,7 @@ def controlled_limitation_tokens(claim_text: str, fact_texts: Iterable[str]) -> 
     刻意**不**放行裸数字 token（number:N）与日期 token（见模块 docstring 边界 4）。
     """
     text = unicodedata.normalize("NFKC", claim_text or "")
-    is_labor = any(keyword in text for keyword in _LABOR_KEYWORDS)
+    is_labor = _mentions(text, _LABOR_TIMING_KEYWORDS)
     if not is_labor and not any(keyword in text for keyword in _CIVIL_KEYWORDS):
         return set()
     if is_labor:
@@ -277,9 +289,9 @@ def law_version_crosses_watershed(
     # ⇒ 混合答案（民事错答句 + 别处的劳动句）里的民事错答绕过版本门。
     # 劳动排除现在只作用于**实际命中劳动关键词的句段**；不加第二套版本门（票面明令）。
     for segment in re.split(r"[。！？；\n]", text):
-        if any(keyword in segment for keyword in _LABOR_KEYWORDS):
+        if _mentions(segment, _LABOR_TIMING_KEYWORDS):
             continue  # 该段是劳动口径（劳调法 27 条，与民法典分水岭无关）⇒ 跳过这一段
-        if not any(keyword in segment for keyword in _CIVIL_KEYWORDS):
+        if not _mentions(segment, _CIVIL_KEYWORDS):
             continue  # 该段不是民事时效结论
         # R15-B：先看引用了哪部法 / 是否衔接，再谈日期（顺序不可颠倒——否则又回到"仅凭两个日期判错"）
         if not any(marker in segment for marker in _NEW_LAW_MARKERS):

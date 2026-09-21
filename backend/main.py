@@ -1012,6 +1012,9 @@ def _safe_pick(modality: str, tier: str, *, exclude: set[str] | None = None) -> 
 
 # 核对/降级提示（轻量升级失败、旗舰自检失败、配额紧张共用，避免字面量重复）
 # B1（2026-08-07）：去掉"建议核对条文原文"——前端曾为清这句写 stripUnprovidedHint，后端不再制造该噪音
+# 空答兜底文案（4 处 SSE error 帧共用：轻量空答/合同空答/旗舰空答/R15 分支；Standards 轴：Duplicated Code）
+_ERROR_NO_RESPONSE = "服务暂时无响应，请稍后重试"
+
 NOTE_COMPLEX = "\n\n> 注：该问题较复杂，本回答仅供参考。"
 NOTE_QUOTA = "\n\n> 注：模型配额紧张，本回答仅供参考。"
 # S5（2026-09-19）快车道版本绊线命中时的明说降级注记（同 NOTE_* 惯用法，不静默替换答案）。
@@ -1979,7 +1982,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     # （实测探针：`log_tiers=["contract_review"]`、帧序列无 content/error）⇒ 用户端一片空白。
                     # 复用轻量出口（E7 空答支）的现成文案与帧形状。不写缓存（空答本来就不写）；
                     # 之后的 conversation_id/[DONE] 帧照常发 ⇒ 流是**正常收尾**的，只是多了这条 error。
-                    yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'error': _ERROR_NO_RESPONSE}, ensure_ascii=False)}\n\n"
                 routing_metrics.record("contract_review", False, "pass", "miss", checked=False)
                 log_account(
                     model="contract_review",
@@ -2021,7 +2024,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     _f0 = time.perf_counter()  # 轻量缓冲：非流式整答返回，首帧=完成时刻
                     yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"  # gate-exit: E7
                 else:
-                    yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'error': _ERROR_NO_RESPONSE}, ensure_ascii=False)}\n\n"
                 # 票 J/J-2：多选漏答症状（决策 8）——**复用**流式那份纯函数
                 # （`quality.multi_incomplete` 全仓只此一份规则，见 J-2「不许重写规则」）。
                 # 整答已在此刻发完 ⇒ 与流式同族处置：只追加确定性注记（不静默、不收回已发帧）+ 拦缓存。
@@ -2197,7 +2200,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         detail=f"len={len(pre.get('user_text') or '')}",
                     )
             if not answer:
-                yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'error': _ERROR_NO_RESPONSE}, ensure_ascii=False)}\n\n"
                 # 空答补偿：用户消息已落库，落一条占位 assistant 消息保持成对（对抗审计 2026-08-07）
                 try:
                     await run_in_threadpool(_post_placeholder, pre)
@@ -2297,7 +2300,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
         except Exception as e:
             # 详情只进日志：str(e) 可能含内部 model id / 供应商错误体 / 服务器路径，不得下发普通用户
             print(f"[chat-stream] {type(e).__name__}: {e}", flush=True)
-            yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'error': _ERROR_NO_RESPONSE}, ensure_ascii=False)}\n\n"
             # 补偿：_post 未执行 → 占位 assistant 消息保持成对（对抗审计 2026-08-07）
             try:
                 await run_in_threadpool(_post_placeholder, pre)
