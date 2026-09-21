@@ -11,9 +11,11 @@
 from __future__ import annotations
 
 import json
+import os
 import pathlib
 import subprocess
 import sys
+import tempfile
 import xml.etree.ElementTree as ET
 
 # 追加给 pytest 的参数（默认空）。调用方在自己的脚本里 `rmf.PYTEST_EXTRA = [...]` 覆盖，
@@ -83,6 +85,16 @@ def failed_set(xml_path: pathlib.Path) -> set[str]:
 
 def run_suite(tree: pathlib.Path, out_dir: pathlib.Path, tag: str, py: str) -> set[str]:
     xml = out_dir / f"full-{tag}.xml"
+    # 守卫三层方案（Owner 2026-09-21 批准，与门禁跑者 run_gate_full 同款）：
+    #   层1 豁免——pytest 子进程剥离守卫激活变量（sitecustomize：两者缺一即不激活）⇒
+    #        变异差分不再被 safe-delete 守卫的 SystemExit 污染（T1 定性：阈值 50/turn）；
+    #   层3 basetemp 一律放 %TEMP%（仓库外）。out_dir/'bt' 在仓库内，曾致 M3/M4 读数混入
+    #        6 条守卫敏感簇红（test_backup_data/capture_eval/request_bootstrap）。
+    # 层2（检测）由调用方门禁承担；子进程只跑只读测试套件。
+    basetemp = pathlib.Path(tempfile.gettempdir()) / f"fazhi_mut_{out_dir.name}_{tag}"
+    env = dict(os.environ)
+    env.pop("CODEBUDDY_SAFE_DELETE_BULK_STATE_DIR", None)
+    env.pop("CODEBUDDY_TOOL_CALL_ID", None)
     cmd = [
         py,
         "-m",
@@ -91,7 +103,7 @@ def run_suite(tree: pathlib.Path, out_dir: pathlib.Path, tag: str, py: str) -> s
         "-q",
         "-p",
         "no:cacheprovider",
-        f"--basetemp={out_dir / 'bt'}",
+        f"--basetemp={basetemp}",
         f"--junitxml={xml}",
         # PYTEST_EXTRA：由调用方（票 C 的执行器）追加选择器，默认空 ⇒ 本票 S5 的读数不受影响。
         # 为什么需要它（票 C r3 实测）：副本树里 conftest 把 CHROMA_DIR 无条件指到空临时库，
@@ -109,6 +121,7 @@ def run_suite(tree: pathlib.Path, out_dir: pathlib.Path, tag: str, py: str) -> s
         encoding="utf-8",
         errors="replace",
         check=False,
+        env=env,
     )
     (out_dir / f"stdout-{tag}.txt").write_text(
         f"$ {' '.join(cmd)}\nrc={proc.returncode}\n\n{proc.stdout}\n\n== stderr tail ==\n{proc.stderr[-4000:]}\n",
