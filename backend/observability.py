@@ -83,6 +83,9 @@ _ACCOUNT_FIELDS = (
     # （此前 claim_checks 仅 PASS 填充 ⇒ OVERCONFIDENT_WORDING 等误伤无法事后定位，
     # E04 根因只能靠猜）。含被判定 claim 的**草稿**文本截断 120（非用户输入原文），
     # 依据同 `agent_planner_raw_tail` 的"原始输出入日志"先例。未登记会被静默丢弃。
+    # ⚠️ PII 考量（R15 安全观察，2026-09-21 Owner 通道裁定**维持现状**）：草稿由用户输入
+    # 生成 ⇒ 可能复述姓名/案情；本应用当前为**本地单租户**（日志与用户数据同机同主），
+    # 暴露面可控 ⇒ 暂不改截断/哈希。**多租户/云端部署前必须重估**（改脱敏或限访问/保留期）。
     "agent_claim_checks",
     # R1/R1b 部门法守卫（2026-09-14，预注册 dept-law-filter-r1）：
     #   dept_filter_removed（R1 证据池剔除）与 proc_misroute_detected / proc_misroute_flag
