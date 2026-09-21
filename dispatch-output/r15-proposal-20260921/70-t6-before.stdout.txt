@@ -1,0 +1,50 @@
+F..FF                                                                    [100%]
+================================== FAILURES ===================================
+______________ test_add_qa_pair_computes_fingerprint_when_absent ______________
+
+    def test_add_qa_pair_computes_fingerprint_when_absent():
+        """先红：调用方不给指纹时，`add_qa_pair` 必须自己现算（改前存 ""）。"""
+        ks.add_qa_pair(Q_WITH_OPTIONS, "ABD", evidence="劳动合同法|第十九条")
+>       assert _stored_fp(Q_WITH_OPTIONS) == _options_fingerprint(Q_WITH_OPTIONS)
+E       AssertionError: assert '' == '试用期最长不得超过六个月...于本单位相同岗位最低档工资'
+E         
+E         - 试用期最长不得超过六个月同一用人单位与同一劳动者只能约定一次试用期试用期不包含在劳动合同期限内试用期工资不得低于本单位相同岗位最低档工资
+
+tests\test_qa_fingerprint_write_side.py:58: AssertionError
+------------------------------ Captured log call ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event CollectionGetEvent: capture() takes 1 positional argument but 3 were given
+________________ test_control_same_single_source_as_read_side _________________
+
+    def test_control_same_single_source_as_read_side():
+        """控制腿：现算用的是读侧同一个函数（真源唯一，不新增第二份提取规则）。"""
+        q = "关于保证责任，下列说法正确的是？A.一般保证享有先诉抗辩权 B.连带责任保证无先诉抗辩权"
+        ks.add_qa_pair(q, "AB", evidence="民法典|第六百八十六条")
+>       assert _stored_fp(q) == _options_fingerprint(q)
+E       AssertionError: assert '' == '一般保证享有先诉抗辩权\x1f连带责任保证无先诉抗辩权'
+E         
+E         - 一般保证享有先诉抗辩权连带责任保证无先诉抗辩权
+
+tests\test_qa_fingerprint_write_side.py:78: AssertionError
+__________________ test_auto_curate_path_stores_fingerprint ___________________
+
+    def test_auto_curate_path_stores_fingerprint():
+        """生产路径（T6 指的第一处）：有据分 ≥0.89 自动收录 ⇒ 落库记录必须带指纹。"""
+        q = "关于劳动争议，下列说法正确的是？A.劳动争议需先申请劳动仲裁 B.劳动争议可以直接起诉"
+        ks.create_candidate(MagicMock(), q, "A", grounded_score=0.95, evidence="劳动争议调解仲裁法|第五条")
+>       assert _stored_fp(q) == _options_fingerprint(q)
+E       AssertionError: assert '' == '劳动争议需先申请劳动仲裁\x1f劳动争议可以直接起诉'
+E         
+E         - 劳动争议需先申请劳动仲裁劳动争议可以直接起诉
+
+tests\test_qa_fingerprint_write_side.py:85: AssertionError
+============================== warnings summary ===============================
+tests/test_qa_fingerprint_write_side.py::test_add_qa_pair_computes_fingerprint_when_absent
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/test_qa_fingerprint_write_side.py::test_add_qa_pair_computes_fingerprint_when_absent
+FAILED tests/test_qa_fingerprint_write_side.py::test_control_same_single_source_as_read_side
+FAILED tests/test_qa_fingerprint_write_side.py::test_auto_curate_path_stores_fingerprint
+3 failed, 2 passed, 1 warning in 18.48s

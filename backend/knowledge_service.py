@@ -269,7 +269,18 @@ def add_qa_pair(question: str, answer: str, evidence: str = "", fingerprint: str
     """QA 对入库（answer/evidence/options_fingerprint 存 metadata，question 作向量检索入口）。
 
     fingerprint（选项内容指纹，审查 C4 护栏）：直返前校验同题干换选项内容必须 miss。
+
+    **票 T6 写侧补口（2026-09-21）**：调用方不给指纹时**自己现算**。此前全仓只有
+    `scripts/gen_qa_corpus.py` 传指纹，而两条**生产运行时写路径**（`create_candidate`
+    有据分自动收录 / `decide_candidate` 人工采纳）与 `qa_seeds` 都不传 ⇒ 经它们进来的
+    新语料对 C4 护栏是**盲的**（T7 补采只覆盖了存量 279 条，没堵写侧）。
+    现算复用**读侧同一个** `query_understand._options_fingerprint`——不新增第二份选项提取规则；
+    调用方显式传入的值优先（`gen_qa_corpus` 路径逐字不变）。
     """
+    if not fingerprint:
+        from query_understand import _options_fingerprint  # 局部导入：不加重模块加载
+
+        fingerprint = _options_fingerprint(question or "")
     _qa_store.add_documents(
         [
             Document(
