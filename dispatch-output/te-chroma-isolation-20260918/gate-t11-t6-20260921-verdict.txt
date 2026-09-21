@@ -1,0 +1,16 @@
+标签: t11-t6-20260921
+结论: RUN_VALID（源码全程未变，passed/failed 可用作 T-E 判据）
+pytest 退出码: 0   耗时: 2.4 分   basetemp: C:\Users\33393\AppData\Local\Temp\fazhi_gate_t11-t6-20260921（在 %TEMP%，仓库外）
+守卫: exempt（子进程已剥离激活变量；依 sitecustomize 两者缺一即不激活）
+工作树指纹: ✅ 无已跟踪文件被删除
+末行: 1424 passed, 2 skipped, 18 deselected, 156 warnings in 139.88s (0:02:19)
+真实库隔离: 零写入 ✅
+  前: fingerprint=bb2c53b2d5f73ddd72e6adc56699ef7ef5f38165f05c918d068a0d8893aa42c7-n38-s365566410
+  后: fingerprint=bb2c53b2d5f73ddd72e6adc56699ef7ef5f38165f05c918d068a0d8893aa42c7-n38-s365566410
+  sqlite cc 5463 → 5463；集合条目 {'legal_provisions_cos': 10266, 'legal_provisions_te4': 10266, 'qa_pairs': 279, 'qa_pairs_te4': 21}
+源码变动文件 (0): []
+python 进程数 观测: 前 8 → 后 8
+其余真实产物指纹（前==后 ⇒ 测试 lane 未写）:
+  app.db  不变 ✅cc 10784 → 10784
+  quota   不变 ✅cc 2 → 2
+注意: 隔离判据与 RUN_VOID 无关——源码被改只让『0 failed』失效，不让『零写入』失效。
