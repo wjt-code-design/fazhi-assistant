@@ -1,5 +1,9 @@
-// 同源部署（2026-08-08，手机端上线）：生产走相对路径 /api/*，由 Caddy 反代到 backend:8000
-// （免跨域、免 CORS、免注入 NEXT_PUBLIC_API_URL）；开发（next dev）仍直连 localhost:8000。
+// 生产基址**取决于部署形态**（同源反代 / 前后端异域），以部署配置为准，勿以本注释为事实：
+//   · 同源反代：不设 NEXT_PUBLIC_API_URL，走相对 /api/*（当前仓库按此设计：Caddyfile + next rewrites）
+//   · 异域直连：设 NEXT_PUBLIC_API_URL 为**域名**（别写裸 IP），并在后端配 CORS
+//   · 开发（next dev）：未设该变量时回落到 http://localhost:8000
+// 线上跑哪套尚未定（2026-09-22），三种机制的并存与影响见
+// dispatch-output/t12a-deploy-base-20260922/report.md。
 import { parseSSEFrames } from "./sse";
 import { coverageFromFinalEvent } from "./coverage";
 import type {

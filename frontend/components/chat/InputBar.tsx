@@ -50,6 +50,7 @@ export function InputBar({
       <div className="mx-auto max-w-[44rem]">
         {pendingImage && (
           <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-mist bg-parchment p-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element -- pendingImage 是本地 data:/blob: 预览，next/image 不支持该形态。详见 T12-D 报告。 */}
             <img src={pendingImage} alt="待发送" className="h-12 w-12 rounded object-cover" />
             <button
               type="button"

@@ -1,0 +1,30 @@
+
+> ai-legal-helper-frontend@0.1.0 check
+> npm run lint && npx tsc --noEmit && npm run test
+
+
+> ai-legal-helper-frontend@0.1.0 lint
+> next lint --dir app --dir components --dir lib
+
+✔ No ESLint warnings or errors
+
+> ai-legal-helper-frontend@0.1.0 test
+> vitest run
+
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+[1m[7m[36m RUN [39m[27m[22m [36mv2.1.9 [39m[90mC:/Users/33393/Desktop/ai-legal-helper/frontend[39m
+
+ [32m✓[39m tests/scope.test.ts [2m([22m[2m11 tests[22m[2m)[22m[90m 9[2mms[22m[39m
+ [32m✓[39m tests/coverage.test.ts [2m([22m[2m12 tests[22m[2m)[22m[90m 11[2mms[22m[39m
+ [32m✓[39m tests/annotate.test.ts [2m([22m[2m16 tests[22m[2m)[22m[90m 17[2mms[22m[39m
+ [32m✓[39m tests/law-card.test.ts [2m([22m[2m3 tests[22m[2m)[22m[90m 5[2mms[22m[39m
+ [32m✓[39m tests/sse-frame.test.ts [2m([22m[2m6 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+ [32m✓[39m tests/law-card-api.test.ts [2m([22m[2m2 tests[22m[2m)[22m[90m 18[2mms[22m[39m
+ [32m✓[39m tests/law-card-state.test.ts [2m([22m[2m4 tests[22m[2m)[22m[90m 8[2mms[22m[39m
+
+[2m Test Files [22m [1m[32m7 passed[39m[22m[90m (7)[39m
+[2m      Tests [22m [1m[32m54 passed[39m[22m[90m (54)[39m
+[2m   Start at [22m 14:55:18
+[2m   Duration [22m 2.94s[2m (transform 1.26s, setup 0ms, collect 2.29s, tests 76ms, environment 4ms, prepare 6.93s)[22m
+
