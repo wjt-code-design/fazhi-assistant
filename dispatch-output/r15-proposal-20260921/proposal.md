@@ -122,7 +122,13 @@
 1. **历史法文本**（《民法总则》《合同法》《物权法》《侵权责任法》《担保法》等被废止法律）——
    仓内**没有**，需外部权威来源；
 2. **`status=已废止` 条目**——schema 有字段，但当前 100% 是「现行」；
-3. **`effective_from` / `effective_to`**——字段存在但全空 ⇒ 导入管线必须改造后才能填。
+3. **`effective_from` / `effective_to`**——字段存在但全空。
+   ⚠️ **勘误（2026-09-22 复核）**：本行原写「导入管线必须改造后才能填」，**这是错的**——机制早已实现，缺的只有**数据**：
+   · **写侧**：`knowledge_service` 的 `extra_meta` 会把 `effective_from/effective_to/status` 归一化落 metadata（:152-156，status 缺省「现行」），版本号/指纹由 `law_versions` 派生；
+   · **读侧**：`retrieval_core.is_valid_by_time(meta, cutoff)` 是向量池/BM25/grounded **唯一共用**的时效谓词（`retrieval._valid_docs` 调用；`exact_article_lookup` 等入口 `cutoff or today`）；
+   · **各有测试**：`tests/test_phase5.py`（谓词矩阵）、`tests/test_law_versions.py`（版本元数据）。
+   ⇒ 2026-09-22 新增**写↔读贯通契约测试** `tests/test_effective_window_roundtrip.py`（写两条不同效力期记录 → 按 2019-06-01 / 2020-12-31 / 2021-01-01 / 今日 四个 cutoff 取舍，含边界语义与 status 可见性；已用「去掉 effective_to」的变异体验过会红）。
+   **结论修正**：R15-C 的唯一阻塞项是 **(1) 历史法文本**，不是管线。
 
 ⇒ 这是**项目级事项且带外部依赖**（法条文本从哪来、谁验收权威性），不是一张能在本仓闭环的票。
 **建议**：R15-C-1（数据导入）**暂不立项**，登记为 blocked-by-external-data；

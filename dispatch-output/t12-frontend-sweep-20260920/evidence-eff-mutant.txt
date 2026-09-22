@@ -1,0 +1,39 @@
+FF...                                                                    [100%]
+================================== FAILURES ===================================
+_________________ test_write_then_read_old_version_in_window __________________
+
+    def test_write_then_read_old_version_in_window():
+        """① 区间内（2019-06-01）⇒ 只应取到旧版。"""
+        _setup_once()
+        texts = _texts_at("2019-06-01")
+>       assert OLD_TEXT in texts, f"旧版应在 2019-06-01 可见，实得 {texts}"
+E       AssertionError: 旧版应在 2019-06-01 可见，实得 []
+E       assert '第一条 【旧版】本法施行前的条文内容（贯通测试）' in []
+
+tests\_mut_effective_window.py:69: AssertionError
+------------------------------ Captured log call ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event CollectionGetEvent: capture() takes 1 positional argument but 3 were given
+___________________ test_write_then_read_boundary_last_day ____________________
+
+    def test_write_then_read_boundary_last_day():
+        """② 边界：`effective_to == cutoff` 当日仍有效（废止日当天没失效）。"""
+        _setup_once()
+        texts = _texts_at("2020-12-31")
+>       assert OLD_TEXT in texts, f"废止日当天仍应可见（边界语义），实得 {texts}"
+E       AssertionError: 废止日当天仍应可见（边界语义），实得 []
+E       assert '第一条 【旧版】本法施行前的条文内容（贯通测试）' in []
+
+tests\_mut_effective_window.py:77: AssertionError
+------------------------------ Captured log call ------------------------------
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event CollectionDeleteEvent: capture() takes 1 positional argument but 3 were given
+ERROR    chromadb.telemetry.product.posthog:posthog.py:59 Failed to send telemetry event CollectionDeleteEvent: capture() takes 1 positional argument but 3 were given
+============================== warnings summary ===============================
+tests/_mut_effective_window.py::test_write_then_read_old_version_in_window
+  C:\Users\33393\Desktop\ai-legal-helper\backend\venv\Lib\site-packages\starlette\formparsers.py:12: PendingDeprecationWarning: Please use `import python_multipart` instead.
+    import multipart
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+=========================== short test summary info ===========================
+FAILED tests/_mut_effective_window.py::test_write_then_read_old_version_in_window
+FAILED tests/_mut_effective_window.py::test_write_then_read_boundary_last_day
+2 failed, 3 passed, 1 warning in 19.16s
