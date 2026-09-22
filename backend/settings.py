@@ -12,6 +12,26 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
 
+    # 敏感字段名标记（大小写不敏感的子串匹配）：命中即打码。
+    _SECRET_NAME_MARKERS = ("api_key", "password", "secret", "token")
+
+    def __repr__(self) -> str:
+        """掩盖敏感字段值（2026-09-22 安全修复）。
+
+        为什么必须修：`AttributeError`/断言失败会把 **Settings 的 repr 整段打进日志**——
+        实测在 pytest 失败输出里泄漏过明文 `dashscope_api_key`/`zhipuai_api_key`/
+        `siliconflow_api_key` 与 `admin_password`。任何 CI 日志收集都会把它带走。
+        注意：`model_dump()` **不在**本修复范围内（未观察到它进入日志路径）；
+        若将来有接口输出配置，仍需另行脱敏。
+        """
+        parts: list[str] = []
+        for name, value in self:
+            if any(marker in name.lower() for marker in self._SECRET_NAME_MARKERS) and value:
+                parts.append(f"{name}='<masked:len={len(str(value))}>'")
+            else:
+                parts.append(f"{name}={value!r}")
+        return f"Settings({', '.join(parts)})"
+
     # ---- LLM ----
     llm_api_key: str = ""
     llm_base_url: str = ""
@@ -46,6 +66,12 @@ class Settings(BaseSettings):
     # True ⇒ 评测/灰度放行。理由：该值直接改变"用哪天的法"与证据 cutoff，不是偏好设置；
     # 且票 I-2(a) 的护栏会把分水岭前的值变成回落 LLM ⇒ 不限通道就成了公开用户的成本口子。
     allow_client_law_as_of: bool = False
+
+    # 同款的另一半（Owner 2026-09-21 裁定的 `case_domain` 侧，2026-09-22 落地）：
+    # False（默认）⇒ 客户端传的 `case_domain` 被忽略（各消费方落 None，行为与"没传"一致）；
+    # True ⇒ 评测/灰度放行。理由：该值决定 R1-OB 判域，属评测输入而非用户偏好；
+    # 前端实测**从不传**该字段 ⇒ 默认关在生产**零行为变化**。
+    allow_client_case_domain: bool = False
 
     feature_study_retrieval: bool = True  # ADR-012：study_aid 具体题分步检索（False 一键回滚"不检索"）
     feature_study_cache: bool = True  # 法考题(study_aid)进回答缓存白名单（False 回滚=仅 legal_query 可缓存）

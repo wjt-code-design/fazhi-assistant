@@ -1212,11 +1212,27 @@ def _client_law_as_of(body) -> date | None:
     定位：该值直接改变"用哪天的法"与证据 cutoff，是**评测/灰度输入**，不是普通用户的偏好。
     `settings.allow_client_law_as_of=False`（默认）⇒ 返回 None ⇒ 各消费方落当日，
     行为与"客户端没传"完全一致（生产默认路径零变化，已验证）。
-    `case_domain` 的同款限制待 agent 路径启用时一并处理（当前 Agent Path 零流量）。
+    `case_domain` 的同款限制已于 2026-09-22 一并落地（见 `_client_case_domain`）。
     """
     if not settings.allow_client_law_as_of:
         return None
     return body.law_as_of
+
+
+def _client_case_domain(body) -> str | None:
+    """客户端传入的 `case_domain`，经**评测通道闸**过滤（与 `_client_law_as_of` 同款）。
+
+    定位：该值决定 R1-OB 判域（劳/民/商…），是**评测/灰度输入**，不是普通用户的偏好。
+    `settings.allow_client_case_domain=False`（默认）⇒ 返回 None ⇒ 消费方落默认，
+    行为与"客户端没传"完全一致（前端从不传该字段，生产默认路径零变化）。
+
+    ⚠️ 本闸的消费点当前**只在 agent 启用分支内**（`if not settings.agent_enabled:` 之后）⇒
+    本文件无端点级用例（harness 没有 agent 路由）；已有回归守卫保证"闸外不得存在直读"
+    （`tests/test_client_case_domain_gate.py`）。
+    """
+    if not settings.allow_client_case_domain:
+        return None
+    return body.case_domain
 
 
 def _fast_path_law_as_of(body) -> date:
@@ -1658,7 +1674,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     text,
                     image,
                     body.truncated,
-                    body.case_domain,
+                    _client_case_domain(body),
                     _client_law_as_of(body),
                 )
                 correlation_id = make_agent_correlation_id(conversation_id=bootstrap.conv_id)
