@@ -1,0 +1,26 @@
+{
+ "apiCalls": [],
+ "consoleErrors": [
+  "Failed to load resource: the server responded with a status of 404 (Not Found)"
+ ],
+ "pageErrors": [],
+ "buttons": [
+  {
+   "text": "登录",
+   "type": "button",
+   "cls": "tab flex-1 active",
+   "disabled": false
+  },
+  {
+   "text": "登录",
+   "type": "submit",
+   "cls": "btn btn-primary w-full",
+   "disabled": false
+  }
+ ],
+ "loginBtnCount": 1,
+ "waitedAttempts": 12,
+ "urlAfter": "http://localhost:3000/login",
+ "storageToken": "null",
+ "bodyTail": "§\n法智\n\n法智 · 樱花法典\n\n01 · 贴文 / 传件 / 拍照　02 · 逐条追问　03 · 参考条文\n\n以事实为依据 · 以法律为准绳\n\n欢迎回来\n\n登录后开始提问\n\n登录\n注册（管理员创建）\n\n本系统账号由管理员创建，如需开通请联系管理员\n\n用户名\n密码\n登 录\n\n本工具回答仅供参考，具体问题请咨询执业律师"
+}

@@ -1,0 +1,82 @@
+{
+ "steps": {
+  "T1_cover": {
+   "title": "法智 · AI 法律咨询小助手",
+   "sealButtonText": "§钤印入典",
+   "inputCountBefore": 0
+  },
+  "T2_seal_opens_form": {
+   "wait": {
+    "ok": true,
+    "attempts": 2,
+    "boundedHit": false
+   },
+   "inputCountAfter": 2,
+   "inputs": [
+    "text",
+    "password"
+   ],
+   "buttons": [
+    "登录",
+    "登录"
+   ]
+  },
+  "T3_admin_guard": {
+   "finalUrl": "http://localhost:3000/login",
+   "redirected": true,
+   "wait": {
+    "ok": true,
+    "attempts": 2,
+    "boundedHit": false
+   }
+  },
+  "T4_login": {
+   "urlAfter": "http://localhost:3000/chat",
+   "ok": true,
+   "wait": {
+    "ok": true,
+    "attempts": 3,
+    "boundedHit": false
+   }
+  },
+  "T5_ask": {
+   "bodyBefore": 274,
+   "bodyAfter": 1197,
+   "wait": {
+    "ok": true,
+    "attempts": 7,
+    "boundedHit": false
+   },
+   "answerTail": "全面掌握试用期制度的核心规定。易错点在于考生可能对\"同一用人单位只能约定一次试用期\"的适用情形理解不准确，或混淆劳动合同试用期与《民法典》中的试用买卖概念。\n\n结论\n\n本题正确答案为D。本题考查了劳动合同试用期制度的三个核心要点，考生需准确记忆《劳动合同法》第十九条的规定，理解试用期制度的立法目的是保护劳动者权益，防止用人单位滥用试用期制度。同时需注意区分劳动合同试用期与《民法典》中的试用买卖概念，二者性质完全不同。\n\n参考条文（26）\n👍\n👎\n\n回答仅供参考，不构成正式法律意见；法律可能修订，请以最新规定为准"
+  },
+  "T6_law_card": {
+   "citationFound": true,
+   "cardAppeared": true
+  },
+  "T7_mobile": {
+   "scrollWidth": 400,
+   "clientWidth": 400,
+   "overflowPx": 0
+  },
+  "T8_api_base": {
+   "total": 11,
+   "offLocal": 0,
+   "sample": []
+  }
+ },
+ "apiRequests": [
+  "http://localhost:8000/api/auth/login",
+  "http://localhost:8000/api/auth/me",
+  "http://localhost:8000/api/conversations",
+  "http://localhost:8000/api/health",
+  "http://localhost:8000/api/utility/quota",
+  "http://localhost:8000/api/conversations",
+  "http://localhost:8000/api/health",
+  "http://localhost:8000/api/utility/quota",
+  "http://localhost:8000/api/chat",
+  "http://localhost:8000/api/conversations",
+  "http://localhost:8000/api/law?source=%E5%8A%B3%E5%8A%A8%E5%90%88%E5%90%8C%E6%B3%95&article=%E7%AC%AC%E5%8D%81%E4%B9%9D%E6%9D%A1"
+ ],
+ "apiErrors": [],
+ "nonApi404": []
+}
