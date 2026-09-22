@@ -1,0 +1,91 @@
+{
+ "A1_chat_page_lines": 27,
+ "A1_chat_page_useState": 0,
+ "A1_chat_components": [
+  "ChatImage.tsx",
+  "InputBar.tsx",
+  "LawPanel.tsx",
+  "MessageBubble.tsx",
+  "MessageHtml.tsx",
+  "MessageList.tsx",
+  "QuotaBanner.tsx",
+  "Sidebar.tsx"
+ ],
+ "A1_hooks": [
+  "useChatStream.ts",
+  "useConversations.ts",
+  "useFeedback.ts",
+  "useLawCards.ts",
+  "useVoice.ts"
+ ],
+ "A2_admin_page_lines": 214,
+ "A2_admin_sections": [
+  "AuditSection.tsx",
+  "ConversationsSection.tsx",
+  "KnowledgeSection.tsx",
+  "StatsSection.tsx",
+  "UploadSection.tsx",
+  "UsersSection.tsx"
+ ],
+ "A/C3_MessageHtml_as_component_file": true,
+ "A/C3_ChatImage_as_component_file": true,
+ "A4_constants_in_lib": true,
+ "A4_SCENES_in_page": 0,
+ "B1_inline_svg_total": 17,
+ "B2_toLocaleString_total": 3,
+ "B2_format_ts_exists": true,
+ "B3_api_any_hits": 0,
+ "B4_useChatStream_useState": 5,
+ "C1_sw_hardcoded_v1": 1,
+ "C1_sw_uses_build_id": true,
+ "C3_bg_attachment_fixed": 1,
+ "C4_throttle_or_debounce": 1,
+ "C4_setInterval": 2,
+ "D1_eslint": [
+  ".eslintrc.json"
+ ],
+ "D1_prettier": [
+  ".prettierignore",
+  ".prettierrc"
+ ],
+ "D1_vitest": [
+  "vitest.config.ts"
+ ],
+ "D2_test_files": [
+  "tests\\annotate.test.ts",
+  "tests\\coverage.test.ts",
+  "tests\\law-card-api.test.ts",
+  "tests\\law-card-state.test.ts",
+  "tests\\law-card.test.ts",
+  "tests\\scope.test.ts",
+  "tests\\sse-frame.test.ts"
+ ],
+ "D4_dead_styles_still_present": {
+  "glass-card-strong": 1,
+  "glow-line": 1,
+  "done-seal": 1,
+  "law-popup": 1,
+  "section-mark-float": 1,
+  "lineGrow": 1
+ },
+ "D4_dead_vars_still_present": {
+  "--stagger": 2,
+  "--dur-med": 3
+ },
+ "D4_register_branch_in_login": 7,
+ "E1_hex_ff8fa9": 5,
+ "E1_hex_f56b8c": 2,
+ "E1_bare_rgba": 93,
+ "E2_radius_values": [
+  "2px",
+  "6px",
+  "8px",
+  "9999px"
+ ],
+ "E3_semantic_colors": {
+  "--accent": "#e894ac",
+  "--law": "#2e79c0",
+  "--time": "#b56019",
+  "--money": "#1e8660"
+ }
+}
