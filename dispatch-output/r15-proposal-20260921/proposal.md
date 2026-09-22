@@ -141,5 +141,5 @@ R15-C-2（知识快照日 / 适用区间拆分）在数据到位前做是空中�
 - **跟进 1（已落地）**：`_TRANSITION_MARKERS` 的通用词（当时有效/旧法）偏宽 ⇒ 真错答顺带提旧法可绕过
   版本门。与「宁可不拦也不错拦」取向一致 ⇒ 已用**钉形状测试**登记
   （`test_r15b_known_limitation_generic_transition_word_can_be_abused`），将来收紧标记集时变化可见。
-- **跟进 2（登记待办）**：`case_domain` 的评测通道闸**未做**（Owner 裁定接受：Agent Path 零流量）⇒
+- **跟进 2（✅ 已于 2026-09-22 落地）**：`case_domain` 的评测通道闸**已做**——`settings.allow_client_case_domain`（默认 False）+ `main._client_case_domain` 闸，消费点 `main.py:1661` 已改走闸；前端从不传该字段 ⇒ 生产**零行为变化**。判据 4 条（单元 3 +「闸外不得直读」回归守卫 1）；端点级不可达已在测试文件里如实标注。原待办措辞：
   **agent 路径启用前必须补**（与 `case_domain` 同款限制一并），否则 R1-OB 判域可被任意客户端操纵。
