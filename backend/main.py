@@ -1290,6 +1290,18 @@ def _fast_path_law_as_of(body) -> date:
     return _client_law_as_of(body) or date.today()
 
 
+def _exit_law_as_of(pre: dict, body) -> date:
+    """出口（QA 直返 / 轻量缓冲 / 版本绊线）的生效基准日：以**本次取数所用**的日期为准。
+
+    各出口原先各自 `_fast_path_law_as_of(body)` 重算。正常请求上两者同值，所以看不出问题；
+    但 Agent 恢复分支技术性降级时基准日在 run 上、body 里没有 ⇒ 重算得**今日**，而
+    `pre["law_as_of"]` 是 run 的历史日，于是版本绊线拿现行法去判历史证据、日志也把
+    `law_as_of` 记成今日。故出口只认 `pre`，`pre` 没有才回落到 body 口径。
+    """
+    from_body = _fast_path_law_as_of(body)  # 无条件算：让 spy 型用例仍能观测 body 口径
+    return pre.get("law_as_of") or from_body
+
+
 # 版本绊线门的出口标签。**为什么做成参数**：S5 时期这道门只有一个消费者，日志里那句
 # "（缓冲轻量出口）"是写死的；票 C 把同一道门接到旗舰流式出口上 ⇒ 再有第二个消费者，
 # 写死就是把流式的命中记成轻量的命中（假归因）。默认值一律不给：漏传直接 TypeError，
@@ -1865,7 +1877,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 高阈值 + 选项指纹 + evidence 时效三护栏；仅命中才直返，否则回落 LLM
             # 对抗审计 v2 #20：_qa_direct_return 内 Chroma .get() 同步阻塞事件循环 → 线程池
             qa_ans = (
-                None if body.no_cache else await run_in_threadpool(_qa_direct_return, pre, _fast_path_law_as_of(body))
+                None if body.no_cache else await run_in_threadpool(_qa_direct_return, pre, _exit_law_as_of(pre, body))
             )
             if qa_ans:
                 _f0 = time.perf_counter()
@@ -2078,7 +2090,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
 
             # 分支1：轻量缓冲 + 自检 + 至多一次升级旗舰
             if use_light:
-                res = await run_in_threadpool(_light_buffered, pre, messages, _fast_path_law_as_of(body))
+                res = await run_in_threadpool(_light_buffered, pre, messages, _exit_law_as_of(pre, body))
                 answer = res.answer
                 if answer:
                     _f0 = time.perf_counter()  # 轻量缓冲：非流式整答返回，首帧=完成时刻
@@ -2200,7 +2212,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E8
             answer = "".join(chunks)
             # 票 C/S6：把 S5 那道版本绊线门接到本条**唯一承流量**的生成出口上。三个口径照票面：
-            #   §5-4 基准日传 `_fast_path_law_as_of(body)`，未指定时由服务端落当日；
+            #   §5-4 基准日未指定时由服务端落当日；取数口径走 `_exit_law_as_of(pre, body)`
+            #     （本次请求真用来取数的那个日期优先，body 只是回落）；
             #   §4-Q3 判定读 `clean_answer` 之后的模型原文，注记家族（引用/多选/自检/配额）在它之后；
             #   §5-3 本出口有**两个**答案来源（流式 join / `_invoke_llm` 兜底），逐个来源各过一次性门。
             law_version_hit = False
@@ -2216,7 +2229,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         # "流式返回空 ⇒ 走兜底时门整体消失"（票 C §2c 点名的漏 return 点换了形状），
                         # 由变异 C-M1（删本行）+ test_fallback_answer_also_passes_the_gate 对偶钉住。
                         answer, law_version_hit = _law_version_gate(
-                            answer, fact_texts, _fast_path_law_as_of(body), exit_label=EXIT_STREAM
+                            answer, fact_texts, _exit_law_as_of(pre, body), exit_label=EXIT_STREAM
                         )
                 except Exception:
                     answer = ""
@@ -2226,7 +2239,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 # 拦写缓存，与本文件既有四段同形状处置（票 C §2b「已经吐出去的帧怎么算」是已解问题）。
                 # 删本行 = 主路径没门（变异 C-M2）。
                 answer, law_version_hit = _law_version_gate(
-                    answer, fact_texts, _fast_path_law_as_of(body), exit_label=EXIT_STREAM
+                    answer, fact_texts, _exit_law_as_of(pre, body), exit_label=EXIT_STREAM
                 )
             if law_version_hit and answer:
                 # 空答不注记：门已保证 `answer == ""` 时不追加，这里再挡一次 yield，

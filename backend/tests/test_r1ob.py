@@ -199,9 +199,6 @@ class TestLegalRetrievalFiltering:
         # 序列化结果里也不会有它（实测：把 `extra["query"]` 加回去，只有白名单哨兵变红，
         # 本断言仍绿）。钉在 LogRecord 上才能区分"没写"与"写了但被过滤"这两种状态。
         assert not hasattr(records[0], "query"), "代码仍把原始问题写进日志 extra（当前仅靠白名单兜住）"
-        assert not hasattr(records[0], "query"), (
-            "代码侧仍把原始问题写进 extra（眼下只靠 formatter 白名单挡下，不等于没写）"
-        )
         payload = json.loads(_JsonFormatter().format(records[0]))
         assert payload["query_sha256"] == hashlib.sha256(query.encode("utf-8")).hexdigest()
         assert payload["query_len"] == len(query)

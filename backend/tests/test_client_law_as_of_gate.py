@@ -176,3 +176,35 @@ def test_no_ungated_client_read_of_law_as_of_in_main():
     assert not outside, "存在**闸外**的 `body.law_as_of` 直读（行号={}）——必须改为 `_client_law_as_of(body)`".format(
         [src[:h].count("\n") + 1 for h in outside]
     )
+
+
+def test_exit_law_as_of_prefers_the_baseline_the_request_retrieved_with():
+    """降级出口的基准日必须来自**本次取数所用**的日期，而不是拿 body 重算。
+
+    恢复分支技术性降级时日期在 run 上、body 里没有 ⇒ 重算得今日，于是版本绊线
+    用现行法去判历史证据、日志也把 `law_as_of` 记成今日。
+    """
+    historical = date(2019, 1, 1)
+    assert main._exit_law_as_of({"law_as_of": historical}, _Body(None)) == historical
+    # 未指定历史时逐字不变：body 无日期 ⇒ 当日；body 有日期 ⇒ 该日期
+    assert main._exit_law_as_of({}, _Body(None)) == date.today()
+    assert main._exit_law_as_of({}, _Body(historical)) == historical
+
+
+def test_no_fast_path_exit_recomputes_the_baseline_from_body_only():
+    """回归守卫：`_fast_path_law_as_of(body)` 只允许出现在 `_exit_law_as_of` 内（与闸口守卫同款）。
+
+    四个出口（QA 直返 / 轻量缓冲 / 流式版本绊线两条腿）各自重算 ⇒ 降级路径上
+    `pre["law_as_of"]` 与出口拿到的值可以不同，而这个差异没有任何用例会红。
+    """
+    src = MAIN_SRC.read_text(encoding="utf-8")
+    hits = [m.start() for m in re.finditer(r"(?<!def )_fast_path_law_as_of\(body\)", src)]
+    assert hits, "主源码里找不到 `_fast_path_law_as_of(body)` 调用（改名了？本守卫需同步更新）"
+
+    accessor = re.search(r"def _exit_law_as_of\(.*?\n(?=\ndef |\nclass )", src, re.S)
+    assert accessor is not None, "找不到 `_exit_law_as_of` ⇒ 出口没有统一取基准日，降级路径必然各算各的"
+    lo, hi = accessor.span()
+    outside = [h for h in hits if not (lo <= h < hi)]
+    assert not outside, "存在 `_exit_law_as_of` 之外的按 body 重算（行号={}）".format(
+        [src[:h].count("\n") + 1 for h in outside]
+    )
