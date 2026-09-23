@@ -15,13 +15,17 @@ import re
 from settings import settings
 
 
-def _lookup_all(specs: list[tuple[str, str]]):
-    """按 (source, article) 精确查找，返回 Document 列表（顺序 = 传入顺序）。"""
+def _lookup_all(specs: list[tuple[str, str]], cutoff: str | None = None):
+    """按 (source, article) 精确查找，返回 Document 列表（顺序 = 传入顺序）。
+
+    `cutoff`：历史查询基准日（ISO 串），透传给 `exact_article_lookup` 的时效判定；
+    缺省 None ⇒ 落当日，与历史行为逐字一致。
+    """
     from retrieval import exact_article_lookup  # noqa: PLC0415
 
     docs = []
     for source, article in specs:
-        docs += exact_article_lookup(source, article)
+        docs += exact_article_lookup(source, article, cutoff=cutoff)
     return docs
 
 
@@ -33,8 +37,8 @@ CHEATING_DOCS_SPEC = [
 ]
 
 
-def cheating_docs():
-    return _lookup_all(CHEATING_DOCS_SPEC)
+def cheating_docs(cutoff: str | None = None):
+    return _lookup_all(CHEATING_DOCS_SPEC, cutoff=cutoff)
 
 
 # ==================== 消费者格式条款场景 ====================
@@ -63,8 +67,8 @@ CONSUMER_CLAUSE_DOCS_SPEC = [
 ]
 
 
-def consumer_clause_docs():
-    return _lookup_all(CONSUMER_CLAUSE_DOCS_SPEC)
+def consumer_clause_docs(cutoff: str | None = None):
+    return _lookup_all(CONSUMER_CLAUSE_DOCS_SPEC, cutoff=cutoff)
 
 
 # ==================== 消费欺诈 / 退一赔三场景 ====================
@@ -97,8 +101,8 @@ CONSUMER_FRAUD_DOCS_SPEC = [
 ]
 
 
-def consumer_fraud_docs():
-    return _lookup_all(CONSUMER_FRAUD_DOCS_SPEC)
+def consumer_fraud_docs(cutoff: str | None = None):
+    return _lookup_all(CONSUMER_FRAUD_DOCS_SPEC, cutoff=cutoff)
 
 
 # ==================== 要件法条确定性补充（writer 轴立项，2026-09-10）【暂存未接线】 ====================
@@ -521,12 +525,14 @@ def is_labor_clause(clause_text: str) -> bool:
     return any(k in (clause_text or "") for k in _LABOR_KEYWORDS)
 
 
-def contract_supplement_docs(clause_text: str) -> list:
+def contract_supplement_docs(clause_text: str, cutoff: str | None = None) -> list:
     """条款 → 数据驱动法条（contract_clause_supplements.json 精确直查）；未命中回落一次检索。
 
     - 合同类型→法域杜绝错绑：劳动条款只引劳动法，不命中民法典通用条款（含"解除"——
       劳动解除走劳动合同法36/39/46/47/87，不引民法典563）
     - 时效别名：json 键"诉讼时效"同时匹配含"时效"的条款
+    - `cutoff`：历史查询基准日，两条取数通道（精确直查、语义回落）都必须带上，
+      否则历史日期下的合同证据会静默变薄。
     """
     from retrieval import exact_article_lookup, retrieve  # noqa: PLC0415
 
@@ -543,14 +549,18 @@ def contract_supplement_docs(clause_text: str) -> list:
         if labor and kw in _CIVIL_GENERIC:
             continue  # 劳动合同条款不命中民事通用条款（杜绝错绑）
         for s in specs:
-            matched += exact_article_lookup(s.get("source", ""), s.get("article", ""))
+            matched += exact_article_lookup(s.get("source", ""), s.get("article", ""), cutoff=cutoff)
     if not matched:
-        matched = retrieve(clause_text, k=3)  # 未命中回落语义检索
+        matched = retrieve(clause_text, k=3, cutoff=cutoff)  # 未命中回落语义检索
     return matched
 
 
-def build_contract_data(text: str) -> dict:
-    """确定性骨架：切分条款 → 每条款配法条 → 证据块 + rubric 风险等级。"""
+def build_contract_data(text: str, cutoff: str | None = None) -> dict:
+    """确定性骨架：切分条款 → 每条款配法条 → 证据块 + rubric 风险等级。
+
+    `cutoff`（历史查询基准日）：必须在**构建时**传给每条款配法条，而不是构建完再过滤结果——
+    `blocks[*]["articles"]` 与 `docs` 同源，`main._contract_messages` 读的是前者。
+    """
     t = (text or "").strip()
     truncated = len(t) > settings.contract_max_chars
     if truncated:
@@ -559,7 +569,7 @@ def build_contract_data(text: str) -> dict:
     blocks = []
     all_docs: list = []
     for idx, (label, seg) in enumerate(clauses, 1):
-        docs = contract_supplement_docs(seg)
+        docs = contract_supplement_docs(seg, cutoff=cutoff)
         all_docs += docs
         blocks.append(
             {

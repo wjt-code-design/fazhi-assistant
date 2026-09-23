@@ -104,13 +104,13 @@ def _study_aid_route_with_one_hit(monkeypatch) -> None:
 
     import main
 
-    def _one_hit(q):  # noqa: ARG001 - 形参由 retrieve_exam 决定
+    def _one_hit(q, k=6, cutoff=None):  # noqa: ARG001 - 形参由 retrieve_exam 决定
         return [Document(page_content="第十九条 试用期…", metadata={"source": "劳动合同法", "article": "第十九条"})]
 
     monkeypatch.setattr(main, "classify_intent", lambda t: "study_aid")
     monkeypatch.setattr(main.settings, "feature_study_cache", True)
     monkeypatch.setattr(main.settings, "feature_study_retrieval", True)
-    monkeypatch.setattr(main, "scenario_supplement_docs", lambda t: [])
+    monkeypatch.setattr(main, "scenario_supplement_docs", lambda t, cutoff=None: [])
     monkeypatch.setattr(main, "retrieve_exam", _one_hit)
 
 

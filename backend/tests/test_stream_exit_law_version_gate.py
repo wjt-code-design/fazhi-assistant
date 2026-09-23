@@ -123,9 +123,7 @@ def run_stream_exit(
     （= 空枪，S5 的 `test_empty_answer_still_returns_empty` 第一代就是这个形状）。
     于是 ON/OFF 两腿之间唯一的变化就是门本身。
     """
-    # R15 安全观察整改（Owner 2026-09-21）：客户端 `law_as_of` 收进**评测通道闸**。
-    # 本表就是评测通道（独立手算期望 + 显式 law_as_of 的分水岭场景）⇒ 必须开闸，
-    # 否则闸会把显式值忽略成"当日"，整张期望表作废。
+    # 显式日期是公开历史查询；测试固定开启状态以免外部环境配置影响期望表。
     main.settings.allow_client_law_as_of = True
     import answer_cache
     import quality
@@ -234,7 +232,7 @@ def test_hit_answer_does_not_enter_cache(monkeypatch):
 
 
 def test_control_leg_writes_cache_when_switch_off(monkeypatch):
-    """控制腿：同一请求在开关**关**时确实写了一次缓存且无注记。
+    """控制腿：无显式历史日期且版本绊线关时仍写缓存且无注记。
 
     没有这条，上面那句 `puts == []` 可能只是因为这条路径根本不写缓存（= 空枪）。
     """
@@ -243,7 +241,7 @@ def test_control_leg_writes_cache_when_switch_off(monkeypatch):
         on=False,
         question=FACT_W01_2019[0],
         parts=STREAM_PARTS_HIT,
-        law_as_of=AS_OF_2026,
+        law_as_of=None,
     )
     assert len(run.puts) == 1, f"开关关时这条路径本应写缓存一次，实际 {len(run.puts)} 次 ⇒ 控制腿失效"
     assert not run.noted, "开关关却加注记 ⇒ 默认行为被改（Owner 纪律：默认关 ⇒ 线上一字不变）"
@@ -257,7 +255,7 @@ def test_control_leg_writes_cache_on_fallback_path_when_switch_off(monkeypatch):
         question=FACT_W01_2019[0],
         parts=(),
         fallback_text=CLAIM_S01_WRONG_CURRENT_LAW,
-        law_as_of=AS_OF_2026,
+        law_as_of=None,
     )
     assert len(run.puts) == 1, f"兜底路径开关关时应写缓存一次，实际 {len(run.puts)} 次 ⇒ E9 的结论不可信"
     assert not run.noted

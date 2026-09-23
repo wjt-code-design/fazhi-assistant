@@ -177,6 +177,19 @@ _DEFAULT_RUN_LOCKS = InMemoryRunLockRegistry()
 
 RESUME_NOT_FOUND_DETAIL = "未找到可恢复的 Agent 任务"
 RESUME_CONFLICT_DETAIL = "Agent 任务已变化，无法恢复"
+RESUME_LAW_AS_OF_DETAIL = "Agent 追问回答沿用该任务建立时的法律基准日，不能中途更改"
+
+
+class ResumeLawAsOfConflict(RuntimeError):
+    """客户端试图在恢复请求里改本 run 的法律基准日。
+
+    基准日是 run 建立时定下的契约（`create_run` 落库、工具 cutoff 与证据有效性都消费它）。
+    中途改 ⇒ 同一个 run 的已生成证据按 A 版法、新回答按 B 版法。单列异常而非复用
+    `ResumeRunConflict`，是为了给用户可理解的措辞，而不是泛化的"任务已变化"。
+    """
+
+    def __init__(self) -> None:
+        super().__init__(RESUME_LAW_AS_OF_DETAIL)
 
 
 class ResumeRunNotFound(LookupError):
@@ -304,6 +317,7 @@ def _resume_with_scope_selection(
         old_state_version=expected_version,
         new_state_version=cast(int, saved.state_version),
         state=LegalAgentState.model_validate_json(cast(str, saved.state_json)),
+        law_as_of=cast(date, saved.law_as_of),
     )
 
 
@@ -315,6 +329,8 @@ class ResumeResult(BaseModel):
     old_state_version: int
     new_state_version: int
     state: LegalAgentState
+    # 该 run 建立时定下的法律基准日（必传：漏接线会让"Agent 失败降级到快车道"悄悄改用现行法）。
+    law_as_of: date
 
 
 def resume_with_user_fact(
@@ -327,8 +343,14 @@ def resume_with_user_fact(
     conversation_id: int,
     answer: str,
     evaluator: EvidenceEvaluator | None = None,
+    expected_law_as_of: date | None = None,
 ) -> ResumeResult:
-    """Atomically record one owned clarification answer without executing the Agent."""
+    """Atomically record one owned clarification answer without executing the Agent.
+
+    `expected_law_as_of`：客户端本次带来的法律基准日。与 run 已存的日期不一致时在 **CAS 之前**
+    拒绝（`ResumeLawAsOfConflict`）——放在 CAS 之后会先把用户事实写进去再报错，等于收了改动又不认。
+    None = 客户端没传，不参与比对（缺省路径零变化）。
+    """
     normalized_answer = answer.strip()
     if not normalized_answer:
         # 对抗审查 fx4（2026-09-13）：空输入按非法回答拒绝（409），而非 ValueError→500。
@@ -346,6 +368,8 @@ def resume_with_user_fact(
             raise ResumeRunNotFound()
         if run.state_version != expected_version or run.status != AgentStatus.WAITING_USER.value:
             raise ResumeRunConflict()
+        if expected_law_as_of is not None and expected_law_as_of != run.law_as_of:
+            raise ResumeLawAsOfConflict()
 
         try:
             persisted_state = LegalAgentState.model_validate_json(cast(str, run.state_json))
@@ -436,6 +460,7 @@ def resume_with_user_fact(
             old_state_version=expected_version,
             new_state_version=cast(int, saved.state_version),
             state=LegalAgentState.model_validate_json(cast(str, saved.state_json)),
+            law_as_of=cast(date, saved.law_as_of),
         )
 
 

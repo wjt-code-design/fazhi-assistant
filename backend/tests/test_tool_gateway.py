@@ -305,7 +305,7 @@ def test_contract_output_maps_documents_and_does_not_expose_raw_objects(monkeypa
     monkeypatch.setattr(
         contract,
         "_build_contract_data",
-        lambda _text: {
+        lambda _text, cutoff=None: {
             "truncated": False,
             "need_clarify": False,
             "blocks": [{"n": 1, "label": "第一条", "text": "工资", "articles": ["第十条"], "tags": []}],
@@ -323,6 +323,48 @@ def test_contract_output_maps_documents_and_does_not_expose_raw_objects(monkeypa
     assert result.evidence[0].source == "劳动合同法"
     assert result.model_dump(mode="json")["blocks"][0]["text"] == "工资"
     assert all(not hasattr(item, "page_content") for item in result.evidence)
+
+
+# ==================== 合同工具的历史基准日（AUTH-2 续） ====================
+# 同包 `lookup_article` 早就按 `context.law_as_of` 取数（tools/exact_article.py），
+# 合同口漏这一步 ⇒ 历史 run 拿到的是现行条文，且历史有效条文从未进候选（不是"版本错了"而是"证据没了"）。
+
+
+def test_contract_tool_passes_run_baseline_into_evidence_build(monkeypatch):
+    from tools import contract
+
+    seen: dict = {}
+
+    def probe(_text, cutoff=None):
+        seen["cutoff"] = cutoff
+        return {"truncated": False, "need_clarify": False, "blocks": [], "docs": [], "level": "低", "basis": []}
+
+    monkeypatch.setattr(contract, "_build_contract_data", probe)
+
+    contract.analyze_contract(
+        ToolContext(user_id=1, conversation_id=2, run_id="r", law_as_of=date(2019, 1, 1)),
+        ContractInput(text="违约金条款"),
+    )
+
+    assert seen["cutoff"] == "2019-01-01", "合同证据未按 run 基准日构建（漏了 cutoff 透传）"
+
+
+def test_contract_adapter_forwards_cutoff_into_domain_rules(monkeypatch):
+    """适配器这一腿也要真转发：只改调用点而 `_build_contract_data` 内部丢掉 cutoff，等于没修。"""
+    import domain_rules
+    from tools import contract
+
+    seen: dict = {}
+
+    def fake_build(text, cutoff=None):
+        seen["cutoff"] = cutoff
+        return {"docs": [], "blocks": []}
+
+    monkeypatch.setattr(domain_rules, "build_contract_data", fake_build)
+
+    contract._build_contract_data("违约金条款", cutoff="2019-01-01")
+
+    assert seen["cutoff"] == "2019-01-01"
 
 
 def test_memory_is_user_conversation_scoped_and_closes_session_on_success_and_failure(monkeypatch, context):

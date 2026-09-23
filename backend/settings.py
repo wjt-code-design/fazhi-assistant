@@ -61,11 +61,13 @@ class Settings(BaseSettings):
         False  # 方案C（2026-08-08）：默认关闭公开注册，仅管理员开户；.env FEATURE_SELF_REGISTER=true 重开
     )
     feature_router: bool = True  # 多模型分级路由总开关；False 时主回答退化为旧单模型（get()）
-    # R15 安全观察（Owner 2026-09-21 裁定）：`law_as_of`/`case_domain` 定位为**评测通道**。
-    # False（默认）⇒ 客户端传的 `law_as_of` 被忽略（各消费方落当日，行为与"没传"一致）；
-    # True ⇒ 评测/灰度放行。理由：该值直接改变"用哪天的法"与证据 cutoff，不是偏好设置；
-    # 且票 I-2(a) 的护栏会把分水岭前的值变成回落 LLM ⇒ 不限通道就成了公开用户的成本口子。
-    allow_client_law_as_of: bool = False
+    # 公开历史查询（Owner 2026-09-23 决定，取代 09-21 的"评测通道"定位）：默认可用；
+    # 部署显式关闭时带日期的请求返回 503，不静默改用当日。`case_domain` 仍是评测专用控制量。
+    # ⚠️ 09-21 裁定里的成本事实**没有被公开化消除**：显式基准日会退出零-token 直返与共享答案缓存
+    #   （`prepare_fast_path` 置 `qa_hit=None`、`main._cacheable` 排除），分水岭前的值还触发版本
+    #   绊线回落 LLM ⇒ 客户端可用一个日期把"命中"打成"未命中"。现状有界（单请求、60/分钟、
+    #   最贵等于一次未命中），但调用者已从评测通道变成任意已认证用户，成本口径需按新前提复评。
+    allow_client_law_as_of: bool = True
 
     # 同款的另一半（Owner 2026-09-21 裁定的 `case_domain` 侧，2026-09-22 落地）：
     # False（默认）⇒ 客户端传的 `case_domain` 被忽略（各消费方落 None，行为与"没传"一致）；

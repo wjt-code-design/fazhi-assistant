@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from pathlib import Path
 from threading import RLock
-from typing import Any
+from typing import Any, Protocol
 
 from sqlalchemy import func
 
@@ -42,15 +42,8 @@ class RequestBootstrap:
     # R1-OB（2026-09-16 预注册）：评测/灰度通道案例域码（tier-1 判域直判源）。
     # 生产链路缺省 None（代码路径存在但恒不触发）；合法值见 agent/r1ob.VALID_CASE_DOMAINS。
     case_domain: str | None = None
-    # R15-lite（2026-09-18，外部 harness 方案差距分析 P0-2）：法律版本基准日服务端注入。
-    # 缺省 None 时**分两条路径**（票 I-3 订正：原文只写了 `create_run` 那一半，等于替一个快车道
-    # 不存在的机制背书 —— 快车道不经过 `create_run`）：
-    #   · **agent 路径**：由 `create_run` 落 `date.today()`，随 run 持久化；
-    #   · **快车道**：不经过 `create_run`，由 `main._fast_path_law_as_of()` 落当日，
-    #     且该值在快车道**只被版本绊线门消费**，检索 cutoff 不随它变（ADR-018 已知残留 ④，
-    #     结构性不对等、非实现缺陷，见 `main._fast_path_law_as_of` 的 docstring）。
-    # 评测通道可显式传入（如 2021-01-01 民法典分水岭场景）。**server-owned**：模型输出被
-    # runtime/gateway 的 server-owned 字段清单拒收，该值只能由服务端代码设置。
+    # 公开历史查询基准日；Agent run 和快车道检索均使用该值。省略时取当日。
+    # Agent runtime/gateway 拒收模型自行改写的 server-owned 日期。
     law_as_of: date | None = None
 
 
@@ -72,21 +65,52 @@ class BootstrapDependencies:
     is_contract_exit: Callable[[str], bool]
 
 
+class _CutoffTextDocsFn(Protocol):
+    """按基准日取条文的接缝形状（text → docs）。`cutoff` 是**必传关键字**。"""
+
+    def __call__(self, text: str, /, *, cutoff: str | None) -> list[Any]: ...
+
+
+class _CutoffDocsFn(Protocol):
+    """无入参的静态条文集（作弊/格式条款/消费欺诈）。`cutoff` 同样必传。"""
+
+    def __call__(self, *, cutoff: str | None) -> list[Any]: ...
+
+
+class _CutoffQueryKDocsFn(Protocol):
+    """语义检索与考试分步检索：query 必给、k 可省（两边默认值不同）、cutoff 必传关键字。"""
+
+    def __call__(self, query: str, /, k: int = ..., *, cutoff: str | None) -> list[Any]: ...
+
+
+class _CutoffContractFn(Protocol):
+    def __call__(self, text: str, /, *, cutoff: str | None) -> dict[str, Any]: ...
+
+
 @dataclass(frozen=True)
 class FastPathDependencies:
+    """快车道取数接缝。
+
+    每条"去库里捞条文"的能力都用 `Protocol` 钉成 **cutoff 必传关键字**：新增取数口若忘了带
+    基准日，mypy 直接在调用点报错，而不是运行时静默按现行法取数（历史查询因此变成"证据变少"
+    这种没人报的错）。缺省语义仍在实现侧（`cutoff=None` 落当日），所以收紧的只是调用点。
+    `search_qa` 刻意不带 cutoff：QA 语料按当日沉淀、无版本轴，历史查询靠 `prepare_fast_path`
+    显式置 `qa_hit=None` 绕开它。
+    """
+
     feature_study_retrieval: bool
     is_meta_study: Callable[[str], bool]
     rewrite_for_retrieval: Callable[[str, list[dict[str, str]], list[Any], bool], str]
-    scenario_supplement_docs: Callable[[str], list[Any]]
-    retrieve_exam: Callable[[str], list[Any]]
-    cheating_docs: Callable[[], list[Any]]
-    build_contract_data: Callable[[str], dict[str, Any]]
-    retrieve: Callable[..., list[Any]]
+    scenario_supplement_docs: _CutoffTextDocsFn
+    retrieve_exam: _CutoffQueryKDocsFn
+    cheating_docs: _CutoffDocsFn
+    build_contract_data: _CutoffContractFn
+    retrieve: _CutoffQueryKDocsFn
     search_qa: Callable[[str], Any]
     is_consumer_clause_scenario: Callable[[str], bool]
-    consumer_clause_docs: Callable[[], list[Any]]
+    consumer_clause_docs: _CutoffDocsFn
     is_consumer_fraud_scenario: Callable[[str], bool]
-    consumer_fraud_docs: Callable[[], list[Any]]
+    consumer_fraud_docs: _CutoffDocsFn
     format_docs: Callable[[list[Any]], str]
 
 
@@ -426,20 +450,23 @@ def prepare_fast_path(
     deps = _deps or _default_fast_path_dependencies()
     raw_query = bootstrap.raw_query
     contract_data = None
+    cutoff = bootstrap.law_as_of.isoformat() if bootstrap.law_as_of is not None else None
 
     if bootstrap.intent == "study_aid":
         if deps.feature_study_retrieval and not deps.is_meta_study(bootstrap.user_text or raw_query):
             rewritten = deps.rewrite_for_retrieval(
                 raw_query, bootstrap.recent, bootstrap.recent_messages, bootstrap.has_options
             )
-            docs = deps.scenario_supplement_docs(bootstrap.supplement_text) + deps.retrieve_exam(rewritten)
+            docs = deps.scenario_supplement_docs(bootstrap.supplement_text, cutoff=cutoff) + deps.retrieve_exam(
+                rewritten, cutoff=cutoff
+            )
         else:
             rewritten = raw_query
             docs = []
         qa_hit = None
     elif bootstrap.intent == "cheating_request":
         rewritten = raw_query
-        docs = deps.cheating_docs()
+        docs = deps.cheating_docs(cutoff=cutoff)
         qa_hit = None
     elif bootstrap.intent == "chitchat":
         rewritten = raw_query
@@ -447,7 +474,7 @@ def prepare_fast_path(
         qa_hit = None
     elif bootstrap.contract_mode:
         rewritten = raw_query
-        contract_data = deps.build_contract_data(bootstrap.contract_text or raw_query)
+        contract_data = deps.build_contract_data(bootstrap.contract_text or raw_query, cutoff=cutoff)
         if bootstrap.client_truncated:
             contract_data["truncated"] = True
         docs = contract_data["docs"]
@@ -457,17 +484,27 @@ def prepare_fast_path(
             raw_query, bootstrap.recent, bootstrap.recent_messages, bootstrap.has_options
         )
         if bootstrap.is_exam:
-            docs = deps.scenario_supplement_docs(bootstrap.supplement_text) + deps.retrieve_exam(rewritten)
+            docs = deps.scenario_supplement_docs(bootstrap.supplement_text, cutoff=cutoff) + deps.retrieve_exam(
+                rewritten, cutoff=cutoff
+            )
         else:
-            docs = deps.retrieve(rewritten, k=10)
-        qa_hit = deps.search_qa(rewritten)
+            docs = deps.retrieve(rewritten, k=10, cutoff=cutoff)
+        # QA 语料按**当日**沉淀，无版本轴 ⇒ 历史查询不可直返（见 main._qa_direct_return 分水岭守卫）。
+        qa_hit = None if cutoff else deps.search_qa(rewritten)
         if not bootstrap.is_exam:
-            docs = deps.scenario_supplement_docs(bootstrap.supplement_text) + docs
+            docs = deps.scenario_supplement_docs(bootstrap.supplement_text, cutoff=cutoff) + docs
             query = bootstrap.user_text or raw_query
             if deps.is_consumer_clause_scenario(query):
-                docs = deps.consumer_clause_docs() + docs
+                docs = deps.consumer_clause_docs(cutoff=cutoff) + docs
             if deps.is_consumer_fraud_scenario(query):
-                docs = deps.consumer_fraud_docs() + docs
+                docs = deps.consumer_fraud_docs(cutoff=cutoff) + docs
+
+    if cutoff:
+        from retrieval_core import is_valid_by_time
+
+        # 各取数口已按同一 cutoff 过滤，这里仍复筛一遍：谓词唯一（`retrieval_core.is_valid_by_time`），
+        # 漏传 cutoff 的代价是**把当日版本下发给历史查询**（静默改用现行法），比丢证据更坏。
+        docs = [doc for doc in docs if is_valid_by_time(doc.metadata, cutoff)]
 
     context = deps.format_docs(docs)
     sources = [
@@ -480,7 +517,7 @@ def prepare_fast_path(
         }
         for document in docs
     ]
-    return {
+    prepared = {
         "conv_id": bootstrap.conv_id,
         "summary": bootstrap.summary,
         "recent": bootstrap.recent,
@@ -497,3 +534,6 @@ def prepare_fast_path(
         "has_options": bootstrap.has_options,
         "contract_data": contract_data,
     }
+    if cutoff:
+        prepared["law_as_of"] = bootstrap.law_as_of
+    return prepared

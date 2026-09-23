@@ -476,7 +476,7 @@ def test_e6_dump_frames_for_zero_change_diff(monkeypatch):
 #
 # 为什么这两条是**先红**的（本计划 §一 R1 + 票 G F3）：`agent/repository.py` 的 `create_run` docstring
 # 把契约写成两半 —— ①缺省时服务端落 `date.today()` ②错版答复由绊线拦。快车道路线**不经过**
-# `create_run`，`:1914` 直接把 `body.law_as_of`（生产客户端不传 ⇒ `None`）递给门 ⇒ 开关一开，
+# `create_run`，早期实现直接把缺省的 `body.law_as_of=None` 递给门 ⇒ 开关一开，
 # 每条答复都在 `LAW_TRIPWIRE_NOT_WIRED` 那支命中（与答案写了什么无关）。
 # 判据形状取自独立手算表：S03（2023 事实 + 分水岭后基准日 ⇒ 不命中）、S01（2019 事实 ⇒ 命中）。
 # 今天（2026-09-20）与 `AS_OF_2026`（2026-09-18）在分水岭同侧 ⇒ 可直接沿用该表结论，无需我另算。
@@ -553,11 +553,10 @@ def test_fast_path_law_as_of_uses_server_today_not_a_constant(monkeypatch):
 
     monkeypatch.setattr(main, "date", _FrozenDay)
     assert main._fast_path_law_as_of(SimpleNamespace(law_as_of=None)) == date(2019, 7, 1)
-    # R15 安全观察整改（Owner 2026-09-21 裁定）：客户端显式值现在走**评测通道闸**，
-    # 默认关 ⇒ 被忽略（落当日）；开 ⇒ 原样透传（本断言验证的就是透传语义 ⇒ 需开闸）。
+    # 公开历史查询：开时透传；部署显式关闭时给可见错误。
     monkeypatch.setattr(main.settings, "allow_client_law_as_of", True)
     assert main._fast_path_law_as_of(SimpleNamespace(law_as_of=date(2021, 1, 1))) == date(2021, 1, 1)
     monkeypatch.setattr(main.settings, "allow_client_law_as_of", False)
-    assert main._fast_path_law_as_of(SimpleNamespace(law_as_of=date(2021, 1, 1))) == date(2019, 7, 1), (
-        "默认关时客户端值必须被忽略（落当日）—— 这是评测通道闸的新契约"
-    )
+    with pytest.raises(main.HTTPException) as exc:
+        main._fast_path_law_as_of(SimpleNamespace(law_as_of=date(2021, 1, 1)))
+    assert exc.value.status_code == 503

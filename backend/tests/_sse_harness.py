@@ -69,13 +69,13 @@ class _FakeInvokableLLM:
         return _FakeResp(self._text)
 
 
-def _one_hit_retrieval(q: str, k: int = 4) -> list[Document]:  # noqa: ARG002
+def _one_hit_retrieval(q: str, k: int = 4, cutoff: str | None = None) -> list[Document]:  # noqa: ARG002
     return [
         Document(page_content="第十九条 试用期…", metadata={"source": "劳动合同法", "article": "第十九条"}),
     ]
 
 
-def _contract_data(text: str) -> dict:  # noqa: ARG001 - 形参由 `build_contract_data` 决定
+def _contract_data(text: str, cutoff: str | None = None) -> dict:  # noqa: ARG001 - 形参由 `build_contract_data` 决定
     """`domain_rules.build_contract_data` 的替身（票 H 新增 route 用）。
 
     形状照 `request_bootstrap.prepare_fast_path` 的消费点给全：`docs`（供 `sources`/`_hit_arts`）、

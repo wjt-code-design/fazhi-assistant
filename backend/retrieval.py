@@ -993,7 +993,7 @@ def retrieve(
     )
 
 
-def retrieve_exam(question: str, k: int = 6) -> list[Document]:
+def retrieve_exam(question: str, k: int = 6, cutoff: str | None = None) -> list[Document]:
     """分步分析型检索（ADR-012）：拆题干+每选项 → 逐项并发检索 → 合并去重。
 
     解决"单次整题检索漏项"（死刑复核 252 漏召回）：每个选项独立召回其考点条文，
@@ -1006,6 +1006,9 @@ def retrieve_exam(question: str, k: int = 6) -> list[Document]:
     - 每单元走 `hybrid_retrieve`（内部已含锚点保底 + rerank），合并后按"题干→选项"
       顺序收集（题干主锚在前），去重截 k
     - 任一单元异常 → 跳过该单元不崩（fallback 链：逐项 → 题干 → 整题）
+    - `cutoff`（历史查询）：透传给**每一个** `hybrid_retrieve` 调用点，含两处兜底。缺省 None
+      时行为与不传逐字一致。历史基准日只用于末尾过滤的话，历史有效版本从没进过候选池，
+      当日版本又被剔掉 ⇒ 表现为**静默丢证据**而不是答错版，故必须在取数层就带上。
     - **回退说明（2026-08-05 逆向）**：动态 k（h10/o4/c12）曾把 recall@6 提到 0.9625，
       但深池拉长每次检索持有 BGE/Chroma 的时间，显著加大 Windows onnxruntime 偶发原生
       segfault 的窗口（恢复 rerank/降并发/串行/嵌入锁均压不住）——**生产稳定优先回退
@@ -1013,7 +1016,7 @@ def retrieve_exam(question: str, k: int = 6) -> list[Document]:
     """
     units = query_understand._split_by_choice(question)
     if len(units) <= 1:
-        return hybrid_retrieve(question, k=k)  # 无选项 → 整题检索（fallback）
+        return hybrid_retrieve(question, k=k, cutoff=cutoff)  # 无选项 → 整题检索（fallback）
     # 题干主锚 = **完整问题文本**（含选项信号——实测剥离选项的题干丢关键条：
     # 高空抛物题裸题干 top-3 全无关，整题检索 1254 排第 1）。选项单元独立补漏
     # （防"单次整题检索漏项"如死刑复核 252）。题干给足候选，选项瘦身池控总量。
@@ -1024,8 +1027,8 @@ def retrieve_exam(question: str, k: int = 6) -> list[Document]:
     n = 1 + len(opt_queries)
     collected: list[list[Document]] = [None] * n  # type: ignore[list-item]
     with ThreadPoolExecutor(max_workers=min(6, n)) as ex:
-        futs = [(0, ex.submit(hybrid_retrieve, head_q, head_k))]
-        futs += [(i + 1, ex.submit(hybrid_retrieve, q, opt_k)) for i, q in enumerate(opt_queries)]
+        futs = [(0, ex.submit(hybrid_retrieve, head_q, head_k, cutoff=cutoff))]
+        futs += [(i + 1, ex.submit(hybrid_retrieve, q, opt_k, cutoff=cutoff)) for i, q in enumerate(opt_queries)]
         for i, f in futs:
             try:
                 collected[i] = f.result()
@@ -1042,7 +1045,7 @@ def retrieve_exam(question: str, k: int = 6) -> list[Document]:
                 seen.add(did)
                 out.append(d)
     if not out:
-        return hybrid_retrieve(question, k=k)  # 全失败 → 整题兜底
+        return hybrid_retrieve(question, k=k, cutoff=cutoff)  # 全失败 → 整题兜底
     return out[:k]
 
 
@@ -1104,7 +1107,7 @@ _SUPP_MAX_GROUPS = 3
 _SUPP_MAX_ARTICLES = 24
 
 
-def scenario_supplement_docs(text: str) -> list[Document]:
+def scenario_supplement_docs(text: str, cutoff: str | None = None) -> list[Document]:
     """场景定向补充（数据驱动）：命中关键词 → 前置该场景核心条文（防整题检索漏项）。
 
     复用 exact_article_lookup 精确取条（条号直查零嵌入零检索），返回的 Document 由
@@ -1128,7 +1131,7 @@ def scenario_supplement_docs(text: str) -> list[Document]:
             if len(out) >= _SUPP_MAX_ARTICLES:
                 break
             try:
-                docs = exact_article_lookup(a.get("source", ""), a.get("article", ""))
+                docs = exact_article_lookup(a.get("source", ""), a.get("article", ""), cutoff=cutoff)
             except Exception:
                 docs = []
             for d in docs:
@@ -1142,7 +1145,7 @@ def scenario_supplement_docs(text: str) -> list[Document]:
             if len(out) >= _SUPP_MAX_ARTICLES:
                 break
             try:
-                docs = exact_article_lookup(src, art)
+                docs = exact_article_lookup(src, art, cutoff=cutoff)
             except Exception:
                 docs = []
             for d in docs:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 from threading import Barrier
 from types import SimpleNamespace
 
@@ -731,3 +732,143 @@ def test_resume_when_steps_budget_exhausted_still_conflicts(store, records):
         assert run.state_version == 7  # 409 不得造成任何状态变更
     finally:
         db.close()
+
+
+# ==================== 恢复分支的法律基准日（AUTH-2 续） ====================
+# `law_as_of` 随 run 建立即固定（`create_run` 落库、工具 cutoff 消费）。恢复请求此前算了
+# 客户端日期却既不校验也不下传 —— 那是"静默接受后丢弃"。本组测试锁三件事：
+#   1. 客户端改日期 → CAS 之前明确拒绝（不是 409 泛化文案，也不是收下不用）；
+#   2. `resume_with_user_fact` 回传 run 的基准日；
+#   3. Agent 技术性失败降级到快车道时，取数按 run 的基准日，而不是悄悄改用现行法。
+
+RESUME_LAW_AS_OF_DETAIL = "Agent 追问回答沿用该任务建立时的法律基准日，不能中途更改"
+
+
+def test_resume_rejects_conflicting_law_as_of_before_any_state_change(store, records):
+    from agent.controller import ResumeLawAsOfConflict
+
+    _engine, sessions = store
+    resume, locks = _service()
+    db = sessions()
+    try:
+        with pytest.raises(ResumeLawAsOfConflict):
+            resume(
+                db=db,
+                run_locks=locks,
+                run_id=records["run_id"],
+                expected_version=0,
+                user_id=records["owner"].id,
+                conversation_id=records["conversation"].id,
+                answer="约定于2023年1月还款",
+                expected_law_as_of=date(2019, 1, 1),
+            )
+    finally:
+        db.close()
+    assert _load_snapshot(sessions, records["run_id"])[1] == 0  # 版本号未动 = 没发生 CAS
+
+
+def test_resume_accepts_matching_date_and_reports_run_law_as_of(store, records):
+    _engine, sessions = store
+    resume, locks = _service()
+    db = sessions()
+    try:
+        result = resume(
+            db=db,
+            run_locks=locks,
+            run_id=records["run_id"],
+            expected_version=0,
+            user_id=records["owner"].id,
+            conversation_id=records["conversation"].id,
+            answer="约定于2023年1月还款",
+            expected_law_as_of=date.today(),
+        )
+    finally:
+        db.close()
+
+    assert result.law_as_of == date.today()
+
+
+def test_http_resume_reports_conflicting_law_as_of_as_409(store, records, monkeypatch):
+    import main
+
+    _engine, sessions = store
+    monkeypatch.setattr(main.settings, "agent_enabled", True)
+    monkeypatch.setattr(main.settings, "allow_client_law_as_of", True)
+    client = _client(store, monkeypatch, records["owner"])
+    payload = {
+        "content": "约定于2023年1月还款",
+        "conversation_id": records["conversation"].id,
+        "agent_run_id": records["run_id"],
+        "agent_state_version": 0,
+        "law_as_of": "2019-01-01",
+    }
+    try:
+        response = client.post("/api/chat", json=payload)
+    finally:
+        client.close()
+        main.app.dependency_overrides.clear()
+
+    assert response.status_code == 409
+    assert response.json() == {"detail": RESUME_LAW_AS_OF_DETAIL}
+    assert "data:" not in response.text
+    assert _load_snapshot(sessions, records["run_id"])[1] == 0
+
+
+def test_resume_law_as_of_maps_run_date_onto_fast_path_cutoff():
+    """run 落当日 ⇒ 视同"未指定历史"（快车道退回原行为）；run 是历史日 ⇒ 降级也按该日取数。"""
+    from main import _resume_law_as_of
+
+    assert _resume_law_as_of(date.today()) is None
+    assert _resume_law_as_of(date(2019, 1, 1)) == date(2019, 1, 1)
+
+
+def test_agent_fallback_on_resume_feeds_run_date_into_fast_path(store, records, monkeypatch):
+    """端到端接线：恢复 → Agent 技术性失败 → 快车道路由必须带上 run 的基准日。
+
+    末段用 599 哨兵中断，避免把整条答案生成链路卷进本用例；判据只看被捕获的 bootstrap。
+    """
+    from fastapi import HTTPException
+
+    import main
+
+    monkeypatch.setattr(main.settings, "agent_enabled", True)
+    monkeypatch.setattr(main.settings, "allow_client_law_as_of", True)
+    run_date = date(2019, 1, 1)
+    captured: dict = {}
+
+    def fake_resume(**kwargs):
+        return SimpleNamespace(
+            run_id=kwargs["run_id"],
+            issue_id="issue-a",
+            old_state_version=0,
+            new_state_version=1,
+            state=_waiting_state(),
+            law_as_of=run_date,
+        )
+
+    async def fake_execute(request, **kwargs):
+        return SimpleNamespace(outcome="fallback", reason_code="TOOL_TIMEOUT")
+
+    def fake_fallback(bootstrap, reason_code):
+        captured["bootstrap"] = bootstrap
+        raise HTTPException(status_code=599, detail="stop-after-capture")
+
+    monkeypatch.setattr(main, "resume_with_user_fact", fake_resume)
+    monkeypatch.setattr(main, "_execute_agent_observing_disconnect", fake_execute)
+    monkeypatch.setattr(main, "fallback_to_fast_path", fake_fallback)
+    client = _client(store, monkeypatch, records["owner"])
+    payload = {
+        "content": "约定于2023年1月还款",
+        "conversation_id": records["conversation"].id,
+        "agent_run_id": records["run_id"],
+        "agent_state_version": 0,
+    }
+    try:
+        response = client.post("/api/chat", json=payload)
+    finally:
+        client.close()
+        main.app.dependency_overrides.clear()
+
+    assert response.status_code == 599
+    bootstrap = captured["bootstrap"]
+    assert bootstrap.law_as_of == run_date

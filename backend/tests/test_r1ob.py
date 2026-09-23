@@ -8,6 +8,9 @@
 
 from __future__ import annotations
 
+import hashlib
+import json
+import logging
 from types import SimpleNamespace
 
 from agent.r1ob import VALID_CASE_DOMAINS, resolve_domain
@@ -162,3 +165,46 @@ class TestLegalRetrievalFiltering:
         out = lr.retrieve_laws(ctx, RetrieveLawsInput(query="行政主体资格", k=4, category=None))
         assert out.evidence == []
         assert "未检索到" in out.statement
+
+    def test_filter_log_omits_raw_case_text(self, monkeypatch, caplog):
+        from observability import _JsonFormatter
+
+        query = "张三身份证 123456789012345678 的行政主体资格"
+        captured = []
+
+        class Capture(logging.Handler):
+            def emit(self, record):
+                captured.append(record)
+
+        logger = logging.getLogger("legal.agent")
+        handler = Capture()
+        logger.addHandler(handler)
+        try:
+            with caplog.at_level(logging.INFO, logger="legal.agent"):
+                self._run(
+                    monkeypatch,
+                    r1ob=True,
+                    case_domain="civil",
+                    user_question=None,
+                    query=query,
+                    docs=lambda: self._fake_docs_e04(),
+                )
+        finally:
+            logger.removeHandler(handler)
+
+        records = [record for record in captured if record.msg == "dept_filter_removed"]
+        assert len(records) == 1
+        # 先看**代码侧**写进了什么：下面 `query not in payload` 单看是不足以归因的 ——
+        # `_JsonFormatter` 会把未登记进白名单的字段整批丢掉，所以即使代码仍在写原文，
+        # 序列化结果里也不会有它（实测：把 `extra["query"]` 加回去，只有白名单哨兵变红，
+        # 本断言仍绿）。钉在 LogRecord 上才能区分"没写"与"写了但被过滤"这两种状态。
+        assert not hasattr(records[0], "query"), "代码仍把原始问题写进日志 extra（当前仅靠白名单兜住）"
+        assert not hasattr(records[0], "query"), (
+            "代码侧仍把原始问题写进 extra（眼下只靠 formatter 白名单挡下，不等于没写）"
+        )
+        payload = json.loads(_JsonFormatter().format(records[0]))
+        assert payload["query_sha256"] == hashlib.sha256(query.encode("utf-8")).hexdigest()
+        assert payload["query_len"] == len(query)
+        assert payload["domain"] == "civil"
+        assert payload["removed"] == 1
+        assert query not in json.dumps(payload, ensure_ascii=False)

@@ -89,10 +89,11 @@ _ACCOUNT_FIELDS = (
     "agent_claim_checks",
     # R1/R1b 部门法守卫（2026-09-14，预注册 dept-law-filter-r1）：
     #   dept_filter_removed（R1 证据池剔除）与 proc_misroute_detected / proc_misroute_flag
-    #   （R1b 终稿串台红线）的可观测字段。query 为 Agent 逐争点检索的聚焦问句（非用户原文）。
+    #   （R1b 终稿串台红线）的可观测字段。争点问句可能含案情和个人信息，只留哈希与长度。
     "proc_misroute_citations",
     "agent_domain",
-    "query",
+    "query_sha256",
+    "query_len",
     "domain",
     "removed",
     # rerank_transient_failure（2026-09-14，retrieval._rerank_docs）：限速 429 / 5xx / 连接抖动

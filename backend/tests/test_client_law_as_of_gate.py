@@ -1,28 +1,17 @@
-"""R15 安全观察整改：客户端 `law_as_of` 的**评测通道闸**（Owner 2026-09-21 裁定 A）。
-
-背景：`/api/chat` 的普通认证请求原本就能传 `law_as_of`（直接改变"用哪天的法"与证据 cutoff，
-也进票 I-2(a) 护栏）——「生产前端不传」不是信任边界。裁定：定位为**评测通道**，
-`settings.allow_client_law_as_of=False`（默认）⇒ 客户端传值被忽略。
-
-判据（4 条 = 1 先红 + 3 控制）：
-  ① 先红（端点级）：开关默认关 + 请求带分水岭前的 `law_as_of` ⇒ light 路径**实际生效**的
-     基准日必须是**当日**（改前是 2019-01-01，透传锁先红）；
-  ② 控制（端点级）：开关开 ⇒ 生效基准日 = 2019-01-01（评测通道可用）；
-  ③ 控制：开关关 + 未传 ⇒ `_client_law_as_of` 返回 None（与"没传"一致）；
-  ④ 快路径：`_fast_path_law_as_of` 同口径（关 ⇒ 当日；开 ⇒ 原值）。
-
-⚠️ 透传锁钉在**真正的消费点**上：light 路径的 `law_as_of` 消费者是
-`_fast_path_law_as_of(body)`（分支1 直接调用），而 `_bootstrap_only` 在 light 路由下
-**只收 5 个参数、根本不传 law_as_of**（实测 bindings：user_id/conversation_id/text/image/
-client_truncated）——第一版把锁钉在 `_bootstrap_only` 上 ⇒ 控制腿假红。
-端点级锁 = monkeypatch `main._fast_path_law_as_of` 包一层"记录返回值再转发"。
-"""
+"""公开历史查询：默认可用；显式关闭时拒绝；所选日期写入结构化审计。"""
 
 from __future__ import annotations
 
+import json
+import logging
 import os
+import pathlib
+import re
 import sys
 from datetime import date
+
+import pytest
+from fastapi import HTTPException
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -36,6 +25,7 @@ from tests._sse_harness import chat_frames, login, sse_client  # noqa: E402
 
 PRE_WATERSHED = "2019-01-01"
 QUESTION = "试用期最长多久"
+MAIN_SRC = pathlib.Path(__file__).resolve().parent.parent / "main.py"
 
 
 class _Body:
@@ -69,28 +59,8 @@ def _wire_fast_path_spy(monkeypatch, captured: dict) -> None:
     monkeypatch.setattr(main, "_fast_path_law_as_of", _spy)
 
 
-def test_default_ignores_client_law_as_of_at_endpoint(monkeypatch):
-    """先红（端点级）：开关默认关 + 请求带 2019-01-01 ⇒ 生效基准日必须是**当日**。
-
-    改前形态：`_fast_path_law_as_of` 直接 `body.law_as_of or date.today()` ⇒ 生效日 = 2019-01-01
-    （即"任何用户都能让系统用 2019 年的法/触发护栏回落"）。
-    """
-    captured: dict = {}
-    with sse_client(monkeypatch, route="light_buffered") as c:
-        _reset_shared_state()
-        _wire_fast_path_spy(monkeypatch, captured)
-        monkeypatch.setattr(settings_mod.settings, "allow_client_law_as_of", False)
-        token = login(c)
-        chat_frames(c, token, QUESTION, extra={"law_as_of": PRE_WATERSHED})
-
-    assert captured.get("client_value") is not None, "请求里的 law_as_of 没到达端点（夹具问题）"
-    assert captured.get("effective") == date.today(), (
-        f"开关默认关时生效基准日必须落当日（忽略客户端值），实得 {captured.get('effective')!r}"
-    )
-
-
-def test_control_switch_on_allows_eval_value(monkeypatch):
-    """控制腿（端点级）：开关开 ⇒ 生效基准日 = 客户端原值（评测通道可用）。"""
+def test_default_allows_client_law_as_of_at_endpoint(monkeypatch):
+    assert settings_mod.Settings.model_fields["allow_client_law_as_of"].default is True
     captured: dict = {}
     with sse_client(monkeypatch, route="light_buffered") as c:
         _reset_shared_state()
@@ -99,19 +69,110 @@ def test_control_switch_on_allows_eval_value(monkeypatch):
         token = login(c)
         chat_frames(c, token, QUESTION, extra={"law_as_of": PRE_WATERSHED})
 
-    assert captured.get("effective") == date(2019, 1, 1), f"评测通道应原值放行，实得 {captured.get('effective')!r}"
+    assert captured.get("client_value") is not None, "请求里的 law_as_of 没到达端点（夹具问题）"
+    assert captured.get("effective") == date(2019, 1, 1)
+
+
+def test_public_date_reaches_fast_retrieval(monkeypatch):
+    seen_cutoffs = []
+    with sse_client(monkeypatch, route="light_buffered") as c:
+        _reset_shared_state()
+        monkeypatch.setattr(settings_mod.settings, "allow_client_law_as_of", True)
+        monkeypatch.setattr(main, "retrieve", lambda query, k, cutoff=None: seen_cutoffs.append(cutoff) or [])
+        token = login(c)
+        chat_frames(c, token, QUESTION, extra={"law_as_of": PRE_WATERSHED})
+    assert seen_cutoffs == [PRE_WATERSHED]
+
+
+def test_explicit_date_disables_shared_answer_cache():
+    pre = {
+        "intent": "legal_query",
+        "image": None,
+        "recent": [],
+        "sources": [{"source": "旧法", "article": "第一条"}],
+        "law_as_of": date(2019, 1, 1),
+    }
+    assert main._cacheable(pre) is False
+
+
+def test_disabled_historical_query_returns_503(monkeypatch):
+    with sse_client(monkeypatch, route="light_buffered") as c:
+        monkeypatch.setattr(settings_mod.settings, "allow_client_law_as_of", False)
+        token = login(c)
+        response = c.post(
+            "/api/chat",
+            json={"content": QUESTION, "law_as_of": PRE_WATERSHED},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+    assert response.status_code == 503
+    assert "历史查询" in response.json()["detail"]
+
+
+def test_historical_query_audit_has_ids_and_date_without_question(monkeypatch):
+    from observability import _JsonFormatter
+
+    records = []
+
+    class Capture(logging.Handler):
+        def emit(self, record):
+            records.append(record)
+
+    logger = logging.getLogger("legal.chat")
+    handler = Capture()
+    with sse_client(monkeypatch, route="light_buffered") as c:
+        logger.addHandler(handler)
+        try:
+            _reset_shared_state()
+            monkeypatch.setattr(settings_mod.settings, "allow_client_law_as_of", True)
+            token = login(c)
+            frames = chat_frames(c, token, QUESTION, extra={"law_as_of": PRE_WATERSHED})
+        finally:
+            logger.removeHandler(handler)
+
+    audit = [record for record in records if getattr(record, "kind", None) == "historical_law_query"]
+    assert len(audit) == 1
+    payload = json.loads(_JsonFormatter().format(audit[0]))
+    response_conv_id = next(
+        json.loads(frame[6:])["conversation_id"]
+        for frame in frames
+        if frame.startswith("data: {") and "conversation_id" in frame
+    )
+    assert payload["user_id"] > 0
+    assert payload["conv_id"] == response_conv_id
+    assert payload["law_as_of"] == PRE_WATERSHED
+    assert QUESTION not in json.dumps(payload, ensure_ascii=False)
 
 
 def test_control_absent_value_stays_none(monkeypatch):
-    """控制腿：开关关 + 客户端没传 ⇒ `_client_law_as_of` 返回 None（与"没传"一致）。"""
+    monkeypatch.setattr(settings_mod.settings, "allow_client_law_as_of", False)
     assert main._client_law_as_of(_Body(None)) is None
 
 
 def test_fast_path_uses_same_gate(monkeypatch):
-    """快路径同口径（单元级）：关 ⇒ 当日（生产默认路径不变）；开 ⇒ 原值；未传 ⇒ 当日。"""
     monkeypatch.setattr(settings_mod.settings, "allow_client_law_as_of", False)
-    assert main._fast_path_law_as_of(_Body(date(2019, 1, 1))) == date.today()
+    with pytest.raises(HTTPException) as exc:
+        main._fast_path_law_as_of(_Body(date(2019, 1, 1)))
+    assert exc.value.status_code == 503
     assert main._fast_path_law_as_of(_Body(None)) == date.today()
     monkeypatch.setattr(settings_mod.settings, "allow_client_law_as_of", True)
     assert main._fast_path_law_as_of(_Body(date(2019, 1, 1))) == date(2019, 1, 1)
     assert main._fast_path_law_as_of(_Body(None)) == date.today()
+
+
+def test_no_ungated_client_read_of_law_as_of_in_main():
+    """回归守卫：`body.law_as_of` 只允许出现在 `_client_law_as_of` 内（与 `case_domain` 同款）。
+
+    该闸口现在还是 503 的唯一发出处 ⇒ 任何闸外直读都不只是"绕过评测通道"，
+    而是让一个部署已关闭历史查询的实例重新变成静默改用当日。
+    """
+    src = MAIN_SRC.read_text(encoding="utf-8")
+    hits = [m.start() for m in re.finditer(r"body\.law_as_of", src)]
+    assert hits, "主源码里找不到 `body.law_as_of`（改名了？本守卫需同步更新）"
+
+    accessor = re.search(r"def _client_law_as_of\(.*?\n(?=\ndef |\nclass )", src, re.S)
+    assert accessor is not None, "找不到 `_client_law_as_of` 定义（闸不存在？）"
+    lo, hi = accessor.span()
+    outside = [h for h in hits if not (lo <= h < hi)]
+    assert not outside, "存在**闸外**的 `body.law_as_of` 直读（行号={}）——必须改为 `_client_law_as_of(body)`".format(
+        [src[:h].count("\n") + 1 for h in outside]
+    )

@@ -79,20 +79,23 @@ def _bootstrap_deps(store, **overrides):
 
 
 def _fast_deps(**overrides):
+    """快车道取数桩。检索类能力一律接受 `cutoff`（历史查询基准日），
+    与 `FastPathDependencies` 声明的接缝形状保持一致。"""
+
     values = dict(
         feature_study_retrieval=True,
         is_meta_study=lambda query: False,
         rewrite_for_retrieval=lambda raw, recent_ser, recent, has_options: raw,
-        scenario_supplement_docs=lambda query: [],
-        retrieve_exam=lambda query: [],
-        cheating_docs=lambda: [],
-        build_contract_data=lambda text: {"docs": [], "blocks": [], "level": "低", "basis": "test"},
-        retrieve=lambda query, k: [],
+        scenario_supplement_docs=lambda query, cutoff=None: [],
+        retrieve_exam=lambda query, k=6, cutoff=None: [],
+        cheating_docs=lambda cutoff=None: [],
+        build_contract_data=lambda text, cutoff=None: {"docs": [], "blocks": [], "level": "低", "basis": "test"},
+        retrieve=lambda query, k, cutoff=None: [],
         search_qa=lambda query: None,
         is_consumer_clause_scenario=lambda query: False,
-        consumer_clause_docs=lambda: [],
+        consumer_clause_docs=lambda cutoff=None: [],
         is_consumer_fraud_scenario=lambda query: False,
-        consumer_fraud_docs=lambda: [],
+        consumer_fraud_docs=lambda cutoff=None: [],
         format_docs=lambda docs: "",
     )
     values.update(overrides)
@@ -298,8 +301,8 @@ def test_public_api_supports_task6_bootstrap_then_fast_path_consumption(store, m
     monkeypatch.setattr(domain_rules, "is_contract_review", lambda query: False)
     monkeypatch.setattr(settings_module.settings, "feature_multi_analyze", True)
     monkeypatch.setattr(settings_module.settings, "feature_study_retrieval", True)
-    monkeypatch.setattr(retrieval, "retrieve", lambda query, k: [])
-    monkeypatch.setattr(retrieval, "scenario_supplement_docs", lambda query: [])
+    monkeypatch.setattr(retrieval, "retrieve", lambda query, k, cutoff=None: [])
+    monkeypatch.setattr(retrieval, "scenario_supplement_docs", lambda query, cutoff=None: [])
     monkeypatch.setattr(knowledge_service, "search_qa", lambda query: None)
     monkeypatch.setattr(rag_chain, "format_docs", lambda docs: "")
 
@@ -643,7 +646,7 @@ def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store):
     bootstrap = bootstrap_request(store.user_id, store.conv_id, "借款纠纷", None, False, _deps=_bootstrap_deps(store))
     deps = _fast_deps(
         rewrite_for_retrieval=lambda raw, *_: "改写问题",
-        retrieve=lambda query, k: [doc],
+        retrieve=lambda query, k, cutoff=None: [doc],
         search_qa=lambda query: {"question": query, "answer": "缓存答案"},
         format_docs=lambda docs: "格式化法条",
     )
@@ -662,3 +665,261 @@ def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store):
             "status": "effective",
         }
     ]
+
+
+def test_historical_fast_path_uses_date_for_all_evidence_and_skips_current_qa(store):
+    old = SimpleNamespace(
+        metadata={
+            "source": "旧法",
+            "article": "第一条",
+            "effective_from": "2010-01-01",
+            "effective_to": "2020-12-31",
+            "status": "已废止",
+        }
+    )
+    new = SimpleNamespace(
+        metadata={
+            "source": "新法",
+            "article": "第一条",
+            "effective_from": "2021-01-01",
+            "effective_to": "",
+            "status": "现行",
+        }
+    )
+    seen_cutoffs = []
+    bootstrap = bootstrap_request(
+        store.user_id,
+        store.conv_id,
+        "借款纠纷",
+        None,
+        False,
+        law_as_of=date(2019, 1, 1),
+        _deps=_bootstrap_deps(store),
+    )
+    deps = _fast_deps(
+        retrieve=lambda query, k, cutoff: seen_cutoffs.append(cutoff) or [old, new],
+        scenario_supplement_docs=lambda query, cutoff: seen_cutoffs.append(cutoff) or [new],
+        search_qa=lambda query: {"question": query, "answer": "现行法答案"},
+        format_docs=lambda docs: ",".join(doc.metadata["source"] for doc in docs),
+    )
+
+    result = prepare_fast_path(bootstrap, _deps=deps)
+
+    assert len(seen_cutoffs) == 2, seen_cutoffs  # 语义检索 + 场景补充两条取数口都须带上基准日
+    assert set(seen_cutoffs) == {"2019-01-01"}, seen_cutoffs
+    assert result["context"] == "旧法"
+    assert [source["source"] for source in result["sources"]] == ["旧法"]
+    assert result["qa_hit"] is None
+    assert result["law_as_of"] == date(2019, 1, 1)
+
+    from main import _build_messages
+
+    assert "2019-01-01" in _build_messages(result)[-1].content
+
+
+# ==================== 历史查询：每条取数口都按基准日捞（AUTH-2 续） ====================
+# 只在末尾过滤是不够的：末尾过滤保证的是「不把现行法下发给历史查询」（精度），
+# 而「历史有效版本有没有被召回」（召回）取决于取数时带的 cutoff。
+# 下面逐个分支钉第二件事——缺一个分支，该分支的历史查询就会静默变薄或拿错版。
+
+HISTORICAL = date(2019, 1, 1)
+
+
+def _historical_bootstrap(store, **bootstrap_dep_overrides):
+    return bootstrap_request(
+        store.user_id,
+        store.conv_id,
+        "借款合同纠纷",
+        None,
+        False,
+        law_as_of=HISTORICAL,
+        _deps=_bootstrap_deps(store, **bootstrap_dep_overrides),
+    )
+
+
+def _pre_cutoff_doc():
+    """2021-01-01 起生效：在 2019 基准日下**不该**出现。"""
+    return SimpleNamespace(
+        metadata={
+            "source": "民法典",
+            "article": "第五百八十五条",
+            "effective_from": "2021-01-01",
+            "effective_to": "",
+            "status": "现行",
+        }
+    )
+
+
+def _historical_doc():
+    return SimpleNamespace(
+        metadata={
+            "source": "合同法",
+            "article": "第一百一十四条",
+            "effective_from": "1999-10-01",
+            "effective_to": "2021-01-01",
+            "status": "已废止",
+        }
+    )
+
+
+def _docs_by_cutoff(seen, label=None):
+    """按 cutoff 分流的取数桩：带基准日 → 旧法，不带 → 现行法。
+
+    旧实现把 cutoff 丢在调用点 ⇒ 桩只会拿到现行法 ⇒ 末尾过滤再把这唯一一条剔掉
+    ⇒ `sources` 为空。故本桩同时验「带了日期」与「带对日期（真去改了取数口径）」。
+    """
+
+    def _factory(*args, **kwargs):
+        cutoff = kwargs.get("cutoff")
+        seen.append((label, cutoff) if label is not None else cutoff)
+        return [_historical_doc() if cutoff else _pre_cutoff_doc()]
+
+    return _factory
+
+
+def test_historical_exam_branch_fetches_exam_units_at_cutoff(store):
+    seen = []
+    bootstrap = _historical_bootstrap(store, is_exam_question=lambda query: True)
+    deps = _fast_deps(
+        scenario_supplement_docs=_docs_by_cutoff(seen, "supplement"),
+        retrieve_exam=_docs_by_cutoff(seen, "exam"),
+    )
+
+    result = prepare_fast_path(bootstrap, _deps=deps)
+
+    assert [name for name, _ in seen] == ["supplement", "exam"], seen
+    assert {cutoff for _, cutoff in seen} == {HISTORICAL.isoformat()}, seen
+    assert {s["source"] for s in result["sources"]} == {"合同法"}, result["sources"]
+
+
+def test_historical_study_aid_branch_fetches_exam_units_at_cutoff(store):
+    seen = []
+    bootstrap = _historical_bootstrap(store, classify_intent=lambda query: "study_aid")
+    deps = _fast_deps(
+        scenario_supplement_docs=lambda query, cutoff=None: seen.append(("supplement", cutoff)) or [],
+        retrieve_exam=lambda query, k=6, cutoff=None: seen.append(("exam", cutoff)) or [_historical_doc()],
+    )
+
+    prepare_fast_path(bootstrap, _deps=deps)
+
+    assert [cutoff for _, cutoff in seen] == [HISTORICAL.isoformat()] * 2, seen
+
+
+def test_historical_cheating_branch_fetches_spec_docs_at_cutoff(store):
+    seen = []
+    bootstrap = _historical_bootstrap(store, classify_intent=lambda query: "cheating_request")
+    deps = _fast_deps(cheating_docs=lambda cutoff=None: seen.append(cutoff) or [_historical_doc()])
+
+    result = prepare_fast_path(bootstrap, _deps=deps)
+
+    assert seen == [HISTORICAL.isoformat()], seen
+    assert [s["source"] for s in result["sources"]] == ["合同法"], result["sources"]
+
+
+def test_historical_consumer_scenarios_fetch_spec_docs_at_cutoff(store):
+    seen = []
+    bootstrap = _historical_bootstrap(store)
+    deps = _fast_deps(
+        scenario_supplement_docs=_docs_by_cutoff(seen, "supplement"),
+        is_consumer_clause_scenario=lambda query: True,
+        consumer_clause_docs=_docs_by_cutoff(seen, "clause"),
+        is_consumer_fraud_scenario=lambda query: True,
+        consumer_fraud_docs=_docs_by_cutoff(seen, "fraud"),
+    )
+
+    result = prepare_fast_path(bootstrap, _deps=deps)
+
+    assert [name for name, _ in seen] == ["supplement", "clause", "fraud"], seen
+    assert {cutoff for _, cutoff in seen} == {HISTORICAL.isoformat()}, seen
+    assert {s["source"] for s in result["sources"]} == {"合同法"}, result["sources"]
+
+
+def test_historical_contract_branch_builds_evidence_at_cutoff(store):
+    """合同证据必须**按基准日构建**：`blocks` 与 `docs` 同源，事后重过滤改不到 blocks。"""
+    seen = []
+    bootstrap = _historical_bootstrap(store, is_contract_review=lambda query: True)
+
+    def build_contract_data(text, cutoff=None):
+        seen.append(cutoff)
+        doc = _historical_doc() if cutoff else _pre_cutoff_doc()
+        return {
+            "docs": [doc],
+            "blocks": [
+                {"n": 1, "label": "违约责任", "text": "违约金条款", "articles": [doc.metadata["article"]], "tags": []}
+            ],
+            "level": "中",
+            "basis": "test",
+        }
+
+    deps = _fast_deps(
+        build_contract_data=build_contract_data, format_docs=lambda docs: "、".join(d.metadata["source"] for d in docs)
+    )
+
+    result = prepare_fast_path(bootstrap, _deps=deps)
+
+    assert seen == [HISTORICAL.isoformat()], seen
+    assert result["contract_data"]["blocks"][0]["articles"] == ["第一百一十四条"], result["contract_data"]
+    assert [s["source"] for s in result["sources"]] == ["合同法"], result["sources"]
+
+
+def test_current_date_contract_branch_is_unchanged(store):
+    """对照组：不带基准日 ⇒ 传 None ⇒ 合同证据取现行法（生产默认路径零变化）。"""
+    seen = []
+    bootstrap = bootstrap_request(
+        store.user_id,
+        store.conv_id,
+        "借款合同纠纷",
+        None,
+        False,
+        _deps=_bootstrap_deps(store, is_contract_review=lambda query: True),
+    )
+
+    def build_contract_data(text, cutoff=None):
+        seen.append(cutoff)
+        doc = _historical_doc() if cutoff else _pre_cutoff_doc()
+        return {"docs": [doc], "blocks": [], "level": "低", "basis": "test"}
+
+    result = prepare_fast_path(bootstrap, _deps=_fast_deps(build_contract_data=build_contract_data))
+
+    assert seen == [None], seen
+    assert [s["source"] for s in result["sources"]] == ["民法典"], result["sources"]
+
+
+def test_contract_messages_mark_historical_baseline_date(store):
+    """合同链的模型可见上下文必须标出基准日，与 `_build_messages` 同口径。
+
+    不标 ⇒ 模型拿到的是一版旧法，却按现行法措辞作答（民法典时代语境）。
+    对照组（无基准日不出现该标注）防止把标注写成无条件字面量。
+    """
+    from main import _contract_messages
+
+    contract_data = {
+        "docs": [_historical_doc()],
+        "blocks": [
+            {
+                "n": 1,
+                "label": "违约责任",
+                "text": "违约金条款",
+                "articles": ["第一百一十四条"],
+                "tags": ["违约"],
+            }
+        ],
+        "level": "中",
+        "basis": "test",
+    }
+    deps = _fast_deps(build_contract_data=lambda text, cutoff=None: contract_data)
+    historical = prepare_fast_path(_historical_bootstrap(store, is_contract_review=lambda query: True), _deps=deps)
+    current = prepare_fast_path(
+        bootstrap_request(
+            store.user_id,
+            store.conv_id,
+            "借款合同纠纷",
+            None,
+            False,
+            _deps=_bootstrap_deps(store, is_contract_review=lambda query: True),
+        ),
+        _deps=deps,
+    )
+
+    assert "2019-01-01" in _contract_messages(historical, contract_data)[-1].content
+    assert "法律版本基准日" not in _contract_messages(current, contract_data)[-1].content

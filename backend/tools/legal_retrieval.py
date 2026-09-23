@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import hashlib
+import logging
 from typing import Any
 
 from .contracts import RetrievalMetadata, RetrieveLawsInput, RetrieveLawsOutput, ToolContext, map_document
@@ -44,11 +46,14 @@ def retrieve_laws(context: ToolContext, tool_input: RetrieveLawsInput) -> Retrie
             before = len(docs)
             docs = filter_docs_by_domain(docs, domain)
             if len(docs) < before:
-                import logging
-
                 logging.getLogger("legal.agent").info(
                     "dept_filter_removed",
-                    extra={"query": tool_input.query, "domain": domain, "removed": before - len(docs)},
+                    extra={
+                        "query_sha256": hashlib.sha256(tool_input.query.encode("utf-8")).hexdigest(),
+                        "query_len": len(tool_input.query),
+                        "domain": domain,
+                        "removed": before - len(docs),
+                    },
                 )
     # ⚠️ 2026-09-10 首轮「要件法条确定性补充」接线已按预登记**回退**（判据文件：
     #    waxis-verification-preregistration.json；审计：writer-axis-verification.txt）。

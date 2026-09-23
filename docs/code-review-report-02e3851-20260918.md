@@ -230,9 +230,121 @@ P1 = 应优先处理的重要正确性问题；P2 = 常规修复项；P3 = 当�
 - 反例：`source_ref` 为“民法典#第五百七十七条”，snippet 提及《民法典》第五百八十四条；claim 仅引用584并绑定该证据。writer `READY`、verifier `PASS`、finalizer `READY`，但“法律依据”显示“（无）”。
 - 主线交接书要求从绑定证据的 `source_ref` 和必要 snippet 提取引用。最小修复是让展示与校验共享引用集合，并为实际命中的snippet条文生成正确标签。
 
+## 法律版本与时效适用链专项（固定快照 `03ced940`，2026-09-20）
+
+本节只审 `law_as_of → 检索/证据 → writer/verifier → 缓冲与流式出口`，未修改业务代码。需求依据为 `docs/superpowers/plans/2026-09-18-r15-law-version-tripwire.md`、`docs/handoff-r15-and-git-repair-20260919.md` 与 `evals/watershed-cases-r15.json`。两条独立审查轴均确认：当前 R15 判据能拦一部分错答，但把“知识快照日”“事实日期”“时效起算/适用法日期”混成了一个跨分水岭布尔值。
+
+### R15-1 [P1] 正确旧法引用或明确的新旧法衔接说明仍被判为版本冲突
+
+- 位置：`backend/agent/limitation_calc.py:225–255`；消费点 `backend/agent/verifier.py:438–444`、`backend/main.py:1201–1237`。
+- 判据只检查 claim 是否含“时效”关键词，以及最早事实日与 `law_as_of` 是否分处 2021-01-01 两侧；完全不检查 claim 实际引用《民法总则》还是《民法典》，也不识别“适用旧法/需作衔接判断”等限定语。
+- 系统 Python 动态复现（快照 `03ced940`）：事实为“2019年3月5日借款到期”、`law_as_of=2026-09-20` 时，以下三句均返回 `True`：正确引用《民法总则》第188条三年时效；明确说明“不直接适用《民法典》”；仅提示“需结合新旧法衔接规则判断”。开关开启后，Agent 路径会 `FAIL_SAFE`，快车道会追加版本注记并禁止正常缓存。
+- 需求样本只把“对2019年事实直接按《民法典》第188条作答且不作衔接说明”列为 critical failure；当前实现扩大成“任何跨日期的时效陈述都冲突”。现有 `backend/tests/test_r15_version_tripwire.py:32–33` 反而把同形状行为锁为正确结果，测试期望本身需要修订。
+- 最小修复方向：先区分 claim 所引用的法律版本和是否作衔接说明；无法确定适用法时返回“不确定/需核验”，不能仅凭两个日期直接判错。无需引入模型判定器。
+
+### R15-2 [P1] 使用所有事实中的最早日期代理时效起算日，系统性误拦多日期案件
+
+- 位置：`backend/agent/limitation_calc.py:252–255`（`dates[0]`）。
+- 动态反例：事实同时包含“当事人1980年1月1日出生”和“2023年8月1日借款到期”，claim 正确陈述《民法典》第188条三年时效，当前返回 `True`。同类问题还包括2019年签约、2023年违约或2022年发生有效中断；最早日期并不是请求权产生、知道受损或重新起算日期。
+- 影响覆盖 Agent verifier、缓冲轻量出口和旗舰流式出口。虽然判据集中在一个函数中，错误语义会被三个出口一致放大。
+- 最小修复方向：让调用方提供有类型的起算/权利受损事件；缺少该事实时追问或保守标注，不能扫描全部文本后选最早日期。
+
+### R15-3 [P1] `law_as_of` 检索只能提供基准日有效法，跨版本案件没有旧法证据可供生成与核验
+
+- 位置：`backend/tools/legal_retrieval.py:16–26`、`backend/tools/exact_article.py:15–22`、`backend/retrieval.py:345–363,748–788`；快车道残余见 `backend/main.py:1181–1187`。
+- Agent 将 `context.law_as_of` 同时作为知识快照 cutoff；当它是2026年时，已于该日前失效的旧法被过滤。于是系统即使识别出2019事实，也无法取到《民法总则》等当时适用版本作为可绑定证据，只能拒答，不能生成或核验正确的衔接结论。
+- 快车道更弱：`_fast_path_law_as_of` 的日期只供绊线门消费，检索 cutoff 不随请求中的该值变化，代码注释已把此列为已知残余。
+- 最小修复方向：数据模型至少拆分“知识快照日”和“待判断的法律适用区间”，并允许按明确适用区间补取历史版本；保持现有证据来源、效力起止日期和引用校验机制，不另建检索框架。
+
+### R15-4 [P1] 快车道整段答案中的劳动关键词可使民事错误结论绕过版本门
+
+- 位置：`backend/agent/limitation_calc.py:245–247`、`backend/main.py:1201–1222`。
+- 判据只要在输入文本任意位置发现“劳动仲裁”等 `_LABOR_KEYWORDS` 就立即返回 `False`。Agent 按单 claim 检查时影响较窄，但快车道把整段答案作为一个 `claim_text` 传入：一段答案只要另有劳动仲裁内容，就会连带跳过其中民事时效结论。
+- 动态复现：2019年借款事实下，答案同时包含“民事借款适用《民法典》第188条三年”和“劳动仲裁时效一年”，返回 `False`；删除劳动句后同一民事结论返回 `True`。
+- 最小修复方向：在快车道按确定性句段拆分后逐段应用同一判据，或只让劳动排除作用于实际命中的句段；不要增加第二套版本门。
+
+### R15-5 [P2] 常见日期格式不被解析，版本门静默漏判
+
+- 位置：`backend/agent/limitation_calc.py:56–57,69–80`。
+- `_DATE_RE` 只接受“2019年3月5日”，ISO `2019-03-05`、斜杠日期和中文数字日期均返回无日期，随后 fail-open。系统 Python 动态复现：把事实日期改成 `2019-03-05` 后，原本应命中的现行法错答返回 `False`。
+- 最小修复方向：复用项目已有日期归一/解析能力（若无则只补 ISO 和斜杠两种明确格式），为支持和不支持的输入形状建立契约测试；不需要通用自然语言日期解析器。
+
+### 专项验证限制
+
+- 纯函数反例使用系统 Python 在当前工作树运行，均获得上述实际返回值；没有调用模型、网络或生产数据库。
+- 定向 pytest 未执行到收集阶段：`backend/venv/Scripts/python.exe` 的启动器仍指向已不存在的 `C:\Users\33393\AppData\Local\Programs\Python\Python311\python.exe`。按重试纪律在确认同一环境故障后停止，没有把“未运行”写成测试通过。
+- 本节不主张覆盖全部新旧法衔接规则，也未验证真实知识库是否已完整收录历史法版本。
+
+## 认证授权与数据隔离专项（固定快照 `f008ed7`，2026-09-22）
+
+权限基线经 Owner 确认：普通用户只能访问自己的会话、运行、消息、上传和产物；`case_domain` 等评测控制量仅可信评测通道可用；`law_as_of` 可作为公开历史查询条件，但必须审计且不得绕过证据有效性。审查覆盖全部 `backend/main.py` 对外端点及其 Conversation/Message/AgentRun/媒体/反馈查询链。本节未修改业务代码。
+
+### AUTH-1 [P1] 普通认证用户可注入评测专用 `case_domain`，改变 Agent 判域与检索路径
+
+- 位置：`backend/schemas.py:65,73–78`、`backend/main.py:1580–1582,1654–1663`、`backend/agent/r1ob.py:28–34`。
+- `/api/chat` 只要求普通登录；`ChatIn` 对 `case_domain` 仅做枚举校验，随后 Agent 分支将 `body.case_domain` 原样传入 bootstrap。R1-OB 又把该值作为最高优先级判域输入。因此开启 Agent/R1-OB 后，任意普通用户都可指定 `civil/criminal/labor/...`，改变过滤后的证据池与回答路径。
+- `backend/settings.py:44–48` 已把 `case_domain` 定义为评测/灰度输入，但固定快照只有 `allow_client_law_as_of`，没有对应的 case-domain 权限闸。`agent_enabled=False` 只降低当前可达性，不能保证功能开启后的权限契约。
+- 最小修复：沿用现有 `_client_law_as_of` 模式，在唯一 bootstrap 调用边界过滤 `case_domain`，默认返回 `None`；评测启用不能只靠前端不传。无需新增权限框架。
+
+### AUTH-2 [P2] `law_as_of` 的实现契约与已确认的公开历史查询契约不一致，且放行时无审计
+
+- 位置：`backend/main.py:1209–1219,1580–1663`、`backend/settings.py:44–48`。
+- 当前 `allow_client_law_as_of=False` 会静默忽略所有普通用户传入值；设为 `True` 后又对所有已登录用户统一放行，没有记录谁在何时选择了哪个历史基准日。它是全局功能开关，不是调用者权限或审计边界。
+- 按本轮确认契约，普通用户可以使用历史查询条件，因此问题不在“必须改成管理员专用”，而在缺少可见的产品行为和最小审计：请求被忽略时用户不知情，放行时也无法追溯。未发现它能绕过现有 `law_as_of` cutoff；不把本项描述成跨用户越权。
+- 最小修复：保留同一个入参和 cutoff 链，明确选择公开或禁用；若公开，在已有结构化记账中记录 `user_id`、`conversation_id`、`law_as_of`，不记录问题原文。无需单独建设审计系统。
+
+### AUTH-3 [P2] Agent 域过滤日志写入原始争点文本，可能持久化姓名、证件号和案情
+
+- 位置：`backend/tools/legal_retrieval.py:36–50`、`backend/observability.py:90–99`。
+- 域过滤移除文档时，代码把未经脱敏的 `tool_input.query` 作为 `query` 字段写入 `legal.agent`。该 query 来自用户问题和争点，可能包含个人信息；与仅记录长度、哈希或计数的访问记账不同。
+- 风险受 `agent_dept_filter`、Agent 流量和实际日志部署方式限制；当前项目注释将部署定位为本地单租户，因此列 P2，不升级为已证实的数据外泄。它仍违反本轮“检查日志中的案情与个人信息”的最小化原则。
+- 最小修复：沿用项目已有哈希习惯，只记录 query hash/长度、domain 和 removed 数；诊断无需保留原文。
+
+### 权限矩阵复核结果与限制
+
+- 未发现可复现越权：会话 CRUD 和消息读取先校验 `Conversation.user_id`；Agent resume 同时绑定 run/user/conversation；媒体读取同时做路径约束与消息归属校验；反馈携带 conversation 时校验 owner；所有管理员数据出口均使用 `require_admin`。
+- 固定快照已有 foreign conversation/run 测试；媒体、反馈及 `case_domain` 缺少端点级跨用户反例，属于测试覆盖缺口，不单独计为漏洞。
+- 本地动态端点测试未能启动：`backend/venv/Scripts/python.exe` 仍指向已不存在的 Python 3.11，系统 Python 又缺 FastAPI/SQLAlchemy。根据已确认完成标准，本节以端点到查询条件的静态证据收口，不声称动态测试通过。
+- 工作树中的 `backend/tests/test_client_case_domain_gate.py` 为未跟踪文件，不属于固定快照；它描述了拟议闸门，但当前 `backend/main.py`/`backend/settings.py` 尚无对应实现，不能作为已修复证据。
+
+### 2026-09-23 当前快照复核（HEAD `b7d96f5`）
+
+以下结果更新并取代上面仅针对固定快照 `f008ed7` 的实现状态和环境限制；原始发现保留作审查历史，不代表当前仍全部成立。
+
+- **AUTH-1 已修复。** `817e7d3` 增加默认关闭的 `allow_client_case_domain` 和 `_client_case_domain()`，Agent bootstrap 边界只接收经闸门过滤的值；当前源码及 `test_client_case_domain_gate.py` 均已纳入当前快照。原发现仍说明基线当时的风险，不再列为当前未修复问题。
+- 在按当前工作树构建的独立 Docker 审查镜像中，临时容器运行定向套件：`test_client_case_domain_gate.py`、`test_client_law_as_of_gate.py`、`test_agent_repository.py`、`test_agent_resume.py`、`test_phase3.py`，结果 **47 passed / 17 warnings**（20.94秒，exit 0）。测试依赖仅装在一次性容器层；容器未挂载服务数据卷，没有改动运行中的服务或生产数据。警告未导致测试失败。
+- 一次性容器中的双用户端点探针得到：会话所有者 `200`、其他用户 `404`；媒体所有者 `200`、其他用户 `404`；对他人会话提交反馈 `404`。这是本次实际执行的动态端点范围，不应外推为所有公开端点均已动态覆盖。
+- **AUTH-2 本地已实现并测试通过，尚未部署。** 按已确认的公开历史查询契约收口：`allow_client_law_as_of` 默认改为 `True`（`settings.py`）；部署侧显式关闭时，携带日期的请求返回 **HTTP 503 + 可理解提示**而非静默改用当日（`main._client_law_as_of` 是唯一闸口）；`_bootstrap_only` 为每次显式历史查询记 `historical_law_query`，字段仅 `user_id`/`conv_id`/`law_as_of`，问题原文不进日志（`test_agent_gate.py` 逐字段钉死该形状）。
+  - **勘误（本轮自查）**：本节先前写"由 `test_client_law_as_of_gate.py` 的 AST 哨兵防新增旁路"**不实** —— 该文件没有 `import ast`、没有任何扫源守卫（当时的 13 处 "ast" 命中全是 `fastapi`/`_fast_path_` 的子串）。真机制是 `test_client_case_domain_gate.py` 里用正则扫 `main.py` 源码、断言 `body.case_domain` 只出现在闸函数体内；它**只护 `case_domain`**。本轮已把同款守卫补到 `body.law_as_of`（`test_no_ungated_client_read_of_law_as_of_in_main`），并验证其可失败性：临时注入一处闸外直读 ⇒ 该用例变红、且不影响 `case_domain` 那条。此处现在尤其重要——闸口同时是 503 的唯一发出处，闸外直读等于让已关闭历史查询的实例重新变成静默改用当日。
+  - 取数口径本轮补齐（此前只有 `retrieve` 一条通道带 cutoff，其余分支按当日捞、末尾再过滤 ⇒ 表现为**静默丢证据**而非答错版）：考试分步检索 `retrieve_exam`、场景补充 `scenario_supplement_docs`、静态条文集 `cheating_docs`/`consumer_*_docs`、合同链 `build_contract_data`→`contract_supplement_docs` 全部按基准日取数；合同 `blocks[*]["articles"]` 与 `docs` 同源构建（事后重过滤改不到 `blocks`，而 `_contract_messages` 读的正是 `blocks`）。
+  - **第二轮自查补漏（评审发现，先前漏网）**：Agent 工具链的合同口 `tools/contract.py` 仍按当日取数（`_build_contract_data(text)` 丢掉 `context.law_as_of`，而同函数只把它用于 `map_document` 的 validity 标注）⇒ 历史 run 调 `analyze_contract` 时条号仍按现行法构建、历史有效条文从未进候选，与快车道缺口1 同一失效模式；同包 `tools/exact_article.py` 早已是正确写法。已补 `cutoff=context.law_as_of.isoformat()` 并加两腿测试（工具→适配器、适配器→`domain_rules`），改前红、改后绿。
+  - 其余出口按 fail-closed 收口：历史请求不进共享答案缓存与近重复缓存（`_cacheable`）、不直返 QA 语料（`prepare_fast_path` 置 `qa_hit=None`）、**不进受控沉淀待审**（`_post` 闸；`qa_pairs` 无版本轴，采纳后会把旧版答案下发给现行查询）；普通问答与合同两条 messages 组装路径共用同一句基准日标注（`_law_version_scope_note`）。
+  - Agent 恢复分支：基准日随 run 建立即固定，恢复请求带来不同日期时在 **CAS 之前** 409 拒绝（`ResumeLawAsOfConflict`）；技术性失败降级到快车道时沿用 `run.law_as_of`。
+    - 取舍声明①（有损代理）：`AgentRun.law_as_of` 非空且分不清"用户选了今天"与"用户没选"，因此 `_resume_law_as_of` 把**当日折成"未指定"**。唯一偏差：首请求显式传今天会退出直返/缓存/沉淀，恢复分支降级回来时不会。取它是不动生产默认路径；要彻底消除需给 run 加"日期是否被显式选择"标记（schema 改动，不在本轮授权）。
+    - 取舍声明②（审计半边）：恢复分支不走 `_bootstrap_only`，故 resume **不再产生** `historical_law_query` 记录——设计意图是"一次日期选择记一次"（记在 run 建立那次）。本轮只保证日期一致性与不静默丢弃，未新增恢复点审计。
+  - 接缝防回退（本轮补）：`FastPathDependencies` 的取数口类型从 `Callable[…]` 收紧为 **cutoff 必传关键字的 `Protocol`**。实测牙齿：故意把 `deps.cheating_docs(cutoff=cutoff)` 写成 `deps.cheating_docs()` ⇒ mypy 报 `Missing named argument "cutoff"`；此前我用放宽类型换取 mypy 通过，等于在本次要护的接缝上取消了类型检查。
+  - **需 Owner 复评的代价（未自行处理）**：09-21 裁定注释里"分水岭前的值会触发护栏回落 LLM ⇒ 不限通道就是公开用户的成本口子"这条事实**依然成立**，且现由 `qa_hit=None`/`_cacheable` 排除实现为结构保证。公开化把调用者从评测通道换成任意已认证用户 ⇒ 客户端可用一个日期把缓存命中打成未命中（有界：单请求、60/分钟、最贵等于一次未命中）。`settings.py` 已把该耦合写进注释，成本口径是否要加限额需 Owner 定。
+  - 检索结果缓存键本身含 `cutoff`（`retrieval.py:823`），不存在跨日期串用。
+- **AUTH-3 本地已实现并测试通过，尚未部署。** `dept_filter_removed` 不再写原始 `tool_input.query`，改记 `query_sha256` + `query_len` + 域与剔除数；结构化字段白名单同步（移除 `query`，加入两个新字段）。
+  - **两层防护的归因被本轮实测分开**：把 `extra["query"]` 原样写回代码后，只有白名单哨兵 `test_log_field_whitelist` 变红，而 `test_filter_log_omits_raw_case_text` 里"`payload` 不含原文"那条**仍绿** —— 因为 `_JsonFormatter` 会把未登记字段整批丢掉，序列化结果自然没有它。也就是说该断言原先证明的是"formatter 挡住了"，证明不了"代码没写"。已补一条钉在 `LogRecord` 上的 `assert not hasattr(record, "query")`，并双向验证：干净代码 13 passed、写回原文即红。两层现在各有可归因的用例。
+  - 残留（判定记录）：未加密钥的 SHA-256 **只解决"日志静止态含个人信息"，不等于匿名化**。它确定可关联——同一问句在多条日志间可被比对；且对**短/低熵**问句，持日志者可用候选句集合正算哈希做成员判定。当前判定为可接受：该字段用途就是同库内分组排障，且相对原文（完全可关联）严格更小暴露。**升级触发条件**：日志读者扩到运维以外的人群，或需要防成员判定 ⇒ 换成服务端密钥的 HMAC（`legal_retrieval` 需引入 settings 耦合，故不在本轮擅自做）。
+- 本轮验证证据（隔离容器 `codex-auth-review-test`，镜像 `ai-legal-helper-backend:audit-current`，无挂载卷、无端口映射，非运行中的服务）：
+  - **同步前置**：容器无 bind mount，故逐个比对宿主/容器 md5（22 个改动+新增文件，路径映射为宿主 `backend/X` → 容器 `/app/X`），全部一致后才引用下面的数字。
+  - 开工前基线（补齐上一轮被中断的宽套件）：**81 passed / 2 skipped**，exit 0（33.78 秒）。
+  - **2026-09-24 最终字节重跑**——定向 AUTH 套件（宽套件 7 文件 + `test_historical_law_cutoff_threading.py` + `test_agent_resume.py` + `test_light_exit_gates.py` + `test_pre_rewrite_order.py` + `test_scenario_supplement.py` + `test_domain_rules.py` + `test_tool_gateway.py` + `test_agent_gate.py` 共 15 文件）：**235 passed / 10 skipped / 59 warnings，47.06 秒，exit 0**。
+  - **2026-09-24 最终字节重跑**——全量 `tests/`（排除 4 个收集期即因缺件报错的评测 runner：`test_gate2_runner`/`test_gate5_judge_layers`/`test_harness_fact_reveal`/`test_r15_runner_injection`）：**1407 passed / 12 failed / 25 skipped，113.87 秒，exit 1**；12 项失败与下面缺件清单逐项同名，无新增。
+  - 退出码取法：`pytest > file 2>&1; echo $?` 后再看文件尾部。**管道接 `tail` 会拿到 `tail` 的退出码**（本轮一次误跑就是这样报出假 `exit 0`），已重跑纠正。
+  - 静态检查（宿主 `backend/venv`）：`ruff check .` 全通过；`mypy .` **Success: no issues found in 73 source files**；`git diff --check` 无空白错误。
+  - `ruff format --check` 的处置：本改动集内 3 个文件（`tools/legal_retrieval.py`/`observability.py`/`schemas.py`）原先被判"需重排"，实测原因是**工作树行尾混排**（`core.autocrlf=true` 且无 `.gitattributes`，编辑工具以 LF 追加补丁 ⇒ 主体 CRLF + 补丁行 LF）。仅统一行尾后三个文件即 `already formatted`，且 `git hash-object --path --filters -w` 前后 blob 哈希**逐字节相同**（`29b2997…`/`4030f7b…`/`edc69a9…`），即零内容差异、不产生整文件噪声。仓库内另有 6 个**本改动集未触及**的文件仍被判需重排（`agent/phantom_check.py`/`verifier.py`/`writer.py`、`tests/test_entity_precision.py`/`test_law_snapshot_review.py`/`test_review_regressions.py`），属同一行尾成因的既有状态，按"不批量清理他人改动"保留并如实标注。
+- **上述 12 项失败未修，归因为容器缺件与路径布局**（非本轮改动引入）：`test_chunking.py` 7 项为 `data/sample_laws/sample_law.txt` 缺失（该目录在宿主仓库里同样不存在）；`test_eval_agent.py` 2 项、`test_init_release_evidence.py` 1 项、`test_gate_exit_registry.py` 1 项为 `/release-evidence`、`/docs/gate-exit-registry.md` 未进镜像；`test_chroma_isolation.py` 1 项断言临时库不在仓库根下，容器内根路径布局与宿主不同。归因依据是失败信息本身（缺件/路径），本轮**未**做"同批用例在改动前代码上同样失败"的对照跑（新开容器被授权边界挡住）。
+- 判据强度说明（防"为错的原因绿"）：本轮每个修正先有红测。`test_historical_law_cutoff_threading.py` 实现前 **7 failed / 1 passed**（唯一通过的是"不传 cutoff 保持旧形状"对照组），实现后 8 passed；`test_agent_resume.py` 新增 5 项实现前 4 failed；沉淀闸新用例实现前红在 `created` 多出一条（确实漏沉淀）。另用 `git show HEAD` 与"开工前"两份 `request_bootstrap` 副本做过旧实现对照跑：考试/学习/作弊/合同/消费者五条取数口在旧实现下 `cutoff=None` 且**证据为空**，当前实现下五条口全部带基准日且证据为历史版本。
+- 本轮顺带修掉两处与 AUTH 无关但被改动暴露的测试隔离问题：`tests/_sse_harness.py` 的合同替身签名补 `cutoff`；`test_agent_gate.py::test_logging_failure_is_counted_and_fails_open` 由 `caplog` 改为直挂 handler（`setup_logging` 把 `legal.chat` 的 `propagate` 关成 False，凡先跑过完整请求链路的用例都会让 caplog 收不到 ⇒ 该用例此前只在特定执行顺序下绿）。
+- **动态覆盖尚未完全达到此前确认的全矩阵阈值。** 本次没有对 AgentRun/消息/上传/导出下载和评测参数逐个完成双用户端点探针；定向测试覆盖了 AgentRun 仓储/恢复及两类入参闸门。代码中聊天上传是即时提取流程，未发现可供跨用户读取的持久化上传对象；这说明该数据类型的复现条件有限，不等于已覆盖其他导出或产物接口。会话、媒体、反馈的动态结果及其他端点的静态/测试证据应分别理解。
+- 原“venv 指向不存在 Python 3.11 / 系统 Python 缺依赖”的限制只适用于旧快照的本地启动方式；本次通过隔离 Docker 容器已完成上述定向测试，不再作为当前限制。专项范围仍不等同于全面渗透测试，也未审生产环境日志访问和保留配置。
+
 ## 安全审查观察（未计入上述已确认问题）
 
-- `/api/chat` 的普通认证请求可携带 `case_domain` 和 `law_as_of`：`ChatIn` 只做枚举/日期校验，`main.py:1461–1462` 直接透传，未验证评测/灰度身份。域码又是 R1-OB 最高优先级判域来源，日期进入法律有效性 cutoff。“生产前端不传”不是信任边界。需要明确这是否本来就是所有用户的公开能力；若仅供评测，应在服务端限制通道或权限。若公开，应明确为用户可控制输入，而非笼统声称 server-owned。未证明跨用户越权、执行任意代码或数据泄漏，不将此升级为已确认高危漏洞。
+- 基线 `f008ed7` 上 `/api/chat` 曾允许普通认证请求直接控制 `case_domain`；此项已由 AUTH-1 当前修复关闭。AUTH-2 的 `law_as_of` 静默忽略与审计缺口已按"公开历史查询 + 关闭时 503 + 最小审计"在本地代码收口（见上一节，尚未部署）。未证明跨用户越权、执行任意代码或数据泄漏，不将此升级为已确认高危漏洞。
 - `agent_claim_checks` 新日志字段记录草稿前120字符。草稿可能复述姓名、案情等用户信息，“非用户输入原文”不等于脱敏。需要确认现有日志访问权限、脱敏和保留策略；未读取真实密钥或导出用户数据。
 - 本次没有完成联网依赖漏洞库扫描、渗透测试或生产配置核验，因此不作“无漏洞”的结论。
 

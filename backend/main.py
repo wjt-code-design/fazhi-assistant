@@ -45,7 +45,9 @@ from agent.chat_integration import (
 from agent.controller import (
     _DEFAULT_RUN_LOCKS,
     RESUME_CONFLICT_DETAIL,
+    RESUME_LAW_AS_OF_DETAIL,
     RESUME_NOT_FOUND_DETAIL,
+    ResumeLawAsOfConflict,
     ResumeRunConflict,
     ResumeRunNotFound,
     resume_with_user_fact,
@@ -426,6 +428,16 @@ def get_media(filepath: str, user: User = Depends(get_current_user), db: Session
     return FileResponse(full)
 
 
+def _law_version_scope_note(pre: dict) -> str:
+    """显式历史基准日的模型可见标注（空串 = 未指定，不标注）。
+
+    全仓一份措辞：普通问答与合同两条 messages 组装路径共用。各抄一份会漂移，
+    而模型看到「哪一版法」的提示必须两处同义（同 NOTE_MULTI_INCOMPLETE 的复用理由）。
+    """
+    as_of = pre.get("law_as_of")
+    return f"（法律版本基准日：{as_of.isoformat()}）" if as_of else ""
+
+
 # ==================== 问答编排（多轮 + 多模态 + 异步压缩 + 受控沉淀） ====================
 def _build_messages(pre: dict) -> list:
     intent = pre.get("intent", "legal_query")
@@ -459,8 +471,9 @@ def _build_messages(pre: dict) -> list:
         qa_note = (
             f"此前已确认的问答（可优先参考）：\n问：{pre['qa_hit']['question']}\n答：{pre['qa_hit']['answer']}\n\n"
         )
+    date_scope = _law_version_scope_note(pre)
     context_block = (
-        f"本题相关法律条文（以下均为本题判断依据，含场景补充条文，可全部直接引用）：\n"
+        f"本题相关法律条文{date_scope}（以下均为本题判断依据，含场景补充条文，可全部直接引用）：\n"
         f"{pre['context'] or '（无直接命中条文）'}\n\n{qa_note}"
     )
     user_text = pre["user_text"]
@@ -520,6 +533,7 @@ def _contract_messages(pre: dict, cd: dict) -> list:
         tags = "、".join(b["tags"]) or "无"
         evidence.append(f"[{b['n']}. {b['label']}] 风险标签：{tags}\n{b['text']}\n（相关条文：{arts}）")
     evidence_block = "\n\n".join(evidence)
+    scope_note = _law_version_scope_note(pre)
 
     # 追问判定用「是否已产出过完整报告」，而非「recent 有无 assistant 消息」——
     # need_clarify 信息确认反问也是 assistant 消息，会把首次真评估误判成追问、
@@ -541,7 +555,7 @@ def _contract_messages(pre: dict, cd: dict) -> list:
         sys_text += OUTPUT_FORMAT_RULE
         sys_text += CITATION_SELECTION_RULE
         user_content = (
-            f"【合同（分条款）】\n{evidence_block}\n\n"
+            f"【合同（分条款）】{scope_note}\n{evidence_block}\n\n"
             f"用户追问：{pre.get('user_text') or ''}\n\n"
             "请直接针对上面的追问回答，不要重新输出完整风险评估报告。"
         )
@@ -554,7 +568,7 @@ def _contract_messages(pre: dict, cd: dict) -> list:
     sys_text += f"\n（本份合同总体风险等级：{cd['level']}——判定依据：{cd['basis']}）"
     if cd.get("truncated"):
         sys_text += "\n（合同过长已截取前段，末尾请列出'未覆盖条款段'清单，建议用户分段审查）"
-    user_content = f"【合同（分条款）】\n{evidence_block}\n\n请按模板输出合同风险评估报告。"
+    user_content = f"【合同（分条款）】{scope_note}\n{evidence_block}\n\n请按模板输出合同风险评估报告。"
     return [SystemMessage(content=sys_text), HumanMessage(content=user_content)]
 
 
@@ -651,7 +665,7 @@ def _bootstrap_only(
     law_as_of: date | None = None,
 ):
     """Persist one accepted user request without starting either answer path."""
-    return bootstrap_request(
+    bootstrap = bootstrap_request(
         user_id,
         conversation_id,
         text,
@@ -676,6 +690,14 @@ def _bootstrap_only(
             is_contract_exit=is_contract_exit,
         ),
     )
+    if bootstrap.law_as_of is not None:
+        log_account(
+            kind="historical_law_query",
+            user_id=user_id,
+            conv_id=bootstrap.conv_id,
+            law_as_of=bootstrap.law_as_of.isoformat(),
+        )
+    return bootstrap
 
 
 def _prepare_fast_path_only(bootstrap: RequestBootstrap):
@@ -701,9 +723,16 @@ def _prepare_fast_path_only(bootstrap: RequestBootstrap):
     )
 
 
-def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool = False):
+def _pre(
+    user_id: int,
+    conversation_id,
+    text: str,
+    image,
+    client_truncated: bool = False,
+    law_as_of: date | None = None,
+):
     """Compatibility coordinator for committed bootstrap plus legacy fast retrieval."""
-    bootstrap = _bootstrap_only(user_id, conversation_id, text, image, client_truncated)
+    bootstrap = _bootstrap_only(user_id, conversation_id, text, image, client_truncated, law_as_of=law_as_of)
     if settings.agent_shadow_enabled:
         try:
             _run_agent_gate_shadow(bootstrap)
@@ -741,7 +770,25 @@ def fallback_to_fast_path(bootstrap: RequestBootstrap, reason_code: str) -> dict
     return prepared
 
 
-def _resume_bootstrap(*, conversation_id: int, answer: str, state: LegalAgentState) -> RequestBootstrap:
+def _resume_law_as_of(run_law_as_of: date) -> date | None:
+    """恢复分支的基准日取舍：基准日随 run 建立即固定，本次请求带来的不同日期在 CAS 前就被拒。
+
+    run 落**当日** ⇒ 返回 None（按"未指定历史"处理）。这是个**有损代理**：`AgentRun.law_as_of`
+    非空（`create_run` 一律 `or date.today()`），分不清"用户选了今天"和"用户没选"。唯一偏差：
+    首请求显式传今天会退出直返/共享缓存/沉淀，而恢复分支技术性降级回来时不会。取这个代理是为
+    不动生产默认路径（否则每个"走 Agent 再技术性降级"的请求都白丢一次缓存命中）。要彻底消偏差
+    得给 run 加"日期是否被显式选择"的标记 —— 那是 schema 改动，不在本轮授权内。
+    """
+    return None if run_law_as_of == date.today() else run_law_as_of
+
+
+def _resume_bootstrap(
+    *,
+    conversation_id: int,
+    answer: str,
+    state: LegalAgentState,
+    law_as_of: date | None,
+) -> RequestBootstrap:
     """Build a non-persisting Planner snapshot after an owned clarification CAS."""
     issue_context = "；".join(issue.question for issue in state.issues)
     query = f"原法律争点：{issue_context}\n用户补充：{answer.strip()}"
@@ -765,6 +812,8 @@ def _resume_bootstrap(*, conversation_id: int, answer: str, state: LegalAgentSta
         client_truncated=False,
         # R1-OB：resume 场景判域元信息沿用 state（首次请求时已持久化），保证多轮一致。
         case_domain=state.case_domain,
+        # 基准日同理沿用 run（首次请求时已落库）：技术性失败降级到快车道时不得改用现行法。
+        law_as_of=law_as_of,
     )
 
 
@@ -939,7 +988,9 @@ def _post(pre: dict, answer: str, curate: bool = True):
         # 受控沉淀：高有据 + 含引用 + 非空答 → 入待审
         # 沉淀闸（决策 7）：只收真实法律咨询——study_aid 法考题错答（多选漏答）可被采纳污染
         # qa_pairs；cheating 问答本就不该沉淀；chitchat/meta 无引用本就不沉淀。
-        if curate and pre.get("intent") == "legal_query":
+        # 历史基准日的答案同样不收：它引的是该日有效、当日可能已废止的版本，而 qa_pairs 无版本轴
+        # （`law_as_of_basis` 只由 seeds/生成脚本写）⇒ 采纳后**现行**查询会直返旧版答案。
+        if curate and pre.get("intent") == "legal_query" and not pre.get("law_as_of"):
             grounded = grounded_top_score(pre["rewritten"])
             q = pre["user_text"] or pre["rewritten"]
             if q and should_curate(grounded, answer):
@@ -1036,11 +1087,16 @@ def _cutoff() -> str:
 def _cacheable(pre: dict) -> bool:
     """仅安全形态可缓存：法律咨询/法考题(study_aid) + 无图 + 首轮 + 检索命中。
 
-    study_aid 白名单由 feature_study_cache 控制（ADR-012 后法考题答案自检通过率高——
-    评测 19/20 带库内引用，写闸见 _cache_write_ok，防"引在库但答非所问"入缓存）。"""
+    study_aid 白名单由 feature_study_cache 控制；显式历史日期不进共享答案缓存。"""
     intent = pre.get("intent")
     ok_intent = intent == "legal_query" or (settings.feature_study_cache and intent == "study_aid")
-    return ok_intent and not pre.get("image") and not pre.get("recent") and bool(pre.get("sources"))
+    return (
+        ok_intent
+        and not pre.get("law_as_of")
+        and not pre.get("image")
+        and not pre.get("recent")
+        and bool(pre.get("sources"))
+    )
 
 
 def _cache_key(pre: dict) -> str:
@@ -1207,20 +1263,14 @@ def _fast_path_fact_texts(pre: dict) -> list[str]:
 
 
 def _client_law_as_of(body) -> date | None:
-    """客户端传入的 `law_as_of`，经**评测通道闸**过滤（R15 安全观察，Owner 2026-09-21 裁定）。
-
-    定位：该值直接改变"用哪天的法"与证据 cutoff，是**评测/灰度输入**，不是普通用户的偏好。
-    `settings.allow_client_law_as_of=False`（默认）⇒ 返回 None ⇒ 各消费方落当日，
-    行为与"客户端没传"完全一致（生产默认路径零变化，已验证）。
-    `case_domain` 的同款限制已于 2026-09-22 一并落地（见 `_client_case_domain`）。
-    """
-    if not settings.allow_client_law_as_of:
-        return None
+    """公开历史查询；部署关闭时明确拒绝，避免静默改用当日法律。"""
+    if body.law_as_of is not None and not settings.allow_client_law_as_of:
+        raise HTTPException(status_code=503, detail="历史查询当前不可用")
     return body.law_as_of
 
 
 def _client_case_domain(body) -> str | None:
-    """客户端传入的 `case_domain`，经**评测通道闸**过滤（与 `_client_law_as_of` 同款）。
+    """客户端传入的 `case_domain`，经评测通道闸过滤。
 
     定位：该值决定 R1-OB 判域（劳/民/商…），是**评测/灰度输入**，不是普通用户的偏好。
     `settings.allow_client_case_domain=False`（默认）⇒ 返回 None ⇒ 消费方落默认，
@@ -1236,19 +1286,7 @@ def _client_case_domain(body) -> str | None:
 
 
 def _fast_path_law_as_of(body) -> date:
-    """快车道判定用的法律版本基准日 = R15-lite 第①半里的**"缺省落当日"那一小条**。
-
-    agent 路径那一半在 `agent/repository.py` 的 `create_run`，而快车道**不经过** `create_run`
-    ⇒ 必须在调用点自己补。漏掉的后果不是"少判一次"，是 `None` 被 `_law_version_gate` 当成
-    接线丢失（`LAW_TRIPWIRE_NOT_WIRED`）⇒ 开关一开**每条答复都命中**。
-    缺省处理本身仍按 `create_run` docstring 的锁定：不改必填、不报错。
-
-    ⚠️ **别把本函数读成"第①半已搬齐"**：`create_run` 那半还包括「随 run 持久化」与
-    「被工具 cutoff / 证据有效性判定消费」，而快车道没有 run 对象可挂 ⇒ 本值**只有绊线门一个消费者**，
-    快车道的检索 cutoff 不随它变。这条不对等是**已知残余**（登记表 E7×版本绊线 取证 + ADR-018 已知残留），
-    不是本函数的实现缺陷。
-    流式出口（票 C / S6）复用本函数，别再写第二份 `or date.today()`。
-    """
+    """快车道版本绊线基准日；检索 cutoff 已在 bootstrap 准备阶段接入。"""
     return _client_law_as_of(body) or date.today()
 
 
@@ -1596,6 +1634,7 @@ def serialize_clarification_event(*, run_id: str, state_version: int, prompt: st
 @app.post("/api/chat")
 @limiter.limit("60/minute")
 async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
+    client_law_as_of = _client_law_as_of(body)
     text = (body.content if body.content is not None else body.question) or ""
     text = text.strip()
     image = body.image
@@ -1622,11 +1661,13 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 user_id=user.id,
                 conversation_id=body.conversation_id,
                 answer=text,
+                expected_law_as_of=client_law_as_of,
             )
             resume_bootstrap = _resume_bootstrap(
                 conversation_id=body.conversation_id,
                 answer=text,
                 state=resumed.state,
+                law_as_of=_resume_law_as_of(resumed.law_as_of),
             )
             agent_result = await _execute_agent_observing_disconnect(
                 request,
@@ -1639,6 +1680,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             )
         except ResumeRunNotFound:
             raise HTTPException(status_code=404, detail=RESUME_NOT_FOUND_DETAIL) from None
+        except ResumeLawAsOfConflict:
+            raise HTTPException(status_code=409, detail=RESUME_LAW_AS_OF_DETAIL) from None
         except ResumeRunConflict:
             raise HTTPException(status_code=409, detail=RESUME_CONFLICT_DETAIL) from None
         finally:
@@ -1664,6 +1707,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     text,
                     image,
                     body.truncated,
+                    client_law_as_of,
                 )
                 _record_actual_agent_route("fast_path")
             else:
@@ -1675,7 +1719,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     image,
                     body.truncated,
                     _client_case_domain(body),
-                    _client_law_as_of(body),
+                    client_law_as_of,
                 )
                 correlation_id = make_agent_correlation_id(conversation_id=bootstrap.conv_id)
                 try:
@@ -2156,8 +2200,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E8
             answer = "".join(chunks)
             # 票 C/S6：把 S5 那道版本绊线门接到本条**唯一承流量**的生成出口上。三个口径照票面：
-            #   §5-4 基准日传 `_fast_path_law_as_of(body)` 而不是 `body.law_as_of`（生产客户端不传
-            #         ⇒ None ⇒ 门当成"接线丢失"先行命中 ⇒ 开关一开每条答复都降级）；
+            #   §5-4 基准日传 `_fast_path_law_as_of(body)`，未指定时由服务端落当日；
             #   §4-Q3 判定读 `clean_answer` 之后的模型原文，注记家族（引用/多选/自检/配额）在它之后；
             #   §5-3 本出口有**两个**答案来源（流式 join / `_invoke_llm` 兜底），逐个来源各过一次性门。
             law_version_hit = False
