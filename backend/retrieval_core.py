@@ -4,6 +4,7 @@
 因此可被单元测试快速覆盖。重排模型加载与向量检索在 retrieval.py。
 """
 
+import json
 import math
 import threading
 from collections import OrderedDict
@@ -59,6 +60,57 @@ def is_valid_by_time(meta: Mapping, today: str) -> bool:
     if status in {"即将施行", "未生效"} and not ef:
         return False  # 无法证明已经生效
     return True
+
+
+def cited_articles(evidence: str) -> list[tuple[str, str]]:
+    """把 QA 语料的 `evidence` 解析成 (source, article) 对；认不出的形状返回空表。
+
+    在库的三种形状（2026-09-24 对生效集合实测：279 条 = 200 JSON + 76 管道符 + 3 其它）：
+    种子与语料生成脚本写 `source|article`；`main._post` 的自动沉淀与管理员采纳路径写
+    JSON 数组；反馈来源写 `feedback:<rating>`——最后这种解析不出任何一对。
+    时效护栏与来源可校验判据共用这一份解析，不留第二份形状知识。
+    """
+    text = (evidence or "").strip()
+    if not text:
+        return []
+    if text.startswith("["):
+        try:
+            refs = json.loads(text)
+        except ValueError:
+            return []
+        if not isinstance(refs, list):
+            return []
+        pairs = []
+        for ref in refs:
+            if not isinstance(ref, dict):
+                continue
+            src = str(ref.get("source") or "").strip()
+            art = str(ref.get("article") or "").strip()
+            if src and art:
+                pairs.append((src, art))
+        return pairs
+    if "|" in text:
+        src, _, art = text.partition("|")
+        src, art = src.strip(), art.strip()
+        return [(src, art)] if src and art else []
+    return []
+
+
+def qa_provenance_verifiable(qa: Mapping | None) -> bool:
+    """这条 QA 语料记录能否被独立校验 ⇒ 才允许参与答复生成。
+
+    两个条件缺一不可：① `evidence` 里存在可校验的条文引用，否则时效护栏没有输入，答案
+    对不对只能信产出它的那一方；② `law_as_of_basis` 非空，否则版本分水岭守卫没有输入，
+    旧版答案可以原样答给现行查询。
+
+    判据按**证据形状**整类判定而不是点名 `feedback:` 前缀：未来任何新来源默认落在判据外，
+    同时补掉 `knowledge_service.search_qa` 用 `.get("evidence", "")` 造成的缺键放行。
+    """
+    if not qa:
+        return False
+    if not cited_articles(str(qa.get("evidence") or "")):
+        return False
+    return bool(str(qa.get("law_as_of_basis") or "").strip())
 
 
 def tokenize(text: str) -> list[str]:

@@ -643,11 +643,17 @@ def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store):
             "status": "effective",
         }
     )
+    verifiable_qa = {
+        "question": "改写问题",
+        "answer": "缓存答案",
+        "evidence": "劳动合同法|第十九条",
+        "law_as_of_basis": "2026-01-01",
+    }
     bootstrap = bootstrap_request(store.user_id, store.conv_id, "借款纠纷", None, False, _deps=_bootstrap_deps(store))
     deps = _fast_deps(
         rewrite_for_retrieval=lambda raw, *_: "改写问题",
         retrieve=lambda query, k, cutoff=None: [doc],
-        search_qa=lambda query: {"question": query, "answer": "缓存答案"},
+        search_qa=lambda query: dict(verifiable_qa),
         format_docs=lambda docs: "格式化法条",
     )
 
@@ -655,7 +661,7 @@ def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store):
 
     assert result["rewritten"] == "改写问题"
     assert result["context"] == "格式化法条"
-    assert result["qa_hit"] == {"question": "改写问题", "answer": "缓存答案"}
+    assert result["qa_hit"] == verifiable_qa
     assert result["sources"] == [
         {
             "source": "民法典",
@@ -665,6 +671,26 @@ def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store):
             "status": "effective",
         }
     ]
+
+
+def test_fast_path_drops_qa_hit_whose_provenance_is_not_verifiable(store):
+    """产生处接缝：来源校验不了的 QA 记录不给它 `qa_hit`，直返与 prompt 注入两个出口一起关。
+
+    旧行为：`search_qa` 返回什么就原样进 `qa_hit` ⇒ `evidence='[]'`（实测存量 5 条的形状）
+    和缺 `law_as_of_basis` 的记录都能被直返、并被注入 prompt。
+    判据刻意放在这一缝而不是 `search_qa` 内部：`qa_seeds.py` 与 `scripts/gen_qa_corpus.py`
+    拿 `search_qa(threshold=0.99)` 做**幂等去重**，把策略塞进去会外溢到写侧语义。
+    """
+    bootstrap = bootstrap_request(store.user_id, store.conv_id, "借款纠纷", None, False, _deps=_bootstrap_deps(store))
+
+    for label, qa in {
+        "无条文引用": {"question": "q", "answer": "a", "evidence": "[]", "law_as_of_basis": "2026-01-01"},
+        "缺版本基准日": {"question": "q", "answer": "a", "evidence": "劳动合同法|第十九条", "law_as_of_basis": ""},
+        "反馈来源": {"question": "q", "answer": "a", "evidence": "feedback:down", "law_as_of_basis": ""},
+    }.items():
+        deps = _fast_deps(search_qa=lambda query, _qa=qa: dict(_qa))
+        result = prepare_fast_path(bootstrap, _deps=deps)
+        assert result["qa_hit"] is None, label
 
 
 def test_historical_fast_path_uses_date_for_all_evidence_and_skips_current_qa(store):

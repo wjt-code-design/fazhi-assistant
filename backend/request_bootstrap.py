@@ -490,7 +490,13 @@ def prepare_fast_path(
         else:
             docs = deps.retrieve(rewritten, k=10, cutoff=cutoff)
         # QA 语料按**当日**沉淀，无版本轴 ⇒ 历史查询不可直返（见 main._qa_direct_return 分水岭守卫）。
+        from retrieval_core import qa_provenance_verifiable
+
         qa_hit = None if cutoff else deps.search_qa(rewritten)
+        if not qa_provenance_verifiable(qa_hit):
+            # 来源校验不了的记录不给它进 `pre["qa_hit"]`：直返（main._qa_direct_return）与
+            # prompt 注入（main._build_messages 的"此前已确认的问答"）两个出口共用这一处判定。
+            qa_hit = None
         if not bootstrap.is_exam:
             docs = deps.scenario_supplement_docs(bootstrap.supplement_text, cutoff=cutoff) + docs
             query = bootstrap.user_text or raw_query

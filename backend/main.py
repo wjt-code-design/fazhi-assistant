@@ -132,6 +132,7 @@ from retrieval import (
     scenario_supplement_docs,
     source_in_kb,
 )
+from retrieval_core import cited_articles, qa_provenance_verifiable
 from schemas import (
     ChatIn,
     ConversationDetail,
@@ -1177,12 +1178,20 @@ def _qa_direct_return(pre: dict, law_as_of: date | None = None) -> str | None:
       （**不另立第二个分水岭**）。
 
     ⚠️ 三条既有护栏**一个字没动**（票面 I-4 明令），本节是按 I-2 要求新增的**第四**条。
-    ⚠️ 语料若**没有**该字段（空/缺失）⇒ **不拦**（保持旧行为）：这道门的射程只覆盖"已标注基准日"的记录，
-    不因未知记录扩大拦截面。格式不认识的脏值同样不拦（不把安全默认值反着用）。
+
+    **第五道（第四轮核对 §10 第 2 条，2026-09-24 由 Owner 裁决收紧）**：`retrieval_core.qa_provenance_verifiable`
+    ⇒ `evidence` 给不出可校验条文引用、或缺 `law_as_of_basis` 的记录**一律不直返**。这一道**取代**了原先
+    "语料没有该字段⇒不拦（保持旧行为）"的口径：分水岭守卫缺输入时不再放行，而是在源头就被拒。
+    同一个判据也挂在产生处（`request_bootstrap.prepare_fast_path`），所以 `_build_messages` 那条
+    "此前已确认的问答"注入通道一起被关——第 8 节②只闭了本函数，漏的就是那一条。
+    本函数**自带**这道判据（而不是只靠产生处）：有既有评测探针直接构造 `pre` 调它量直返率
+    （`dispatch-output/i1-e2-hitrate-20260920/probe_b_direct_return_rate.py`），那条路径绕过产生处。
     """
     qa = pre.get("qa_hit")
     if not qa or qa.get("score", 0) < _QA_DIRECT_RETURN_THRESHOLD:
         return None
+    if not qa_provenance_verifiable(qa):
+        return None  # 来源校验不了 ⇒ 本出口不放行（与产生处同一判据，直连调用路径也挡得住）
     basis_raw = str(qa.get("law_as_of_basis") or "")
     if law_as_of is not None and basis_raw:
         try:
@@ -1196,32 +1205,15 @@ def _qa_direct_return(pre: dict, law_as_of: date | None = None) -> str | None:
     stored_fp = qa.get("fingerprint") or ""
     if q_fp and stored_fp and q_fp != stored_fp:
         return None  # 同题干换选项内容 → 直返必错（C4）
-    evidence = qa.get("evidence") or ""
-    if "|" in evidence:
-        # 种子格式：source|article
-        src, art = evidence.split("|", 1)
+    # 时效护栏：逐条校验引用的条文今天是否仍在库。形状解析单一真源 = `retrieval_core.cited_articles`
+    # （原来本函数自己认 "|" 与 JSON 两种形状，"feedback:..." 一类落进 else 被静默跳过时效校验——
+    # 那个跳过连同 prompt 注入出口一起，由上面的 `qa_provenance_verifiable` 收掉）。
+    for src, art in cited_articles(str(qa.get("evidence") or "")):
         try:
             if not exact_article_lookup(src, art):
                 return None  # 证据条文已失效/不在库 → 不直返
         except Exception:
             return None
-    elif evidence.lstrip().startswith("["):
-        # 自动沉淀格式：JSON 数组 [{source, article, ...}]——逐条校验，任一条失效 → 不直返
-        # （原只认 "|" 格式，自动沉淀的 JSON evidence 被静默跳过时效护栏，对抗审计 2026-08-07）
-        try:
-            refs = json.loads(evidence)
-        except Exception:
-            return None
-        for r in refs:
-            src = (r or {}).get("source", "")
-            art = (r or {}).get("article", "")
-            if src and art:
-                try:
-                    if not exact_article_lookup(src, art):
-                        return None
-                except Exception:
-                    return None
-    # feedback:... 等其他 evidence 无条文引用 → 跳过时效校验
     return qa.get("answer") or None
 
 
@@ -2859,21 +2851,13 @@ def post_feedback(
     db.add(fb)
     db.commit()
     db.refresh(fb)
-    # 负反馈或带纠错 → 进受控沉淀待审，供管理员采纳"修正后的答案"（点赞不自动入库，避免污染）
-    if body.rating == "down" or (body.correction and body.correction.strip()):
-        # 去重：同一问题同一来源（feedback:down/up）已有待审候选则不再入队，防刷队列
-        dup = (
-            db.query(QaCandidate)
-            .filter(
-                QaCandidate.question == body.question,
-                QaCandidate.status == "pending",
-                QaCandidate.evidence == f"feedback:{body.rating}",
-            )
-            .first()
-        )
-        if dup is None:
-            propose = (body.correction or "").strip() or body.answer
-            ks.create_candidate(db, body.question, propose, 0.0, f"feedback:{body.rating}")
+    # 反馈不再进受控沉淀待审队列（第四轮核对 §10 第 2 条，Owner 裁决 D）。
+    # 原形状：`down` 或带纠错 → `ks.create_candidate(..., f"feedback:{rating}")`，采纳后落入
+    # **没有版本轴**的 `qa_pairs` ⇒ 按历史基准日产出的答案可被现行查询直返（第 8 节②）。
+    # 服务端追溯不到"这条答案当时用的基准日"（`FeedbackIn` 无 message_id、`Message` 无该列），
+    # 只能信客户端自报 ⇒ 闭口落在写侧。台账不丢：`feedbacks` 表独立记 question/answer/
+    # rating/correction，管理员经 `/api/admin/feedback` 仍全量可查。人工入库语料的正路是另开票
+    # （录入时要求条文引用**并**显式声明适用基准日），而不是把这里洗白。
     return {"id": fb.id}
 
 

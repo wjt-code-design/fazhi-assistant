@@ -18,6 +18,8 @@ import os
 import sys
 from datetime import date
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
@@ -28,6 +30,7 @@ import main  # noqa: E402
 
 ANSWER = "（预生成解析答案）试用期最长六个月。"
 BASIS = "2026-08-23"  # 语料标注的版本基准日（生成日上界）
+CITABLE = "劳动合同法|第十九条"  # 见 `_pre` 注释：本文件只留"版本"这一个变量
 POST = date(2026, 9, 20)  # 分水岭之后的请求基准日
 PRE = date(2019, 5, 1)  # 分水岭之前的请求基准日
 _SIG = inspect.signature(main._qa_direct_return)
@@ -48,11 +51,22 @@ def _call(pre: dict, law_as_of: date | None) -> str | None:
 
 
 def _pre(basis: str | None = BASIS) -> dict:
-    """构造一个"三道既有护栏全过"的 `pre`：只留版本护栏这一条变量。"""
-    qa = {"score": 0.95, "answer": ANSWER, "evidence": "", "question": "试用期最长多久"}
+    """构造一个"前三道既有护栏全过"的 `pre`：只留版本护栏这一条变量。
+
+    ⚠️ `evidence` 必须是**可校验的条文引用**（不是空串）：第四轮核对（§10 第 2 条，2026-09-24）
+    加了第五道 `qa_provenance_verifiable` 之后，空 evidence 的记录会在第五道上先被拒 ⇒
+    本文件的分水岭断言会"绿在错误的维度上"（假绿：拦住它的是来源判据，不是版本判据）。
+    """
+    qa = {"score": 0.95, "answer": ANSWER, "evidence": CITABLE, "question": "试用期最长多久"}
     if basis is not None:
         qa["law_as_of_basis"] = basis
     return {"qa_hit": qa, "rewritten": "试用期最长多久", "conv_id": 1}
+
+
+@pytest.fixture(autouse=True)
+def _time_gate_passes(monkeypatch):
+    """把第三道（evidence 时效）钉成恒过 ⇒ 本文件只剩"版本"这一个变量。"""
+    monkeypatch.setattr(main, "exact_article_lookup", lambda src, art: ["doc"])
 
 
 def test_control_same_side_of_watershed_still_direct_returns():
@@ -65,9 +79,17 @@ def test_control_missing_law_as_of_still_direct_returns():
     assert _call(_pre(), None) == ANSWER
 
 
-def test_control_unlabelled_record_still_direct_returns():
-    """控制腿：语料**没有**基准日字段 ⇒ 不拦（这道门的射程只覆盖"已标注"的记录）。"""
-    assert _call(_pre(basis=None), PRE) == ANSWER
+def test_unlabelled_record_is_now_refused():
+    """本文件原先的一条控制腿被**取代**：语料缺 `law_as_of_basis` ⇒ 从前"不拦"，现在拒。
+
+    旧口径写在 `_qa_direct_return` 的 docstring 里："这道门的射程只覆盖已标注基准日的记录，
+    不因未知记录扩大拦截面"。第四轮核对（§10 第 2 条）由 Owner 裁决反过来：缺版本轴的守卫
+    **不该放行**，它与缺条文引用同属"来源校验不了"，由第五道在源头一起拒。
+    这里不删旧用例名，而是让它留下一条反转断言——悄悄删掉一条曾经成立过的口径，
+    下一步的人就没有坐标可查。
+    """
+    assert _call(_pre(basis=None), PRE) is None
+    assert _call(_pre(basis=None), POST) is None  # 与请求基准日无关：缺 basis 一律不直返
 
 
 def test_control_dirty_basis_value_does_not_widen_blocking():
