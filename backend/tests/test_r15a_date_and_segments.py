@@ -80,6 +80,48 @@ def test_r15a_control_pure_labor_claim_still_passes_through():
     assert law_version_crosses_watershed(claim, FACT_2019, AS_OF_2026) is False
 
 
+def test_r15_4_comma_joined_labor_no_longer_shields_civil_error():
+    """先红（R15-4）：劳动句与民事错答句**用逗号连在同一句里** ⇒ 现行分段只按 `。！？；\\n` 切，
+    整句含劳动关键词 ⇒ 民事错答被一起放过（返回 False）。这是"缩小劳动排除范围"要闭的形状。
+
+    快车道把**整段答案**传进本函数（`main._law_version_gate`），所以这个形状在启用后可触发。
+    """
+    claim = "劳动仲裁时效为一年，本案借款适用《民法典》第188条，诉讼时效为三年。"
+    assert law_version_crosses_watershed(claim, FACT_2019, AS_OF_2026) is True
+
+
+def test_r15_4_control_pure_labor_with_comma_still_passes_through():
+    """控制腿（防过度分段把纯劳动答案变成误拦）：逗号连接的**纯劳动**口径 ⇒ 仍不拦。
+
+    分段后每一段要么含劳动关键词（跳过）、要么没有新法引用标记（不满足判据 1）⇒ False。
+    """
+    claim = "劳动仲裁时效为一年，仲裁申请应从当事人知道权利被侵害之日起一年内提出。"
+    assert law_version_crosses_watershed(claim, FACT_2019, AS_OF_2026) is False
+
+
+def test_r15_4_control_comma_joined_same_side_stays_no_conflict():
+    """控制腿：同一形状但事实与基准日同侧 ⇒ 不拦（证明修复没有把命中面扩大到无关请求）。"""
+    claim = "劳动仲裁时效为一年，本案借款适用《民法典》第188条，诉讼时效为三年。"
+    assert law_version_crosses_watershed(claim, ["借款到期日为2023年8月1日。"], AS_OF_2026) is False
+
+
+def test_r15_4_control_sentence_shape_unchanged():
+    """控制腿：原本已能拦的"两句"形状在改动后行为不变（防修一个形状碰坏另一个）。"""
+    claim = "劳动仲裁时效为一年。本案借款适用《民法典》第188条，诉讼时效为三年。"
+    assert law_version_crosses_watershed(claim, FACT_2019, AS_OF_2026) is True
+
+
+def test_r15_4_control_comma_split_does_not_create_new_false_positive():
+    """对照腿（本改动**新打开**的风险面）：逗号入段后，劳动口径里那句
+    "《民法典》的诉讼时效规定不适用于仲裁申请"会单独成段——它同时含民事关键词与新法标记，
+    若衔接说明不再被同段的劳动关键词掩护，就会被误拦。本腿钉住"这种仍不拦"。
+
+    写这条的理由：修复漏拦时，同一处改动完全可能把过触发面扩大；不测这一侧就等于只看一半。
+    """
+    claim = "本案为劳动争议，劳动仲裁时效为一年，《民法典》的诉讼时效规定并不直接适用于仲裁申请。"
+    assert law_version_crosses_watershed(claim, FACT_2019, AS_OF_2026) is False
+
+
 def test_r15a_control_single_civil_sentence_unchanged():
     """控制腿：单句民事错答（无劳动句）⇒ 行为与修复前一致（命中）。"""
     claim = "根据《民法典》第188条，诉讼时效为三年。"
