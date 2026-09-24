@@ -33,7 +33,7 @@
 | 1 考试检索分支不带 cutoff | `retrieval.retrieve_exam` 四处 `hybrid_retrieve`（含线程池内与两条 fallback）、`scenario_supplement_docs` 两处查条 | `tests/test_historical_law_cutoff_threading.py` 实现前 **7 failed / 1 passed**（唯一绿的是"不传 cutoff 保持旧形状"对照组），实现后 8 passed |
 | 2 合同 cutoff 与 `blocks` 数据流 | `domain_rules.build_contract_data(cutoff=)` → `contract_supplement_docs`，使 `blocks[*].articles` 与 `docs` **同源构建**（事后重过滤改不到 `blocks`，而 `_contract_messages` 读的正是 `blocks`）；合同 messages 注入基准日标注 | 分支用例红在 `blocks` 读到当日版本 |
 | 3 Agent 恢复分支静默丢弃日期 | `create_run` 建立时固定 `law_as_of`；恢复请求带不同日期 ⇒ **CAS 之前** 409（`ResumeLawAsOfConflict`）；技术性失败降级沿用 `run.law_as_of`；`_resume_bootstrap` 日期形参**不给默认值**（堵 fail-open） | `tests/test_agent_resume.py` 新增 5 项实现前 4 failed，含一条端到端接线用例（stub 三处下游 + 599 哨兵中断） |
-| 4 其余生成/缓存出口 | 历史请求不进共享答案缓存与近重复缓存（`_cacheable`）、不直返 QA 语料（`prepare_fast_path` 置 `qa_hit=None`）、**不进受控沉淀待审**（`_post` 闸；`qa_pairs` 无版本轴）；两条 messages 组装路径共用同一句标注（`_law_version_scope_note`）；检索缓存键含 `cutoff`（`retrieval.py:823`，实测非推断） | 沉淀闸新用例实现前红在 `created` 多出一条（确实漏沉淀） |
+| 4 其余生成/缓存出口 | 历史请求不进共享答案缓存与近重复缓存（`_cacheable`）、不直返 QA 语料（`prepare_fast_path` 置 `qa_hit=None`）、**不进受控沉淀待审**（`_post` 闸；`qa_pairs` 无版本轴）；两条 messages 组装路径共用同一句标注（`_law_version_scope_note`）；检索缓存键含 `cutoff`（`retrieval.py:823`，实测非推断） | 沉淀闸新用例实现前红在 `created` 多出一条（确实漏沉淀） ⚠️ **本行第三轮修正**：`_post` 那条沉淀闸只闭了一条入口，`/api/feedback` 是第二条平行入口且未闭（需 schema 改动）；另有 `/api/law`、`/api/law/search` 恒按当日。详见第 6 节第 8–9 条与第 8 节②⑥。 |
 | （票面未列）Agent 工具链合同口 | `tools/contract.py::_build_contract_data` 同样漏传 cutoff——与缺口 1/2 同一失效模式 | 2 项用例（工具层 + 适配器转发层），双向验证 |
 
 ## 3. 用户已确认的产品边界对照
