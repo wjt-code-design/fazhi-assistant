@@ -76,6 +76,32 @@ _CIVIL_KEYWORDS = ("诉讼时效", "时效期间", "时效")
 _NEW_LAW_MARKERS = ("民法典",)
 _TRANSITION_MARKERS = ("衔接", "法释〔2018〕12号", "不直接适用", "当时有效", "旧法")
 
+# 起算锚词面（R15-2）：日期只有出现在含这些词的分句里，才有资格充当"时效从哪天起算"的锚。
+# 刻意是**词面相关性**而不是日期推理——票面明令不为本判据造起算日解析框架。
+_ACCRUAL_ANCHOR_TOKENS = (
+    "到期",
+    "履行期",
+    "清偿",
+    "偿还",
+    "还款",
+    "归还",
+    "借款",
+    "欠款",
+    "拖欠",
+    "未付",
+    "拒付",
+    "催告",
+    "催收",
+    "起诉",
+    "知道",
+    "得知",
+    "应当知道",
+    "受损",
+    "被侵害",
+    "侵害",
+    "起算",
+)
+
 # 与 writer.numeric_tokens 的 token 契约对齐：duration:{N}:{单位}，N 经
 # _canonical_number 归一（阿拉伯数字字符串）。此处只产出整数年，格式恒定。
 _DURATION_TOKEN = "duration:{n}:年"
@@ -258,6 +284,27 @@ def controlled_limitation_tokens(claim_text: str, fact_texts: Iterable[str]) -> 
     }
 
 
+def accrual_anchor_dates(texts: Iterable[str]) -> list[date]:
+    """从事实文本里挑"可能承担时效起算"的日期，升序返回（R15-2，2026-09-25）。
+
+    为什么需要这一层：`law_version_crosses_watershed` 原先取 `extract_dates` 的**全局最早日**，
+    与 claim 句段没有任何绑定 ⇒ "甲1980年出生"这类与请求权起算无关的日期会被当成事实日，
+    把一个本不该拦的请求判成版本冲突（《民法典》第188条看的是权利受损与知悉，不是出生）。
+
+    认不出锚时返回空表，调用方按"不拦"处理——fail-open，与本模块边界 3 的既有口径一致：
+    宁可对无关日期放行，也不凭一个词面猜不出的日期去终止作答。
+    """
+    found: set[date] = set()
+    for text in texts:
+        normalized = unicodedata.normalize("NFKC", text or "")
+        # 分隔符用**半角** `,`：NFKC 已把全角 `，` 折过来（见 law_version_crosses_watershed 内约束 ①）
+        for segment in re.split(r"[。！？；,\n]", normalized):
+            if not any(token in segment for token in _ACCRUAL_ANCHOR_TOKENS):
+                continue
+            found.update(extract_dates([segment]))
+    return sorted(found)
+
+
 def law_version_crosses_watershed(
     claim_text: str,
     fact_texts: Iterable[str],
@@ -269,8 +316,10 @@ def law_version_crosses_watershed(
     1. claim 断言**民事**时效结论（命中 _CIVIL_KEYWORDS）；劳动仲裁走劳调法 27 条
        （2008 年生效，与民法典分水岭无关）→ 一律 False；
     2. `law_as_of` 已给定（None = 调用方没给基准日，无从判定）；
-    3. 事实文本含可解析日期（无日期不拦：「没日期就不许谈时效」会误伤纯法条陈述）；
-    4. 最早事实日（本模块边界 3 的起算锚）与 `law_as_of` **分跨** CIVIL_CODE_EFFECTIVE 两侧。
+    3. 事实文本里**认得出起算锚日期**（`accrual_anchor_dates`：既要有可解析日期，该日期还要出现在
+       含起算锚词的分句里 ⇒ 否则不拦。「没日期就不许谈时效」会误伤纯法条陈述；R15-2 把同一口径
+       扩到「有日期但与起算无关」，如出生日期）；
+    4. 最早的**起算锚日**（R15-2 之前这里是"全局最早事实日"）与 `law_as_of` **分跨** CIVIL_CODE_EFFECTIVE 两侧。
 
     与 `controlled_limitation_tokens` 的分工（不是重复）：后者只在**数字白名单**维度
     收回放行（fail-open，边界 1 刻意保守），本函数在**版本适用**维度终止作答
@@ -281,9 +330,9 @@ def law_version_crosses_watershed(
     text = unicodedata.normalize("NFKC", claim_text or "")
     if law_as_of is None:
         return False
-    dates = extract_dates(fact_texts)
+    dates = accrual_anchor_dates(fact_texts)
     if not dates:
-        return False
+        return False  # 事实里认不出起算锚（含"一个日期都没有"）⇒ 不拦，见 `accrual_anchor_dates`
     # R15-4（2026-09-21，票 R15-A）：按**确定性句段**拆分后逐段应用同一判据。
     # 修复的缺陷：此前把整段答案当 claim，任何位置出现劳动关键词就整段跳过民事检查
     # ⇒ 混合答案（民事错答句 + 别处的劳动句）里的民事错答绕过版本门。
@@ -323,6 +372,7 @@ __all__ = [
     "CIVIL_MAXIMUM_YEARS",
     "CIVIL_PRE_CODE_YEARS",
     "LABOR_ARBITRATION_YEARS",
+    "accrual_anchor_dates",
     "calc_limitation",
     "controlled_limitation_tokens",
     "extract_dates",

@@ -122,6 +122,71 @@ def test_r15_4_control_comma_split_does_not_create_new_false_positive():
     assert law_version_crosses_watershed(claim, FACT_2019, AS_OF_2026) is False
 
 
+# ───────────────────────── R15-2：起算锚的相关性 ─────────────────────────
+
+BIRTH_AND_DUE = ["甲1980年3月5日出生", "2023年4月1日借款到期并知损"]
+
+
+def test_r15_2_birth_date_no_longer_impersonates_the_accrual_date():
+    """先红（R15-2）：现行判据取 `extract_dates` 的**全局最早日**，与 claim 句段无绑定
+    ⇒ 出生日期（与本案请求权起算无关）会被当成事实日。
+
+    本案事实里的起算锚是 2023 年到期并知损（分水岭后），基准日 2026 也在分水岭后 ⇒ 同侧，
+    不该拦。改动前返回 True（因为 1980 更早）。
+    """
+    claim = "诉讼时效适用《民法典》第188条，为三年。"
+    assert law_version_crosses_watershed(claim, BIRTH_AND_DUE, AS_OF_2026) is False
+
+
+def test_r15_2_control_irrelevant_date_alone_does_not_intercept():
+    """先红（同族）：事实里**只有**出生日期 ⇒ 认不出任何起算锚 ⇒ 不拦。
+
+    改动前：1980 与 2026 分跨分水岭 ⇒ 拦。这是一次实打实的误拦（把一个无从判定时效起算的
+    请求判成版本冲突）。
+    """
+    claim = "诉讼时效适用《民法典》第188条，为三年。"
+    assert law_version_crosses_watershed(claim, ["甲1980年3月5日出生。"], AS_OF_2026) is False
+
+
+def test_r15_2_control_real_pre_watershed_accrual_still_intercepts():
+    """控制腿（防把修复做成"只测放行"）：起算锚确实在分水岭前 ⇒ 仍必须拦。"""
+    claim = "诉讼时效适用《民法典》第188条，为三年。"
+    assert law_version_crosses_watershed(claim, ["甲于2019年5月1日借款到期并知道权利受损。"], AS_OF_2026) is True
+
+
+def test_r15_2_control_unrelated_date_after_relevant_one_does_not_flip_the_result():
+    """控制腿：起算锚 2019 前，另有一句无关的 2023 日期 ⇒ 仍按起算锚拦。
+
+    钉住"取相关日期里最早的那个"而不是"取最后出现的"或"取全局最晚"，否则修 A 会破 B。
+    """
+    claim = "诉讼时效适用《民法典》第188条，为三年。"
+    facts = ["双方于2023年1月1日签订新的合作协议。", "本案借款2019年3月5日到期，权利人当日知道受损。"]
+    assert law_version_crosses_watershed(claim, facts, AS_OF_2026) is True
+
+
+def test_r15_2_known_limitation_unlisted_phrasing_fails_open():
+    """明示边界（不是断言正确，是钉住"我们知道这里漏"）：起算锚词表**之外**的表达
+    ⇒ 认不出锚 ⇒ 不拦。
+
+    这条腿存在的理由：`accrual_anchor_dates` 是词面相关性，不是日期推理（票面明令不造解析框架），
+    所以它的覆盖面=词表。把"漏在哪一侧"写成用例，比在注释里说"可能漏"更可查——
+    将来有人扩词表时，这条会告诉他当前形状的行为是什么。
+    """
+    claim = "诉讼时效适用《民法典》第188条，为三年。"
+    assert law_version_crosses_watershed(claim, ["双方于2019年3月5日当面商谈了此事。"], AS_OF_2026) is False
+
+
+def test_r15_2_multiple_anchors_use_the_earliest():
+    """钉住"多个锚日里取**最早**"这个方向：最早的相关事实日最可能落在分水岭前 ⇒ 判定偏保守。
+
+    配这条的理由：`accrual_anchor_dates` 返回升序，取 `[0]` 还是 `[-1]` 是一个真实的口径选择，
+    而它上面三条腿都只有**一个**锚日——没有这条腿，"取最晚"这种改法可以全绿通过。
+    """
+    claim = "诉讼时效适用《民法典》第188条，为三年。"
+    facts = ["本案一笔借款于2023年4月1日到期。", "另一笔借款于2019年3月5日到期未还。"]
+    assert law_version_crosses_watershed(claim, facts, AS_OF_2026) is True
+
+
 def test_r15a_control_single_civil_sentence_unchanged():
     """控制腿：单句民事错答（无劳动句）⇒ 行为与修复前一致（命中）。"""
     claim = "根据《民法典》第188条，诉讼时效为三年。"
