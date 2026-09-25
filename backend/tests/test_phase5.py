@@ -10,6 +10,25 @@ from langchain_core.documents import Document
 import retrieval_core as rc
 
 
+def test_valid_by_time_amended_window_pin_per_owner_ruling():
+    """钉住 2026-09-25 Owner 裁决"给 `已修改` 的旧版补 `effective_to`"所依赖的两件事。
+
+    用真实数据（劳动合同法 2008 原文 / (2012修正) 施行 2013-07-01，见
+    docs/corpus-time-meta-ticket-20260925.md §4b）而非抽象日期：那条裁决说"旧版填
+    替代版施行日**前一天**"，而它成立的前提正是本谓词的边界语义是"最后有效日**含**当日"——
+    差一天就会造成两版重叠（同问题两版同命中）或有一天无版本可答。
+    """
+    # ① 今天这个洞是真的：`已修改` 不在任何 fail-closed 分支里 ⇒ 缺日期时任何查询日都算有效。
+    #    （若将来把它也判死，这条会红——红了说明**改了口径**，要去数据票 §3-A/G 同步。）
+    assert rc.is_valid_by_time({"status": "已修改"}, "2026-08-01") is True
+    assert rc.is_valid_by_time({"status": "已修改"}, "1990-01-01") is True
+    amended = {"status": "已修改", "effective_from": "2008-01-01", "effective_to": "2013-06-30"}
+    # ② 补了日期之后，"前一天"这个算法刚好让新旧两版不重叠也不留缝。
+    assert rc.is_valid_by_time(amended, "2013-06-30") is True  # 最后有效日含当日
+    assert rc.is_valid_by_time(amended, "2013-07-01") is False  # 修正版施行日当天旧版退场
+    assert rc.is_valid_by_time(amended, "2007-12-31") is False  # 未施行
+
+
 # ---------- is_valid_by_time 纯函数矩阵 ----------
 def test_valid_by_time_matrix():
     assert rc.is_valid_by_time({"status": "现行"}, "2026-08-01") is True  # 无日期限制
