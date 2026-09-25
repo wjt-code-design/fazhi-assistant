@@ -9,6 +9,7 @@ import math
 import threading
 from collections import OrderedDict
 from collections.abc import Callable, Mapping
+from datetime import date
 
 import jieba
 from langchain_core.documents import Document
@@ -102,7 +103,7 @@ def qa_provenance_verifiable(qa: Mapping | None) -> bool:
     """这条 QA 语料记录能否被独立校验 ⇒ 才允许参与答复生成。
 
     两个条件缺一不可：① `evidence` 里存在可校验的条文引用，否则时效护栏没有输入，答案
-    对不对只能信产出它的那一方；② `law_as_of_basis` 非空，否则版本分水岭守卫没有输入，
+    对不对只能信产出它的那一方；② `law_as_of_basis` 是有效的 YYYY-MM-DD 日期，否则版本分水岭守卫没有输入，
     旧版答案可以原样答给现行查询。
 
     判据按**证据形状**整类判定而不是点名 `feedback:` 前缀：未来任何新来源默认落在判据外，
@@ -112,7 +113,13 @@ def qa_provenance_verifiable(qa: Mapping | None) -> bool:
         return False
     if not cited_articles(str(qa.get("evidence") or "")):
         return False
-    return bool(str(qa.get("law_as_of_basis") or "").strip())
+    basis = qa.get("law_as_of_basis")
+    if not isinstance(basis, str):
+        return False
+    try:
+        return date.fromisoformat(basis).isoformat() == basis
+    except ValueError:
+        return False
 
 
 def tokenize(text: str) -> list[str]:

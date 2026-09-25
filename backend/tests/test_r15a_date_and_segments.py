@@ -14,6 +14,8 @@ import os
 import sys
 from datetime import date
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
@@ -22,6 +24,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 from agent.limitation_calc import (  # noqa: E402
     CIVIL_CODE_EFFECTIVE,
+    accrual_anchor_dates,
     extract_dates,
     law_version_crosses_watershed,
 )
@@ -125,6 +128,32 @@ def test_r15_4_control_comma_split_does_not_create_new_false_positive():
 # ───────────────────────── R15-2：起算锚的相关性 ─────────────────────────
 
 BIRTH_AND_DUE = ["甲1980年3月5日出生", "2023年4月1日借款到期并知损"]
+
+
+@pytest.mark.parametrize(
+    "fact",
+    [
+        "甲1980年1月1日出生并于2023年3月5日借款到期，债务人未还款。",
+        "2023-03-05借款到期的债权人出生于1980-01-01。",
+        "借款于2019/3/5到期或于2023/3/5到期，具体日期不明。",
+    ],
+)
+def test_r15_2_ambiguous_dates_in_one_clause_do_not_trigger_conflict(fact):
+    claim = "根据《民法典》第188条，诉讼时效为三年。"
+    assert law_version_crosses_watershed(claim, [fact], AS_OF_2026) is False
+    assert accrual_anchor_dates([fact]) == []
+
+
+def test_r15_2_ambiguous_clause_does_not_hide_another_clear_anchor():
+    facts = ["甲1980年1月1日出生并于2023年3月5日借款到期，另一笔借款于2019年3月5日到期。"]
+    assert accrual_anchor_dates(facts) == [date(2019, 3, 5)]
+    assert law_version_crosses_watershed("根据《民法典》第188条，诉讼时效为三年。", facts, AS_OF_2026) is True
+
+
+def test_r15_2_repeated_same_date_is_not_ambiguous():
+    facts = ["2019年3月5日借款到期且2019-03-05知悉权利受损。"]
+    assert accrual_anchor_dates(facts) == [date(2019, 3, 5)]
+    assert law_version_crosses_watershed("根据《民法典》第188条，诉讼时效为三年。", facts, AS_OF_2026) is True
 
 
 def test_r15_2_birth_date_no_longer_impersonates_the_accrual_date():

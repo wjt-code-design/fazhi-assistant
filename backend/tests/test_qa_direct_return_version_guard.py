@@ -100,9 +100,9 @@ def test_unlabelled_record_is_now_refused():
     assert _call(_pre(basis=None), POST) is None  # 与请求基准日无关：缺 basis 一律不直返
 
 
-def test_control_dirty_basis_value_does_not_widen_blocking():
-    """控制腿：基准日是脏值（解析不了）⇒ 不拦（不把"不认识"当成"冲突"）。"""
-    assert _call(_pre(basis="not-a-date"), PRE) == ANSWER
+def test_dirty_basis_value_is_refused_as_unverifiable():
+    """09-25 Owner 收紧：非法日期不能证明版本，拒绝复用 QA，不声称它已构成版本冲突。"""
+    assert _call(_pre(basis="not-a-date"), PRE) is None
 
 
 def test_pre_watershed_request_misses_the_labelled_record():

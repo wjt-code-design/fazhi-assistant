@@ -774,6 +774,41 @@ _CITABLE_QA = {
 }
 
 
+@pytest.mark.parametrize("basis", ["not-a-date", "2026-02-30"])
+def test_invalid_qa_basis_never_reaches_prompt_or_kb(store, monkeypatch, basis):
+    from main import _build_messages
+
+    calls = []
+    _patch_kb(monkeypatch, ["doc"], calls=calls)
+    qa = dict(_CITABLE_QA, law_as_of_basis=basis)
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: qa))
+    text = "\n".join(m.content or "" for m in _build_messages(result))
+
+    assert result["qa_hit"] is None
+    assert "此前已确认的问答" not in text
+    assert qa["answer"] not in text
+    assert calls == []
+
+
+@pytest.mark.parametrize("score,expected_lookups", [(0.8, 1), (0.95, 2)])
+def test_w1_lookup_count_characterization(store, monkeypatch, score, expected_lookups):
+    """现状基线而非性能目标：完整准备→直返接缝的查条次数，不把次数冒充延迟。"""
+    from main import _build_messages, _qa_direct_return
+
+    calls = []
+    _patch_kb(monkeypatch, ["doc"], calls=calls)
+    qa = dict(_CITABLE_QA, score=score)
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: qa))
+    direct = _qa_direct_return(result, date(2026, 9, 25))
+
+    if score == 0.95:
+        assert direct == qa["answer"]
+    else:
+        assert direct is None
+        assert qa["answer"] in "\n".join(m.content or "" for m in _build_messages(result))
+    assert calls == [("劳动合同法", "第十九条")] * expected_lookups
+
+
 def _citation_bootstrap(store):
     return bootstrap_request(store.user_id, store.conv_id, "借款纠纷", None, False, _deps=_bootstrap_deps(store))
 

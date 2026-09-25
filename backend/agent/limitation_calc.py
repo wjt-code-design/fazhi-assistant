@@ -293,6 +293,8 @@ def accrual_anchor_dates(texts: Iterable[str]) -> list[date]:
 
     认不出锚时返回空表，调用方按"不拦"处理——fail-open，与本模块边界 3 的既有口径一致：
     宁可对无关日期放行，也不凭一个词面猜不出的日期去终止作答。
+    同一子句有多个不同日期时不采纳该子句；其他子句的明确候选仍保留。
+    这只是词面筛选，不证明日期必为起算日，也不证明未触发版本门的答案正确。
     """
     found: set[date] = set()
     for text in texts:
@@ -301,7 +303,10 @@ def accrual_anchor_dates(texts: Iterable[str]) -> list[date]:
         for segment in re.split(r"[。！？；,\n]", normalized):
             if not any(token in segment for token in _ACCRUAL_ANCHOR_TOKENS):
                 continue
-            found.update(extract_dates([segment]))
+            dates = extract_dates([segment])
+            # ponytail: 不猜多个日期与事件的对应关系；需扩展时先提供有标注的关联样例。
+            if len(dates) == 1:
+                found.add(dates[0])
     return sorted(found)
 
 
@@ -317,7 +322,7 @@ def law_version_crosses_watershed(
        （2008 年生效，与民法典分水岭无关）→ 一律 False；
     2. `law_as_of` 已给定（None = 调用方没给基准日，无从判定）；
     3. 事实文本里**认得出起算锚日期**（`accrual_anchor_dates`：既要有可解析日期，该日期还要出现在
-       含起算锚词的分句里 ⇒ 否则不拦。「没日期就不许谈时效」会误伤纯法条陈述；R15-2 把同一口径
+       含起算锚词且仅有一个不同日期的分句里 ⇒ 否则不采纳该分句。「没日期就不许谈时效」会误伤纯法条陈述；R15-2 把同一口径
        扩到「有日期但与起算无关」，如出生日期）；
     4. 最早的**起算锚日**（R15-2 之前这里是"全局最早事实日"）与 `law_as_of` **分跨** CIVIL_CODE_EFFECTIVE 两侧。
 

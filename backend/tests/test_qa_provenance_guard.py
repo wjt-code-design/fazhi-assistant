@@ -7,7 +7,7 @@
 第 8 节②只闭了第一个。
 
 判据的形状（Owner 裁决：按证据形状整类拒绝，不按来源前缀）：
-`evidence` 至少含一条 source 与 article 都非空的引用，**且** `law_as_of_basis` 非空。
+`evidence` 至少含一条 source 与 article 都非空的引用，**且** `law_as_of_basis` 是有效 YYYY-MM-DD 日期。
 ⇒ `feedback:` 来源天然落在判据外，未来任何新来源也默认 fail-closed，
    同时补掉 `search_qa` 用 `.get("evidence", "")` 造成的缺键 fail-open。
 
@@ -17,6 +17,9 @@
 
 import os
 import sys
+from datetime import date
+
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -109,6 +112,26 @@ def test_qa_provenance_verifiable_requires_citation_and_basis():
     assert qa_provenance_verifiable(_qa(law_as_of_basis="  ")) is False
     assert qa_provenance_verifiable({"answer": "x"}) is False  # 两个键都缺 ⇒ 不可校验，不是放行
     assert qa_provenance_verifiable(None) is False
+
+
+@pytest.mark.parametrize("basis", ["not-a-date", "2026-02-30", "2026-01-01T00:00:00", "20260101", 20260101])
+def test_qa_provenance_rejects_invalid_version_date(basis):
+    from retrieval_core import qa_provenance_verifiable
+
+    assert qa_provenance_verifiable(_qa(law_as_of_basis=basis)) is False
+
+
+@pytest.mark.parametrize("basis", ["2024-02-29", "2020-12-31", "2021-01-01"])
+def test_qa_provenance_accepts_valid_calendar_date(basis):
+    from retrieval_core import qa_provenance_verifiable
+
+    assert qa_provenance_verifiable(_qa(law_as_of_basis=basis)) is True
+
+
+@pytest.mark.parametrize("law_as_of", [None, date(2020, 12, 31), date(2026, 9, 25)])
+def test_direct_return_refuses_invalid_version_date(monkeypatch, law_as_of):
+    _kb(monkeypatch, ["doc"])
+    assert main._qa_direct_return(_pre(_qa(law_as_of_basis="not-a-date")), law_as_of) is None
 
 
 # ==================== 出口 1：零模型直返 ====================

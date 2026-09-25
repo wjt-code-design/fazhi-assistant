@@ -1182,7 +1182,7 @@ def _qa_direct_return(pre: dict, law_as_of: date | None = None) -> str | None:
     ⚠️ 三条既有护栏**一个字没动**（票面 I-4 明令），本节是按 I-2 要求新增的**第四**条。
 
     **第五道（第四轮核对 §10 第 2 条，2026-09-24 由 Owner 裁决收紧）**：`retrieval_core.qa_provenance_verifiable`
-    ⇒ `evidence` 给不出可校验条文引用、或缺 `law_as_of_basis` 的记录**一律不直返**。这一道**取代**了原先
+    ⇒ `evidence` 给不出可校验条文引用、或 `law_as_of_basis` 不是有效 YYYY-MM-DD 日期的记录**一律不直返**。这一道**取代**了原先
     "语料没有该字段⇒不拦（保持旧行为）"的口径：分水岭守卫缺输入时不再放行，而是在源头就被拒。
     同一个判据也挂在产生处（`request_bootstrap.prepare_fast_path`），所以 `_build_messages` 那条
     "此前已确认的问答"注入通道一起被关——第 8 节②只闭了本函数，漏的就是那一条。
@@ -1194,13 +1194,9 @@ def _qa_direct_return(pre: dict, law_as_of: date | None = None) -> str | None:
         return None
     if not qa_provenance_verifiable(qa):
         return None  # 来源校验不了 ⇒ 本出口不放行（与产生处同一判据，直连调用路径也挡得住）
-    basis_raw = str(qa.get("law_as_of_basis") or "")  # 非空由上面的 `qa_provenance_verifiable` 保证
     if law_as_of is not None:
-        try:
-            basis = date.fromisoformat(basis_raw)
-        except ValueError:
-            basis = None  # 脏值 ⇒ 不拦（保持旧行为）
-        if basis is not None and (basis >= _CIVIL_WATERSHED) != (law_as_of >= _CIVIL_WATERSHED):
+        basis = date.fromisoformat(qa["law_as_of_basis"])  # 有效日期由共享来源判据保证
+        if (basis >= _CIVIL_WATERSHED) != (law_as_of >= _CIVIL_WATERSHED):
             return None  # 版本适用跨分水岭 → 直返必错（票 I 的 I-2(a)）
     q = pre.get("rewritten") or ""
     q_fp = query_understand._options_fingerprint(q)
