@@ -9,12 +9,12 @@
 
 ---
 
-## 1. 要 Owner 定的事（第 1 条已答"补"=`4cf5bfd`、第 2 条已答"修"=`e68a0cf`；其余按能不能一个词答排序）
+## 1. 要 Owner 定的事（第 1、2 条已答并落地：`4cf5bfd` / `e68a0cf` / `f2bab45`；其余按能不能一个词答排序）
 
 | # | 要定的事 | 我的建议与依据 | 你只需答 |
 |---|---|---|---|
 | 1 | ~~`已修改` 的旧版要不要也补 `effective_to`~~ **已裁：补**（09-25 你答"补"） | 已落成文档：判据理由 = 本仓 fail-closed 只覆盖 `已废止`/`即将施行`/`未生效`（`retrieval_core.py:58-61`），`已修改` 在白名单里（`:38`）却**不在任何拦截分支** ⇒ 缺日期的旧版在**任何**查询日都算有效。执行口径 = 数据票 **§3-G**（校验落在**批处理层**：违规**整批不出**；读侧谓词**零改动**，因为今天 `已修改` 一条都没有——实量：全库 `status` **全是 `现行`**（`legal_provisions_cos` 10266 + `legal_provisions_te4` 10266）、`effective_to` 非空 **0 条**，改谓词是零收益 + 会把漏日期的旧条文整体判死）。顺带把 §4b 三行**从"待签字"降级成"待取数/待入库窗口"**：劳动合同法 2008 版 = `2013-06-30`、民法通则 1987 原文 = `2009-08-26`／2009 修正版 = `2020-12-31`（都由已实测的替代版施行日直接导出，**不依赖 A 的逐值映射**）；只有**经济合同法 1993 修正版的施行日本轮没取** ⇒ 那一行是取数题。仍然卡法务的是解释（一）（二）（**没有替代版可减一天**） | —（已答；这一列下一题是第 6 条"撤不撤不动库"） |
-| 2 | ~~本地那 6 个 `ruff format` 不合规文件要不要我修~~ **已修（09-25 你答"修"，且确认当前只有本会话在动仓）**，见 `e68a0cf` | **实际要修的是 5 个，不是 6 个** —— 我原来那个 6 是把本地噪音当成了仓库状态：按 CI 的 checkout 形状（纯 LF）复量 `ruff format --check` 才报 **5** 个，`agent/writer.py` 在 LF 下本来就合规（工作副本 1033 CRLF + 5 LF，`git ls-files --eol` 读作 `i/lf w/mixed`，而 index 存 LF ⇒ 那 5 行经 `autocrlf` 折回去一个字节都进不了 diff）。⇒ **纪律**：`format --check` 的本地读数≠CI 读数，报这类数前先把副本按 LF 归一再量。已做：`git show HEAD:<f>` 与暂存块逐文件 `ast.dump` 相等（5/5）⇒ 纯格式；CI 三步在 LF 副本上全绿（`6 files already formatted, rc=0`）、`ruff check .` 干净、`mypy .` Success(73 files)、覆盖这 5 个文件的 8 个测试文件 **282 passed / 0 failed**。**根因另案**：`core.autocrlf=true` 且仓里**没有 `.gitattributes`** —— 这就是本项目第 N 次踩 CRLF 的那台机器，但它是仓库级动作（影响以后每次 checkout），所以要单独点头。另：我上一轮说过"master 的这条 CI 是红的"，独立评审复量后**不成立**——远端 `origin/master` 停在 `15562fc`（2026-08-25），上面还没有 `.github/workflows/ci.yml`、也没有 `backend/agent/`；正确说法是"一 push 这条步就会红的既有格式债"，而现在这笔将那个红**清偿掉了**。被改的 5 个文件逐个 `git log -1` 全部停在 `53432be`（2026-09-19，非本会话产物），`ci.yml` 的 `working-directory: backend`。**笔数一类不自指**（要现值跑 `git rev-list --count origin/master..HEAD`；本仓 `bb0f825` 记过这个坑） | **`.gitattributes` 加 / 不加**（一行 `* text=auto eol=lf`，我建议加） |
+| 2 | ~~本地那 6 个 `ruff format` 不合规文件要不要我修~~ **已修（09-25 你答"修"，且确认当前只有本会话在动仓）**，见 `e68a0cf` | **实际要修的是 5 个，不是 6 个** —— 我原来那个 6 是把本地噪音当成了仓库状态：按 CI 的 checkout 形状（纯 LF）复量 `ruff format --check` 才报 **5** 个，`agent/writer.py` 在 LF 下本来就合规（工作副本 1033 CRLF + 5 LF，`git ls-files --eol` 读作 `i/lf w/mixed`，而 index 存 LF ⇒ 那 5 行经 `autocrlf` 折回去一个字节都进不了 diff）。⇒ **纪律**：`format --check` 的本地读数≠CI 读数，报这类数前先把副本按 LF 归一再量。已做：`git show HEAD:<f>` 与暂存块逐文件 `ast.dump` 相等（5/5）⇒ 纯格式；CI 三步在 LF 副本上全绿（`6 files already formatted, rc=0`）、`ruff check .` 干净、`mypy .` Success(73 files)、覆盖这 5 个文件的 8 个测试文件 **282 passed / 0 failed**。**根因另案**：`core.autocrlf=true` 且仓里**没有 `.gitattributes`** —— 这就是本项目第 N 次踩 CRLF 的那台机器，但它是仓库级动作（影响以后每次 checkout），所以要单独点头。另：我上一轮说过"master 的这条 CI 是红的"，独立评审复量后**不成立**——远端 `origin/master` 停在 `15562fc`（2026-08-25），上面还没有 `.github/workflows/ci.yml`、也没有 `backend/agent/`；正确说法是"一 push 这条步就会红的既有格式债"，而现在这笔将那个红**清偿掉了**。被改的 5 个文件逐个 `git log -1` 全部停在 `53432be`（2026-09-19，非本会话产物），`ci.yml` 的 `working-directory: backend`。**笔数一类不自指**（要现值跑 `git rev-list --count origin/master..HEAD`；本仓 `bb0f825` 记过这个坑） | **`.gitattributes` 加 / 不加**（一行 `* text=auto eol=lf`，我建议加）——**已答：加**，落在 `f2bab45`（本机侧实测：加完 `git status` 零 mass 改动、`ruff format --check .` = **260 files already formatted**、重取 `writer.py` 后它是 `i/lf w/lf` ⇒ 本地树与 CI 树终于同一个形状）|
 | 3 | **合同法解释（一）（二）是否在被废止清单里** | 我这边**取不到**：废止决定的 instrument 已实测（法释〔2020〕16 号，公布 2020-12-29、施行 2021-01-01），但它的**附件清单**是 1000+ 项的表，不属于"顺手取一下"的成本。⇒ 需法务按附件逐条确认；确认后旧解释的 `effective_to` 才落 `2020-12-31` | 派法务 / 我自己再取一次（有成本） |
 | 4 | **溯源键怎么放（§3-F）** | 建议 `source_doc_id` + `source_url` + `retrieved_at` + **`status_src`**（区分"源给的状态"与"按 B 口径推的状态"——不标的话下一次审计会把推断读成源数据）。要不要进时效字段白名单由你定 | 同意 / 改法 |
 | 5 | **两个钟统一到哪一把** | 现状：`retrieval.exact_article_lookup` 默认基准日用**本地** `date.today()`（`retrieval.py:379`），AUTH-A-2 写侧落 `law_as_of_basis` 用 **UTC**（当时是为了与 `QaCandidate.created_at` 同钟，`models.py:80`）。跨本地午夜那 8 小时里两者差一天 ⇒ 对 2021-01-01 分水岭不敏感，但对"即将施行"的条文是真差一天（`retrieval_core.py:54` 的 `ef > today`）。**我不假装有一个"改动面小"的选项**：统一到本地 = 动 `add_qa_pair` + `QaCandidate.created_at`，而 `datetime.utcnow` 是本仓 **13 处**列默认的 house style（`grep -c` 实量），破例会变成下一个人的"为什么只有这张表用本地钟"；统一到 UTC = 只动一行默认，但语义上把"当天的现行法"按 UTC 日切，东八区用户 08:00 前的查询会用到**前一天**的日界 | 定一把 + 存量 `law_as_of_basis` 要不要回填 |
@@ -47,7 +47,8 @@
 | `ad9b597` | 本汇报自我复核（逐条命令复量），见 §3 末小节 | 2 files +36/−10，纯文档 |
 | `4cf5bfd` 裁决落地 | §1 第 1 条你答"**补**"之后的落地：口径 = 凡 `status="已修改"` 必须带 `effective_to`（替代版施行日前一天），**校验落在批处理层（违规整批不出）、读侧谓词一字未动** | 4 files +69/−18，新增 **1** 条用例（collected 轴：`test_phase5.py` 5→6）。不新增慢套件依赖、不动库。**变异 2 条**：M1 废止日边界改 `et <= today` ⇒ 新用例 + 既有矩阵**两条都红**；M2 加一支 `已修改 and not et ⇒ False` ⇒ **只有新用例红** ⇒ "这条线在本仓所有测试里只有它守着"是量出来的，不是感觉。补测 1 次元典调用（累计 21）取回经济合同法 `(1993修正)` 施行日 **1993-09-02** ⇒ 1982 原文可钉 `1993-09-01`；同时实测到**源侧"被修正版取代"标法不唯一**（劳动合同法 2008 = `已被修改`，民法通则 1987 与经济合同法 1982 原文都 = `失效`）⇒ §3-A 只能写成"状态照源字面值 + 日期按替代版前一天"两条独立规则。**读侧零改动的理由也是量出来的**：全库 `status` 全是 `现行`（10266 + 10266）、`effective_to` 非空 **0 条** ⇒ 改谓词今天零收益、以后会把漏日期的旧条文整体判死 |
 | `6c2f9f6` | 汇报记账（把上面两笔登进表 + §1 第 1 条标已答） | 1 file +7/−2，纯文档 |
-| `e68a0cf` style | **清偿既有格式债**：把 CI 真会红的 **5** 个 `ruff format` 不合规文件改合规（Owner 裁"修"，并确认当前只有本会话在动仓 ⇒ 他人文件才动得） | 5 files +34/−20。**纯格式是可证的，不是"看起来是"**：`git show HEAD:<f>` 与暂存块逐文件 `ast.dump` 相等（5/5 True，字节增量 +33/+17/−18/+17/+22）。**范围从 6 修成 5**：按 CI 的 checkout 形状（纯 LF）复量才报 5 个，`agent/writer.py` 在 LF 下本来就合规——它只是工作副本混了行尾（1033 CRLF + 5 LF，`git ls-files --eol` = `i/lf w/mixed`），`autocrlf` 会把它折回去，一个字节都进不了 diff（实测 `git diff` 与 `git diff --cached` 的 numstat 逐文件相同）。⇒ 纪律：**`format --check` 的本地读数≠CI 读数**。改后复量（全部在最后一次改动之后跑）：LF 副本 `format --check` ⇒ `6 files already formatted, rc=0`；`ruff check .` 干净；`mypy .` Success(73 files)；覆盖这 5 个文件的 8 个测试文件 **223 + 59 = 282 passed / 0 failed**；三个真实库 mtime 逐字未变。**根因未修**（要另案点头）：`core.autocrlf=true` + 仓里**没有 `.gitattributes` |
+| `e68a0cf` style | **清偿既有格式债**：把 CI 真会红的 **5** 个 `ruff format` 不合规文件改合规（Owner 裁"修"，并确认当前只有本会话在动仓 ⇒ 他人文件才动得） | 5 files +34/−20。**纯格式是可证的，不是"看起来是"**：`git show HEAD:<f>` 与暂存块逐文件 `ast.dump` 相等（5/5 True，字节增量 +33/+17/−18/+17/+22）。**范围从 6 修成 5**：按 CI 的 checkout 形状（纯 LF）复量才报 5 个，`agent/writer.py` 在 LF 下本来就合规——它只是工作副本混了行尾（1033 CRLF + 5 LF，`git ls-files --eol` = `i/lf w/mixed`），`autocrlf` 会把它折回去，一个字节都进不了 diff（实测 `git diff` 与 `git diff --cached` 的 numstat 逐文件相同）。⇒ 纪律：**`format --check` 的本地读数≠CI 读数**。改后复量（全部在最后一次改动之后跑）：LF 副本 `format --check` ⇒ `6 files already formatted, rc=0`；`ruff check .` 干净；`mypy .` Success(73 files)；覆盖这 5 个文件的 8 个测试文件 **223 + 59 = 282 passed / 0 failed**；三个真实库 mtime 逐字未变。**根因当时未修**（要另案点头）：`core.autocrlf=true` + 仓里没有 `.gitattributes` ⇒ 见下一行 |
+| `f2bab45` chore(git) | 加 `.gitattributes`：`* text=auto eol=lf` + 显式钉住四类二进制（`.bin` 58 / `.png` 13 / `.pickle` 10 / `.coverage` 7，按 `git ls-files --eol` 实量） | 1 file +13。**"零副作用"是可证的**：加完后 `git status` 的非未跟踪项仍只有他人那 5 个 `dispatch-output/*` ⇒ checkin 归一后的字节与现有 index 逐文件相同（status 本身就是这台仪器：它比的是 clean(工作副本) vs index）；它自己的 blob 与工作副本逐字节相同（841 B / 13 LF / **CR=0**）。本机现状实量：index 侧 **2345 个 `i/lf`**（零 CRLF 入仓）而工作副本 **1429 `w/crlf` + 15 `w/mixed`** —— 这就是"本地 `format --check` 读数≠CI"那台机器。按单独点头的范围只重取一个文件：`git checkout -- backend/agent/writer.py` ⇒ `i/lf w/lf`，随后 `ruff format --check .` = **260 files already formatted**（本地树与 CI 树终于同形状）。**刻意没做**：把 1429 个 CRLF 工作副本整体 renormalize——那要重取文件、会覆盖未提交改动，是另一件事 |
 
 W1 的成本是实测过的，不是"应该不贵"：真实库只读探针（主集合 10266 条、`qa_pairs` 279 条、本地 embedder、n=9 中位）= **每次核验约 80 ms/条引用**（查不到走回退腿仍是两次 `get`，同量级）。
 **新增面只在 `search_qa` 阈值 0.7 到直返阈值 0.92 之间的"仅注入"记录**上——直返那条本来每次都在付这笔（旧循环就写在 `_qa_direct_return` 里）。
@@ -72,7 +73,7 @@ W1 的成本是实测过的，不是"应该不贵"：真实库只读探针（主
    `data/quota_used.sqlite` `2026-09-19 00:12`——与开工前逐字相同。**本汇报自我复核时（09-25 晚）又量了一次，
    三个 mtime 仍逐字未变**（这三条是当场可复量的，见下一节末）。
 
-### 本轮抓到的"仪器自己造假"五类（都记进了文档，不记就会变成下一个人的假事实）
+### 本轮抓到的"仪器自己造假"七类（都记进了文档，不记就会变成下一个人的假事实）
 
 - 顺序腿的**见证记录**选错：一开始用 `evidence="[]"` 当"形状门先于库门"的见证，而那种记录在判据内部
   根本不产生查库调用 ⇒ 换序变异打不死。换成"引用给得出但缺 basis"才有牙。
@@ -88,6 +89,12 @@ W1 的成本是实测过的，不是"应该不贵"：真实库只读探针（主
   "W1 的成本…"那段散文、一次把 `4cf5bfd` 那行的开头整个删掉并和另一行粘在一起），Edit 都"成功"了，
   坏结果只有读回才看得见 ⇒ 修完后加了个一次性检查器（按表头比对每行竖线数 + 行尾是否以 `|` 收尾），
   以后**动表格必跑**它；顺带发现 §1 第 7 条那格早就因为单元格里写了裸竖线而劈成 6 列（一直没人发现）。
+- `grep -c '\r'` **量的不是回车**：POSIX grep 里没有 `\r` 这个转义，`\r` 匹配的就是**字母 r** ⇒ 它给了我一个
+  非零"CR 数"，差点写成"blob 里有 N 处 CR"的假读数。字节级复量（`python -c "...count(b'\r\n')"`）才是 0。
+  ⇒ 数某字节一律走字节级，别走 grep 转义。
+- **手写 LF 覆盖一个 CRLF 文件之后**，`git status` 会持续标 ` M`，而 `git diff-files -p` 是空的、
+  `git hash-object --filters` 与 index 的 blob **同一个哈希**、`git update-index --refresh` 也清不掉它
+  ⇒ 光看 status 会误判"我把文件改坏了"。真正的钥匙是 `git checkout -- <path>`（内容本就等价，重取即清）。
 
 ---
 
@@ -172,9 +179,10 @@ W1 的成本是实测过的，不是"应该不贵"：真实库只读探针（主
 
 ## 5. 建议的下一步顺序
 
-1. §1 第 1、2 条**都已答**（"补" = `4cf5bfd`；"修" = `e68a0cf`，真数 5 个文件）⇒ 现在剩的一词题是
-   **`.gitattributes` 加不加**（CRLF 那台机器的根因，我建议加），加上第 6 条"撤不撤不动库"那道**窗口题**；
-   第 3 条派法务。
+1. §1 第 1、2 条**都已答并落地**（"补"=`4cf5bfd`；"修"=`e68a0cf`，真数 5 个文件；"加 `.gitattributes`"=`f2bab45`）
+   ⇒ 还开着的按轻重排：**第 6 条"撤不撤不动库"**（窗口题，卡住下发脚本 = 任务 #17）、
+   **第 3 条派法务**（解释一/二的废止清单）、**第 4 条溯源键 §3-F**（含 `status_src`）、
+   **第 5 条两个钟**（`retrieval.py:379` 本地 vs `models.py:80` UTC）、第 7 条 TEMP 清理。
 2. 语料数据票的下一步是**写下发脚本**，而它现在多了一条硬前置（数据票 §3-G）：
    `status == "已修改"` 而 `effective_to` 为空 ⇒ **整批不出**（不是跳过那一条）。落值已按"补"算完：
    劳动合同法 2008 版 `2013-06-30`、民法通则 1987 原文 `2009-08-26`／2009 修正版 `2020-12-31`、
