@@ -19,7 +19,7 @@
 | 4 | **溯源键怎么放（§3-F）** | 建议 `source_doc_id` + `source_url` + `retrieved_at` + **`status_src`**（区分"源给的状态"与"按 B 口径推的状态"——不标的话下一次审计会把推断读成源数据）。要不要进时效字段白名单由你定 | 同意 / 改法 |
 | 5 | **两个钟统一到哪一把** | 现状：`retrieval.exact_article_lookup` 默认基准日用**本地** `date.today()`（`retrieval.py:379`），AUTH-A-2 写侧落 `law_as_of_basis` 用 **UTC**（当时是为了与 `QaCandidate.created_at` 同钟，`models.py:80`）。跨本地午夜那 8 小时里两者差一天 ⇒ 对 2021-01-01 分水岭不敏感，但对"即将施行"的条文是真差一天（`retrieval_core.py:54` 的 `ef > today`）。**我不假装有一个"改动面小"的选项**：统一到本地 = 动 `add_qa_pair` + `QaCandidate.created_at`，而 `datetime.utcnow` 是本仓 **13 处**列默认的 house style（`grep -c` 实量），破例会变成下一个人的"为什么只有这张表用本地钟"；统一到 UTC = 只动一行默认，但语义上把"当天的现行法"按 UTC 日切，东八区用户 08:00 前的查询会用到**前一天**的日界 | 定一把 + 存量 `law_as_of_basis` 要不要回填 |
 | 6 | **入库何时允许** | 语料数据票的取数已完成、A/B/D/E **口径已定**（注意 A 的逐值映射仍写着"待法务复确认"，`docs/corpus-time-meta-ticket-20260925.md` §3-A），但"本轮不写任何库"是你设的边界，且真实 `chroma_db` 被运行中的 `fazhi-backend` 容器 bind mount（chroma 并发不安全）⇒ 需要你先撤这条边界并指定写入窗口 | 撤 / 继续冻结 |
-| 7 | 本机 TEMP 有 **1913 个** `fazhi_test_*`（测试私有 sqlite/chroma 目录；抽样前 400 个 71 MB ⇒ 全量约 0.3 GB 量级） | 归属混杂，按纪律**我一个没删**（本会话只删了自己建的 `w1_reg` 副本树与仪器脚本，699 MB，已释放） | 清 / 不动 |
+| 7 | 本机 TEMP 有 **1913 个** `fazhi_test_*`（测试私有 sqlite/chroma 目录；抽样前 400 个 71 MB ⇒ 全量约 0.3 GB 量级）。⚠️ **这是个会被别人的会话跑动的数**：自我复核时复量已 **1940**（+27）⇒ 要现值跑 `ls -d /c/Users/33393/AppData/Local/Temp/fazhi_test_* | wc -l`，别把 1913 当台账 | 归属混杂，按纪律**我一个没删**（本会话只删了自己建的 `w1_reg` 副本树与仪器脚本，699 MB，已释放） | 清 / 不动 |
 
 ---
 
@@ -31,7 +31,7 @@
 
 | 提交 | 内容 | 判据与取证读数 |
 |---|---|---|
-| `6cf2c3c` AUTH-A | QA 语料按**来源可校验性**收口：`retrieval_core.qa_provenance_verifiable`（引用给得出 **且** 有版本基准日才可参与生成），挂产生处 ⇒ 直返 + prompt 注入两出口一起闭；写侧 `/api/feedback` 停发沉淀候选 | 8 files +339/−67，**新增 11 条用例**（`test_qa_provenance_guard.py` 8 条 + `test_qa_direct_return_version_guard.py`、`test_phase3.py`、`test_request_bootstrap.py` 各 1 条）；先红腿在旧行为下确实红。真库判据读数：`qa_pairs` 279→277、`qa_pairs_te4` 21→0 |
+| `6cf2c3c` AUTH-A | QA 语料按**来源可校验性**收口：`retrieval_core.qa_provenance_verifiable`（引用给得出 **且** 有版本基准日才可参与生成），挂产生处 ⇒ 直返 + prompt 注入两出口一起闭；写侧 `/api/feedback` 停发沉淀候选 | 8 files +339/−67，**净新增 9 条用例**（`test_qa_provenance_guard.py` 8 条 + `test_request_bootstrap.py` 1 条）。口径自证：diff 里 `+def test_` 有 **11** 个，但其中 2 个各自配一条 `−def test_`，是**改名反转**而非新用例（`test_phase3.py` 的 feedback 腿、`test_qa_direct_return_version_guard.py` 的"缺 basis 仍直返"控制腿）⇒ collected 轴是 9，与当次容器全量通过数 1409→1418 一致。⚠️ 这个数本轮错过两次：先写 8（只算一个文件）、又被"纠正"成 11（那数的是 `+def` 行，不是用例数）。先红腿在旧行为下确实红。真库判据读数：`qa_pairs` 279→277、`qa_pairs_te4` 21→0 |
 | `20c17c4` docs | 第四轮核对：两份文档就地改 + 进度报告新增第 10 节；两份未跟踪文档入库 | — |
 | `237bd5d` R15-4 | 版本绊线的劳动口径排除范围从**整句**缩到**子句**（民事错答不再被同句劳动词掩护） | 5 新用例。两条实测约束写进注释：① 分隔符必须**半角** `,`（入参已过 NFKC，全角 `，` 被折成 `,`——按 `，` 写是一条"看起来对"的假修复）；② 不能把逗号直接加进分隔符表（当场转红 **6 条既有用例**，修一个漏拦换来一批漏拦）⇒ 共现判定留句级、排除降子句级 |
 | `ad5c42f` R15-2 | 版本门起算锚只认**与请求权相关**的日期（新增 `accrual_anchor_dates`，出生日期不再冒充起算日；认不出锚 ⇒ 空表 ⇒ 不拦，与本模块 fail-open 边界一致） | **6 条新用例**（5 条判据 + 1 条 `test_r15_2_multiple_anchors_use_the_earliest` 是给变异补的牙；提交信息当时写"新增 5 条"是少算了那条 ⇒ 记在这里，不改历史）。过程两次自己的错都记在提交信息里：① 第一版锚词表漏了借款/拖欠/未付/归还/起诉 ⇒ **10 条既有拦截用例转红**，是回仓内夹具取词而不是猜词表；② 变异 M3 第一版是**空炮**（三条腿各只有一个锚日，改"最早 vs 最晚"仍全绿）⇒ 补了多锚用例才真的有牙 |
@@ -59,9 +59,11 @@ W1 的成本是实测过的，不是"应该不贵"：真实库只读探针（主
    绝对失败数不用来下结论（副本树缺 `release-evidence/`、`backend/data/sample_laws` 等未跟踪数据，两侧同现）。
 4. **提交前置清单每笔都做**：按名暂存 → `comm -3` 暂存集==意图集 → 禁提路径零命中
    （`.env`/`chroma_db`/`app.db`/`credentials`/`dispatch-output`/`release-evidence`/`.git-backup`）→
-   五类密钥形状 + 按值反查 `.env`（17 个候选值，两笔均 0 命中）→ `git -c gc.auto=0 commit -F`。
+   五类密钥形状 + 按值反查 `.env`（**每笔现算候选值**，不沿用上一笔的数；本轮各笔均 0 命中）→
+   `git -c gc.auto=0 commit -F`。
 5. **收尾复量真实库未被写**：`app.db` `2026-09-19 00:28`、`chroma_db/chroma.sqlite3` `2026-09-21 02:06`、
-   `data/quota_used.sqlite` `2026-09-19 00:12`——与开工前逐字相同。
+   `data/quota_used.sqlite` `2026-09-19 00:12`——与开工前逐字相同。**本汇报自我复核时（09-25 晚）又量了一次，
+   三个 mtime 仍逐字未变**（这三条是当场可复量的，见下一节末）。
 
 ### 本轮抓到的"仪器自己造假"四类（都记进了文档，不记就会变成下一个人的假事实）
 
@@ -77,7 +79,8 @@ W1 的成本是实测过的，不是"应该不贵"：真实库只读探针（主
 
 ### 第三方复看的产出（本汇报成稿后派了一名无本对话上下文的评审，只读核查 15 项）
 
-它抓到 4 处，**其中一处是已提交文档里的假数字**，全部已改：
+它抓到 4 处，**其中一处是已提交文档里的假数字**，全部已改；⚠️ 但**它给的第 3 条本身也不成立**
+（我当时照抄进表，自我复核复量才发现）⇒ 下面第 3 条已按实测改写，教训另起一行：
 
 1. **`gate_exit_registry.py` 的"判据：`test_qa_provenance_guard.py` 9 条"从未成立过**——该文件
    `--collect-only` 实测 **8 条**，从它的出生笔 `6cf2c3c` 起就是 8 条（不是后来删了用例）；
@@ -93,10 +96,32 @@ W1 的成本是实测过的，不是"应该不贵"：真实库只读探针（主
    `15562fc`（2026-08-25）、上面既没有 `.github/workflows/ci.yml` 也没有 `backend/agent/`，
    本地领先它一百多笔（当次读数 131，这个数会被后续提交作废，故不当结论用）⇒ 正确说法是
    "一 push 就会红的既有格式债"。已改 §1 第 2 条。
-3. 三处用例计数少算：AUTH-A 本笔实为 11 条（我只写了那一个文件的数）、R15-2 实为 6 条
-   （提交信息写 5 条，漏了给变异补牙那条）、AUTH-A-2 实为 7 条（漏了留痕腿）。已在表内改对，
+3. 三处用例计数少算：R15-2 实为 6 条（提交信息写 5 条，漏了给变异补牙那条）、AUTH-A-2 实为 7 条
+   （漏了留痕腿）、AUTH-A 我当时只写了一个文件的数。**但评审给的"AUTH-A 实为 11 条"我也照抄错了**
+   ——11 是 `git show | grep -c '^+def test_'` 的行数，其中 2 行是改名反转（各配一条 `−def test_`）
+   ⇒ collected 轴净增 **9**（与容器全量通过数 1409→1418 一致）。已在表内改对，并把它记成一条纪律：
+   **用例计数只在 collected 轴上取**（`--collect-only` 或全量通过数差），`+def` 行数不是用例数，
+   parametrize 也会让 def 数少于用例数（W1 那 7 条就是 5 个 def + 2 个参数化）。
    提交信息不 amend（改写历史要你点头，且已无人引用）。
 4. §3-A 的"A/B/D/E 已裁"要说得更准：A 那一格实际写的是"**方向已裁、逐值映射待法务复确认**"。
+
+### 自我复核这一遍（成稿后把可当场复量的断言逐条重跑）
+
+- **成立、并已就地钉上可查锚点**（原来有些引用只写到文件级别，查的人得自己翻）：
+  `ci.yml:25-30` 确为 `ruff check` / `format --check` / `mypy` 三步；`retrieval_core.py:38` 是五值白名单、
+  `:54` 是 `ef > today`、`:58-61` 正是那两条 fail-closed（⇒ §1 第 1 条"`已修改` 不在任何拦截分支"成立）；
+  `retrieval.py:379` 用**本地** `date.today()`、`models.py:80` 用 **UTC**，`datetime.utcnow` 作列默认
+  全仓 **13** 处且**全部在 `models.py`**（⇒ §1 第 5 条"没有便宜选项"成立）；`main.py:1163` = 0.92、
+  `knowledge_service.py:313` = 0.7；三个开关默认 `False`（`settings.py:83/122/139`）；
+  `_ACCOUNT_FIELDS` 两个键在 `:122`/`:126`；七笔提交 `--stat` 逐个对上；`ruff check .` 干净、
+  `mypy .` Success（73 files）、`ruff format --check` 仍是那 **6** 个文件，且逐个 `git log -1` 复量
+  **全部停在 `53432be`（2026-09-19）**：`agent/phantom_check.py`、`agent/verifier.py`、`agent/writer.py`、
+  `tests/test_entity_precision.py`、`tests/test_law_snapshot_review.py`、`tests/test_review_regressions.py`。
+- **不成立、已改**（3 处）：① AUTH-A "新增 11 条" ⇒ **净 9 条**（上面第 3 条：那是我照抄评审的 `+def` 行数）；
+  ② §1 第 7 条的 **1913 个** `fazhi_test_*` 是个会漂移的数（本次复量已 1940）⇒ 改成"当次读数 + 取现值的命令"；
+  ③ 端点路径写作 `{id}`，真名是 `/api/admin/qa/{cand_id}/decision`（报告与
+  `docs/auth-review-followup-guidance-20260924.md:68` 都已改；`6cf2c3c` 提交信息里那处**不改**，改历史要你点头）。
+- **仍复量不了、保持原标注**：改前树读数、变异逐条命中、~80 ms/条引用 —— 就是下一段那四条。
 
 **哪些读数别人复量不了**（诚实标注，别让下一个人以为可复现）：改前树"4 failed / 2 passed"、
 变异 7 条的逐条命中、副本树差分 `1460 → 1473 passed`、~80 ms/条引用——这些依赖当次那棵一次性
@@ -117,10 +142,11 @@ W1 的成本是实测过的，不是"应该不贵"：真实库只读探针（主
 4. **E1 / R15-1 / R15-5 仍是"部分收敛"**（指导文档 §8 的原始判定未变）：E1 等一个真实需要阻断的
    事实关系样本再动；R15-1 有已知漏拦；R15-5 的中文数字日期是**明示限制**。这三条不是"待我开工"，
    是**等证据/等口径**。
-5. **Agent 与 R15 版本门在代码默认是关的**（`settings`）⇒ 条件性风险不能写成线上既成故障；
+5. **Agent 与 R15 版本门在代码默认是关的**（`settings.py:83 agent_enabled` / `:122 law_version_tripwire_check`
+   / `:139 fast_path_law_version_check`，三个都是 `= False`）⇒ 条件性风险不能写成线上既成故障；
    开关在目标环境的实际状态本轮未查（本轮无部署权限）。
 6. **人工纠错入库这条通道暂不存在**：写侧停发 `feedback:` 候选后，仓内没有"管理员手工录入 QA"的
-   端点（`/api/admin/qa/{id}/decision` 只能对已有候选通过/驳回）。要恢复须另开票。
+   端点（`/api/admin/qa/{cand_id}/decision` 只能对已有候选通过/驳回）。要恢复须另开票。
 7. **未 push、未部署、服务器未选定**；他人活动产物一律未碰：`dispatch-output/*` 的改动与未跟踪项、
    `backend/.ptmp-s4-run2/`（前序会话遗留 pytest basetemp，归属未确认所以不删）。
 
