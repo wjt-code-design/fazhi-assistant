@@ -154,8 +154,11 @@ def test_verifier_rejects_fact_conflict_without_writer_guard():
     from tests.test_agent_verifier import replace_claim_text
     from tests.test_numeric_matching_v2 import make_state, one_claim, render
 
-    state = make_state(question="借款是否应返还？", facts=["借款尚未清偿。"], evidence_specs=[
-        ("ev-1", "《民法典》第六百七十五条", "借款人应当按照约定的期限返还借款。")])
+    state = make_state(
+        question="借款是否应返还？",
+        facts=["借款尚未清偿。"],
+        evidence_specs=[("ev-1", "《民法典》第六百七十五条", "借款人应当按照约定的期限返还借款。")],
+    )
     draft = render(state, one_claim("ev-1", "根据《民法典》第六百七十五条，该借款尚未清偿。")).draft
     assert draft is not None
     forged = replace_claim_text(draft, draft.conclusion[0], "根据《民法典》第六百七十五条，该借款已经全部清偿。")

@@ -146,9 +146,11 @@ def phantom_action_categories(
         matches = [match for pattern in patterns for match in pattern.finditer(text)]
         if category == "memory":
             # 只看命中前的当前分句，否定声明不能豁免后一句的肯定声称。
-            matches = [match for match in matches if not re.search(
-                r"(?:未|没有|无法|不能|并无)[^，。；！？\n]*$", text[:match.start()]
-            )]
+            matches = [
+                match
+                for match in matches
+                if not re.search(r"(?:未|没有|无法|不能|并无)[^，。；！？\n]*$", text[: match.start()])
+            ]
         if not matches:
             continue
         if category == "user_confirmation":

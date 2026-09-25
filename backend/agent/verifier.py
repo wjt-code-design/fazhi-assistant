@@ -386,9 +386,10 @@ class DeterministicVerifier:
                     )
                 bound_fact_text.append(linked_fact[1].statement)
             bound_numeric_text = "\n".join((*bound_fact_text, *bound_evidence_text))
-            if settlement_conflicts(claim.text, [
-                f.statement for issue in state.issues if issue.issue_id == claim.issue_id for f in issue.facts
-            ]):
+            if settlement_conflicts(
+                claim.text,
+                [f.statement for issue in state.issues if issue.issue_id == claim.issue_id for f in issue.facts],
+            ):
                 return self._result(VerificationVerdict.FAIL_SAFE, [claim.claim_id], "FACT_CONTRADICTION")
             claim_nums = numeric_tokens(claim.text, loose_amounts=settings.numeric_matching_v2)
             bound_nums = numeric_tokens(bound_numeric_text, loose_amounts=settings.numeric_matching_v2)

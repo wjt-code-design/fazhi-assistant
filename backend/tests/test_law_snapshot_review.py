@@ -17,9 +17,11 @@ def test_run_snapshot_owned_and_not_current(db, monkeypatch):
 
     user, conversation, run, state, _ = _records(db)
     monkeypatch.setattr(main, "SessionLocal", sessionmaker(bind=db.get_bind()))
-    monkeypatch.setattr(main, "exact_article_lookup", lambda *a, **kw: [
-        Document(page_content="CURRENT-VERSION-NOT-THE-SNAPSHOT", metadata={"source": "民法典"})
-    ])
+    monkeypatch.setattr(
+        main,
+        "exact_article_lookup",
+        lambda *a, **kw: [Document(page_content="CURRENT-VERSION-NOT-THE-SNAPSHOT", metadata={"source": "民法典"})],
+    )
     main.app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=user.id)
     main.app.dependency_overrides[get_db] = lambda: db
     db.add(Message(conversation_id=conversation.id, role="assistant", content="旧答复", agent_run_id=run.id))
