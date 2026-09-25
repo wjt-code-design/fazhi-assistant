@@ -143,9 +143,7 @@ def test_media_of_foreign_conversation_is_404_before_touching_disk(two_users, mo
     conv_id = _new_conv(client, b)
     db = SessionLocal()
     try:
-        msg = Message(
-            conversation_id=conv_id, role="user", content="带图提问", image_ref="media/authc-foreign.png"
-        )
+        msg = Message(conversation_id=conv_id, role="user", content="带图提问", image_ref="media/authc-foreign.png")
         db.add(msg)
         db.commit()
     finally:

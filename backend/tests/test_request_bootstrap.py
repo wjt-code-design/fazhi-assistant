@@ -104,6 +104,29 @@ def _fast_deps(**overrides):
     return FastPathDependencies(**values)
 
 
+def _patch_kb(monkeypatch, docs, *, calls=None):
+    """把"条文能否在库中查到"钉成给定读数；`calls` 传入列表则顺带记录被问到的 (source, article)。
+
+    判据本体自票 W1 起住在 `retrieval.qa_citations_in_kb`，它读的是 **retrieval 的模块全局**
+    `exact_article_lookup` ⇒ 替身必须打在那一侧（打在 `request_bootstrap` 或 `main` 上都是自我安慰：
+    那两个名字根本不会被这条路径调用）。替身**签名与真函数一致**（位置参数 `src, art`）——
+    吞不下真调用形状的替身会让判据看起来"恒过"（本仓教训：替身必须像真对象）。
+
+    为什么别的用例如 `test_fast_path_legal_branch_parity_...` 也要打这一桩：
+    pytest 的默认 lane 把 `CHROMA_DIR` 隔离到进程私有**空**库（conftest.py:39），
+    不桩则"条文在库"恒为 False ⇒ 用例红在仪器上而不是红在判据上。
+    """
+
+    def _lookup(src, art):
+        if calls is not None:
+            calls.append((src, art))
+        return docs
+
+    import retrieval
+
+    monkeypatch.setattr(retrieval, "exact_article_lookup", _lookup)
+
+
 def test_bootstrap_classifies_raw_and_never_calls_fast_path_capabilities(store):
     classified = []
     deps = _bootstrap_deps(store, classify_intent=lambda query: classified.append(query) or "legal_query")
@@ -635,7 +658,10 @@ def test_fast_path_receives_detached_history_snapshot_after_bootstrap_commit(sto
     assert result["rewritten"] == "上轮问题"
 
 
-def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store):
+def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store, monkeypatch):
+    # 票 W1 之后，一条 QA 记录要在产生处活下来，除了形状判据还得**条文查得到**（时效判据）。
+    # 不钉这个桩，本用例的 qa_hit 会红在进程私有空库上而不是红在判据上（假阴性取证）。
+    _patch_kb(monkeypatch, ["doc"])
     doc = SimpleNamespace(
         metadata={
             "source": "民法典",
@@ -695,7 +721,7 @@ def test_fast_path_drops_qa_hit_whose_provenance_is_not_verifiable(store):
         assert result["qa_hit"] is None, label
 
 
-def test_refused_qa_hit_leaves_a_log_trace(store, caplog):
+def test_refused_qa_hit_leaves_a_log_trace(store, caplog, monkeypatch):
     """拦截要留痕：这道门关掉的是零 token 直返，不留日志则"语料在衰减"在线上没有一点痕迹。
 
     三腿：① 拒一次 ⇒ 归因键 `qa_provenance_refused` 恰好出现一次；
@@ -723,10 +749,143 @@ def test_refused_qa_hit_leaves_a_log_trace(store, caplog):
     assert raw_query not in " ".join([r.getMessage() for r in fired] + [repr(fired[0].__dict__)])
 
     caplog.clear()
+    _patch_kb(monkeypatch, ["doc"])  # 票 W1：放行腿还要过时效判据，不桩就红在空库上（见 _patch_kb docstring）
     with caplog.at_level(logging.WARNING, logger="legal.chat"):
         kept = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(accepted)))
     assert kept["qa_hit"] is not None
     assert not [r for r in caplog.records if getattr(r, "qa_provenance_refused", False)], "放行也留痕 ⇒ 计数不可用"
+
+
+# ==================== 票 W1：时效判据上提到产生处（两出口对称收口） ====================
+# 上面那组用例闭的是**形状**判据（引用给不给得出）。第 8 节② 的漏口还有另一半：
+# "引用的那条文今天还在不在库"这步只写在 `main._qa_direct_return` 里（时效护栏），
+# 产生处从来不做 ⇒ 一条引用已失效条文的记录照样进 `pre["qa_hit"]`，被
+# `main._build_messages` 以"此前已确认的问答（可优先参考）"递给模型。Owner 裁决（2026-09-25）：
+# 对称收口、判据上提到产生处，且两个出口调**同一个**函数（见
+# `tests/test_qa_citation_gate_symmetry.py` 的那条同一性断言）。
+
+_CITABLE_QA = {
+    "question": "试用期最长多久",
+    "answer": "最长六个月",
+    "score": 0.95,
+    "fingerprint": "",
+    "evidence": "劳动合同法|第十九条",
+    "law_as_of_basis": "2026-01-01",
+}
+
+
+def _citation_bootstrap(store):
+    return bootstrap_request(store.user_id, store.conv_id, "借款纠纷", None, False, _deps=_bootstrap_deps(store))
+
+
+def test_fast_path_drops_qa_hit_whose_citation_is_not_in_kb(store, monkeypatch):
+    """先红腿：引用给得出、条文查不在库 ⇒ 产生处就不该把它交给任何一个出口。
+
+    旧行为下本用例红在**判据点**（`qa_hit` 仍是那条记录），不是红在插桩：库替身返回 `[]`
+    在旧代码里根本不会被调用，而形状判据 `qa_provenance_verifiable` 对此记录是**放行**的
+    （它只问"引用给不给得出"，不问"引用可不可核验"）。
+    """
+    _patch_kb(monkeypatch, [])
+
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: dict(_CITABLE_QA)))
+
+    assert result["qa_hit"] is None, "失效引用仍进 qa_hit ⇒ 直返之外的注入通道带着旧答案进 prompt"
+
+
+def test_fast_path_keeps_qa_hit_whose_citation_is_in_kb(store, monkeypatch):
+    """控制腿（必须两侧都绿）：条文在库 ⇒ 照常保留 qa_hit，否则这次收口等于整体关掉语料加速。"""
+    _patch_kb(monkeypatch, ["doc"])
+    from main import _build_messages
+
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: dict(_CITABLE_QA)))
+
+    assert result["qa_hit"] == _CITABLE_QA
+    assert "此前已确认的问答" in "\n".join(getattr(m, "content", "") or "" for m in _build_messages(result))
+
+
+def test_prompt_omits_stale_citation_qa_from_the_producer_result(store, monkeypatch):
+    """链条后半：喂进 `main._build_messages` 的是产生处**实际返回**的那个 `pre`，不自造。
+
+    与 `test_qa_provenance_guard.py::test_prompt_omits_note_when_the_producer_dropped_the_hit`
+    同款纪律——那条的 docstring 就写明"只测后半等于没测"。旧行为下本用例同样红：
+    `qa_hit` 非 None ⇒ 注入照旧发生。
+    """
+    _patch_kb(monkeypatch, [])
+
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: dict(_CITABLE_QA)))
+    from main import _build_messages
+
+    text = "\n".join(getattr(m, "content", "") or "" for m in _build_messages(result))
+    assert "此前已确认的问答" not in text
+    assert "最长六个月" not in text, "失效问答的答案仍进 prompt"
+
+
+def test_fast_path_drops_qa_hit_when_article_lookup_raises(store, monkeypatch):
+    """fail-closed 腿：库读不动 ⇒ 不能校验就当不校验（与直返出口既有的 `except Exception` 同口径）。
+
+    这一半是**新增面**：旧产生处压根不碰库，所以"查不动"与"查得到"在它眼里没有区别。
+    """
+
+    def _boom(src, art):
+        raise RuntimeError("chroma 读失败")
+
+    import retrieval
+
+    monkeypatch.setattr(retrieval, "exact_article_lookup", _boom)
+
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: dict(_CITABLE_QA)))
+
+    assert result["qa_hit"] is None
+
+
+def test_shape_gate_runs_before_the_kb_and_skips_the_lookup(store, monkeypatch):
+    """判据顺序腿：形状判据先拒 ⇒ **不碰库**（无效形状不该白付一次读库成本）。
+
+    见证记录刻意选"**引用给得出、缺 `law_as_of_basis`**"而不是"`evidence='[]'`"：
+    后者在 `qa_citations_in_kb` 内部因解析不出成对引用而**根本不会查库** ⇒ 拿它当见证，
+    两道门换序也照样绿（仪器看不见被检的性质）。用缺 basis 的形状，"先查库"就会留下 calls ⇒ 红。
+    旧行为下本用例也绿（产生处从不碰库），它钉的是新实现的分支可达性。
+    """
+    calls: list[tuple[str, str]] = []
+    _patch_kb(monkeypatch, ["doc"], calls=calls)
+    no_basis = {"question": "q", "answer": "a", "evidence": "劳动合同法|第十九条", "law_as_of_basis": ""}
+
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: dict(no_basis)))
+
+    assert result["qa_hit"] is None
+    assert calls == [], f"形状判据已拒仍去查库 ⇒ 每条无效记录都白付一次读库成本：{calls}"
+
+
+def test_citation_refused_qa_hit_leaves_a_log_trace(store, caplog, monkeypatch):
+    """拦截要留痕，且与形状判据**分键**：两个门是两个数，合成一个就没法归因是哪道在衰减。
+
+    腿：① 失效引用 ⇒ `qa_citation_refused` 恰好一次，且不落 `qa_provenance_refused`（形状门没参与）；
+    ② 在库 ⇒ 两个键都不落；③ 不落问句原文（AUTH-3）；④ JSON formatter 真能把这个键带出来
+    （白名单外的键会被静默丢弃 ⇒ 只在 Python 对象上断言等于没断言）。
+    """
+    _patch_kb(monkeypatch, [])
+    raw_query = "借款合同纠纷怎么起诉"
+    bootstrap = bootstrap_request(store.user_id, store.conv_id, raw_query, None, False, _deps=_bootstrap_deps(store))
+    stale = dict(_CITABLE_QA, question=raw_query)
+
+    with caplog.at_level(logging.WARNING, logger="legal.chat"):
+        dropped = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(stale)))
+    fired = [r for r in caplog.records if getattr(r, "qa_citation_refused", False)]
+    assert dropped["qa_hit"] is None
+    assert len(fired) == 1, "失效引用被拦但无线上痕迹 ⇒ 直返率下降不可归因"
+    assert not [r for r in caplog.records if getattr(r, "qa_provenance_refused", False)], "两键串了 ⇒ 归因失真"
+
+    from observability import _JsonFormatter
+
+    assert json.loads(_JsonFormatter().format(fired[0]))["qa_citation_refused"] is True
+    assert raw_query not in " ".join([r.getMessage() for r in fired] + [repr(fired[0].__dict__)])
+
+    caplog.clear()
+    _patch_kb(monkeypatch, ["doc"])
+    with caplog.at_level(logging.WARNING, logger="legal.chat"):
+        kept = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(stale)))
+    assert kept["qa_hit"] is not None
+    assert not [r for r in caplog.records if getattr(r, "qa_citation_refused", False)], "放行也留痕 ⇒ 计数不可用"
 
 
 def test_historical_fast_path_uses_date_for_all_evidence_and_skips_current_qa(store):

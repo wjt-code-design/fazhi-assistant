@@ -120,6 +120,10 @@ _ACCOUNT_FIELDS = (
     # （把"缺 basis 还是缺引用"抄进日志等于放第二份判据），也没有题干/答案（AUTH-3 日志不落原文）。
     # 未登记会被 JSON formatter 静默丢弃 ⇒ 这个键本身白写（本仓哨兵抓到过一次）。
     "qa_provenance_refused",
+    # 票 W1（2026-09-25，同批 Owner 裁决"对称收口"）：第二道门——引用**给得出但核验不过**
+    # （条文不在库/已失效/库读不动）。与上面那键**分键不分门**：两个读数才能回答"是哪道门在衰减"，
+    # 合成一键就只剩"语料被拦了"。同样只有归因键、没有判据分解、没有题干原文。
+    "qa_citation_refused",
 )
 
 _TEST_REQUEST_ID_FALLBACK = "unit-test-no-middleware-request-id"

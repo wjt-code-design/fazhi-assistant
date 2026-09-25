@@ -126,13 +126,14 @@ from retrieval import (
     extract_citations,
     grounded_top_score,
     prewarm,
+    qa_citations_in_kb,
     retrieve,
     retrieve_exam,
     retrieve_for_test,
     scenario_supplement_docs,
     source_in_kb,
 )
-from retrieval_core import cited_articles, qa_provenance_verifiable
+from retrieval_core import qa_provenance_verifiable
 from schemas import (
     ChatIn,
     ConversationDetail,
@@ -1171,7 +1172,7 @@ def _qa_direct_return(pre: dict, law_as_of: date | None = None) -> str | None:
     命中返回预生成解析答案（零 LLM）；任一护栏不过 → None（回落 LLM 生成）。
     - score ≥ 0.92（search_qa 余弦，接近同一问法）
     - 选项指纹护栏（审查 C4）：选项题同题干换选项内容必须 miss
-    - evidence 时效校验：source|article 在库且仍有效（exact_article_lookup）
+    - evidence 时效校验：source|article 在库且仍有效（判据本体 `retrieval.qa_citations_in_kb`）
     - **版本适用护栏（票 I 的 I-2(a)，2026-09-20）**：这份语料是 2026 年生成的
       （`scripts/gen_qa_corpus.py` docstring：「智谱免费 token …（8-23 到期前消耗）」⇒ 生成日 ≤ 2026-08-23），
       其答案反映的是**民法典时代**的法。若本次请求的 `law_as_of` 落在分水岭之前，直返就是
@@ -1206,15 +1207,12 @@ def _qa_direct_return(pre: dict, law_as_of: date | None = None) -> str | None:
     stored_fp = qa.get("fingerprint") or ""
     if q_fp and stored_fp and q_fp != stored_fp:
         return None  # 同题干换选项内容 → 直返必错（C4）
-    # 时效护栏：逐条校验引用的条文今天是否仍在库。形状解析单一真源 = `retrieval_core.cited_articles`
-    # （原来本函数自己认 "|" 与 JSON 两种形状，"feedback:..." 一类落进 else 被静默跳过时效校验——
-    # 那个跳过连同 prompt 注入出口一起，由上面的 `qa_provenance_verifiable` 收掉）。
-    for src, art in cited_articles(str(qa.get("evidence") or "")):
-        try:
-            if not exact_article_lookup(src, art):
-                return None  # 证据条文已失效/不在库 → 不直返
-        except Exception:
-            return None
+    # 时效护栏：逐条校验引用的条文今天是否仍在库。判据本体在 `retrieval.qa_citations_in_kb`，
+    # 与产生处（`request_bootstrap.prepare_fast_path`）调的是**同一个函数**（票 W1，2026-09-25 裁决
+    # "对称收口"）——此前这一步只写在本函数里，于是另一条出路（`_build_messages` 的
+    # "此前已确认的问答"注入）从未做过时效判定。本出口仍自带这道判据的理由见上面第五道。
+    if not qa_citations_in_kb(qa):
+        return None  # 证据条文已失效/不在库/查不动 → 不直返
     return qa.get("answer") or None
 
 

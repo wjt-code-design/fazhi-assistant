@@ -397,6 +397,42 @@ def exact_article_lookup(source: str, article: str, cutoff: str | None = None) -
     return _valid_docs(data, cutoff, only=rows)
 
 
+def qa_citations_in_kb(qa: Mapping[str, Any] | None) -> bool:
+    """这条 QA 语料记录引用的条文**是否每一条都还能在库里查到**（时效判据本体）。
+
+    票 W1（2026-09-25，Owner 裁决"对称收口，判据上提到产生处"）。此前这一步只写在
+    `main._qa_direct_return` 的时效护栏里，而一条语料命中有**两条**出路：① 零模型直返，
+    ② `main._build_messages` 以"此前已确认的问答（可优先参考）"注入 prompt。产生处只做
+    **形状**判据（`retrieval_core.qa_provenance_verifiable` 问"引用给不给得出"，不问"引用核验不核验得了"）
+    ⇒ ② 从来没经过时效判定，一条引用已删条目的旧答案照样进模型上下文。
+    现在两个出口调**同一个**本函数，不留第二份循环。
+
+    引用形状复用全仓唯一解析器 `rc.cited_articles`（另写一份"什么算引用"就是第 10 节② 的原始失效模式）。
+
+    两侧都 fail-closed：解析不出任何引用 ⇒ False（"没得核验"不等于"核验通过"）；
+    库读不动 ⇒ False（沿用直返出口既有的 `except Exception → 不直返` 口径 —— 一次 chroma 故障
+    不该把失效语料升级成可用语料）。
+
+    刻意**不带 cutoff**，与 `knowledge_service.search_qa` 同一决定（理由见
+    `request_bootstrap.FastPathDependencies` docstring：QA 语料按当日沉淀、无版本轴，
+    历史查询在产生处已把 `qa_hit` 置 None）。判据落在这里而不是产生处，也让"按**现行**日
+    核验"只有一处实现，不必在两个调用点之间保持一致。
+    """
+    if not qa:
+        return False
+    pairs = rc.cited_articles(str(qa.get("evidence") or ""))
+    if not pairs:
+        return False
+    for src, art in pairs:
+        try:
+            if not exact_article_lookup(src, art):
+                return False
+        except Exception:
+            logger.warning("QA 引用的条文核验读库失败 ⇒ 按不可核验处理 (source=%s article=%s)", src, art, exc_info=True)
+            return False
+    return True
+
+
 def _norm_source(name: str) -> str:
     """法名归一：去「中华人民共和国」前缀，便于答案引用与 sources 对齐。"""
     name = (name or "").strip()

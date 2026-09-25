@@ -131,6 +131,10 @@ loose 314→340、packs 仍 2；`.git/objects` 无新建 `tmp_*`；索引无残�
    也不经时效校验。最终落地的判据改为**按证据形状整类判定**（有条文引用**且**有版本基准日才可参与生成），
    挂在产生处 ⇒ 两个出口一起关；写侧同时停止为 `feedback:` 创建候选。落地于第 10 节⑤记录的提交。
    原条目说的"需 schema 改动"因此**不成立**：闭它不需要动数据模型。
+   ⚠️ 但本条那句"既不经 `law_as_of_basis` 也不经时效校验……两个出口一起关"当时**只兑现了一半**：
+   挂在产生处的是**形状**判据，"引用的条文还在不在库"这步时效判定仍只写在直返出口 ⇒
+   注入通道对"引用给得出、库里查不到"的记录仍是敞开的。这一半由票 W1（第 11 节）于 09-25 闭掉，
+   形态是抽**一个** `retrieval.qa_citations_in_kb` 让两个出口调同一个对象。
 9. **`/api/law` 与 `/api/law/search` 恒按当日** ⇒ 历史查询引用的条号在这两个回查端点 404；Agent 路径已有快照回查分支，两条出口契约不对等（第 8 节⑥）。
    **【第四轮核对改判：本项暂缓，且 404 的真因不是"没接日期"】** 生效语料 10266 条实测
    `status` 全为"现行"、`effective_from` 与 `effective_to` **全为空**（第 10 节③）⇒ 给这两个 GET 加
@@ -147,7 +151,7 @@ loose 314→340、packs 仍 2；`.git/objects` 无新建 `tmp_*`；索引无残�
 | ~~`/api/law`、`/api/law/search` 是否接基准日~~ | ⏸ 暂缓，改开语料数据票 | 生效语料 10266 条无任何日期边界元数据（第 10 节③）⇒ 现在加 `law_as_of` 换不来一个 404 的消失。先补废止/修订版本与日期边界，再评估要不要扩公开 API 面 |
 | **语料数据票：废止/修订条文 + `effective_from/to`** | **Owner 已定源；卡在取数通道授权** | 取数与填边界归执行助手，**衔接口径类判断出成表交 Owner/法务签字后才入库**；本轮不写任何库。实测结论见 `docs/corpus-time-meta-ticket-20260925.md`：外部源给得出 `status`/施行日/逐条全文，**给不出废止日期** ⇒ 不能分批先导。Owner 已把法条来源定为**国家法律法规数据库**（flk.npc.gov.cn），但脚本出网这条请求被权限层拦下 ⇒ 需 Owner 对该站点的取数请求显式放行 |
 | ~~AUTH-C 授权与已知日志路径复核~~ | ✅ 探针已落地（第 10 节⑨） | 静态审计（AST 扫 40 条路由）+ 7 条双用户探针 + 4 处"摘归属检查"变异各打死自己那条。两处票面行为已按实测修正：`PATCH /api/conversations/{id}` 的 `title` 是查询参数；`/api/chat` 带他人 conv_id 的真实契约是 200 + 新建会话而非 404 |
-| **prompt 注入侧要不要也要求"引用可在库解析"（两出口对称）** | Owner | 第五道把两个出口都要求"来源可校验"，但**直返**侧另有一道 `exact_article_lookup`（引用的条文今天还在库）而 **prompt 注入**侧没有 ⇒ 一条"引用可解析、库里却没有"的记录仍会作为"此前已确认的问答"进模型上下文。我的推荐是**对称收口**（与你两次 fail-closed 裁决同向），代价是每次带 QA 命中的请求多一次库查询；未点头前不改 |
+| ~~prompt 注入侧要不要也要求"引用可在库解析"（两出口对称）~~ | ✅ 已落地（第 11 节） | Owner 裁决「对称收口，判据上提到产生处」。形状判据第五道只管"引用给不给得出"，而"引用的条文还在不在库"这步此前**只写在**直返出口 ⇒ 一条引用已删条目的记录照样进 prompt。修法是抽**一个**判据本体 `retrieval.qa_citations_in_kb`，两个出口调同一个对象（不是各抄一份循环）。代价已实测：每条引用约 **80 ms** 元数据读，且**只新增在** 0.7≤score<0.92 的"仅注入"记录上——直返（≥0.92）那条本来就在付这笔钱 |
 | **agent 路径 4 处日志原文是否脱敏** | Owner | 本轮不改代码，只在第 3 节那行加了范围限定。要定的是"这些日志谁会读"——`progress §6` 第 4 条已给过 HMAC 的升级触发条件；改法会削人工回看能力，所以不由执行助手代决 |
 | `docs/superpowers/plans/2026-09-22-git-repair-execution-runbook.md` 是否入库 | ✅ 已入库 | 第四轮核对随文档一笔 add（本轮安全判断的依据全引它，未跟踪状态经不起一次 `git clean`） |
 | `law_as_of` 缓存击穿是否加限额 | Owner | 见第 6 节第 5 条。第四轮核对补充事实：真实语料上 cutoff 今天不改变召回，所以这条限额的紧迫性与"取数空转"绑定，先不动 |
@@ -335,6 +339,119 @@ media 那条钉的是**执行顺序**（owned → isfile）：让 `os.path.isfil
 
 落款：本节由接手会话于 2026-09-25 00:1x 撰写（`date` 实取值 00:18），当时 `HEAD` 为本票 AUTH-A
 那笔代码提交、`git rev-list --count HEAD` = 122。这两个数都会随下一笔提交作废，需要现值请现跑。
+
+---
+
+## 11. 票 W1：QA 时效判据上提到产生处（两出口对称收口，2026-09-25）
+
+票面来源：Owner 在 grilling 对齐里裁"**对称收口，判据上提到产生处**"，并在我复核后把执行形状
+改成"**抽一个函数、两处调同一个对象**"——原话的风险是我把循环抄成第二份，那等于制造下一个漂移源。
+
+### ① 补的是哪一半漏口
+
+第 10 节② 那轮（票 AUTH-A）把"来源可校验"挂在产生处，闭掉的是**形状**判据：引用给不给得出。
+但一条语料命中有**两条**出路，而"引用的那条文今天还在不在库"这步时效判定**只写在**
+`main._qa_direct_return`（直返）里，产生处从不查库 ⇒
+
+| 出路 | 改前 | 改后 |
+|---|---|---|
+| ① 零模型直返 `main._qa_direct_return` | score + 形状 + 分水岭 + 指纹 + **时效** | 同一判据对象 |
+| ② prompt 注入 `main._build_messages` 的"此前已确认的问答" | score + 形状（**无时效**） | 由产生处统一拒 ⇒ 一起关 |
+
+漏口的形状值得记一句：**两条出路共用同一个 `pre["qa_hit"]`**，所以只在其中一条出口加护栏的
+修法，下一轮一定会被"另一条为什么没测"追问回来（第 8 节② 犯过一次，这次是它的另一半）。
+
+改动：`retrieval.qa_citations_in_kb`（判据本体，解析复用 `retrieval_core.cited_articles`、
+命中复用 `exact_article_lookup`，两侧 fail-closed：解析不出任何引用 ⇒ 拒、库读不动 ⇒ 拒）；
+`main._qa_direct_return` 改调它；`request_bootstrap.prepare_fast_path` 在形状门**之后**接同一对象；
+`observability._ACCOUNT_FIELDS` 新增 `qa_citation_refused`（与 `qa_provenance_refused` **分键不分门**）。
+判据本体住在 `retrieval` 而不是 `retrieval_core`：后者是全仓唯一的**纯谓词层**（不碰库），
+且方向上只有 `retrieval → retrieval_core` 无环（`retrieval.py:24`）。
+
+### ② 判据与先红读数（改前树上实跑）
+
+`tests/test_request_bootstrap.py` 新增 **6 条**，改前跑 `-k` 同一条命令的实测读数是
+**4 failed / 2 passed**：
+· 红在判据点的 4 条：`test_fast_path_drops_qa_hit_whose_citation_is_not_in_kb`、
+`test_prompt_omits_stale_citation_qa_from_the_producer_result`（喂进 `_build_messages` 的是
+产生处**实际返回**的 `pre`，不自造）、`test_fast_path_drops_qa_hit_when_article_lookup_raises`、
+`test_citation_refused_qa_hit_leaves_a_log_trace`。
+· 两侧都绿的 2 条控制腿：`test_fast_path_keeps_qa_hit_whose_citation_is_in_kb`、
+`test_shape_gate_runs_before_the_kb_and_skips_the_lookup`。
+`tests/test_qa_citation_gate_symmetry.py` **7 条**（本体 2 + 共享性 3 + 直返对偶 2）——
+这一份在改前树上是 collection 期 `AttributeError: module 'retrieval' has no attribute
+'qa_citations_in_kb'`，**所以它不是先红证据**，它钉的是"共享"这个形状本身。
+定向：本批改动落地后 **6 个套件 69 passed**（那是变异跑者的控制轮读数），格式化两次之后按**最终字节**
+复量 **7 个套件 76 passed**（多带 `test_auth_c_ownership_probes.py` 7 条，因同批修了它的格式）；
+`test_gate_exit_registry.py` **14 passed**（生成物 `docs/gate-exit-registry.md` 已用
+`scripts/gen_gate_exit_registry.py` 重生成，手改会红）。
+
+### ③ 变异 7 条，各自打死指名腿（全部还原后 sha 与基线逐字节相同）
+
+| 变异 | 打死的腿（实测） |
+|---|---|
+| M1 产生处删判据 | `drops_..._not_in_kb` + `citation_refused_..._log_trace`（本轮另见 `prompt_omits_stale`、`when_article_lookup_raises` 一起红） |
+| M2 直返出口删判据 | `direct_return_follows_the_shared_predicate[article-missing]` + `test_direct_return_evidence_invalid_misses` + `test_direct_return_still_refuses_dead_article` + 反把"内联"哨兵也踢红 |
+| M3 读库失败改放行 | `predicate_is_fail_closed_...` + `when_article_lookup_raises` |
+| M4 只核验第一条引用 | `predicate_verifies_every_cited_article` |
+| M5 在直返出口内联第二份循环 | `no_exit_keeps_its_own_copy_of_the_lookup_loop[exit-direct]` + `[article-present]` |
+| M6 两道门换序（先查库再看形状） | `shape_gate_runs_before_the_kb_and_skips_the_lookup` + 两条留痕腿 |
+| M7 归因键不登记白名单 | `test_log_fields_are_all_registered_in_whitelist`（1 failed / 1 passed） |
+
+三条**仪器自己出错**的记录（不记下来，下一个人会把仪器故障读成判据失效）：
+1. **顺序腿的见证记录一开始是错的**。我先用 `evidence="[]"` 当见证，M6 换序变异**打不死它**——
+   因为那种记录在判据内部因解析不出成对引用**根本不产生查库调用**。换成"引用给得出但缺
+   `law_as_of_basis`"才有牙。教训与第 9 节⑪同形：**断言的对象必须真的落在被检性质上**。
+2. **变异跑者的失败名正则会吞换行**。`^FAILED ([^ ]+)` 里 `[^ ]` 把换行也吃进去，两条 node id
+   粘成一条 ⇒ 首轮误报 M6 "killed=0/1"。单独复量（`-rf` + 只跑那三条）证明 M6 实际打死 3 条。
+   把正则改成 `^FAILED (\S+)` 后 7/7 全检出。**仪器报错时先验仪器，再下结论**。
+3. **`_patch_kb` 的锚点与位置**：`request_bootstrap.py` 是 CRLF，脚本内按 `\n` 拼锚点会 0 命中
+   （第 10 节⑧已记过一次，本轮同族复发一次）；另外我一度把桩定义删了却没补回，
+   `NameError` 才暴露——**删定义与加调用必须在同一次改动里核对齐**（`grep -c "^def _patch_kb"` 复量）。
+
+### ④ 这次收口的代价（实测，别用"应该不多"顶替）
+
+真实 KB 只读探针（`CHROMA_DIR` 指向宿主 `backend/chroma_db`，主集合 **10266** 条、
+`qa_pairs` **279** 条，本地 embedder，n=9 取中位数）：
+· 一次 `exact_article_lookup` **命中** = median **80–95 ms**（min 74.85，max 913.49 那次是首调用冷启动）；
+· **查不到**（走 I-6 回退腿 = 两次 `get`）= median **84.74 ms**；
+· 判据本体带**两条**引用 = **170 ms**（≈ 线性于引用条数）。
+
+口径要说清：这笔钱**不是新加在直返上的**——score ≥ 0.92 的直返本来每次都在付（旧循环就在
+`_qa_direct_return` 里）。W1 新增的射程是 **0.7 ≤ score < 0.92 的"仅注入"记录**
+（`knowledge_service.search_qa` 默认阈值 0.7），它们此前不查库。
+**本轮未量**：这类请求在生产上的占比、以及 `qa_citation_refused` 的实际触发率——
+两个数都要等带流量的日子现跑，别把"命中率本轮未量"（第 10 节的老账）再念一遍了事。
+
+### ⑥ 全量回归（活树禁跑 ⇒ 同一棵副本树跑两遍做差分）
+
+树：`git -c gc.auto=0 archive HEAD | tar -x` 得 `base`，复制得 `patched` 后**只**把本批 11 个文件按名
+overlay 进去；两棵树各跑一遍 `pytest tests -q -rf --ignore=`（那 4 个在收集期 `FileNotFoundError` 的
+评测 runner，见第 10 节的环境记录）。读数：
+
+| 树 | failed | passed | skipped |
+|---|---|---|---|
+| base（=HEAD，未含本批） | **2** | 1460 | 25 |
+| patched（含本批） | **2** | 1473 | 25 |
+
+失败集合 `comm -13` 差集**为空**，两条既有失败都是 `tests/test_eval_agent.py`（与容器侧记录的
+`eval_agent×2` 同名单）；`+13` = 本批新增用例数。静态检查同 CI 口径：`ruff check .` 0、
+`mypy .` **Success: no issues found in 73 source files**、`ruff format --check` 对本批文件 0。
+
+**这台仪器自己也错了一次**：首轮 `patched` 报 3 failed，多出来的那条是
+`test_gate_exit_registry.py::test_committed_md_is_the_generated_artifact` —— 因为 overlay 循环的
+过滤条件是 `^backend/`，把生成物 `docs/gate-exit-registry.md` 漏在了树外。补 `cp` 那一个文件后
+该文件 **14 passed**，差集归空。⇒ "回归候选"先查仪器覆盖，再怀疑被测对象（第 5 节的老规矩）。
+
+### ⑦ 边界：本轮没做的
+
+· 判据仍**不复判答案对不对**（登记表 `引用校验` 那格的状态因此仍记 GAP-ACCEPTED，理由原文未改）。
+· 没加缓存。若 ④ 那笔开销日后被证明打在热路径上，形状是"给 `(source, article)` 命中结果加 LRU +
+  `invalidate()` 挂钩"，而不是把判据从产生处摘掉。
+· 真实库、`app.db`、`release-evidence` 一律未写；服务器未选定 ⇒ 无部署动作。
+
+落款：本节由接手会话于 2026-09-25 撰写（`date` 实取值 18:27），当时 `HEAD` = `a6026bc`
+（票 AUTH-C 那笔探针提交）、`git rev-list --count HEAD` = 129。这两个数随下一笔提交作废，需要现值请现跑。
 
 ---
 

@@ -191,7 +191,25 @@ EXITS: list[dict] = [
                 "+ 出口侧自带一份（评测探针直接构造 `pre` 绕过产生处）。状态仍记 GAP-ACCEPTED 的理由："
                 "这道门是**拒**而非**判**——校验不了的记录回落 LLM，本出口不再为它担保，"
                 "但「预生成答案对不对」这一层仍无人复判。判据："
-                "`tests/test_qa_provenance_guard.py` 9 条 + `tests/test_request_bootstrap.py` 的接缝腿。",
+                "`tests/test_qa_provenance_guard.py` 9 条 + `tests/test_request_bootstrap.py` 的接缝腿。"
+                "**2026-09-25 票 W1（两出口对称收口，Owner 裁决「判据上提到产生处」）**：第五道只管**形状**"
+                "（引用给不给得出），而「引用的那条文今天还在不在库」这步**时效**判定此前**只写在** "
+                "`main._qa_direct_return` 里 ⇒ 一条引用了已删条目的记录照样被 `_build_messages` 以"
+                "「此前已确认的问答（可优先参考）」注入 prompt——那是第 8 节② 漏口的后一半，"
+                "形状判据看不见它（它不问引用核验不核验得了）。"
+                "修法是抽**一个**判据本体 `retrieval.qa_citations_in_kb`（解析复用 "
+                "`retrieval_core.cited_articles`、命中复用 `exact_article_lookup`，两侧 fail-closed："
+                "解析不出任何引用 ⇒ 拒、库读不动 ⇒ 拒），直返出口与产生处调**同一个对象**"
+                "（不留第二份循环；副作用是替身现在只需打 `retrieval.exact_article_lookup` 一处，"
+                "就能同时决定两个出口的行为——改前打 `main` 侧只影响直返）。"
+                "判据：`tests/test_qa_citation_gate_symmetry.py` **7 条**（本体 2 + 共享性 3 + 直返对偶 2）"
+                "+ `tests/test_request_bootstrap.py` 新增 **6 条**（4 先红 + 1 控制 + 1 顺序；"
+                "顺序腿的见证记录刻意选「引用给得出但缺 `law_as_of_basis`」——用 `evidence='[]'` 当见证的话，"
+                "两道门换序也照样绿，因为那种记录在判据内部根本不产生查库调用）。"
+                "变异 7 条各自打死指名腿：删产生处判据 / 删直返判据 / 读库失败改放行 / 只核验第一条 / "
+                "在直返出口内联第二份循环 / 两道门换序 / 归因键不登记白名单。"
+                "**拦截自 2026-09-25 起可观测**：新增归因键 `qa_citation_refused`，与 `qa_provenance_refused` "
+                "**分键不分门**——两个读数才答得出「是哪道门在衰减」，合成一键就只剩「语料被拦了」。",
             ),
             "自检": ("DISABLED", "`record(" + '"qa_cache"' + ", ..., checked=False)`。"),
             "多选完整性": ("DISABLED", "选项指纹参与**命中判定**（防跨题误命中），但不跑 `multi_incomplete` 注记。"),

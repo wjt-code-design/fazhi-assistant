@@ -27,6 +27,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
 import main  # noqa: E402
+import retrieval  # noqa: E402
 
 ANSWER = "（预生成解析答案）试用期最长六个月。"
 BASIS = "2026-08-23"  # 语料标注的版本基准日（生成日上界）
@@ -65,8 +66,14 @@ def _pre(basis: str | None = BASIS) -> dict:
 
 @pytest.fixture(autouse=True)
 def _time_gate_passes(monkeypatch):
-    """把第三道（evidence 时效）钉成恒过 ⇒ 本文件只剩"版本"这一个变量。"""
+    """把时效那道钉成恒过 ⇒ 本文件只剩"版本"这一个变量。
+
+    **两处都打**：票 W1（2026-09-25）之前判定读的是 `main.exact_article_lookup`，之后读的是
+    `retrieval.qa_citations_in_kb` 里的同名模块全局。本文件按 `_call` 的签名探测一样，要能跑在
+    **改前树**上取先红读数 ⇒ 只打一处会让改前树上的控制腿假红（拦它的是空库，不是版本判据）。
+    """
     monkeypatch.setattr(main, "exact_article_lookup", lambda src, art: ["doc"])
+    monkeypatch.setattr(retrieval, "exact_article_lookup", lambda src, art: ["doc"])
 
 
 def test_control_same_side_of_watershed_still_direct_returns():

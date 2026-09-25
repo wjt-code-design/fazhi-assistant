@@ -491,6 +491,7 @@ def prepare_fast_path(
         else:
             docs = deps.retrieve(rewritten, k=10, cutoff=cutoff)
         # QA 语料按**当日**沉淀，无版本轴 ⇒ 历史查询不可直返（见 main._qa_direct_return 分水岭守卫）。
+        from retrieval import qa_citations_in_kb
         from retrieval_core import qa_provenance_verifiable
 
         qa_hit = None if cutoff else deps.search_qa(rewritten)
@@ -505,6 +506,20 @@ def prepare_fast_path(
             )
             # 来源校验不了的记录不给它进 `pre["qa_hit"]`：直返（main._qa_direct_return）与
             # prompt 注入（main._build_messages 的"此前已确认的问答"）两个出口共用这一处判定。
+            qa_hit = None
+        if qa_hit is not None and not qa_citations_in_kb(qa_hit):
+            # 票 W1（2026-09-25，Owner 裁决"对称收口，判据上提到产生处"）：上面那道只问"引用给不给得出"，
+            # 这一道问"引用核验不核验得了"。此前时效判定**只写在** `main._qa_direct_return` 里，于是引用了
+            # 已删条目的记录照样进 `pre["qa_hit"]`，被 `_build_messages` 以"此前已确认的问答（可优先参考）"
+            # 递给模型——那是第 8 节② 漏口的后一半。判据本体住在 `retrieval.qa_citations_in_kb`，
+            # 两个出口调**同一个对象**（不许各抄一份循环；`tests/test_qa_citation_gate_symmetry.py` 钉这条同一性）。
+            # 刻意放在形状判据**之后**：无效形状不付读库成本（`test_shape_gate_runs_before_the_kb_and_skips_the_lookup`）。
+            # 归因**分键不分门**：这是第二道门，与 `qa_provenance_refused` 各一个读数——
+            # 合成一键就只知道"语料被拦了"而不知道是哪道门在衰减。
+            logging.getLogger("legal.chat").warning(
+                "QA 语料引用的条文不在库 ⇒ 不参与生成",
+                extra={"qa_citation_refused": True},
+            )
             qa_hit = None
         if not bootstrap.is_exam:
             docs = deps.scenario_supplement_docs(bootstrap.supplement_text, cutoff=cutoff) + docs

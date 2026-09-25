@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
 import main
+import retrieval  # 票 W1 起时效判据住在 `retrieval.qa_citations_in_kb` ⇒ 替身打在 retrieval 侧
 
 _VERIFIABLE = {
     "question": "试用期最长多久",
@@ -38,6 +39,17 @@ _VERIFIABLE = {
 
 def _pre(qa_hit):
     return {"rewritten": "试用期最长多久", "qa_hit": qa_hit}
+
+
+def _kb(monkeypatch, docs):
+    """把"条文能否在库中查到"钉成给定读数。
+
+    **两处都打**：票 W1（2026-09-25）之前 `_qa_direct_return` 读 `main.exact_article_lookup`，
+    之后读 `retrieval.qa_citations_in_kb` 里的同名模块全局。本文件的先红腿要能在**改前树**上复取，
+    只打一处会让对照腿在另一侧树上假红（拦它的是进程私有空库，不是被检的那道判据）。
+    """
+    monkeypatch.setattr(main, "exact_article_lookup", lambda src, art: docs)
+    monkeypatch.setattr(retrieval, "exact_article_lookup", lambda src, art: docs)
 
 
 def _qa(**over):
@@ -104,27 +116,27 @@ def test_qa_provenance_verifiable_requires_citation_and_basis():
 
 def test_direct_return_refuses_entry_without_citable_evidence(monkeypatch):
     """旧行为：`evidence='[]'` 解析不出条文 → 跳过时效校验 → 原样直返。本用例据此先红。"""
-    monkeypatch.setattr(main, "exact_article_lookup", lambda src, art: ["doc"])
+    _kb(monkeypatch, ["doc"])
     pre = _pre(_qa(evidence="[]"))
     assert main._qa_direct_return(pre) is None
 
 
 def test_direct_return_refuses_entry_without_version_basis(monkeypatch):
     """旧行为：缺 basis → 分水岭守卫跳过（'不拦，保持旧行为'）→ 直返。"""
-    monkeypatch.setattr(main, "exact_article_lookup", lambda src, art: ["doc"])
+    _kb(monkeypatch, ["doc"])
     pre = _pre(_qa(law_as_of_basis=""))
     assert main._qa_direct_return(pre) is None
 
 
 def test_direct_return_still_hits_on_verifiable_entry(monkeypatch):
     """对照腿：来源可校验 + 条文仍有效 → 直返能力不得被这次收口打掉。"""
-    monkeypatch.setattr(main, "exact_article_lookup", lambda src, art: ["doc"])
+    _kb(monkeypatch, ["doc"])
     assert main._qa_direct_return(_pre(_qa())) == "最长六个月"
 
 
 def test_direct_return_still_refuses_dead_article(monkeypatch):
     """对照腿：既有的时效护栏不能被新判据取代——条文不在库仍须 miss。"""
-    monkeypatch.setattr(main, "exact_article_lookup", lambda src, art: [])
+    _kb(monkeypatch, [])
     assert main._qa_direct_return(_pre(_qa())) is None
 
 
