@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+import logging
 from datetime import date
 from pathlib import Path
 from threading import Event, Thread
@@ -676,8 +678,8 @@ def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store):
 def test_fast_path_drops_qa_hit_whose_provenance_is_not_verifiable(store):
     """产生处接缝：来源校验不了的 QA 记录不给它 `qa_hit`，直返与 prompt 注入两个出口一起关。
 
-    旧行为：`search_qa` 返回什么就原样进 `qa_hit` ⇒ `evidence='[]'`（实测存量 5 条的形状）
-    和缺 `law_as_of_basis` 的记录都能被直返、并被注入 prompt。
+    旧行为：`search_qa` 返回什么就原样进 `qa_hit` ⇒ `evidence='[]'`（生效 `qa_pairs` 实测 2 条，
+    另一 lane `qa_pairs_te4` 另 2 条）和缺 `law_as_of_basis` 的记录都能被直返、并被注入 prompt。
     判据刻意放在这一缝而不是 `search_qa` 内部：`qa_seeds.py` 与 `scripts/gen_qa_corpus.py`
     拿 `search_qa(threshold=0.99)` 做**幂等去重**，把策略塞进去会外溢到写侧语义。
     """
@@ -691,6 +693,40 @@ def test_fast_path_drops_qa_hit_whose_provenance_is_not_verifiable(store):
         deps = _fast_deps(search_qa=lambda query, _qa=qa: dict(_qa))
         result = prepare_fast_path(bootstrap, _deps=deps)
         assert result["qa_hit"] is None, label
+
+
+def test_refused_qa_hit_leaves_a_log_trace(store, caplog):
+    """拦截要留痕：这道门关掉的是零 token 直返，不留日志则"语料在衰减"在线上没有一点痕迹。
+
+    三腿：① 拒一次 ⇒ 归因键 `qa_provenance_refused` 恰好出现一次；
+    ② 放行 ⇒ 不留痕（否则计数虚高，这条日志当不了指标）；
+    ③ 留痕里不许有问句原文（AUTH-3：日志不落原文；语料题干可能就是用户问句）。
+    """
+    raw_query = "借款合同纠纷怎么起诉"
+    bootstrap = bootstrap_request(store.user_id, store.conv_id, raw_query, None, False, _deps=_bootstrap_deps(store))
+    refused = {"question": raw_query, "answer": "答案", "evidence": "[]", "law_as_of_basis": ""}
+    accepted = {
+        "question": raw_query,
+        "answer": "答案",
+        "evidence": "劳动合同法|第十九条",
+        "law_as_of_basis": "2026-01-01",
+    }
+
+    with caplog.at_level(logging.WARNING, logger="legal.chat"):
+        dropped = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(refused)))
+    fired = [r for r in caplog.records if getattr(r, "qa_provenance_refused", False)]
+    assert dropped["qa_hit"] is None
+    assert len(fired) == 1, "拦截未留痕 ⇒ 直返率下降在线上不可归因"
+    from observability import _JsonFormatter  # 留痕要真的能出机器（白名单外的键会被 JSON formatter 静默丢弃）
+
+    assert json.loads(_JsonFormatter().format(fired[0]))["qa_provenance_refused"] is True
+    assert raw_query not in " ".join([r.getMessage() for r in fired] + [repr(fired[0].__dict__)])
+
+    caplog.clear()
+    with caplog.at_level(logging.WARNING, logger="legal.chat"):
+        kept = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(accepted)))
+    assert kept["qa_hit"] is not None
+    assert not [r for r in caplog.records if getattr(r, "qa_provenance_refused", False)], "放行也留痕 ⇒ 计数不可用"
 
 
 def test_historical_fast_path_uses_date_for_all_evidence_and_skips_current_qa(store):

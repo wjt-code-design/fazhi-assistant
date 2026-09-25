@@ -184,7 +184,14 @@ EXITS: list[dict] = [
             ),
             "引用校验": (
                 "GAP-ACCEPTED",
-                "预生成语料（8-23 智谱免费 token 离线生成），读侧不复判；写侧护栏=高阈值+选项指纹+evidence 时效三闸。",
+                "预生成语料（8-23 智谱免费 token 离线生成），读侧不复判；写侧护栏=高阈值+选项指纹+evidence 时效三闸。"
+                "**2026-09-24 第四轮核对加第五道（票 AUTH-A）**：`retrieval_core.qa_provenance_verifiable`"
+                "⇒ `evidence` 解析不出 (source, article) 对、或缺 `law_as_of_basis` 的记录**不参与生成**。"
+                "挂在产生处 `request_bootstrap.prepare_fast_path`（直返与 prompt 注入两出口一起关）"
+                "+ 出口侧自带一份（评测探针直接构造 `pre` 绕过产生处）。状态仍记 GAP-ACCEPTED 的理由："
+                "这道门是**拒**而非**判**——校验不了的记录回落 LLM，本出口不再为它担保，"
+                "但「预生成答案对不对」这一层仍无人复判。判据："
+                "`tests/test_qa_provenance_guard.py` 9 条 + `tests/test_request_bootstrap.py` 的接缝腿。",
             ),
             "自检": ("DISABLED", "`record(" + '"qa_cache"' + ", ..., checked=False)`。"),
             "多选完整性": ("DISABLED", "选项指纹参与**命中判定**（防跨题误命中），但不跑 `multi_incomplete` 注记。"),
@@ -205,9 +212,10 @@ EXITS: list[dict] = [
                 "（2021-01-01，**复用既有常量，不另立分水岭**）两侧 ⇒ miss 回落 LLM。"
                 "③ **为什么这条「推断」是安全的（本设计的承重点）**：护栏只关心「是否跨分水岭」，"
                 "而 2026-08-23 与真实生成日（≤ 同一天）**必然同侧** ⇒ 判定对该推断的误差**不敏感**。"
-                "判据：`tests/test_qa_direct_return_version_guard.py` 5 条 = **1 先红 + 4 控制腿**；"
+                "判据：`tests/test_qa_direct_return_version_guard.py` 5 条 = **1 先红 + 3 控制腿 + 1 反转腿**"
+                "（反转腿 `test_unlabelled_record_is_now_refused` 原来是条控制腿，被上面的第五道判据改反）；"
                 "先红在改前树上红在功能点（`assert '（预生成解析答案）…' is None`，非 TypeError），"
-                "4 条控制腿两侧都绿。**「零 token 直返」这个特性保住了** —— 这正是选 (a) 不选 (b) 的全部理由。"
+                "其余各腿两侧都绿。**「零 token 直返」这个特性保住了** —— 这正是选 (a) 不选 (b) 的全部理由。"
                 "**不由票 C 解决**：票 C §4-Q2 已裁「不判读侧」（读侧加判定会把该特性本身打穿）——"
                 "本票做的不是读侧加**判定**，而是给语料补**数据** + 一次**日期比较**。"
                 "同 E1 是结构性走不到，但**本格是全表唯一真正的存量面**"
@@ -232,6 +240,17 @@ EXITS: list[dict] = [
                 "未给指纹时**自算**（复用读侧同一 `_options_fingerprint`），堵住自动收录"
                 "（`create_candidate`）/人工采纳（`decide_candidate`）/`qa_seeds` 三条路径的盲区；"
                 "显式传入优先（`gen_qa_corpus` 逐字不变）⇒ 写侧不再是「唯一一处」。"
+                "**2026-09-25 票 AUTH-A-2（同一形状的第二次补口）**：第五道上线后全仓**没有任何生产者**写 "
+                "`law_as_of_basis`（上面①那 279 条的值来自 09-20 一次性回填，运行时四条写路径一条都不写）"
+                "⇒ 新沉淀的语料**永久**过不了第五道，零模型直返会静默衰减到存量。修法是 `add_qa_pair` "
+                "未给基准日时自己落**当日**，时钟取 **UTC**（与 `QaCandidate.created_at` 同一个钟；"
+                "写这条判据那晚本机正好跨过本地午夜，UTC 与本地差出一天，"
+                "`tests/test_qa_basis_write_side.py` 的钉钟用例把这个选择钉住）；"
+                "人工采纳是唯一例外——`decide_candidate` 传候选 `created_at` 的日期（**采纳≠产生**）。"
+                "判据 5 条 = 1 先红 + 3 控制 + 1 生产路径，另在 `tests/test_qa_invalidate.py` 钉一条接线"
+                "（采纳路径确实把产生日交给了写侧——那条替身吞参数，看不见结果侧的判据看得见）。"
+                "**拦截自 2026-09-25 起可观测**：产生处拒一条记录时落 `qa_provenance_refused` 结构化告警，"
+                "刻意只落一个归因键、不落判据分解（那等于放第二份判据），也不落问题原文（AUTH-3）。"
                 "第三道**已修**（票 I 的 I-6，2026-09-20）：QA 语料写 `宪法` 而主库存成 `宪法（1982年）`、"
                 "而 `canon_source` 没有这条别名 ⇒ `exact_article_lookup` 对简称**精确取空**。"
                 "修法是**复用全仓唯一的源名归一规则 `_source_key`** 做一次候选回退"

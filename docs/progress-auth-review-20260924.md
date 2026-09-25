@@ -257,6 +257,55 @@ AKIA / sk- / JWT / PRIVATE KEY / 带密码连接串五类形状，**全零命中
 凡要报数就必须让那次命令**一次把全部读数打全**（本轮的最终形态就是单条脚本同时输出两个对象 × 五类形状 × 值反查）。
 提交信息不 amend（本笔未被他人引用是事实，但改写历史需 Owner 点头），以本条勘误为准。
 
+⑧ **AUTH-A-2（Owner 裁 A 案"补写入口径"）已落地**，顺带把三条"写的时候就不对"的陈述改对。
+缺口本体：第 ⑤ 条那道"缺 `law_as_of_basis` ⇒ 来源不可校验"上线后，**全仓没有任何生产者写这个键**
+（存量 279 条的值来自 09-20 一次性回填，运行时四条写路径一条都不写）⇒ 新沉淀的语料**永久**过不了
+第五道，零模型直返会静默衰减到存量。修法是 `add_qa_pair` 在调用方未给基准日时自己落**当日**
+（与票 T6 同一形状：单一闸口堵整类，不逐点补），唯一例外是人工采纳——`decide_candidate`
+传候选 `created_at` 的日期（**采纳≠产生**）。
+**时钟取 UTC 不是本地当日，这条是被撞出来的不是想出来的**：写判据那晚本机恰跨过本地午夜
+（本地 09-25 / UTC 09-24），首版拿 `date.today()` 当期望值，实现按 UTC 落 ⇒ 两条腿当场红。
+UTC 与 `QaCandidate.created_at`（`datetime.utcnow`）同一个钟，默认路径与采纳路径的"当日"不会互差一天；
+判据改用**钉钟**（`_PinnedDatetime`，并断言实现确实传了 UTC）替掉读宿主时钟，换成本地钟就撞不上期望值。
+
+改对的三条陈述（都属第 9 节那一族"读数与代码不一致"）：
+· `main.py` 沉淀闸注释原写"`law_as_of_basis` 只由 seeds/生成脚本写"——那两个文件里**一次都没出现过**，
+  是幽灵注释（正是它让第 ⑤ 条那道门上线时没人发现没有生产者）；
+· `_qa_direct_return` 的 `if law_as_of is not None and basis_raw:` 里 `and basis_raw` 是**死条件**
+  （上面第五道已保证非空），摘掉；
+· 两处计数错：`cited_articles` docstring 写"279 条 = 200 JSON + 76 管道符 + 3 其它"，只读复量真值
+  **203 JSON（含那 2 条 `'[]'`）+ 76 管道符 + 0 其它**、判据实际放行 277；
+  `tests/test_request_bootstrap.py` 一条注释写 `evidence='[]'`"实测存量 5 条"，真值是**生效集合 2 条**
+  （另一 lane `qa_pairs_te4` 另 2 条）。复量口径：`chroma.sqlite3` 以 `mode=ro` 打开，
+  按 `segments.collection` 关联取 `evidence` / `law_as_of_basis` 的 `string_value` 分组计数。
+
+**新拦截从此可观测**：产生处每拒一条记录落 `qa_provenance_refused` 结构化告警。刻意只落一个归因键，
+不落"缺 basis 还是缺引用"的分解（那等于在日志里放第二份判据，改门时它会开始说谎），也不落题干
+（AUTH-3）。**这一条差点自己造假**：字段没登记进 `observability._ACCOUNT_FIELDS` 时，本仓哨兵
+`test_log_fields_are_all_registered_in_whitelist` 直接报"会被 JSON formatter **静默丢弃**"
+⇒ 若不跑宽套件，这个"可观测"补丁在机器日志里根本不存在。补登记后加了一条腿把被拒记录过一遍
+真 `_JsonFormatter`，断言 JSON 里看得见这个键（哨兵只验注册，不验输出）。
+
+判据与证据：`tests/test_qa_basis_write_side.py` 5 条 = 1 先红 + 3 控制 + 1 生产路径（先红改前红在
+`TypeError: unexpected keyword 'basis'` 与落库空串，不红在 import）；接线腿 1 条钉在
+`test_qa_invalidate.py`（那里的替身吞掉参数 ⇒ 结果侧判据看不见"采纳路径到底传没传产生日"这条线，
+替身同时补上 `created_at` 以对齐真行）；留痕腿 1 条 3 判（拒必留痕、放行不留痕、JSON 里可见）。
+变异 6 案：删默认基准日 / 采纳不传产生日 / 时钟丢 UTC / 整块删日志 / 日志去归因键 / 撤白名单登记，
+各打死对应用例（前 3 案各打死 3 条腿、后 3 案打死留痕与哨兵），还原逐文件复量 sha256 一致。
+`ruff check` + `format --check` 对改动文件干净、`mypy` 5 文件零问题、登记表 E2 三格文字随票更新后
+重新生成 `docs/gate-exit-registry.md`（哨兵 15 passed）。
+
+**宽套件这一轮又立了一功，也暴露了我自己一处假绿**：撤白名单登记那一案打死的是
+`test_log_fields_are_all_registered_in_whitelist`——**这个字段是本票新加的，我按"定向 96 passed"
+就想收口，而哨兵只跑在宽套件里**。若不跑它，`qa_provenance_refused` 会被 JSON formatter
+静默丢弃 ⇒ "新拦截可观测"这个交付在机器日志里根本不存在（第 9 节那一族：**验了注册不等于验了输出**，
+补的那条真 `_JsonFormatter` 腿才是把这一格钉死的东西）。
+副本树全量（只搬 `backend/` + 真库副本，`CHROMA_DIR`/`DATABASE_URL` 显式钉在副本内）
+= `12 failed / 1470 passed / 2 skipped / exit 1`，另排除 3 个 import 期就要仓库根
+`release-evidence/` 的 runner 文件；那 12 项**未逐个定因**，定性证据是同 12 项 node id 在宿主
+定向复跑 **12 passed** ⇒ 属副本树缺件而非代码失败。补白名单登记前后各跑一次，失败集差**恰好只有**
+`test_log_fields_are_all_registered_in_whitelist` 这一条（`diff` 只有 `13d12`）。
+
 **本轮的元结论**：第 8 节证明了"把中间态当成已证明的事实"会被第三方抓出；第 9 节证明了"把成品当交付物读"
 能抓出引用与算账错误；这一轮多暴露一类——**陈述在其写下时刻是真的，但依赖一个会消失的前提**。
 ①②③三条没有一条是"写错了"，全是"写的时候对、说完前提就变了或本就没人核过"。

@@ -65,9 +65,11 @@ def is_valid_by_time(meta: Mapping, today: str) -> bool:
 def cited_articles(evidence: str) -> list[tuple[str, str]]:
     """把 QA 语料的 `evidence` 解析成 (source, article) 对；认不出的形状返回空表。
 
-    在库的三种形状（2026-09-24 对生效集合实测：279 条 = 200 JSON + 76 管道符 + 3 其它）：
-    种子与语料生成脚本写 `source|article`；`main._post` 的自动沉淀与管理员采纳路径写
-    JSON 数组；反馈来源写 `feedback:<rating>`——最后这种解析不出任何一对。
+    在库的形状（2026-09-25 对生效集合 `qa_pairs` 只读复量：279 条 = 203 JSON + 76 管道符 + 0 其它；
+    那 203 里有 2 条是空数组 `'[]'`，解析不出任何一对 ⇒ 本函数实际放行 277 条）：
+    种子与语料生成脚本写 `source|article`；`main._post` 的自动沉淀与管理员采纳路径写 JSON 数组；
+    `feedback:<rating>` 这类形状在库实测 **0 条**（第 10 节②，且写侧已停发反馈候选），
+    但它落在末尾那个 `return []` 上 ⇒ 认不出的形状一律拒，不做"看起来像就放过"。
     时效护栏与来源可校验判据共用这一份解析，不留第二份形状知识。
     """
     text = (evidence or "").strip()

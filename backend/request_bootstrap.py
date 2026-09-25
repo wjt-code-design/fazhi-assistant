@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -493,7 +494,15 @@ def prepare_fast_path(
         from retrieval_core import qa_provenance_verifiable
 
         qa_hit = None if cutoff else deps.search_qa(rewritten)
-        if not qa_provenance_verifiable(qa_hit):
+        if qa_hit is not None and not qa_provenance_verifiable(qa_hit):
+            # 拦了要留痕：这道门关掉的是**零 token 直返**，静默拒绝的话"语料在衰减"线上没有任何痕迹
+            # （形状同 `main._law_version_gate` 的绊线日志）。刻意只落一个归因键、不落判据分解——
+            # 把"缺 basis 还是缺引用"抄进日志等于放第二份判据，改那道门时它会开始说谎。
+            # 也不落问题原文（AUTH-3）：语料题干可能就是用户问句。
+            logging.getLogger("legal.chat").warning(
+                "QA 语料命中但来源不可校验 ⇒ 不参与生成",
+                extra={"qa_provenance_refused": True},
+            )
             # 来源校验不了的记录不给它进 `pre["qa_hit"]`：直返（main._qa_direct_return）与
             # prompt 注入（main._build_messages 的"此前已确认的问答"）两个出口共用这一处判定。
             qa_hit = None

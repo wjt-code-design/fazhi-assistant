@@ -989,8 +989,9 @@ def _post(pre: dict, answer: str, curate: bool = True):
         # 受控沉淀：高有据 + 含引用 + 非空答 → 入待审
         # 沉淀闸（决策 7）：只收真实法律咨询——study_aid 法考题错答（多选漏答）可被采纳污染
         # qa_pairs；cheating 问答本就不该沉淀；chitchat/meta 无引用本就不沉淀。
-        # 历史基准日的答案同样不收：它引的是该日有效、当日可能已废止的版本，而 qa_pairs 无版本轴
-        # （`law_as_of_basis` 只由 seeds/生成脚本写）⇒ 采纳后**现行**查询会直返旧版答案。
+        # 历史基准日的答案同样不收：它引的是该日有效、当日可能已废止的版本，而一条 qa_pairs 记录只带
+        # 一个 `law_as_of_basis`（= 答案**产出那天**的当日口径，见 `knowledge_service.add_qa_pair`），
+        # 没有版本轴 ⇒ 收下它就等于把旧版答案标成"今日之法"，现行查询会直返它。
         if curate and pre.get("intent") == "legal_query" and not pre.get("law_as_of"):
             grounded = grounded_top_score(pre["rewritten"])
             q = pre["user_text"] or pre["rewritten"]
@@ -1192,8 +1193,8 @@ def _qa_direct_return(pre: dict, law_as_of: date | None = None) -> str | None:
         return None
     if not qa_provenance_verifiable(qa):
         return None  # 来源校验不了 ⇒ 本出口不放行（与产生处同一判据，直连调用路径也挡得住）
-    basis_raw = str(qa.get("law_as_of_basis") or "")
-    if law_as_of is not None and basis_raw:
+    basis_raw = str(qa.get("law_as_of_basis") or "")  # 非空由上面的 `qa_provenance_verifiable` 保证
+    if law_as_of is not None:
         try:
             basis = date.fromisoformat(basis_raw)
         except ValueError:

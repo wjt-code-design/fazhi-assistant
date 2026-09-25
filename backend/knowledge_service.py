@@ -11,6 +11,7 @@ import hashlib
 import io
 import os
 import threading
+from datetime import UTC, datetime
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -265,7 +266,7 @@ def count_docs(status: str | None = None) -> int:
 
 
 # ==================== qa_pairs（受控沉淀采纳后） ====================
-def add_qa_pair(question: str, answer: str, evidence: str = "", fingerprint: str = "") -> None:
+def add_qa_pair(question: str, answer: str, evidence: str = "", fingerprint: str = "", basis: str = "") -> None:
     """QA 对入库（answer/evidence/options_fingerprint 存 metadata，question 作向量检索入口）。
 
     fingerprint（选项内容指纹，审查 C4 护栏）：直返前校验同题干换选项内容必须 miss。
@@ -276,16 +277,34 @@ def add_qa_pair(question: str, answer: str, evidence: str = "", fingerprint: str
     新语料对 C4 护栏是**盲的**（T7 补采只覆盖了存量 279 条，没堵写侧）。
     现算复用**读侧同一个** `query_understand._options_fingerprint`——不新增第二份选项提取规则；
     调用方显式传入的值优先（`gen_qa_corpus` 路径逐字不变）。
+
+    **票 AUTH-A-2 写侧补口（2026-09-25，Owner 裁决 A 案）**：同一形状再堵一格——调用方不给
+    `law_as_of_basis` 时落**当日**。第四轮核对把"缺 basis ⇒ 来源不可校验 ⇒ 不直返也不注入"
+    上线后，全仓**没有任何生产者**写这个键（存量的值来自 09-20 一次性回填），于是新沉淀的语料
+    **永久**过不了 `retrieval_core.qa_provenance_verifiable`：零模型直返会静默衰减到那 279 条。
+    默认值对四条路径都是**真话**：`_post` 的沉淀闸明令"带历史基准日的请求不沉淀"，种子与生成
+    脚本也按当日法律现产出。唯一例外是人工采纳——答案的法律版本身份属于**产生**它的那天，
+    隔几天采纳不会让它变成今日的法 ⇒ `decide_candidate` 显式传候选 `created_at` 的日期。
+    时钟取 UTC，与 `QaCandidate.created_at`（`datetime.utcnow`）同一个钟——
+    若默认值改用本地钟，两条路径的"当日"就会差最多一天。
     """
     if not fingerprint:
         from query_understand import _options_fingerprint  # 局部导入：不加重模块加载
 
         fingerprint = _options_fingerprint(question or "")
+    if not basis:
+        basis = datetime.now(UTC).date().isoformat()
     _qa_store.add_documents(
         [
             Document(
                 page_content=question,
-                metadata={"answer": answer, "evidence": evidence, "origin": "qa", "options_fingerprint": fingerprint},
+                metadata={
+                    "answer": answer,
+                    "evidence": evidence,
+                    "origin": "qa",
+                    "options_fingerprint": fingerprint,
+                    "law_as_of_basis": basis,
+                },
             )
         ]
     )
@@ -380,7 +399,11 @@ def decide_candidate(db: Session, cand_id: int, decision: str):
     if not r:
         return None
     if decision == "approved":
-        add_qa_pair(r.question, r.answer, r.evidence or "")
+        # 采纳≠产生：基准日取候选**产生**那天（created_at），不是此刻的今天。缺值时传空串，
+        # 由 add_qa_pair 落当日——那是它默认的"今天产生"口径，比凭空造一个旧日期诚实。
+        add_qa_pair(
+            r.question, r.answer, r.evidence or "", basis=r.created_at.date().isoformat() if r.created_at else ""
+        )
         # 纠错采纳 = 知识变更：清回答缓存，否则旧答案在 TTL 内继续命中、纠错静默失效
         import retrieval
 

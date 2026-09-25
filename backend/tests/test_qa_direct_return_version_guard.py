@@ -85,8 +85,9 @@ def test_unlabelled_record_is_now_refused():
     旧口径写在 `_qa_direct_return` 的 docstring 里："这道门的射程只覆盖已标注基准日的记录，
     不因未知记录扩大拦截面"。第四轮核对（§10 第 2 条）由 Owner 裁决反过来：缺版本轴的守卫
     **不该放行**，它与缺条文引用同属"来源校验不了"，由第五道在源头一起拒。
-    这里不删旧用例名，而是让它留下一条反转断言——悄悄删掉一条曾经成立过的口径，
-    下一步的人就没有坐标可查。
+    用例名**改了**：旧名 `test_control_unlabelled_record_still_direct_returns` 的
+    "still_direct_returns" 现在正好把断言说反 ⇒ 留着它就是个假标签。改名史记在本段而不是靠
+    保留旧名：悄悄删掉一条曾经成立过的口径，下一步的人就没有坐标可查。
     """
     assert _call(_pre(basis=None), PRE) is None
     assert _call(_pre(basis=None), POST) is None  # 与请求基准日无关：缺 basis 一律不直返

@@ -114,6 +114,12 @@ _ACCOUNT_FIELDS = (
     "fast_path_law_version_reason",
     "fast_path_law_version_detail",
     "law_as_of",
+    # QA 语料来源守卫（2026-09-25，票 AUTH-A 第五道的可观测补口，Owner 裁 AUTH-A-2 同批）：
+    # `request_bootstrap.prepare_fast_path` 拒一条命中的 QA 记录时落这一个布尔。这道门关掉的是
+    # **零 token 直返**，不留痕的话"语料在衰减"在线上没有痕迹。刻意只有归因键、没有判据分解
+    # （把"缺 basis 还是缺引用"抄进日志等于放第二份判据），也没有题干/答案（AUTH-3 日志不落原文）。
+    # 未登记会被 JSON formatter 静默丢弃 ⇒ 这个键本身白写（本仓哨兵抓到过一次）。
+    "qa_provenance_refused",
 )
 
 _TEST_REQUEST_ID_FALLBACK = "unit-test-no-middleware-request-id"
