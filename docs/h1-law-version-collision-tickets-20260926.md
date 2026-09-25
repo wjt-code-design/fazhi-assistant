@@ -68,8 +68,17 @@ cd backend && CHROMA_DIR="$(cygpath -w "$TEMP/fazhi-chroma-h1repro-20260926")" \
    ⚠️ 别和 `_seed_conflict()` 混成一件事，两句主语不同：`_seed_conflict` 决定**进来的这条要不要处理**
    （库里该 (source,article) 有 seed 副本 ⇒ 整条跳过、不改），本条决定**处理时哪些旧副本可删**（seed 副本永不进可删集）。
 4. 同一 (source, article) 已有**带日期**旧块且日期不同 ⇒ 仍按"修订版并存"，不进可替换列表（现有语义不许回归）。
-5. **变异跑**：把白名单里 `upload` 去掉 ⇒ 必须红；把归一化里的 `\u3000` 去掉 ⇒ 必须红
-   （旧块章节行用的正是 `\u3000`，实测 `chapter='第十章\u3000建筑物和物件损害责任'`）。
+5. **变异跑**：把白名单里 `upload` 去掉 ⇒ 必须红。
+   ⚠️ **原判据 5 的第二半作废（09-26 独立评审抓出，我本机复测确认）**：票原来写"把归一化里的 `\u3000` 去掉 ⇒ 必须红"，
+   那是**一条永远杀不掉的假变异** —— Python 3 的 `\s` 本就匹配全角空格 U+3000。实测：
+   `re.match(r'\s','　')` = `True`，且 `re.sub(r"[\s　]+","",s)` 与 `re.sub(r"\s+","",s)` 对
+   `chapter='第十章　建筑物和物件损害责任'` 的输出**逐字相同**（`第十章建筑物和物件损害责任`）。
+   ⇒ 换成两条**真能改变行为**的变异：
+   ① 把 `norm()` 里的 `re.sub(...)` 整段去掉（不做归一化）⇒ 必须红（1260 旧块带章节行与全角空格）；
+   ② 把包含判断 `norm(new) ⊆ norm(old)` 换成精确相等 `new == old` ⇒ 必须红（这正是本票 §"已被否掉的想当然修法"
+   记下的那条：旧 165 字 vs 新 141 字，精确相等永不成立）。
+   另：`norm` 定义里的 `\u3000` 只是**给人看的意图注释**，不承担可测性 —— 想让它可测就得先证明 `\s` 不覆盖它，
+   而那条证明刚才跑出来是反的。
 6. 真实库副本重跑 §0 第三条命令：1260/27 两行必须变成 `将替换 1 旧片段`，`合同法 428` 保持 `将替换 0`（它本就没有旧块）。
 7. **可测性限定（09-26 回炉补）**：判据只在**同进程**内立即成立 —— 写入路径 `add_chunks` 会调
    `retrieval.invalidate()`（`knowledge_service.py:162` → `retrieval.py:668`）清 LRU 与 BM25 缓存；
@@ -138,9 +147,21 @@ T1 之前 N 恒为 0、`_seed_conflict()`（:96-104）因**库里 0 条 seed** �
 
 ## T4 — 三处失效的 SHA 指针
 
-**现象**：`b40076b` 在本仓与远端审计克隆都 `cat-file -t` → fatal。它被当作"改前红基线"写进了
-`backend/gate_exit_registry.py:549`、`:553` 和 `backend/tests/test_stream_exit_law_version_gate.py:471`，
-其中**测试 docstring 那处是按字面可执行的指令**（"在 `b40076b` 的副本树里跑"），照抄必失败。
+**现象**：`b40076b` 在本仓与远端审计克隆都 `cat-file -t` → fatal（09-26 两侧各跑一次确认）。
+⚠️ **作用面更正（09-26）**：本票原写"三处"，那是我拿 `grep -rn … | head -10` 截断后当全集读的**假数**。
+按 tracked 轴重量（`git grep -n b40076b HEAD`）= **6 个文件 / 8 行**，且形状各不相同，处置方式也不同：
+
+| 位置 | 载体形状 | 处置 |
+|---|---|---|
+| `backend/gate_exit_registry.py:549`、`:553` | 证据叙述**字符串字面量**（真源 dict，会渲染进门禁报告） | 改 |
+| `backend/tests/test_stream_exit_law_version_gate.py:471` | 测试 docstring | 改 |
+| `dispatch-output/s6-stream-gate-20260920/run_red_and_zero_change.py:4` | **可执行形状**：`git archive b40076b`（照抄必失败）；`:123` 是同一句的字符串 | 改 |
+| `dispatch-output/i1-e2-hitrate-20260920/probe_b_direct_return_rate.py:97` | 注释 | 改 |
+| `docs/gate-exit-registry.md:158` | **生成物**（`gen_gate_exit_registry.py` 渲染；`tests/test_gate_exit_registry.py:276` 就是"手改 md"的绊线） | **不手改**：改完真源后重渲染 |
+| `dispatch-output/s6-stream-gate-20260920/00-zero-change-verdict.txt:5` | 当次运行留下的**历史证据读数** | **不追溯改写**，只在本票注明 |
+
+另有未跟踪的存档副本树 `dispatch-output/hij-h-20260920/beforetree/`（`git ls-files` = 0）内含 7 行，那是快照、不算作用面。
+口径注：`git grep -c` 数**行**、`git grep -o \| wc -l` 数**次**（本例 18 行 vs 21 次，后者含我在文档里把它当反例引的 10 处）。
 
 **根因与替身（已实测）**：09-22 那次 cutover 重写了对象，旧 SHA 全失效但内容还在 ——
 按 subject 反查得本仓等价提交 **`c25fbd6`**（同 subject `docs(派票C/票面自洽): 清掉票 C 里两处会误导 builder 的话`、
@@ -224,7 +245,8 @@ text-splitters 4、langchain-openai 2、chromadb 2。`fixes` 数组为空。
 ## T8 — 存量 10266 条无时效碎片补日期（原 E7，已给成本读数）
 
 盘点件：**`docs/e7-legacy-undated-corpus-inventory-20260926.md`**。要点三条：
-① 机械化率不是"96/99"而是 **52 部方向自洽 + 7 部公布即施行**，**36 部正文末条日期是原法施行日（用了就错）**、4 部取不到；
+① 机械化率不是"96/99"而是 **53 部方向自洽 + 6 部公布即施行**，**36 部正文末条日期是原法施行日（用了就错）**、4 部取不到；
+   （部数 09-26 由第三轮评审复算订正过一次：原写 `52 + 7`，LATER↔PUB 之间差一部 48 碎片的法，规则与脚本现钉在盘点件 §6）
 ② 主源必须是元典结构化字段（`publication_date`/`effective_date`/`validity_status`/`document_number` + 留 `id` 溯源），
 正文正则只准**报警不准填值**；③ 本票**只补 `effective_from`/`promulgated_at`**，
 `status` 与 `effective_to` 不动 —— 元典 `部分失效`/`尚未生效` 到本仓字面值的映射**尚未签字**（数据票 §3-A）。
