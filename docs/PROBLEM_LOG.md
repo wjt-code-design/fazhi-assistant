@@ -335,7 +335,7 @@
 - **优化**：主源改元典结构化字段（`publication_date`/`effective_date`/`validity_status`/`document_number` + 留 `id` 溯源）；
   正文正则**降级为只准报警不准填值**；写侧加 `effective_from < promulgated_at ⇒ 整批不出`（**同日至为放行**，
   7 部"自公布之日起施行"）。本票只补 `effective_from`/`promulgated_at`，**不动 `status`/`effective_to`**（映射未签字）。
-- **结果**：四档读数 LATER 52/5117、PUB 7/511、EARLY 36/3549、NONE 4/689，合计精确等于 10266。
+- **结果**：四档读数 LATER 52/5517、PUB 7/511、EARLY 36/3549、NONE 4/689，合计精确等于 10266。
 - **判断指标**：`docs/e7-legacy-undated-corpus-inventory-20260926.md` §6；分类器与库内 source 的交集必须显式打印
   "命中数合计 == 10266"（本轮第一版就是把短名少去了日期后缀，导致 99 部全部 miss、碎片数报成 0）。
 
