@@ -4,7 +4,7 @@
 `docs/progress-auth-review-20260924.md` 之后的全部动作；接手前的三轮见进度报告第 1–9 节。
 **本报告里每个数字都带它的取数口径**，凡"未量"都明写未量——不拿"应该没问题"顶替读数。
 
-## 0. 一页汇总（要转给别人时，只发这一节也读得通；历史细节见 §1–§7，接手更新见 §8）
+## 0. 一页汇总（要转给别人时，只发这一节也读得通；历史细节见 §1–§7，接手更新见 §8，**最新状态见 §9**）
 
 **状态（09-25 接手复核更正）**：此前提交仍是本地工作，未部署、服务器未选定。此前的定向用例通过
 不等于相关问题全面收口：复核又发现 R15-2 同子句多日期误拦、QA 非法版本日期放行，接手修复见 §8。
@@ -328,3 +328,88 @@ $reviewTests = @(
 接手后已在现有 `import_laws.py` 加 `--validate-only`，用私有输入验证缺日期整批拒绝、合格输入通过；
 仓库当前候选文件含正文占位符，不能据此入库。`--dry-run` 仍会读知识库，本轮未在真实库上验证；
 后续先核对实际候选数据与隔离库预览，再单独讨论真实入库。Docker 已开启不等于获得真实库写入授权。
+
+---
+
+## 9. 本地候选收口轮（2026-09-26；**本节为最新状态，单发这一节也读得通**）
+
+**状态一句**：三态结论 **③ 不就绪**，阻塞项 **2 条**（`pip-audit` rc=1 ＝ 在册已批的风险接受到期；
+**H-1** ＝ 候选批不得真实入库）。本轮**未 push、未动生产码、未写真实库**；产物是 3 个 commit 的文档与票据。
+
+### 9.1 做了什么（按可核验顺序）
+
+| # | 动作 | 落点 |
+|---|---|---|
+| 1 | 执行书五个 Task 全部收口（工作区/Git 基线、远端隔离审计、语料候选、缺口复验、综合门禁） | `docs/superpowers/plans/2026-09-25-next-phase-local-candidate.md`（767 行，21 项复选框全勾） |
+| 2 | 候选批 3 条成型：民法典 1260 / 劳动争议调解仲裁法 27 / 合同法 428，含正负例与谓词实跑 | `data/laws_extra.candidate-20260925.json`（sha256 `f32f5852…`，4035 字节） |
+| 3 | 请**两路无上下文评审 agent** 复审 → 11 条主张逐条自己复测（8 成立 / 1 部分成立 / 1 打掉 / 1 评审方自己搞反） | 执行书 §独立评审 + 两份报告在 `%TEMP%\review-result-fazhi-{corpus,git-gates}.md` |
+| 4 | 评审逼出的 **H-1** 在真实库副本上复测成立，并把影响面量化到 k=4 五题 | 票组 §0 复现凭证 |
+| 5 | 拆成 **票组 T1–T8**（判据＋变异要求），E7 存量盘点独立成件，复核面从 20 题收到 4 问 | `docs/h1-law-version-collision-tickets-20260926.md`、`docs/e7-legacy-undated-corpus-inventory-20260926.md`、`docs/legal-review-request-3items-20260926.md` |
+| 6 | 4 条 defect 按模板登记进问题档案（H-1 / 校验器四口 / 补日期的坑 / 生成器铸"已批准"） | `docs/PROBLEM_LOG.md` §五 #26–#29 |
+| 7 | 三个 commit（只收精确路径；提交前跑形状扫 + 56 个 `.env` 真值反查 staged diff＝0 泄漏） | `acbf363` → `dfecd57` → `ab547bf` |
+
+### 9.2 本轮门禁读数（HEAD `ab547bf`，两条路径都取）
+
+- **工作区树**：`ruff check` rc=0；`ruff format --check` 261 files already formatted；`mypy .` Success / 73 source files；
+  `pytest -m 'not slow' --cov=. --cov-fail-under=70 -q` ⇒ **1544 passed / 2 skipped / 18 deselected，cov 84.47%（TOTAL 8427 stmts），317.90s，rc=0**；
+  守卫 `test_budget_guard.py` 9 passed；`pip-audit` **rc=1**。
+- **纯发布物树**（`git archive HEAD` 另地解出，排除工作区那 5 个 09-21 遗留改动的干扰）：ruff check rc=0、format 261 files、mypy 0、守卫 9 passed
+  ⇒ **lint/type 门的绿灯不依赖我的未提交改动**（这条之前没人验过）。
+- ⚠️ **口径限制（必须一起读）**：本机 venv 有 2 个包越出区间锁（`uvicorn 0.52.1` vs `>=0.27,<0.28`；`pypdf 6.14.2` vs `>=4.0,<6.0`），
+  而 `requirements-dev.txt:1` 与 `Dockerfile:45` 同源 ⇒ 上面这套绿**取自在发布物里构建不出的依赖集**。
+  覆盖/类型门的作用面也不含守门器（mypy 与 coverage 都 `exclude/omit` 掉 `scripts/`，实测 28% 文件覆盖 + 6 模块 `disable_error_code`）。
+
+### 9.3 三条最有价值的实测（下一轮别再重做）
+
+1. **H-1**：现网 10266 条**全部** `origin='upload'` 且无时效字段、`origin='seed'` **0 条** ⇒ `_seed_conflict()` 是死码；
+   真实库副本 `--dry-run` 逐字输出 `将替换 0 旧片段 + 新增` ×3、`跳过 0 条`；导入后 10266→10269，同条文两份并存；
+   k=4 五题净效果**为负**（+1 命中 / −2 挤出）；删掉 2 份旧块后挤出项全部回来、提升保留。
+2. **E7 补日期的坑**：99 部里 88 部文末能取到唯一施行日期，但 **36 部（3549 条碎片、34.6%）取到的是"原法"施行日**
+   （专利法 2020 修正：正文 1985-04-01 vs 元典 `effective_date=2021-06-01`）。⇒ 主源必须是元典字段，正文正则只准报警。
+3. **`gen_r8_disposition.py` 会铸"已批准"**：`:69` 与 `:106-110` 把日期和 `APPROVED` 写死、`:48` 原地覆盖 09-07 已签件
+   ⇒ E3 复扫只取读数，新件签署位**只能 Owner 亲填**，脚本不跑。
+
+### 9.4 决策台账增量（E1–E7，一行一词可答；§7 的 D 系列另算）
+
+| # | 决策 | 我的建议与依据 | 状态 | 你只需答 |
+|---|---|---|---|---|
+| E1 | 候选 `title` 用简称还是全称 | 简称（与 `data/laws.json` 与 `SOURCE_ALIAS` 同形，使 `exact_article_lookup` 走主路径） | **已按此做**（未入库，换法只需重算 3 个 `version_id`） | — |
+| E2 | `source_url` 存元典还是 flk | 元典（§3-D 已裁工作源，实测可用） | **已按此做**；flk 出网仍待放行 | — |
+| E3 | `pip-audit` rc=1 怎么处置 | 不另开治理票（09-07 在册 Risk Accepted 到期）；**pypdf 单独摘出来改判"计划修复"**（138 行里独占 77 行、全仓仅 1 个调用点、本机已在跑 6.14.2） | **建议已采纳**；复扫读数已入册（10 包/138 行/77 ID/`fixes` 空）；**T6 已查明不许重跑生成器** | 签署新件（脚本我不跑） |
+| E4 | 远端衔接路线 | 路线 1：推新分支 `master-local-20260926` 并存，`master` 与那 204 笔不动 | **你已授权，但我停推**（见 §9.5 两问） | 那两问 |
+| E5 | 执行书是否入库 | 入库（它承载全部执行记录，未跟踪＝一次 `git checkout -- .` 就丢） | **已执行** ⇒ `acbf363` | — |
+| E6 | 逐帧"零变化"要不要补对侧 | 补，但指针要换：`b40076b` 在本仓与远端克隆都 fatal；等价提交 **`c25fbd6`**（tree 同为 `cfa6cab2…`） | 待做（票 T4；纯注释/文档改动） | 无需裁决 |
+| E7 | 现网 10266 条无时效旧块要不要批量处置 | **本轮不动**；先修 T1/T2 止血，存量另立数据治理票且排在独立法律复核之后（成本读数已给：可机械取 52+7 部，36+4 部必须人工/换源） | 已开票 **T8**，未执行任何写库 | 是否授权 T8 立项 |
+
+### 9.5 push 停在哪（E4 的两问，答完我就推）
+
+1. `dispatch-output/t12-frontend-sweep-20260920/apply_case_domain_gate.py:104` 把真实管理口令的**字面值写进了它自己的脱敏规则**
+   （搜索侧即明文）。该文件是 09-20 产物、**远端那 204 笔里没有** ⇒ 一推即首次上云。
+   ⇒ 二选一：**改那一行的形状**（不内嵌明文）／明说该口令已失效或不介意。
+2. 我此前说"回退＝删分支"**不完整**：本地 pack **140.36 MiB**（含 5 个 30MB 级 `diag/frozen-index-004/*/data_level0.bin`），
+   两侧无共同祖先 ⇒ 新分支等于首次全量上传；**删分支只回收 ref，不回收服务端对象**。
+
+### 9.6 待办（按"谁能动"排序）
+
+- **Owner（一句话即可）**：§9.5 两问 → 我建分支并推；E3 新件签署；E7/T8 是否立项；**真人法律复核的派发对象**（4 问件已备好待派）。
+- **我可以直接做（不需新授权）**：T4 的三处 SHA 指针（纯文档）；把本轮口径同步进 `docs/corpus-time-meta-ticket-20260925.md`；
+  评审 agent 回来后的合并与补丁清单更新。
+- **需你点头才能做（动码/动依赖/动库）**：T1＋T2（幂等与预检判据，含变异跑）；T3 四口；T5 守门器作用面；T6 生成器改造；T7 pypdf 上限；T8 存量补日期。
+
+### 9.7 本轮明确**没做**的事
+
+未 `git push`／未建远端分支；未写真实 `app.db`、`chroma_db`、配额库（`chroma.sqlite3` mtime 仍 2026-09-21 02:06、
+`find -newermt 2026-09-26` 为空）；未做真实入库与批次恢复演练；未改任何生产码或依赖；未运行 `gen_r8_disposition.py`；
+未代判法律质量、未代填任何复核签署位；未处置那 5 个 `dispatch-output` 的 09-21 遗留（已定性：`.py` 是 datetime tz 写法、
+`.json` 是补尾换行 + CRLF，属格式批处理尾巴，**非本轮产物**）。
+
+### 9.8 指针（绝对路径）
+
+- 执行书 `C:\Users\33393\Desktop\ai-legal-helper\docs\superpowers\plans\2026-09-25-next-phase-local-candidate.md`
+- 票组 `…\docs\h1-law-version-collision-tickets-20260926.md` ｜ E7 盘点 `…\docs\e7-legacy-undated-corpus-inventory-20260926.md`
+  ｜ 复核件 `…\docs\legal-review-request-3items-20260926.md` ｜ 问题档案 `…\docs\PROBLEM_LOG.md`（§五）
+- 候选数据 `…\data\laws_extra.candidate-20260925.json` ｜ 语料数据票 `…\docs\corpus-time-meta-ticket-20260925.md`（§7–§8）
+- 取证副本（可 7 秒重建）`C:\Users\33393\AppData\Local\Temp\fazhi-chroma-{copy,h1repro,fixed}-20260926`、
+  `…\fazhi-chroma-ro.sqlite3`、`…\r8-rescan-20260926\pip-audit-20260926.json`
+- **第二轮两路独立评审（审本轮产物）在跑**：事实轴 `…\Temp\review2-fazhi-facts.md`、安全轴 `…\Temp\review2-fazhi-safety.md`（完成后并入本节）
+
