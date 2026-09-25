@@ -455,5 +455,8 @@ T3 末段加**真**回归面（`tests/test_tool_gateway.py:212/:240` 传的是 `
 - 候选数据 `…\data\laws_extra.candidate-20260925.json` ｜ 语料数据票 `…\docs\corpus-time-meta-ticket-20260925.md`（§7–§8）
 - 取证副本（可 7 秒重建）`C:\Users\33393\AppData\Local\Temp\fazhi-chroma-{copy,h1repro,fixed}-20260926`、
   `…\fazhi-chroma-ro.sqlite3`、`…\r8-rescan-20260926\pip-audit-20260926.json`
-- **第二轮两路独立评审（审本轮产物）在跑**：事实轴 `…\Temp\review2-fazhi-facts.md`、安全轴 `…\Temp\review2-fazhi-safety.md`（完成后并入本节）
+- **第二轮两路独立评审（审本轮产物）已完成并处置**（见 §9.5c）：安全轴 `C:\Users\33393\AppData\Local\Temp\review2-fazhi-safety.md`
+  （采纳，含"不该推"结论）｜事实轴 `…\review2-fazhi-facts.md`（四条证伪、一条方法论采纳）
+- 本轮提交链：`acbf363` → `dfecd57` → `ab547bf` → `84e47e4` → `a4c7bdf`（全为文档与数据产物，**代码零改动、未 push**）
+
 
