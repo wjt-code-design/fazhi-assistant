@@ -74,6 +74,15 @@
 
 日志侧本轮**只复核不改码**（Owner 裁决：改法要先把"这些日志谁会读"定下来）。除进度报告已记的 `fast_path_law_version_detail`（`answer[:200]`）之外，另发现 4 处落原文：`agent/runtime.py` 的 `detail`（**用户问句原文**，`[:300]`）、`agent/controller.py` 的 `agent_planner_raw_tail`（`[:500]`）、`agent/service.py` 的 `agent_claim_checks.claim`（`[:120]`）与 **`rationale`（无截断）**、以及 `agent_failure_detail`（异常文案是否含用户文本**未确认**）。全部受默认关闭的 `agent_enabled` 门控 ⇒ 是"启用后可触发"，不是现网故障。确认要改时单独开脱敏票，不把 AUTH-3 的 `query_sha256` 修复说成全应用日志脱敏完成。
 
+**✅ 2026-09-25 探针已落地**（`backend/tests/test_auth_c_ownership_probes.py`，7 条 + 4 处"摘归属检查"变异各打死自己那条；静态面为 AST 扫 `main.py` 40 条路由，含 `AsyncFunctionDef`）。
+本节第一版之外**又冒出两条只有真跑一遍才知道的契约**，票面若按直觉写就会产出假探针：
+
+1. `PATCH /api/conversations/{id}` 的 `title` 是**查询参数**（FastAPI 对标量 `title: str` 的默认解释），
+   发 JSON body 得 **422** ⇒ 夹具若不断言 200，后面两条改名/读取用例就是"别人根本不存在"的假绿。
+2. `image_ref` 是**相对 `backend/`** 的存盘路径（`models.py:56`；`get_media` 用 `dirname(MEDIA_DIR)` 作 base），
+   值形如 `media/xxx.png` ⇒ 探针写裸文件名会先撞上"非法路径 400"分支，**归属那一段根本没执行**。
+   media 那条因此钉的是**执行顺序**（owned 检查先于 `isfile`），做法是让 `isfile` 一被调用就抛。
+
 ### 非 AUTH：仅处理第 8 节的未闭项（与 AUTH 票独立）
 
 第 8 节已按当前 817e29b 对旧报告全部非 AUTH 项做代码核对和隔离定向测试。旧报告的早期固定快照结论不再直接充当当前状态；后续只对第 8 节列明的未闭项和验证缺口开票。
