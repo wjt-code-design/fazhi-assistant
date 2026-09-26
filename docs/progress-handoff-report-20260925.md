@@ -417,6 +417,17 @@ $reviewTests = @(
    两侧无共同祖先 ⇒ 新分支等于首次全量上传；**删分支只回收 ref，不回收服务端对象**。
 3. **所以 push 的收益是零**（`paths_only_in_remote = 0`，那 40 个 blob 本来就同时在远端与 D 盘备份里），
    而停推只是止血、不是遏制 ⇒ 正确顺序：**先把 `:104` 改成不含明文的形状 + 轮换口令**，复扫归零后再评估要不要推。
+   ⚠️ **本行那个 `= 0` 于 09-26 被自己复测推翻，现为 `= 1`**（口径：本仓那个陈旧 `origin/master` ref，
+   tip `15562fc`、192 提交；fresh fetch 轴**未重测**）。用两侧 `ls-tree -r --name-only` 整行 `comm -23` 重量的结果
+   = `frontend/lib/usePointer.ts`（17 行，导出名却是 `useHoverCapable`）。定性：**远端独有的孤儿 hook**——
+   两侧 `grep` 都查不到任何引用方（`git grep -l "usePointer\b" origin/master -- frontend | grep -v Glow` = 0 命中），
+   本地重建那条线把它丢了 ⇒ **功能零损失，不回收**。
+   ⇒ 对本行结论的影响：**"收益是零"仍然成立**（差的是一个无人引用的文件，不是内容缺口），
+   但**"0"这个数不能再用**；下一轮凡引 `paths_only_in_remote` 必须同时给"按哪个 ref 量的"。
+   另更正我在 09-26 会话里说过的一句口头话：**"本地落后远端 168 笔未推送"是错的框架**——
+   本行上面第 2 点早就写明"**两侧无共同祖先**"（`git merge-base master origin/master` 为空；
+   本地 `master` 全部 168 笔、远端 ref 全部 192 笔，双向差 = 168/192）。所以推送不是"补上落后的提交"，
+   而是**在远端并出第二条历史**；能做的只有推新分支，任何"推 master"都必须 `--force`，那会抹掉远端那 192 笔。
 
 凭据面**分档**（"只有 1 处"这句话必须带口径）：按 Tier-A 凭据形状全 151 笔 / 199.5 MB 逐 blob 扫 ⇒ 命中 1 个路径；
 按"任意 `.env` 值"宽口径 ⇒ 60 个 tracked 文件命中，内容全是模型名与配额整数，非凭据。
@@ -490,7 +501,7 @@ T3 末段加**真**回归面（`tests/test_tool_gateway.py:212/:240` 传的是 `
 | §9.1 | "执行书 767 行 / 21 项全勾"不成立 | `git show ab547bf:<执行书>` 接 `wc -l` = **771**；`- [x]` = **22**、`- [ ]` = **0** | **采纳**，按提交点重写并注明原数是错的 |
 | §9.4 E4 | "那 204 笔"复现不出（它量本地 154 / 远端 192） | `git -C <审计克隆> rev-list --count origin/master` = **204**、tip `985d53e`(09-17)；本仓 `git rev-list --count origin/master` = **192**、tip `15562fc`(08-25) | **驳回其结论、采纳其对口径的要求**：204 是真读数，它得 192 是因为**本仓那个 remote ref 旧了 12 笔** —— 这一条反过来成了 E4 的新事实（谁拿本仓 ref 评估推送会看错对手），已写进 §9.4 该行 |
 | §9.2 | "耗时 317.90s 无出处" | 原始日志 `…\tasks\b6unh8bsp.output` 末行 `… in 317.90s (0:05:17)` 就是本机这一跑；执行书里的 207.40s/169.45s 是**另两次**跑 | **驳回**（有出处），但按它的提示把"哪个仪器的读数"写进票面 |
-| §9.5 | `paths_only_in_remote` 实为 1（`frontend/lib/usePointer.ts`） | 两侧 `ls-tree -r --name-only` 精确整行 `comm -23` = **0 条**；那个近似名两侧都在：`frontend/lib/usePointerGlow.ts` | **驳回**：它按前缀 grep 把同名异文件读成"远端独有" ⇒ 集合差必须整行相等，不能 grep 前缀 |
+| §9.5 | `paths_only_in_remote` 实为 1（`frontend/lib/usePointer.ts`） | 两侧 `ls-tree -r --name-only` 精确整行 `comm -23` = **0 条**；那个近似名两侧都在：`frontend/lib/usePointerGlow.ts` | ~~**驳回**：它按前缀 grep 把同名异文件读成"远端独有" ⇒ 集合差必须整行相等，不能 grep 前缀~~ ⚠️ **09-26 自我推翻：这条驳回是错的。** 同日重跑同一条整行 `comm -23`（同一 ref `origin/master`=192/`15562fc`）得 **1 条 = `frontend/lib/usePointer.ts`**，`usePointerGlow.ts` 两侧都在是**另一件事**、我当时把它当成了前者存在证据（两个名字都在集合里 ⇒ 差集只可能剩下那个不存在的）。⇒ 规矩照旧成立（集合差要整行比、别 grep 前缀），**但那次执行漏了"差集元素是否真为 0"这一步复核**。定性与对 §9.5 结论的影响见 §9.5 第 3 点的更正（该文件是零引用的孤儿 hook，"push 收益为零"不变，数字"0"作废）。 |
 | §9.5 | `admin_password='<masked>'` 不在 `release-evidence/` | `git grep -l admin_password -- release-evidence/` = **0 文件**；`-- dispatch-output/` = **16 文件**；`sk-` 在 `release-evidence/` = **8 文件 / 9 次** | **采纳**：位置写错了，已订正为"全在 `dispatch-output/`"，并把"2 处 `sk-`"标成安全轴自己的 Tier 口径 |
 
 **它没抓到、我自己复查抓到的第 8 条**：同一份票组里 T4 我写"三处失效 SHA、纯注释改动"——
@@ -581,6 +592,13 @@ T3 末段加**真**回归面（`tests/test_tool_gateway.py:212/:240` 传的是 `
 - 票组 `…\docs\h1-law-version-collision-tickets-20260926.md` ｜ E7 盘点 `…\docs\e7-legacy-undated-corpus-inventory-20260926.md`
   ｜ 复核件 `…\docs\legal-review-request-3items-20260926.md` ｜ 问题档案 `…\docs\PROBLEM_LOG.md`（§五）
 - 候选数据 `…\data\laws_extra.candidate-20260925.json` ｜ 语料数据票 `…\docs\corpus-time-meta-ticket-20260925.md`（§7–§8）
+- **异地/跨盘快照（09-26 新增，A 路线第一步已落）**：`D:\ai-legal-helper-bundles\2026-09-26\fazhi-rescue-a96df2c-20260926\`
+  （bundle 144,158,691 B，快照点 = live `master` tip `a96df2c`、168 提交、tree `4b343bf9…`、2502 文件）。
+  跑的是既有工具 `~/Desktop/fazhi-rescue-refresh.sh`（产物照旧落 C:，跑完整体 `mv` 到 D:，**未改他的脚本**）；
+  脚本自带五条判据全过，**跨盘移动后另做独立复验**：`bundle verify` rc=0 ＋ 从 D 盘那份现克隆回来的 tree 与 live **逐字相同**。
+  超集检查：09-19 最新那包 2164 条路径 **0 条不在今日包**；⚠️ 但旧 tip `d6077d0` 的 **commit 对象不在今日包里**
+  （refresh 用 fast-export|fast-import 重建父链）⇒ **旧包一个都不许删**，"内容在"与"历史链在"是两件事。
+  登记已追加进 `~/Desktop/fazhi-rescue-INDEX.txt` 末段。C: 现有 6 包约 2.0G、D: 这份 757M（含可 7 秒重建的 `cloned/`，本轮未删）。
 - 取证副本（可 7 秒重建）`C:\Users\33393\AppData\Local\Temp\fazhi-chroma-{copy,h1repro,fixed}-20260926`、
   `…\fazhi-chroma-ro.sqlite3`、`…\r8-rescan-20260926\pip-audit-20260926.json`
 - **评审的落盘产物（09-26 全部 `test -f` 复验在场，字节数一并给出，别再引用不存在的文件）**：
