@@ -1,9 +1,12 @@
-# 票组 H1：无时效旧块与批导入的静默并存（T1–T5）
+# 票组 H1：无时效旧块与批导入的静默并存（S0、T1–T8）
 
 开票日 2026-09-26。来源：`docs/superpowers/plans/2026-09-25-next-phase-local-candidate.md` 文末 §独立评审
 （两路独立评审 agent + 执行者逐条复测）与 `docs/corpus-time-meta-ticket-20260925.md` §8。
 
-**本组票据的状态：全部未实施。** 本轮（Owner 定为 B 档）只写判据、不动生产码。
+**票据状态（09-26 当日两次更新）**：
+① 开票时 Owner 定为 **B 档**——只写判据、不动生产码；
+② 同日 grilling 十题裁决后，**S0（三笔）＋ T1 ＋ T2 获准进入代码轮**（Q6/Q10：同一轮、分相邻 commit，
+   且 Q10 要求"先落本票段给你过目，再动码"）；**T3–T8 仍未获授权**，导入窗口另裁。
 每条"证据"都是本机实跑读数，不是推理；复现路径写在 §0。
 
 ---
@@ -33,6 +36,98 @@ cd backend && CHROMA_DIR="$(cygpath -w "$TEMP/fazhi-chroma-h1repro-20260926")" \
 | 排序净效果（k=4，5 题） | **+1 命中**（1260 进 top-4）**／−2 挤出**（`劳动法 83`、`仲裁法 90` 掉出） |
 | 删旧块后 | 两题挤出项全部回来，1260 的第 3 名**保留** ⇒ 处置旧块 = 去代价留收益 |
 | 文本形状 | 1260 旧 165 字 vs 新 141 字；27 旧 290 vs 新 275；`exact_equal=False`，去空白/全角后 `new ⊆ old` 两对皆 True、`old ⊆ new` 皆 False |
+
+---
+
+## S0 — 把"时效未知"变成显式状态（09-26 grilling 十题裁决；本轮首要目标）
+
+**为什么不排在 T1 后面而是前面**（本机只读复量，`fazhi-chroma-ro.sqlite3` / collection `legal_provisions_te4`）：
+**10266/10266** 条 `effective_from` 是空串、`origin` 全 `upload`、`status` 全 `现行` ⇒
+`retrieval_core.is_valid_by_time`（`:42-63`）的四个排除分支**一条都不触发**（它们要么要求"有日期"、
+要么要求 `status∈{已废止,即将施行,未生效}`）⇒ **每一次检索都在走 fail-open**，与"我下一步会不会导入双胞胎"无关。
+T1/T2 治的是"新导入造双胞胎"，治不到这条天天在走的通路。
+
+复现（只读；**条号键是 `article`，不是 `article_number`** —— 我用错过一次，join 空表差点报成"库里没有"）：
+
+```bash
+backend/venv/Scripts/python.exe - <<'PY'
+import sqlite3, os
+ro = os.path.expandvars(r"%TEMP%\fazhi-chroma-ro.sqlite3")
+con = sqlite3.connect(f"file:{ro.replace(chr(92),'/')}?mode=ro", uri=True)
+B = ("from embedding_metadata m join embeddings e on e.id=m.id "
+     "join segments s on s.id=e.segment_id join collections c on c.id=s.collection "
+     "where c.name='legal_provisions_te4' ")
+sel = lambda extra: con.execute("select count(*) " + B + extra).fetchone()[0]
+print("碎片总数        :", sel("and m.key='source'"))
+print("effective_from 非空:", sel("and m.key='effective_from' and m.string_value<>''"), "（0 = 全部 fail-open）")
+print("origin 分布     :", con.execute("select m.string_value,count(*) " + B
+                                       "and m.key='origin' group by 1 order by 2 desc").fetchall())
+PY
+```
+
+三个读数同一个口径（**都限定在 `legal_provisions_te4` 这一棵集合内**；不限定会看到 `41064`，
+那是 `_te4` 与 `_cos` 两份等量副本之和 —— 本票所有数字都不使用该口径）：
+`10266 / 0 / [('upload', 10266)]`。
+
+### S0 的层位（Q2 裁决：谓词侧 + 写侧，答案层只做窄面消费者）
+
+| 编号 | 改点 | 位置 |
+|---|---|---|
+| S0-a | 新增**与谓词并列**的纯函数 `time_validity_state(meta)`，返回 `'verified'` 或 `'unknown'`（日期齐 ⇒ verified；否则 unknown）。**不改 `is_valid_by_time` 的 bool 签名**（它是向量池/BM25/grounded 打分的唯一共用谓词，动签名要连带五处调用点） | `backend/retrieval_core.py` |
+| S0-b | **写侧止血**：`status` 的默认值不再是 `现行` ⇒ "现行"从此只能由人或源侧显式签出 | 四处，见下表 |
+| S0-c | 答案层注记：**仅当本次答案使用了显式历史基准日**（`bootstrap.law_as_of is not None`）且引用块里有 `unknown` ⇒ 尾行加一句时效未验证注记 | `main.py` 源头传参 + 各出口 |
+| — | **明确排除**："日期缺失即不参与检索"（fail-closed）。库里 unknown 比例 = 100% ⇒ 等于清空知识库。这条是算出来的，不是偏好 | —— |
+
+**S0-b 的四处默认值**（本轮实测枚举，别再当"一处"）：
+
+| 位置 | 现形状 | 改成 |
+|---|---|---|
+| `backend/knowledge_service.py:157` | `base["status"] = (extra_meta or {}).get("status") or "现行"` —— 最深，任何调用方不传即得"现行" | `or "未验证"` |
+| `backend/scripts/import_docs.py:108` | `extra_meta={"status": "现行"}` | 不写 status（由 S0-b 上一行的默认接管） |
+| `backend/scripts/import_laws.py:56` | `status = _text_field(e, "status", errors) or "现行"` | 见下"校验器侧连带" |
+| `backend/law_versions.py:32` | `str(entry.get("status") or "现行")` | `or "未验证"` |
+
+已实测的两条安全边界：`derive_version_id` 的身份串只有 `title+article+effective_from`（`law_versions.py:20`）
+⇒ **status 不进版本 id**，改默认值不会让既有 `lv-*` 失效或凭空造出双胞胎；
+且 `grep '"现行"' tests/*.py` 命中的断言**全是显式传 status 的谓词测试** ⇒ **没有一条测试钉的是默认值本身**
+（这条我先前说重过一次，见下文"裁决变更史"末尾的更正）。
+
+**校验器侧连带（与 T3① 是同一件事，必须一起改）**：`STATUS_WHITELIST`（`retrieval_core.py:39`）新增 `未验证`
+= 放宽校验 ⇒ 若 `import_laws.py` 仍允许"省略 status"，就会出现"新导入的块默认未验证、门一声不响"的静默态。
+所以 S0-b 落地时同步把批导入的 `status` 改成**必须显式给**（省略即整条拒），判据并入 T3① 那条。
+
+### S0-c 的接线判据（为什么写这么细）
+
+`cutoff` 在检索层**永远非空**：`retrieval.py:379` 与 `:844` 都写 `cutoff = cutoff or date.today().isoformat()`
+⇒ **"只在带 cutoff 时注记"是空判据**。真正的区分在上层：`main.py:695 if bootstrap.law_as_of is not None`、
+`_resume_law_as_of`（`main.py:775-784`，run 落当日返回 `None`）。
+消费点实测是散的：`main.py:439`（快车道）、`prepare_fast_path` 直返、prompt 注入、
+`domain_rules.py:28/41/71/105/552/554`（四个文档集 + 语义回落）、`exact_article_lookup`、`retrieve`。
+⇒ **判据不许写成"确认各出口都加了注记"**（本仓就在"所有出口都挡了"这句话上漏过一条平行入口）。
+要写成：① `unknown` 信号从 `bootstrap.law_as_of` 这**一个源头**以显式参数下传；
+② **每个出口各一条测试**，逐出口点名，测试里断言的是**注记文本出现在该出口产出的答案里**（不是"函数被调用过"）。
+
+### S0 的验收（Q5 裁的形状）
+
+1. 单元层：`time_validity_state` 的 verified/unknown 两类 + 四处默认值各一条负例（不传 status ⇒ 落成 `未验证`）。
+2. 端点层：抄 `tests/test_stream_exit_law_version_gate.py` 那 14 条的**端点级 SSE 逐帧**形状，逐出口证明注记真出现在答案里。
+3. 端到端：在隔离 chroma 副本上实跑（`%TEMP%\fazhi-chroma-copy-20260926` 那三棵，7 秒可重建），**不碰真实库**。
+4. **全量变异**（每个改动点至少一个变异体）：要能杀掉"把 `未验证` 悄悄塞进某个过滤条件"这一类。
+   成本：本机全量 pytest 一次 317.90s ⇒ 数个体约 37 分钟起（**这是按 317.90s×N 推算的，不是实测**）。
+5. **79 题评测集不在本轮**（`eval_set.json` 20 / `eval_exam.json` 20 / `eval_negative.json` 20 / `eval_contract.json` 11）。
+   理由：注记会改答案文本 ⇒ 逐帧 sha 与质量分都会动，同轮既改码又跑评测**无法归因**。要看影响 → 下一张票，先冻结本轮为 baseline。
+
+### 裁决变更史（本轮替换了什么、**没**替换什么）
+
+- **替换**：09-25 数据票 §2 那条隐含口径"上传即 `现行`"（它从未被单独签过，是代码默认值替所有人做的断言）
+  ⇒ 自 S0-b 起，`现行` 必须由人/源显式给出。`STATUS_WHITELIST` 随之扩一格 `未验证`。
+- **不替换**：`tests/test_phase5.py:13` `test_valid_by_time_amended_window_pin_per_owner_ruling`
+  —— 它钉的是 09-25 你裁的"**给 `已修改` 的旧版补 `effective_to`**"那件事，与 status 默认值无关；
+  `:34/:35/:45-56` 那批 fail-open 断言**显式传 status**，S0 全不动它们 ⇒ **S0 落地后这些测试应当仍然全绿**，
+  若有红，说明改到了谓词行为本身，那是**跑偏**、要停下来问，不是顺手改测试。
+- **一次自我更正**：我在 grilling Q10 说过"Q3 会拔掉 `pin_per_owner_ruling` 那根钉子"。
+  落票前 grep 断言原文证伪了自己的这句话 ⇒ 上文的"不替换"以复测为准。规矩同前：**会推翻已签裁决的说法，
+  落笔前要读被引断言的原文**，不能凭测试名和印象推断。
 
 ---
 
