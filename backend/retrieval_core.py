@@ -63,6 +63,31 @@ def is_valid_by_time(meta: Mapping, today: str) -> bool:
     return True
 
 
+# 终止态：要说"某日之后不再有效"，必须有终止日才谈得上完备
+_TERMINAL_STATUSES = {"已废止", "已修改"}
+
+
+def time_validity_state(meta: Mapping) -> str:
+    """时效元数据完备性：'verified' 或 'unknown'。
+
+    与 `is_valid_by_time` 并列而语义不同 —— 谓词回答"某日是否有效"，本函数回答
+    "我们手里有没有凭据这样断言"。日期缺失时谓词按 fail-open 放行，本函数把这一事实标出来，
+    供答案层与门禁消费；**它不是过滤条件**，任何把它的返回值塞进检索排除分支的改动都是跑偏。
+
+    `status='未验证'` 表示这条状态是写侧默认值、没人背过书 ⇒ 即使带日期也算 unknown。
+    """
+    status = meta.get("status")
+    ef = (meta.get("effective_from") or "").strip()
+    et = (meta.get("effective_to") or "").strip()
+    if status == "未验证":
+        return "unknown"
+    if not ef:
+        return "unknown"
+    if status in _TERMINAL_STATUSES and not et:
+        return "unknown"
+    return "verified"
+
+
 def cited_articles(evidence: str) -> list[tuple[str, str]]:
     """把 QA 语料的 `evidence` 解析成 (source, article) 对；认不出的形状返回空表。
 
