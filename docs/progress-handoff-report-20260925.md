@@ -12,6 +12,9 @@
 > 已授权进码的只有 **S0-a/b/c + T1 + T2**（分相邻 commit）；**T3–T8 仍未授权**，导入窗口与真实入库另裁。
 > 顺序按 Q10：**本笔只落票与台账，Owner 过目后才动码。**
 > **⇒ 09-26 更新：那四笔码已按此顺序落完并全绿（见 §9.9），未 push、真实库零改动；T3–T8 与导入窗口仍在裁外面。**
+> **代码轮之后又过了四路评审**（§9.5c 两路 / §9.5d 窄范围 / §9.5e 双轴那一路）⇒ 处置与"哪些指控我复现不出"
+> 全在 §9.5c–§9.5e；同一提交序列现延伸到 `4439519` 之后的两笔 `docs:` 与一笔 `docs+test:`（**本文所在笔的 SHA
+> 不可能写进本文**，故只按角色描述）。
 
 **状态（09-25 接手复核更正）**：此前提交仍是本地工作，未部署、服务器未选定。此前的定向用例通过
 不等于相关问题全面收口：复核又发现 R15-2 同子句多日期误拦、QA 非法版本日期放行，接手修复见 §8。
@@ -580,7 +583,7 @@ T3 末段加**真**回归面（`tests/test_tool_gateway.py:212/:240` 传的是 `
 - 候选数据 `…\data\laws_extra.candidate-20260925.json` ｜ 语料数据票 `…\docs\corpus-time-meta-ticket-20260925.md`（§7–§8）
 - 取证副本（可 7 秒重建）`C:\Users\33393\AppData\Local\Temp\fazhi-chroma-{copy,h1repro,fixed}-20260926`、
   `…\fazhi-chroma-ro.sqlite3`、`…\r8-rescan-20260926\pip-audit-20260926.json`
-- **三轮评审的落盘产物（09-26 全部 `test -f` 复验在场，字节数一并给出，别再引用不存在的文件）**：
+- **评审的落盘产物（09-26 全部 `test -f` 复验在场，字节数一并给出，别再引用不存在的文件）**：
   第一轮两路 `C:\Users\33393\AppData\Local\Temp\review-result-fazhi-corpus.md`（36985B）＋
   `…\review-result-fazhi-git-gates.md`（33632B）｜第二轮安全轴 `…\review2-fazhi-safety.md`（26844B，**第二轮事实轴无文件**，见 §9.5c）｜
   第三轮指针与计数审计 `…\review3-fazhi-pointers.md`（48331B，处置见 §9.5d）
