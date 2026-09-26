@@ -1,0 +1,18 @@
+[
+  {
+    "mutant": "baseline",
+    "red": [],
+    "collected": 37
+  },
+  {
+    "mutant": "M1-put-unverified-back-into-fallback",
+    "why": "判据原句：把 `未验证` 也算进兜底的「有效」 ⇒ 没人背书的块照样被断言现行有效",
+    "collected": 37,
+    "ran": 1,
+    "newly_red": [
+      "tests/test_tool_gateway.py::test_unverified_status_without_dates_maps_to_unknown_validity"
+    ],
+    "killed": true,
+    "restored": true
+  }
+]

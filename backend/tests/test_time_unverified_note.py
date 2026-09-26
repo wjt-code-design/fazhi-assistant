@@ -137,6 +137,10 @@ def _ask(
     会同时触发 E12（自检 FAIL），`cs[-1] == NOTE` 就可能红在别的注记上 —— 那测的不是本票。
     """
     main.settings.allow_client_law_as_of = True  # 显式历史日期是公开能力，别让环境配置左右期望表
+    # 上面那行**故意不用 monkeypatch**：`allow_client_law_as_of` 是 settings 上的进程级真值，
+    # 夹具要的是"本文件所有用例都在同一档配置下跑"；monkeypatch 会在用例结束还原，
+    # 而 `/api/chat` 的 SSE client 是同步跑完的 ⇒ 还原时机没问题，但一旦有人把 `_ask` 拆成
+    # 生成器分批消费就会静默改档。留原状并在此写明取舍（不是漏改）。
     import answer_cache
     import quality
 
@@ -219,12 +223,33 @@ def test_e17_frame_precedes_the_version_note(monkeypatch):
 
     顺带把顺序写成判据：`test_stream_exit_law_version_gate.py` 有一条断言
     `content_frames[-1] == NOTE_LAW_VERSION`，靠本条兜住而不是靠运气。
+    ⚠️ 这条只管 E17/E14 那一支。E7 是**反的**，见 `test_e7_note_order_is_the_reverse_of_e17`。
     """
     monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
     parts = (CLAIM_S01_WRONG_CURRENT_LAW[:40], CLAIM_S01_WRONG_CURRENT_LAW[40:])
     cs = contents_of(_ask(monkeypatch, parts=parts, question=FACT_W01_2019[0]))
     assert main.NOTE_LAW_VERSION in cs, f"版本绊线未命中（夹具问题，不是判据）：{cs}"
     assert cs[-1] == main.NOTE_LAW_VERSION and cs[-2] == NOTE, f"E17 与 E14 的先后不符：{cs}"
+
+
+def test_e7_note_order_is_the_reverse_of_e17(monkeypatch):
+    """E7 与 E17 的注记先后**相反**，这是载体差异不是笔误：流式只能追加帧，缓冲整答只能往后贴字符串。
+
+    `_light_buffered` 内部已把 `NOTE_LAW_VERSION` 贴进 answer ⇒ 时效注记落在它后面。
+    本条存在的理由：上一版的票面把"时效在前、版本在后"当成全局判据，那是只看了合流点那一支。
+    """
+    monkeypatch.setattr(main.settings, "fast_path_law_version_check", True)
+    cs = contents_of(
+        _ask(
+            monkeypatch,
+            route="light_buffered",
+            light_text=CLAIM_S01_WRONG_CURRENT_LAW,
+            question=FACT_W01_2019[0],
+        )
+    )
+    assert cs and cs[0] == CLAIM_S01_WRONG_CURRENT_LAW + main.NOTE_LAW_VERSION + NOTE, (
+        f"E7 的先后不是「版本在前、时效在后」：{cs}"
+    )
 
 
 # ════════ ③ 控制腿：两个条件各自单独不成立时，一条注记都不该出现 ════════

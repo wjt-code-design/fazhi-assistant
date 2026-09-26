@@ -32,15 +32,16 @@ def test_no_path_defaults_status_to_current():
     """
     needles = ('or "现行"', "or '现行'", 'get("status", "现行")', '"status": "现行"', "'status': '现行'")
     offenders = []
-    for p in (
-        list(_BACKEND.glob("*.py"))
-        + list((_BACKEND / "scripts").glob("*.py"))
-        + list((_BACKEND / "tools").glob("*.py"))
-    ):
+    # 整棵树扫，不是三个目录：docstring 说的是"全仓"，而 `agent/`、`knowledge_base/` 同样在写 metadata
+    # （09-26 双轴评审点到旧 glob 只覆盖 `*.py` + scripts + tools ⇒ 那两处新站长回来不会报警）。
+    _SKIP = {"venv", "__pycache__", "node_modules"}
+    for p in _BACKEND.rglob("*.py"):
+        if {x.lower() for x in p.parts} & _SKIP or p.parent.name == "tests":
+            continue
         text = p.read_text(encoding="utf-8", errors="replace")
         hit = [n for n in needles if n in text]
         if hit:
-            offenders.append(f"{p.name}: {hit}")
+            offenders.append(f"{p.relative_to(_BACKEND)}: {hit}")
     assert offenders == [], f"这些文件仍把 现行 当缺省值：{offenders}"
 
 

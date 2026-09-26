@@ -2,7 +2,7 @@
  {
   "mutant": "baseline",
   "newly_red": [],
-  "collected": 46
+  "collected": 47
  },
  {
   "mutant": "M1-drop-e17-frame",
@@ -17,7 +17,7 @@
    "test_registry_rows_all_exist_in_source",
    "test_registry_scope_is_whole_backend_not_just_main_py"
   ],
-  "collected": 46,
+  "collected": 47,
   "denominator_drift": false,
   "restored": true,
   "expected_hit": [
@@ -29,9 +29,10 @@
  {
   "mutant": "M2-drop-e7-inline",
   "newly_red": [
-   "test_e7_light_buffered_answer_carries_the_note_inline"
+   "test_e7_light_buffered_answer_carries_the_note_inline",
+   "test_e7_note_order_is_the_reverse_of_e17"
   ],
-  "collected": 46,
+  "collected": 47,
   "denominator_drift": false,
   "restored": true,
   "expected_hit": [
@@ -48,7 +49,7 @@
    "test_registry_rows_all_exist_in_source",
    "test_registry_scope_is_whole_backend_not_just_main_py"
   ],
-  "collected": 46,
+  "collected": 47,
   "denominator_drift": false,
   "restored": true,
   "expected_hit": [
@@ -63,7 +64,7 @@
    "test_e1_annotated_answers_never_enter_the_shared_cache",
    "test_judgement_requires_both_conditions"
   ],
-  "collected": 46,
+  "collected": 47,
   "denominator_drift": false,
   "restored": true,
   "expected_hit": [
@@ -78,7 +79,7 @@
    "test_control_verified_evidence_produces_no_note",
    "test_judgement_requires_both_conditions"
   ],
-  "collected": 46,
+  "collected": 47,
   "denominator_drift": false,
   "restored": true,
   "expected_hit": [
@@ -94,7 +95,7 @@
    "test_main_py_exits_are_all_registered",
    "test_registry_rows_all_exist_in_source"
   ],
-  "collected": 46,
+  "collected": 47,
   "denominator_drift": false,
   "restored": true,
   "expected_hit": [

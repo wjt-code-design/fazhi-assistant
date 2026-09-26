@@ -2113,6 +2113,9 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     # 缓冲整答还没吐出 ⇒ 注记并进 E7 那一帧（`_light_buffered_locked` 里的
                     # NOTE_LAW_VERSION / NOTE_COMPLEX 就是同一形状）。带基准日的请求不进缓存
                     # （`_cacheable`），所以"复播丢注记"和"未核验答复被固化 6 小时"都不会发生。
+                    # ⚠️ 但**先后与 E17 相反**：版本注记已在 `res.answer` 内部，这里只能往后贴 ⇒
+                    # 两条同时命中时 E7 是"版本在前、时效在后"，合流点那一支才是反过来。载体差异，
+                    # 不是笔误；两侧各有一条用例钉住（`test_e7_note_order_is_the_reverse_of_e17`）。
                     answer += NOTE_TIME_UNVERIFIED
                 if answer:
                     _f0 = time.perf_counter()  # 轻量缓冲：非流式整答返回，首帧=完成时刻
