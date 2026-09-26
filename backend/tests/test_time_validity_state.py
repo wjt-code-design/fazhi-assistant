@@ -55,3 +55,32 @@ def test_state_never_narrows_the_retrieval_set():
     for meta in unknown_but_valid:
         assert rc.time_validity_state(meta) == "unknown", meta
         assert rc.is_valid_by_time(meta, "2026-08-01") is True, meta
+
+
+def test_retrieval_valid_closure_accepts_unverified_blocks(monkeypatch):
+    """端点级负例（第四轮评审指出这条原先无人能杀）：检索层的时效闭包只认谓词，不认完备性。
+
+    把 `rc.time_validity_state(m) == "verified"` 塞进 `retrieval.py` 的 valid 闭包，
+    或把 `未验证` 加进 `is_valid_by_time` 的排除分支 ⇒ 本用例必须红。
+    """
+    import retrieval
+    from settings import settings
+
+    captured: dict = {}
+
+    def _top(query, n, category=None, valid=None):
+        captured["valid"] = valid
+        return []
+
+    monkeypatch.setattr(retrieval.query_understand, "decompose", lambda q: [(q, "original")])
+    monkeypatch.setattr(retrieval, "vector_top", _top)
+    monkeypatch.setattr(retrieval, "bm25_top", _top)
+    monkeypatch.setattr(settings, "rerank_enabled", False)
+    retrieval.invalidate()
+
+    assert retrieval.hybrid_retrieve("装修公司延期是否构成违约", k=3) == []
+    valid = captured["valid"]
+    assert valid is not None
+    for meta in ({"status": "未验证"}, {"status": "现行"}, {"status": "未验证", "effective_from": "2008-05-01"}):
+        assert rc.time_validity_state(meta) == "unknown", meta
+        assert valid(meta) is True, meta

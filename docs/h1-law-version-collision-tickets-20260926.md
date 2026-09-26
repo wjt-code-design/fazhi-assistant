@@ -78,14 +78,26 @@ PY
 | S0-c | 答案层注记：**仅当本次答案使用了显式历史基准日**（`bootstrap.law_as_of is not None`）且引用块里有 `unknown` ⇒ 尾行加一句时效未验证注记 | `main.py` 源头传参 + 各出口 |
 | — | **明确排除**："日期缺失即不参与检索"（fail-closed）。库里 unknown 比例 = 100% ⇒ 等于清空知识库。这条是算出来的，不是偏好 | —— |
 
-**S0-b 的四处默认值**（本轮实测枚举，别再当"一处"）：
+**S0-b 的默认值站点 —— 票面原写"四处"，实施日用守卫测试扫出来是 8 处**（`80ff584`）：
 
-| 位置 | 现形状 | 改成 |
+| 位置 | 现形状 | 处置 |
 |---|---|---|
-| `backend/knowledge_service.py:157` | `base["status"] = (extra_meta or {}).get("status") or "现行"` —— 最深，任何调用方不传即得"现行" | `or "未验证"` |
-| `backend/scripts/import_docs.py:108` | `extra_meta={"status": "现行"}` | 不写 status（由 S0-b 上一行的默认接管） |
-| `backend/scripts/import_laws.py:56` | `status = _text_field(e, "status", errors) or "现行"` | 见下"校验器侧连带" |
-| `backend/law_versions.py:32` | `str(entry.get("status") or "现行")` | `or "未验证"` |
+| `backend/knowledge_service.py:157` | `base["status"] = (extra_meta or {}).get("status") or "现行"` —— 最深，任何调用方不传即得"现行" | ⇒ `or "未验证"` |
+| `backend/scripts/import_docs.py:108` | `extra_meta={"status": "现行"}` | ⇒ 不写 status，由唯一缺省接管 |
+| `backend/scripts/import_laws.py:56` | `status = _text_field(...) or "现行"` | ⇒ 改成**必填**，省略即整条拒（并 T3①） |
+| `backend/law_versions.py:32` | `str(entry.get("status") or "现行")` | ⇒ `or "未验证"` |
+| `backend/main.py:2627` | `"status": body.status or "现行"`（管理端新增知识） | ⇒ `or "未验证"` |
+| `backend/main.py:2670` | `"status": "现行"`（管理端上传文件 payload） | ⇒ `未验证` |
+| `backend/retrieval.py:1226` | `d.metadata.get("status", "现行")`（管理端检索测试展示，**读侧**） | ⇒ `未验证` |
+| `backend/scripts/backfill_time_meta.py:19` | `DEFAULTS = {"status": "现行", ...}`（存量回填） | ⇒ `未验证` |
+
+另修一处**结构性**隐患：`backend/schemas.py:177` 有第二份硬编码 status 集合 ⇒ 只扩 `retrieval_core` 的白名单
+会让 API 把 `未验证` 判成 422。已改成 `from retrieval_core import STATUS_WHITELIST`（单一真源）。
+
+⚠️ **留给 Owner 的一处（未动）**：`backend/tools/contracts.py:235` `elif status == "现行" and effective_date is None:
+validity = "effective"` —— 它是**比较**不是缺省，但坐在答案有效性路径上：语料缺省改成 `未验证` 之后，
+无日期的块不再走这条分支，`validity` 从 `effective` 变成不落值。方向上更诚实，但**这是判据变更不是止血**，
+所以代码保持原样，等 Owner 一句话：(a) 保留现状；(b) 让 `未验证` 也享受这条兜底；(c) 让它落"时效未知"值。
 
 已实测的两条安全边界：`derive_version_id` 的身份串只有 `title+article+effective_from`（`law_versions.py:20`）
 ⇒ **status 不进版本 id**，改默认值不会让既有 `lv-*` 失效或凭空造出双胞胎；
@@ -114,8 +126,20 @@ PY
 3. 端到端：在隔离 chroma 副本上实跑（`%TEMP%\fazhi-chroma-copy-20260926` 那三棵，7 秒可重建），**不碰真实库**。
 4. **全量变异**（每个改动点至少一个变异体）：要能杀掉"把 `未验证` 悄悄塞进某个过滤条件"这一类。
    成本：本机全量 pytest 一次 317.90s ⇒ 数个体约 37 分钟起（**这是按 317.90s×N 推算的，不是实测**）。
-5. **79 题评测集不在本轮**（`eval_set.json` 20 / `eval_exam.json` 20 / `eval_negative.json` 20 / `eval_contract.json` 11）。
-   理由：注记会改答案文本 ⇒ 逐帧 sha 与质量分都会动，同轮既改码又跑评测**无法归因**。要看影响 → 下一张票，先冻结本轮为 baseline。
+5. **74 题评测集不在本轮**（`eval_set.json` 28 / `eval_exam.json` 20 / `eval_negative.json` 15 /
+   `eval_contract.json` 的 `cases` 11 ⇒ Σ=74）。
+   ⚠️ 本行原写"79 题（20/20/20/11）"，**两处错**：单文件数抄错两个、分量和也不等于总数（20+20+20+11=71≠79）；
+   我最初那次实测输出其实是对的（11/20/15/28），错在往下抄。由第四轮评审抓出。
+   理由不变：注记会改答案文本 ⇒ 逐帧 sha 与质量分都会动，同轮既改码又跑评测**无法归因**。要看影响 → 下一张票，先冻结本轮为 baseline。
+
+**验收仪器落地进度（09-26 实施日更新）**：
+- 已落地：`tests/test_time_validity_state.py`（S0-a，7 条）＋ `tests/test_status_default_unverified.py`（S0-b，7 条）。
+- **评审抓出的覆盖缺口已补**：原验收只防得住"谓词内部被塞进 `未验证`"，防不住**检索层**
+  （`retrieval.py:846` 那个 `valid` 闭包）——全仓无一测试可杀。现已加端点级负例
+  `test_retrieval_valid_closure_accepts_unverified_blocks`，并用变异验证过：
+  把 `and rc.time_validity_state(m) == "verified"` 塞进该闭包 ⇒ 该条红（还原后 `diff` 确认 SAME）。
+- 待落地：S0-c 的逐出口端点级测试。**出口清单请绑 `backend/gate_exit_registry.py`**（评审实测该登记表现列 16 个出口）
+  而不是手写文件名 —— 手写那份会在下一次加出口时悄悄失效，而这正是本票要防的形状。
 
 ### 裁决变更史（本轮替换了什么、**没**替换什么）
 
