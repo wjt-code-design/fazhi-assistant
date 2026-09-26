@@ -105,7 +105,7 @@ def import_one(fname: str, dry_run: bool) -> dict:
     pairs = [
         (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")}) for c in chunks
     ]
-    n = ks.add_chunks(pairs, source=source, origin="upload", extra_meta={"status": "现行"}, file_hash_value=fh)
+    n = ks.add_chunks(pairs, source=source, origin="upload", file_hash_value=fh)
     return {"source": source, "skipped_hash": False, "chunks": n, "seed_replaced": seed_replaced}
 
 

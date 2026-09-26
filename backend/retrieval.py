@@ -1223,7 +1223,7 @@ def _hit_dict(d: Document, score: float) -> dict:
         "source": d.metadata.get("source", ""),
         "article": d.metadata.get("article", ""),
         "origin": d.metadata.get("origin", ""),
-        "status": d.metadata.get("status", "现行"),
+        "status": d.metadata.get("status", "未验证"),
         "effective_from": d.metadata.get("effective_from", ""),
         "effective_to": d.metadata.get("effective_to", ""),
         "score": round(float(score), 4),

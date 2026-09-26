@@ -2624,7 +2624,7 @@ def admin_add_knowledge(body: KnowledgeAddIn, admin: User = Depends(require_admi
     extra = {
         "effective_from": body.effective_from,
         "effective_to": body.effective_to,
-        "status": body.status or "现行",
+        "status": body.status or "未验证",
         "version_id": body.version_id,
         "promulgated_at": body.promulgated_at,
         "source_url": body.source_url,
@@ -2667,7 +2667,7 @@ async def admin_upload(request: Request, file: UploadFile = File(...), admin: Us
             "uploaded_by": admin.username,
             "uploaded_at": datetime.utcnow().isoformat(),
             "version": version,
-            "status": "现行",
+            "status": "未验证",
         }
         n = ks.add_text(text, source=source, origin="upload", extra_meta=extra, file_hash_value=fh)
         first_line = next((ln.strip() for ln in text.splitlines() if ln.strip()), source)

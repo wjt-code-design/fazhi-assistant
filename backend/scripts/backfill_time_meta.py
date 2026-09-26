@@ -16,7 +16,7 @@ from rag_chain import vectorstore  # noqa: E402
 
 BATCH = 100
 KEYS = ("status", "effective_from", "effective_to")
-DEFAULTS = {"status": "现行", "effective_from": "", "effective_to": ""}
+DEFAULTS = {"status": "未验证", "effective_from": "", "effective_to": ""}
 
 
 def main():

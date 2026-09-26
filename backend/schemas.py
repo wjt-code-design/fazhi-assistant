@@ -13,6 +13,8 @@ from pydantic import (
     model_validator,
 )
 
+from retrieval_core import STATUS_WHITELIST  # status 合法值的唯一真源，别在这里再抄一份
+
 
 # ===== 认证 =====
 class RegisterIn(BaseModel):
@@ -174,8 +176,8 @@ class KnowledgeAddIn(BaseModel):
     @field_validator("status")
     @classmethod
     def _known_status(cls, v: str | None) -> str | None:
-        if v and v not in {"现行", "已修改", "已废止", "即将施行", "未生效"}:
-            raise ValueError("status 必须为现行/已修改/已废止/即将施行/未生效")
+        if v and v not in set(STATUS_WHITELIST):
+            raise ValueError(f"status 必须为 {'/'.join(STATUS_WHITELIST)}")
         return v
 
     @model_validator(mode="after")

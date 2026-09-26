@@ -144,7 +144,7 @@ def add_chunks(
     """写入多 chunk（每 chunk 独立 metadata，如 article/chapter），返回写入数。
 
     调用方负责幂等（查重/替换）；本函数只负责写库 + 失效缓存。
-    时效三键归一化（阶段5）在此统一处理：空值写 ""，status 缺省"现行"
+    时效三键归一化（阶段5）在此统一处理：空值写 ""，status 缺省"未验证"
     （Chroma where 对缺失键语义不可靠，缺键会破坏时效过滤）。
     """
     base = {"source": source, "origin": origin}
@@ -154,7 +154,7 @@ def add_chunks(
         base.update({k: v for k, v in extra_meta.items() if v not in (None, "")})
     base["effective_from"] = (extra_meta or {}).get("effective_from") or ""
     base["effective_to"] = (extra_meta or {}).get("effective_to") or ""
-    base["status"] = (extra_meta or {}).get("status") or "现行"
+    base["status"] = (extra_meta or {}).get("status") or "未验证"
     docs = [Document(page_content=c, metadata={**base, **m}) for c, m in pairs if (c or "").strip()]
     if not docs:
         return 0

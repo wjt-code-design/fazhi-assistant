@@ -35,8 +35,8 @@ def is_cosine_space(col) -> bool:
         return False
 
 
-# 时效状态白名单（导入/手动添加校验用）
-STATUS_WHITELIST = ("现行", "已修改", "已废止", "即将施行", "未生效")
+# 时效状态白名单（导入/手动添加校验用）。`未验证` = 写侧缺省，表示没人对这条做过断言
+STATUS_WHITELIST = ("现行", "已修改", "已废止", "即将施行", "未生效", "未验证")
 
 
 def is_valid_by_time(meta: Mapping, today: str) -> bool:

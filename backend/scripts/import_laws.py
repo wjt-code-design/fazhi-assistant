@@ -53,8 +53,10 @@ def validate_entry(e: dict) -> list[str]:
     content, title = required["content"], required["title"]
     if _PLACEHOLDER_RE.search(content) or _PLACEHOLDER_RE.search(title):
         errors.append("content/title 仍为占位符，请粘贴真实条文原文")
-    status = _text_field(e, "status", errors) or "现行"
-    if status not in STATUS_WHITELIST:
+    status = _text_field(e, "status", errors)
+    if not status:
+        errors.append("status 必填：省略不等于「现行」，无人核过就写 未验证")
+    elif status not in STATUS_WHITELIST:
         errors.append(f"status 必须是 {'/'.join(STATUS_WHITELIST)}，当前为 {status!r}")
     dates = {}
     for k in ("promulgated_at", "effective_from", "effective_to", "reviewed_at"):

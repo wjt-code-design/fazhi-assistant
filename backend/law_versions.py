@@ -29,7 +29,7 @@ def version_metadata(entry: dict[str, object], *, title: str, article: str, cont
         "promulgated_at": str(entry.get("promulgated_at") or "").strip(),
         "effective_from": effective_from,
         "effective_to": str(entry.get("effective_to") or "").strip(),
-        "status": str(entry.get("status") or "现行").strip(),
+        "status": str(entry.get("status") or "未验证").strip(),
         "source_url": str(entry.get("source_url") or "").strip(),
         "source_document_sha256": str(entry.get("source_document_sha256") or source_document_sha256(content)).strip(),
         "supersedes_version_id": str(entry.get("supersedes_version_id") or "").strip(),
