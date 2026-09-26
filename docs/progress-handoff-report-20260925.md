@@ -498,6 +498,35 @@ T3 末段加**真**回归面（`tests/test_tool_gateway.py:212/:240` 传的是 `
 ② "覆盖到哪断了"必须写在报告最前面，否则下一轮就会有人把"它没报问题"读成"没问题"；
 ③ **仪器不入库 = 数字不可核** —— E7 那一格错的不是算术，是我把一次性脚本丢掉了。
 
+### 9.5e 收口后的双轴 code review（**范围标识：`161221b~1…4439519`**）：**22 条里 2 条成立**
+
+⚠️ 本节**不报序数**。仓库里的"第 N 轮"已经接续不上（§9.5c/9.5d 是第二/三轮，`56696c5` 的提交信息里又有一个
+"第四轮"指的是另一路窄范围评审）⇒ 以后一律用**被审范围**当标识。
+派法照 `/code-review` 双轴并行（Standards 14 条 / Spec 8 条）。两轴都点名了"最严重的一条"，
+我逐条本机复跑后：**两轴的"最严重"都不成立**，真正成立的只有两处计数——而且同一个根因。
+
+| # | 它的指控 | 我的复测（命令 → 读数） | 处置 |
+|---|---|---|---|
+| Spec·最严重 | `import_laws` 写入回路用未 `.strip()` 的 `e["title"]` 落库 ⇒ 静默产双胞胎并绕过 `rc=1` | `Read import_laws.py:220-224` → 第 221 行就是 `title, article = e["title"].strip(), e["article_number"].strip()`；`blocked` 标签（:204）用的也是同一对已 strip 的局部量 | **驳回**。它引用的用例名 `test_non_contained_block_is_not_written_but_admits_its_replacements` 在 `--collect-only` 里**不存在**（实名为 `…blocks_the_whole_batch_without_writing`） |
+| Standards·最严重 | E3/E4 的 docstring 过度声称"不引用任何条文"，且判据读的是整池检索结果 | `grep -rn 不引用任何条文 backend/ docs/` → 只有 `gate_exit_registry.py:862`（不在 `main.py`）；`clarify.py:277-291` + `CONTRACT_CLARIFY_PROMPT` 全文无条文；那一格写的取证用例名与 `test_time_unverified_note.py:245` **逐字相同** | **驳回**：位置报错、模板确实不含条文、指针可解析 |
+| §T1 落地记录 | 用例数 **11 条** | `pytest tests/test_law_versions.py --collect-only -q \| grep -c ::` = **12** | **采纳**：漏了后补的 `test_replaceable_is_exactly_the_two_replacement_buckets`（三桶划分本身没人钉） |
+| §T1 落地记录 | 变异分母"恒 `collected=31`" | `mutation-verdicts.json` baseline → **32**，5/5 全杀 | **采纳**：与上一条同根因（记录起草在用例落笔之前）。两处已按现量订正并写补记 |
+| §9.9 | "1595 passed / 386.87s 未标注为已作废" | `grep -rn "1595\|386" docs/` = **0 命中**；§9.9 写的是 1610/237.17 | **驳回**（那两个数只活在我的 memory 里，不在仓库）；但据此给 memory 那条加了"别当现状"的限定 |
+| §9.9 | "`ruff format --check`（265 文件）数错了" | 现跑 `ruff format --check .` → **`265 files already formatted`** | **驳回** |
+| §T1 判据 | "票面仍写'一次返回两半'，与三桶实现矛盾" | 票 :264-268 就是**显式回炉说明**（"⚠️ 返回形状修正……实作为 `ReplacementPlan` 三桶"） | **驳回**：修正说明和它说"矛盾"的那句在同一节里 |
+| `_norm_text` | "`[\s　]` 里的 `　` 是死代码，docstring 引用了没跑过的实测" | `re.match(r'\s','　')` = **True**；两种写法对 `第十章　建筑物` 都得 6 ⇒ docstring 那句**为真**，冗余字符是票 T1 判据 5 点名的防假变异注记 | **驳回**（本轮已把那条实测重跑） |
+| 工作树 | "`docs/gate-exit-registry.md` 有未提交漂移（54↔53 反复）" | `git status --porcelain` → 该文件**不在改动列表**里（本轮只有并行会话的 5 个 `dispatch-output/*`） | **驳回**：现象不存在 |
+
+其余未逐条列的（`chroma:document` 回退"死码"、变异驱动里的 `noqa: F841` 占位行、t2 驱动"不可达的 collected 分支"）
+同样复跑后不成立：回退是票面点名的第二个正文源且 `stored_text is None` 时可达；
+`grep -n F841 t1/mutate.py` = **0 命中**；三个驱动的 `collected_total()` 用的是同一条正则，改动仪器会让已入库产物失去可核性 ⇒ **不动**。
+
+三条只留规矩的结论：① 双轴并行确实互不污染（两轴错在不同地方），但**"最严重"这个排序不可采信**——
+两轴各推的头号问题都是假的，真缺陷排在第三、四位；② 评审给的**位置**（文件:行）和**用例名**是两类最容易伪造的指针，
+`Read` 一次 + `--collect-only` 一次就能判死，成本远低于照着改码；③ 我这轮被抓住的 2 条又是**计数轴**问题
+（起草早于落笔），与 §9.5d 第 3 条、memory 里"计数只能在 collected 轴上取"同族 ⇒
+**落地记录的数字必须在最后一笔提交之后重取一次**，不能沿用写作中途的读数。
+
 ### 9.6 待办（按"谁能动"排序）
 
 - **Owner（一句话即可）**：**口令是否轮换 + `:104` 改形状是否授权**（E4 现为"不推"，这两件做完再评估）；
@@ -531,9 +560,13 @@ T3 末段加**真**回归面（`tests/test_tool_gateway.py:212/:240` 传的是 `
   第一轮两路 `C:\Users\33393\AppData\Local\Temp\review-result-fazhi-corpus.md`（36985B）＋
   `…\review-result-fazhi-git-gates.md`（33632B）｜第二轮安全轴 `…\review2-fazhi-safety.md`（26844B，**第二轮事实轴无文件**，见 §9.5c）｜
   第三轮指针与计数审计 `…\review3-fazhi-pointers.md`（48331B，处置见 §9.5d）
+- **§9.5e 那一路双轴评审没有落盘产物**（子 agent 只把报告回给我，我没要求写文件）⇒ 那份 22 条**不可事后核对**，
+  可核的只有本节的复测命令与我的处置。下一路评审**必须先要产物再读结论**。
 - 本轮提交链：`acbf363` → `dfecd57` → `ab547bf` → `84e47e4` → `a4c7bdf` → `57a15d1` → `5e6d3df`
   → 其后一笔 `docs:` 提交（§9.5d 那一节与 E7/T1/T4 的三处勘误；**本文所在笔的 SHA 不可能写进本文**，故按角色描述）。
   全为文档与数据产物，**代码零改动、未 push**。
+- 代码轮提交链（§9.9）：`161221b` → `f4cba2f` → `1c2cac1` → `a2e0fcb` → `4439519`，未 push；
+  §9.5e 这一路的**唯一改动就是那两处计数**，落在 `4439519` 之后的又一笔 `docs:` 里（同样按角色描述）。
 
 
 

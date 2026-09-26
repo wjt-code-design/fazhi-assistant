@@ -277,19 +277,22 @@ M3 删 E18 帧 → 5 红；M4 判据丢掉"显式基准日"这一半 → 3 红�
 写侧（`knowledge_service.add_text`）只消费 `plan.replaceable` —— 并存块**不删**是安全侧，"要说出来"归预检；
 预检侧（`scripts/import_laws.py`）三个桶都读，见下面 T2 的落地记录。
 
-测试：`tests/test_law_versions.py` **11 条**（`--collect-only` 现量：判据 1/2/3/4 各一条，
-外加三条边界 —— 只有 `effective_to` 的废止版不算"整个缺失"、调用方没传正文时 **fail-safe 进并存**
-（判不出就绝不猜"能删"）、不传 `documents` 时回退 `chroma:document`）。既有那条
+测试：`tests/test_law_versions.py` **12 条**（`--collect-only` 现量：判据 1/2/3/4 各一条，
+外加四条边界 —— 只有 `effective_to` 的废止版不算"整个缺失"、调用方没传正文时 **fail-safe 进并存**
+（判不出就绝不猜"能删"）、不传 `documents` 时回退 `chroma:document`、**三桶划分本身**由
+`test_replaceable_is_exactly_the_two_replacement_buckets` 钉住（可替换 = 前两桶之和，不是"除了并存全是"）。既有那条
 `test_replacement_keeps_other_effective_versions` 只改了返回形状，选择结果逐字未动 ⇒ 判据 4 的
 "现有语义不许回归"由它守。
 
 **变异 5/5 全杀**（仪器 `dispatch-output/t1-legacy-replace-20260926/mutate.py` + `mutation-verdicts.json`，
-分母恒 `collected=31`，每体跑完字节比对还原）：M1 白名单去掉 `upload`（判据 5 指名）→ 2 红；
+分母恒 `collected=32`，每体跑完字节比对还原）：M1 白名单去掉 `upload`（判据 5 指名）→ 2 红；
 M2 不做归一化（判据 5①）→ 2 红；M3 包含换成逐字相等（判据 5②）→ 2 红；
 M4 丢掉"时效轴整个缺失"这一半 → 2 红（正是"带日期的修订版被误删"那条）；
 M5 丢掉 origin 白名单 → 1 红（seed 副本被吞那条）。
 M4/M5 是我加在票面之外的两条 —— 判据 5 只要求"去掉 upload 要红"，但**误删**比**漏删**严重，
 所以那两个方向也各自有守卫。
+（补记：上面这段是**在 `test_replaceable_is_exactly_the_two_replacement_buckets` 落笔之前**起草的，
+所以用例数和分母各少 1 —— 09-26 第五轮评审点到，已按 `--collect-only` / `mutation-verdicts.json` 现量改回。）
 
 **判据 6 真实库副本复量（只读那份 `fazhi-chroma-copy-20260926`，逐字）**：
 
