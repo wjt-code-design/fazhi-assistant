@@ -101,7 +101,7 @@ raw = ev.read_text(encoding="utf-8", errors="replace")
 patterns = [
     (r"'sk-[A-Za-z0-9._\-]{10,}'", "'<masked>'"),
     (r"'178d[0-9a-f]{20,}[^']*'", "'<masked>'"),
-    (r"'1599511199wjt'", "'<masked>'"),
+    (r"'[A-Za-z0-9]{13}'", "'<masked>'"),  # 09-26 整改：原写法把管理口令的字面值写进 pattern，打码工具自己成了明文源 ⇒ 改按形状匹配（宁多打不漏打）。值已轮换，旧值失效。
     (r"sk-[A-Za-z0-9._\-]{10,}", "<masked>"),
 ]
 n = 0
