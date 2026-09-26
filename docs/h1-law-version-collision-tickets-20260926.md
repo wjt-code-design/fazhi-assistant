@@ -94,10 +94,19 @@ PY
 另修一处**结构性**隐患：`backend/schemas.py:177` 有第二份硬编码 status 集合 ⇒ 只扩 `retrieval_core` 的白名单
 会让 API 把 `未验证` 判成 422。已改成 `from retrieval_core import STATUS_WHITELIST`（单一真源）。
 
-⚠️ **留给 Owner 的一处（未动）**：`backend/tools/contracts.py:235` `elif status == "现行" and effective_date is None:
-validity = "effective"` —— 它是**比较**不是缺省，但坐在答案有效性路径上：语料缺省改成 `未验证` 之后，
-无日期的块不再走这条分支，`validity` 从 `effective` 变成不落值。方向上更诚实，但**这是判据变更不是止血**，
-所以代码保持原样，等 Owner 一句话：(a) 保留现状；(b) 让 `未验证` 也享受这条兜底；(c) 让它落"时效未知"值。
+⚠️ **`tools/contracts.py:235` —— 09-26 已裁并落地**（代码保持原样，只补了钉子）：
+`elif status == "现行" and effective_date is None: validity = "effective"` 是**比较**不是缺省，
+但缺省一改，新写入的无日期块就不再走这条兜底 ⇒ `validity` 落 `unknown`。
+下游不是打标签而是闸门：`agent/writer.py:222-227` 只有 `EFFECTIVE` 的法条算可引证据，
+`agent/verifier.py:369-375` 引了非 `EFFECTIVE` 法条 ⇒ 整条 claim 判 **`FAIL_SAFE`（拒答）**。
+⇒ 净效果 = agent 合同路径上出现一个**局部 fail-closed**，只作用于"S0-b 之后写入且无人给 status"的块；
+**存量 10266 条元数据仍是 `现行` ⇒ 行为逐字不变**（动它们的是 E7，不是本票）。
+
+Owner 裁决：**不恢复兜底**，把它钉成故意的。落地 = `tests/test_tool_gateway.py::test_unverified_status_without_dates_maps_to_unknown_validity`
+（含两个对照组：`现行`+无日期仍 `effective`；有日期就按日期判，`未验证` 不覆盖日期证据）。
+变异验证：把 `未验证` 塞回那条分支 ⇒ 该用例红（还原后 `diff` 确认 SAME）。
+口径提醒：这里问的是"该条在基准日是否有效"，与 `retrieval_core.time_validity_state` 问的
+"我们有没有资格这样断言"是**两个概念**，别互相冒充。
 
 已实测的两条安全边界：`derive_version_id` 的身份串只有 `title+article+effective_from`（`law_versions.py:20`）
 ⇒ **status 不进版本 id**，改默认值不会让既有 `lv-*` 失效或凭空造出双胞胎；
