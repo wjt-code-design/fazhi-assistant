@@ -155,13 +155,17 @@ def main():
             **version_metadata(e, title=title, article=article, content=e["content"]),
         }
         existing = vectorstore._collection.get(
-            where={"$and": [{"source": title}, {"article": article}]}, include=["metadatas"]
+            where={"$and": [{"source": title}, {"article": article}]},
+            include=["metadatas", "documents"],  # T1：判"遗留无时效块可否被取代"要看旧正文
         )
-        stale = replaceable_version_ids(
+        # 第二半 `_coexist` = 同 (法名, 条号) 下**不能**被取代的旧块：票 T2 消费它（报警 + rc 分档）。
+        stale, _coexist = replaceable_version_ids(
             existing["ids"],
             existing.get("metadatas") or [],
             version_id=extra["version_id"],
             effective_from=extra["effective_from"],
+            documents=existing.get("documents") or [],
+            new_content=e["content"],
         )
         n_del += len(stale)
         n_add += 1

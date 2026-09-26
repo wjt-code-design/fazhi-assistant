@@ -282,8 +282,10 @@ def test_independent_expectation_table_on_streaming_exit(monkeypatch):
         # 而夹具返回的检索块无日期 ⇒ 判据两条同时成立。顺序是"时效在前、版本在后"，
         # 那条先后由 `tests/test_time_unverified_note.py::test_e17_frame_precedes_the_version_note` 钉住，
         # 这里只把它算进期望文本（本测试防的是"别的注记混进来"，S0-c 不是混进来，是新增的一族）。
-        want = claim + (main.NOTE_TIME_UNVERIFIED if as_of is not None else "") + (
-            main.NOTE_LAW_VERSION if expect_hit else ""
+        want = (
+            claim
+            + (main.NOTE_TIME_UNVERIFIED if as_of is not None else "")
+            + (main.NOTE_LAW_VERSION if expect_hit else "")
         )
         if len(run.gate_calls) != 1:
             bad.append(f"{sid}: 门被调用 {len(run.gate_calls)} 次（期望 1 次）⇒ 本条根本没走到 E8")

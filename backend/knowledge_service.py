@@ -204,13 +204,17 @@ def add_text(
                     effective_from = str((extra_meta or {}).get("effective_from") or "").strip()
                     existing = _collection().get(
                         where={"$and": [{"source": source}, {"article": article}]},
-                        include=["metadatas"],
+                        include=["metadatas", "documents"],  # T1：判"遗留无时效块可否被取代"要看旧正文
                     )
-                    stale_ids = replaceable_version_ids(
+                    # 两半里本路径只消费"可替换"：并存块**不删**是安全侧（宁可留双胞胎，不可误删条文），
+                    # "要说出来"落在预检（票 T2 的 rc 分档）—— 写侧这里没有人工裁决的机会。
+                    stale_ids, _coexist = replaceable_version_ids(
                         existing["ids"],
                         existing.get("metadatas") or [],
                         version_id=version_id,
                         effective_from=effective_from,
+                        documents=existing.get("documents") or [],
+                        new_content=content,
                     )
                 except Exception:
                     stale_ids = []

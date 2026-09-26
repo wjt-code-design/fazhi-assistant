@@ -3,7 +3,21 @@
 from __future__ import annotations
 
 import hashlib
+import re
 from collections.abc import Sequence
+
+# 「版本化之前的遗留副本」允许被新版取代的来源。`seed` 不在里面 —— 它归 `knowledge_base.py` 重建管。
+_LEGACY_REPLACEABLE_ORIGINS = ("upload", "manual")
+
+
+def _norm_text(text: str) -> str:
+    """去空白归一化。
+
+    ⚠️ `\\s` 在 Python 3 里**本来就覆盖全角空格 U+3000**，所以 `\\u3000` 只是写给人看的意图注释，
+    删掉它不是行为变化（实测：`re.match(r'\\s','　')` 为 True）。别把它当可测性 —— 票 T1 判据 5 的
+    前一个版本就因为这条假变异作废过。
+    """
+    return re.sub(r"[\s　]+", "", text or "")
 
 
 def source_document_sha256(content: str) -> str:
@@ -43,13 +57,41 @@ def replaceable_version_ids(
     *,
     version_id: str,
     effective_from: str,
-) -> list[str]:
-    """Select only the same version, including its pre-versioning legacy copy."""
+    documents: Sequence[str | None] = (),
+    new_content: str = "",
+) -> tuple[list[str], list[str]]:
+    """一次遍历返回两半：`(可替换的旧块 id, 需报警的并存块 id)`。
+
+    拆成两次遍历必然漂移，所以两半出自同一个判断。此前只返回第一半 ⇒ 第二半在预检里**完全静默**
+    （票 T2 要的就是它）。
+
+    可替换 = ①**同一版本**：`version_id` 相同，或"版本化之前的遗留副本"（无 `version_id` 且
+    `effective_from` 相同）；②**整个时效轴缺失的遗留块**（票 T1 新增）：无 `version_id`、
+    `effective_from` 与 `effective_to` 皆空、`origin ∈ {upload, manual}`，**且**新正文归一化后
+    被旧正文包含。
+    ②为什么用"包含"而不是"逐字相等"：§0 实测两对旧/新块 `exact_equal` 全 False（旧块带章节行与
+    条号前缀）⇒ 精确相等这条分支在本库**永不触发**，等于没修。
+    其余（带日期而日期不同、正文互不包含、`origin` 不在白名单）一律进并存列表 ⇒ 不删、但要说。
+    """
     replaceable: list[str] = []
-    for doc_id, metadata in zip(ids, metadatas, strict=False):
+    coexist: list[str] = []
+    new_norm = _norm_text(new_content)
+    docs = list(documents)
+    for i, (doc_id, metadata) in enumerate(zip(ids, metadatas, strict=False)):
         meta = metadata or {}
         stored_version_id = str(meta.get("version_id") or "").strip()
         stored_effective_from = str(meta.get("effective_from") or "").strip()
+        stored_effective_to = str(meta.get("effective_to") or "").strip()
         if stored_version_id == version_id or (not stored_version_id and stored_effective_from == effective_from):
             replaceable.append(doc_id)
-    return replaceable
+            continue
+        # 正文优先取 `documents`，回退 Chroma 塞进 metadata 的那份（`chroma:document`）。
+        stored_text = docs[i] if i < len(docs) else meta.get("chroma:document")
+        origin = str(meta.get("origin") or "").strip()
+        undated = not stored_effective_from and not stored_effective_to
+        contained = bool(new_norm) and new_norm in _norm_text(str(stored_text or ""))
+        if not stored_version_id and undated and origin in _LEGACY_REPLACEABLE_ORIGINS and contained:
+            replaceable.append(doc_id)
+        else:
+            coexist.append(doc_id)
+    return replaceable, coexist

@@ -9,7 +9,7 @@
   · 跑完必须 `diff` 还原成 SAME 才算这一轮干净。
 
 ⚠️ 每条变异都是**真行为变化**（删一个 yield / 删一个条件 / 摘掉锚点）。
-   前科：T1 那条判据曾要求删 `[\s\u3000]` 里的 `\u3000` —— Python `\s` 本就含 U+3000，那是个恒等变异体。
+   前科：T1 那条判据曾要求删 `[\\s\u3000]` 里的 `\u3000` —— Python `\\s` 本就含 U+3000，那是个恒等变异体。
 """
 
 import json
@@ -72,8 +72,14 @@ MUTANTS = [
 
 
 def run_suite() -> tuple[set[str], int]:
+    """跑一轮，返回 (红集合, 本轮真跑了多少条)。
+
+    分母轴先前错过两次：① 拿 `passed|failed` 之和当 collected（把 skipped 吞了）；
+    ② 拿 `passed + skipped` 当分母 —— 一有失败它就**自己缩小**，于是每个变异体的"分母"都不一样。
+    现在：真 collected 由 `--collect-only` 量一次作常量，本轮跑了多少 = passed+failed+skipped+errors。
+    """
     p = subprocess.run(
-        [PY, "-m", "pytest", *TARGETS, "-q", "--no-header", "-p", "no:cacheprovider"],
+        [PY, "-m", "pytest", *TARGETS, "-q", "-p", "no:cacheprovider"],
         cwd=str(BACKEND),
         capture_output=True,
         text=True,
@@ -81,17 +87,39 @@ def run_suite() -> tuple[set[str], int]:
         errors="replace",
     )
     out = (p.stdout or "") + (p.stderr or "")
-    red = {m.group(1) for m in re.finditer(r"^FAILED tests/\S+::(\S+)", out, re.M)}
-    den = sum(int(n) for n in re.findall(r"(\d+) (?:passed|failed)", out))
-    collected = re.search(r"collected (\d+) items", out)
-    return red, int(collected.group(1)) if collected else den
+    red = {m.group(1) for m in re.finditer(r"^FAILED tests/\S+::(\S+)", out, re.MULTILINE)}
+    ran = 0
+    for key in ("passed", "failed", "skipped", "error"):
+        hit = re.search(rf"(\d+) {key}", out)
+        if hit:
+            ran += int(hit.group(1))
+    return red, ran
+
+
+def collected_total() -> int:
+    """一次 `--collect-only` 拿到真正的 collected 轴（分母常量）。"""
+    p = subprocess.run(
+        [PY, "-m", "pytest", *TARGETS, "--collect-only", "-q", "-p", "no:cacheprovider"],
+        cwd=str(BACKEND),
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    out = (p.stdout or "") + (p.stderr or "")
+    # `-q --collect-only` 的收尾行是 "N tests collected in Xs"，不是 verbose 的 "collected N items"
+    hit = re.search(r"(\d+) tests? collected", out) or re.search(r"collected (\d+) items", out)
+    if not hit:
+        raise SystemExit("拿不到 collected 数 ⇒ 仪器坏在这里，别往下跑")
+    return int(hit.group(1))
 
 
 def main() -> int:
     only = set(sys.argv[1:])  # 传名字 ⇒ 只跑这些并并入既有产物（不传 ⇒ 全跑、覆盖）
     out_path = HERE / "mutation-verdicts.json"
     orig = MAIN.read_bytes()
-    base_red, den0 = run_suite()
+    base_red, _ = run_suite()
+    den0 = collected_total()
     verdicts = [{"mutant": "baseline", "newly_red": sorted(base_red), "collected": den0}]
     for name, want, old, new in MUTANTS:
         if only and name not in only:
