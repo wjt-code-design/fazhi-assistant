@@ -116,6 +116,7 @@ COLUMNS: tuple[str, ...] = (
     "版本绊线",
     "写缓存闸",
     "评测可信度",
+    "时效未核验注记",
 )
 
 # 合法状态值（哨兵据此判「这格填的是词表里的东西」）。
@@ -761,7 +762,167 @@ EXITS: list[dict] = [
             "评测可信度": ("DISABLED", "分支不可达 ⇒ 评测读数里出现 0 次（同 E7）。"),
         },
     },
+    {
+        # S0-c（2026-09-26）新增：旗舰流式与兜底**合流处**的时效未核验注记帧。
+        # 为什么单独成行：本表铁律「每条 content 帧都要有自己的格子」，
+        # `test_main_py_exits_are_all_registered` 按 `scan_content_yields` 的条数对账，少一行就红。
+        # 为什么一帧就够（不像 E14 那样两个来源各过一次门）：判据写在合流点之后，两个来源已是同一个 `answer`。
+        "id": "E17",
+        "where": "stream() / 分支2 两个答案来源合流处的时效未核验注记帧（常量 `NOTE_TIME_UNVERIFIED`）",
+        "traffic": "条件命中（显式历史基准日 + 证据里有 time_validity_state=unknown 的块）",
+        "cells": {
+            "可达性": (
+                "PASS",
+                "真实配置下即命中：现网语料 **10266/10266 无日期**（E7 清点 "
+                "`docs/e7-legacy-undated-corpus-inventory-20260926.md`）⇒ 只要请求带显式历史基准日，"
+                "本轮证据必判 unknown。⚠️ 「线上命中率」没量过（本机无流量分布），这格说的是「代码可达」。"
+                "取证：`tests/test_time_unverified_note.py::test_e8_streaming_answer_carries_the_note`。",
+            ),
+            "引用校验": ("NA", "注记帧，不是答案。"),
+            "自检": (
+                "NA",
+                "注记帧。⚠️ 但注记文本会进 `self_check` 的输入 —— 措辞撞上 `_HONEST_REFUSE_MARKS`"
+                "（子串匹配）等于给每条注记答复发一张免死牌，撞上 `VAGUE_PHRASES` 则反向把正常答复判成含糊。"
+                "钉法：`test_note_wording_does_not_collide_with_self_check_markers`。",
+            ),
+            "多选完整性": ("NA", "注记帧。"),
+            "配额降级注记": ("NA", "与配额无关（配额走 E13）。"),
+            "版本绊线": ("NA", "注记帧不参与版本判定；与 E14 同时命中时的先后是判据（见 E14 的本格）。"),
+            "写缓存闸": (
+                "NA",
+                "本帧不进缓存路径。且**结构上没有「缓存掉注记」这个形状**：注记只在带显式历史基准日时出现，"
+                '而 `_cacheable` 的合取项 `not pre.get("law_as_of")` 把这类请求整个挡在共享答案缓存外'
+                "（⇒ 票 H 那个「注记在 `put` 之后追加 ⇒ 复播时告警消失」的前科在这里无从发生）。见 E1 的「时效未核验注记」格。",
+            ),
+            "评测可信度": (
+                "NA",
+                "注记帧。⚠️ 但它让整答文本变长：拿 E8 答复对分/对指纹的评测，加注前后不是同一个字符串"
+                "（同 E14 的提醒；本轮 74 题冻结集不在 S0 射程内，见票面 §验收 5）。",
+            ),
+        },
+    },
+    {
+        # S0-c（2026-09-26）新增：合同报告分支的时效未核验注记帧（与 E17 同一判据、同一个常量）。
+        "id": "E18",
+        "where": "stream() / 分支0.3 合同报告的时效未核验注记帧（常量 `NOTE_TIME_UNVERIFIED`）",
+        "traffic": "条件命中（同 E17：显式历史基准日 + 证据含 unknown）",
+        "cells": {
+            "可达性": (
+                "PASS",
+                "合同分支入口在真实配置下可达（票 H 的 `17-reachability-realconfig.json` 读数），"
+                "带显式历史基准日 + 无日期法条证据即命中本帧。"
+                "取证：`tests/test_time_unverified_note.py::test_e5_contract_report_answer_carries_the_note`。",
+            ),
+            "引用校验": ("NA", "注记帧，不是答案。"),
+            "自检": (
+                "DISABLED",
+                "合同分支本就不跑 `quality.self_check`（见 E5 的「自检」格）⇒ 本帧文本不进自检输入。"
+                "E17 那条措辞碰撞风险在此不存在，但**不因此豁免**那条钉子：注记是同一个常量。",
+            ),
+            "多选完整性": ("NA", "注记帧；报告体非选择题。"),
+            "配额降级注记": ("NA", "与配额无关（配额走 E15）。"),
+            "版本绊线": ("NA", "注记帧不参与版本判定（合同分支的版本绊线另见 E5 的「版本绊线」格：GAP-ACCEPTED）。"),
+            "写缓存闸": (
+                "NA",
+                '与 E17 同一条理由：`_cacheable` 里的 `not pre.get("law_as_of")` 对合同分支同样生效'
+                "（`cache_key` 在分支之外统一算）⇒ 带本帧的那份报告不进缓存，"
+                "E5「写缓存闸」格里票 H 修掉的那个「缓存掉告警」形状在这里根本不存在。",
+            ),
+            "评测可信度": ("NA", "注记帧；合同类不在 `evals/` 冻结集内。"),
+        },
+    },
 ]
+
+# ── 「时效未核验注记」列（S0-c，2026-09-26）────────────────────────────────────────────
+# 这一列的取证**集中写在这里**，而不是散进上面 18 个字面量：同一列说的是同一件事
+# （注记接没接、没接的理由），拆开后没人能一眼看出"哪些出口没接"。上面那些行把每列写进字面量
+# 是因为它们的取证本来就属于那个出口的一段历史；本列是**横切**的一列。
+# 闭合性由下面两条断言硬保证：漏一个出口 ⇒ 导入即炸（不留"看起来对"的空格子）。
+_TIME_NOTE_CELLS: dict[str, tuple[str, str]] = {
+    "E1": (
+        "NA",
+        "**结构上拿不到本列**（09-26 实施日量出来的，先前这里写的「票 T9 缓存键缺基准日轴」是错的，已撤）："
+        '`_cacheable` 的合取项里就写着 `not pre.get("law_as_of")`（函数注释原文'
+        "「显式历史日期不进共享答案缓存」）⇒ 带注记的答复**永不进**缓存，历史基准日请求也**读不到**缓存"
+        "（`cache_key=None` 同时关掉了精确命中与 `feature_similar_cache` 的近重复命中）。"
+        "所以本出口既不会「复播丢注记」，也不会「把未核验的答复固化 6 小时」。"
+        "取证（四条腿，含「根本没写缓存」的对照组）："
+        "`tests/test_time_unverified_note.py::test_e1_annotated_answers_never_enter_the_shared_cache`。",
+    ),
+    "E2": (
+        "NA",
+        "显式基准日的请求**结构性拿不到本出口**：`request_bootstrap.prepare_fast_path` 写 "
+        "`qa_hit = None if cutoff else deps.search_qa(...)`（QA 语料按当日沉淀、无版本轴）"
+        "⇒ S0-c 判据的①成立时②永不成立 ⇒ 给它接注记就是 E3/E4「版本绊线」格那种恒不命中的空门。"
+        "取证（带对照腿，防「空枪 NA」）："
+        "`tests/test_time_unverified_note.py::test_e2_has_no_note_timing_under_explicit_basis`。",
+    ),
+    "E3": (
+        "NA",
+        "零 LLM 确定性模板（反问 / 诚实拒答），不引用任何条文 ⇒ 没有「所引条文时效」可披露。"
+        "取证：`tests/test_time_unverified_note.py::test_e3_clarify_template_carries_no_note`。",
+    ),
+    "E4": (
+        "NA",
+        "同 E3：`CONTRACT_CLARIFY_PROMPT` 是零 LLM 模板，还没引条文。"
+        "取证：`tests/test_time_unverified_note.py::test_e4_contract_clarify_template_carries_no_note`。",
+    ),
+    "E5": (
+        "PASS",
+        "报告分片已逐段吐出 ⇒ 注记由本分支的 **E18** 帧承载（与 E14/E15 同族：不收回已发帧）。"
+        "⚠️ 别把它说成「缓存里带着注记」：带显式基准日的请求被 `_cacheable` 挡在共享答案缓存之外"
+        "（见 E1 的同一格）⇒ 这份答复根本不进缓存，票 H 那个「缓存掉告警」形状在此不成立。"
+        "取证：`tests/test_time_unverified_note.py::test_e5_contract_report_answer_carries_the_note`。",
+    ),
+    "E6": ("NA", "注记帧，不是答案。"),
+    "E7": (
+        "PASS",
+        "缓冲整答还没吐出 ⇒ 注记**并进 E7 那一帧**（`_light_buffered_locked` 里 `NOTE_LAW_VERSION` / "
+        "`NOTE_COMPLEX` 的既有形状，不另开帧）。"
+        "⚠️ 本出口零流量（见「可达性」格）⇒ 这格是「代码正确」，不是「线上生效」。"
+        "取证：`tests/test_time_unverified_note.py::test_e7_light_buffered_answer_carries_the_note_inline`。",
+    ),
+    "E8": (
+        "PASS",
+        "流式分片已吐出 ⇒ 由 **E17** 帧承载。判据写在两个答案来源**合流之后** ⇒ 一帧同时覆盖 E8 与 E9，"
+        "不写第二份（写了就是本表反复防的那个「第二份判据」）。"
+        "取证：`tests/test_time_unverified_note.py::test_e8_streaming_answer_carries_the_note`。",
+    ),
+    "E9": (
+        "PASS",
+        "同 E8：合流点在 `_invoke_llm` 兜底支之后 ⇒ 流式返空时注记不跟着消失（票 C §2c 那个形状）。"
+        "取证：`tests/test_time_unverified_note.py::test_e9_fallback_answer_carries_the_note`。",
+    ),
+    "E10": ("NA", "注记帧，不是答案。"),
+    "E11": ("NA", "注记帧，不是答案。"),
+    "E12": ("NA", "注记帧，不是答案。"),
+    "E13": ("NA", "注记帧，不是答案。"),
+    "E14": (
+        "NA",
+        "注记帧，不是答案。但**它与 E17 同时命中时的先后是判据**（时效注记在前、版本注记压最后）："
+        "`tests/test_time_unverified_note.py::test_e17_frame_precedes_the_version_note`。",
+    ),
+    "E15": ("NA", "注记帧，不是答案。"),
+    "E16": ("NA", "注记帧，不是答案。⚠️ 随 E7 零流量。"),
+    "E17": (
+        "PASS",
+        "本帧即其产物（S0-c）。措辞真源 `main.NOTE_TIME_UNVERIFIED`，判据真源 `main._time_unverified_hit`"
+        "（全仓唯一一份：基准日只认 `pre.get('law_as_of')`，该键由产生处仅在 "
+        "`bootstrap.law_as_of is not None` 时写入；拿检索层 `cutoff` 当条件是**空判据**，它永远非空）。"
+        "取证：`tests/test_time_unverified_note.py` 的 E8/E9 两条正向 + 两条控制腿"
+        "（无基准日 / 证据可核验 ⇒ 不注记）。",
+    ),
+    "E18": (
+        "PASS",
+        "本帧即其产物（S0-c，合同分支）。与 E17 共用同一个常量与同一个判据，不各写一份。"
+        "取证：`tests/test_time_unverified_note.py::test_e5_contract_report_answer_carries_the_note`。",
+    ),
+}
+
+for _row in EXITS:
+    _row["cells"]["时效未核验注记"] = _TIME_NOTE_CELLS[_row["id"]]  # 漏一个出口 ⇒ KeyError，导入即炸
+assert set(_TIME_NOTE_CELLS) == {r["id"] for r in EXITS}, "「时效未核验注记」列与出口清单不吻合"
+del _row
 
 # agent 路径**不在本表**（它不是 `stream()` 的出口，闸门在 `agent/verifier.py`），
 # 但登记一句免得下任重画一遍：`AGENT_ENABLED=False` 时线上流量 100% 走本表登记的这些出口。

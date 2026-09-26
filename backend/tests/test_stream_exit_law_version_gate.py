@@ -278,7 +278,13 @@ def test_independent_expectation_table_on_streaming_exit(monkeypatch):
     for sid, claim, facts, as_of, expect_hit in EXPECTATIONS:
         run = run_stream_exit(monkeypatch, on=True, question=facts[0], parts=(claim[:40], claim[40:]), law_as_of=as_of)
         delivered = "".join(run.content_frames)  # 正文帧按序拼接（流式是分片的，不能拿整行 body 去 in 判断）
-        want = claim + (main.NOTE_LAW_VERSION if expect_hit else "")
+        # S0-c（2026-09-26）之后，本表这些行**都还带着时效未核验注记**：每行都给了显式 `law_as_of`，
+        # 而夹具返回的检索块无日期 ⇒ 判据两条同时成立。顺序是"时效在前、版本在后"，
+        # 那条先后由 `tests/test_time_unverified_note.py::test_e17_frame_precedes_the_version_note` 钉住，
+        # 这里只把它算进期望文本（本测试防的是"别的注记混进来"，S0-c 不是混进来，是新增的一族）。
+        want = claim + (main.NOTE_TIME_UNVERIFIED if as_of is not None else "") + (
+            main.NOTE_LAW_VERSION if expect_hit else ""
+        )
         if len(run.gate_calls) != 1:
             bad.append(f"{sid}: 门被调用 {len(run.gate_calls)} 次（期望 1 次）⇒ 本条根本没走到 E8")
         elif run.judged[0] != claim:

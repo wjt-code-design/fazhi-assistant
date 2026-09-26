@@ -1,0 +1,105 @@
+[
+ {
+  "mutant": "baseline",
+  "newly_red": [],
+  "collected": 45
+ },
+ {
+  "mutant": "M1-drop-e17-frame",
+  "newly_red": [
+   "test_committed_md_is_the_generated_artifact",
+   "test_e17_frame_precedes_the_version_note",
+   "test_e1_annotated_answers_never_enter_the_shared_cache",
+   "test_e8_streaming_answer_carries_the_note",
+   "test_e9_fallback_answer_carries_the_note",
+   "test_independent_expectation_table_on_streaming_exit",
+   "test_main_py_exits_are_all_registered",
+   "test_registry_rows_all_exist_in_source",
+   "test_registry_scope_is_whole_backend_not_just_main_py"
+  ],
+  "collected": 45,
+  "denominator_drift": false,
+  "restored": true,
+  "expected_hit": [
+   "test_e8_streaming_answer_carries_the_note",
+   "test_e9_fallback_answer_carries_the_note"
+  ],
+  "killed": true
+ },
+ {
+  "mutant": "M2-drop-e7-inline",
+  "newly_red": [
+   "test_e7_light_buffered_answer_carries_the_note_inline"
+  ],
+  "collected": 45,
+  "denominator_drift": false,
+  "restored": true,
+  "expected_hit": [
+   "test_e7_light_buffered_answer_carries_the_note_inline"
+  ],
+  "killed": true
+ },
+ {
+  "mutant": "M3-drop-e18-frame",
+  "newly_red": [
+   "test_committed_md_is_the_generated_artifact",
+   "test_e5_contract_report_answer_carries_the_note",
+   "test_main_py_exits_are_all_registered",
+   "test_registry_rows_all_exist_in_source",
+   "test_registry_scope_is_whole_backend_not_just_main_py"
+  ],
+  "collected": 45,
+  "denominator_drift": false,
+  "restored": true,
+  "expected_hit": [
+   "test_e5_contract_report_answer_carries_the_note"
+  ],
+  "killed": true
+ },
+ {
+  "mutant": "M4-judgement-ignores-basis",
+  "newly_red": [
+   "test_control_no_explicit_basis_produces_no_note",
+   "test_e1_annotated_answers_never_enter_the_shared_cache",
+   "test_judgement_requires_both_conditions"
+  ],
+  "collected": 45,
+  "denominator_drift": false,
+  "restored": true,
+  "expected_hit": [
+   "test_control_no_explicit_basis_produces_no_note",
+   "test_judgement_requires_both_conditions"
+  ],
+  "killed": true
+ },
+ {
+  "mutant": "M5-judgement-ignores-unknown",
+  "newly_red": [
+   "test_control_verified_evidence_produces_no_note",
+   "test_judgement_requires_both_conditions"
+  ],
+  "collected": 45,
+  "denominator_drift": false,
+  "restored": true,
+  "expected_hit": [
+   "test_control_verified_evidence_produces_no_note",
+   "test_judgement_requires_both_conditions"
+  ],
+  "killed": true
+ },
+ {
+  "mutant": "M6-unanchor-e17",
+  "newly_red": [
+   "test_committed_md_is_the_generated_artifact",
+   "test_main_py_exits_are_all_registered",
+   "test_registry_rows_all_exist_in_source"
+  ],
+  "collected": 45,
+  "denominator_drift": false,
+  "restored": true,
+  "expected_hit": [
+   "test_main_py_exits_are_all_registered"
+  ],
+  "killed": true
+ }
+]

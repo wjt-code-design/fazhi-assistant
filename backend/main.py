@@ -133,7 +133,7 @@ from retrieval import (
     scenario_supplement_docs,
     source_in_kb,
 )
-from retrieval_core import qa_provenance_verifiable
+from retrieval_core import qa_provenance_verifiable, time_validity_state
 from schemas import (
     ChatIn,
     ConversationDetail,
@@ -1077,6 +1077,30 @@ NOTE_LAW_VERSION = "\n\n> 注：本回答所适用的法律版本与所述事实
 # （票 J 新增，登记表 E16）共用它 —— 两处各抄一份字面量会让"同一症状两句话"漂移，
 # 而它们本该是同一条告警（票 J §J-2：「复用流式那份纯函数，不许重写规则」同理）。
 NOTE_MULTI_INCOMPLETE = "\n\n> ⚠️ 本题可能为多选题，上述回答似乎只给出了一个正确选项，请核对是否遗漏。"
+# S0-c（2026-09-26）：显式历史基准日 + 证据时效未核验 ⇒ 明说，不静默。
+# 措辞避开 `quality._HONEST_REFUSE_MARKS` 与 `VAGUE_PHRASES` 的字面（注记会进 `self_check` 的输入，
+# 撞上前者会把"无据硬答"洗成诚实拒答，撞上后者会把正常答复判成含糊）。
+NOTE_TIME_UNVERIFIED = (
+    "\n\n> 注：本回答引用的条文缺少可核验的时效信息（生效日、废止日），"
+    "在所问的历史基准日是否有效未经核验，本回答仅供参考。"
+)
+
+
+def _time_unverified_hit(pre: dict) -> bool:
+    """S0-c 注记判据，**全仓唯一一份**。两个条件缺一不可：
+
+    ① 本次答案用了**显式历史基准日** ⇒ 只认 `pre["law_as_of"]`。该键由
+    `request_bootstrap.prepare_fast_path` 在 `bootstrap.law_as_of is not None` 时才写入
+    （未指定 ⇒ 键不存在），它就是"这一答问的是过去的法"的单一源头；各出口不许再各自
+    从 body 重算（`_exit_law_as_of` 已为此立过一次前科）。
+    ⚠️ 别拿 `cutoff` 当这个条件：检索层 `cutoff = cutoff or date.today().isoformat()` 让它
+    永远非空 ⇒ "带 cutoff 才注记"是空判据。
+    ② 本轮检索证据里有 `time_validity_state == "unknown"` 的块 —— 即"没资格断言它那天有效"。
+    """
+    if not pre.get("law_as_of"):
+        return False
+    return any(time_validity_state(s) == "unknown" for s in pre.get("sources") or ())
+
 
 # 低置信反问计数（任务2）：conv_id → 已反问（最多一次，防死循环）。进程内状态，
 # 单 worker 下有效（ADR-008 单 worker 约束）；重启清零可接受——反问上限防的是同会话循环。
@@ -2014,6 +2038,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         await run_in_threadpool(
                             registry.deduct, _ccur["key"], est * registry.thinking_mult(_ccur["key"])
                         )
+                    if _time_unverified_hit(pre):
+                        # 报告增量已逐段吐出 ⇒ 追加一帧（登记表 E18，与旗舰 E17 同族）。
+                        # ⚠️ 别把这里读成"注记跟着进缓存"：`_cacheable` 的 `not pre.get("law_as_of")`
+                        # 已把带基准日的请求整个挡在共享答案缓存外 ⇒ 票 H 那个"缓存掉告警"形状在此不成立。
+                        answer += NOTE_TIME_UNVERIFIED
+                        yield f"data: {json.dumps({'content': NOTE_TIME_UNVERIFIED}, ensure_ascii=False)}\n\n"  # gate-exit: E18
                     bad = citation_verify(answer)
                     # 降级信号（S2 同族）：`_safe_pick` 起初就落到"本身已不可用"的默认模型。
                     # 短路保护：`flag_degraded` 只在 `use_router and not use_light` 那一支被赋过值
@@ -2079,6 +2109,11 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             if use_light:
                 res = await run_in_threadpool(_light_buffered, pre, messages, _exit_law_as_of(pre, body))
                 answer = res.answer
+                if answer and _time_unverified_hit(pre):
+                    # 缓冲整答还没吐出 ⇒ 注记并进 E7 那一帧（`_light_buffered_locked` 里的
+                    # NOTE_LAW_VERSION / NOTE_COMPLEX 就是同一形状）。带基准日的请求不进缓存
+                    # （`_cacheable`），所以"复播丢注记"和"未核验答复被固化 6 小时"都不会发生。
+                    answer += NOTE_TIME_UNVERIFIED
                 if answer:
                     _f0 = time.perf_counter()  # 轻量缓冲：非流式整答返回，首帧=完成时刻
                     yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"  # gate-exit: E7
@@ -2228,6 +2263,14 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 answer, law_version_hit = _law_version_gate(
                     answer, fact_texts, _exit_law_as_of(pre, body), exit_label=EXIT_STREAM
                 )
+            if answer and _time_unverified_hit(pre):
+                # 两个答案来源（流式 join / `_invoke_llm` 兜底）在这一点之后合流 ⇒ 一帧覆盖 E8 与 E9，
+                # 不必各写一遍（写两遍就是第二份判据）。
+                # ⚠️ 位置在 E14 之前：两条注记同时命中时，"版本可能不一致"是更强的告警，压在最后
+                # （`test_e17_frame_precedes_the_version_note` 把顺序钉成判据）。
+                # 注记不进缓存 —— 带显式基准日的请求本来就被 `_cacheable` 挡在共享答案缓存外。
+                answer += NOTE_TIME_UNVERIFIED
+                yield f"data: {json.dumps({'content': NOTE_TIME_UNVERIFIED}, ensure_ascii=False)}\n\n"  # gate-exit: E17
             if law_version_hit and answer:
                 # 空答不注记：门已保证 `answer == ""` 时不追加，这里再挡一次 yield，
                 # 免得把下面 `if not answer:` 的"没答上来"error 帧变成"答了但仅供参考"。
