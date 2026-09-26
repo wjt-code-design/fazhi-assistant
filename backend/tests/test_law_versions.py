@@ -30,11 +30,13 @@ def test_replacement_keeps_other_effective_versions():
         {"version_id": "lv-old", "effective_from": "2020-01-01"},
     ]
 
-    # 票 T1 之后函数一次返回两半：可替换的 / 需报警的并存。既有"同一版本"语义逐字不变。
-    assert replaceable_version_ids(ids, metadatas, version_id="lv-current", effective_from="2024-01-01") == (
-        ["same", "legacy-same-date"],
-        ["older-version"],
-    )
+    # T1/T2 之后一次返回三个桶；既有"同一版本"语义的**选择结果**逐字不变。
+    plan = replaceable_version_ids(ids, metadatas, version_id="lv-current", effective_from="2024-01-01")
+    assert plan.replaceable == ["same", "legacy-same-date"]
+    assert plan.coexist == ["older-version"]
+    # "无 version_id 但日期相同"走的是改动前就有的那条分支，不该被记进遗留桶
+    # （否则 T2 会把一次普通重传报成"与无时效旧块并存"）。
+    assert plan.legacy_undated == []
 
 
 # ── 票 T1：整个时效轴缺失的遗留块 ────────────────────────────────────────────────
@@ -57,20 +59,36 @@ def _call(metas, docs=(), new_content=LEGACY_NEW, version_id="lv-new", effective
 
 
 def test_undated_legacy_copy_is_replaceable_when_text_is_contained():
-    """判据 1：无 version_id + 两日期皆空 + origin=upload + 新 ⊆ 旧 ⇒ 可替换，且并存列表为空。"""
-    replaceable, coexist = _call([dict(LEGACY_META)], docs=[LEGACY_OLD])
-    assert replaceable == ["d0"]
-    assert coexist == []
+    """判据 1：无 version_id + 两日期皆空 + origin=upload + 新 ⊆ 旧 ⇒ 可替换，且并存桶为空。"""
+    plan = _call([dict(LEGACY_META)], docs=[LEGACY_OLD])
+    assert plan.replaceable == ["d0"]
+    assert plan.coexist == []
+    assert plan.legacy_undated == ["d0"], "T2 的 ⚠️ 只数这一桶 ⇒ 落错桶等于不报警"
 
     # 这条分支**只能**靠包含成立：旧块带章节行 ⇒ 逐字相等恒 False（票面"已被否掉的想当然修法"）。
     assert LEGACY_NEW != LEGACY_OLD
 
 
+def test_replaceable_is_exactly_the_two_replacement_buckets():
+    """形状不变量：`replaceable == same_version + legacy_undated`，且与 coexist 不相交。
+
+    拆桶是为了给消费者报数，但**删除面**只能有一个来源 —— 这条守的是"两个桶各删各的/漏一个桶"的漂移。
+    """
+    plan = _call(
+        [{"version_id": "lv-new"}, dict(LEGACY_META), {"version_id": "lv-x", "origin": "upload"}],
+        docs=[LEGACY_NEW, LEGACY_OLD, LEGACY_OLD],
+    )
+    assert plan.same_version == ["d0"]
+    assert plan.legacy_undated == ["d1"]
+    assert plan.replaceable == ["d0", "d1"]
+    assert plan.coexist == ["d2"]
+
+
 def test_non_contained_text_is_not_deleted_but_reported():
-    """判据 2：正文互不包含 ⇒ 不进可替换，且**必须**出现在并存列表里（不许静默）。"""
-    replaceable, coexist = _call([dict(LEGACY_META)], docs=["第一千二百五十九条 别的条文。"])
-    assert replaceable == []
-    assert coexist == ["d0"]
+    """判据 2：正文互不包含 ⇒ 不进可替换，且**必须**出现在并存桶里（不许静默）。"""
+    plan = _call([dict(LEGACY_META)], docs=["第一千二百五十九条 别的条文。"])
+    assert plan.replaceable == []
+    assert plan.coexist == ["d0"]
 
 
 def test_seed_origin_untouched():
@@ -78,36 +96,36 @@ def test_seed_origin_untouched():
 
     ⚠️ 别和 `_seed_conflict()` 混成一件事：那句主语是"进来的这条要不要处理"，本句是"哪些旧副本可删"。
     """
-    replaceable, coexist = _call([{**LEGACY_META, "origin": "seed"}], docs=[LEGACY_OLD])
-    assert replaceable == []
-    assert coexist == ["d0"]
+    plan = _call([{**LEGACY_META, "origin": "seed"}], docs=[LEGACY_OLD])
+    assert plan.replaceable == []
+    assert plan.coexist == ["d0"]
 
 
 def test_dated_legacy_with_different_effective_from_still_coexists():
     """判据 4：已有**带日期**旧块且日期不同 ⇒ 仍是"修订版并存"，不因新分支被吞掉（现有语义不许回归）。"""
-    replaceable, coexist = _call([{**LEGACY_META, "effective_from": "2018-01-01"}], docs=[LEGACY_OLD])
-    assert replaceable == []
-    assert coexist == ["d0"]
+    plan = _call([{**LEGACY_META, "effective_from": "2018-01-01"}], docs=[LEGACY_OLD])
+    assert plan.replaceable == []
+    assert plan.coexist == ["d0"]
 
 
 def test_effective_to_alone_blocks_the_legacy_branch():
     """时效轴的**任一半**存在就不算"整个缺失"：只有 effective_to 的旧块（废止版）也进并存。"""
-    replaceable, coexist = _call([{**LEGACY_META, "effective_to": "2020-12-31"}], docs=[LEGACY_OLD])
-    assert replaceable == []
-    assert coexist == ["d0"]
+    plan = _call([{**LEGACY_META, "effective_to": "2020-12-31"}], docs=[LEGACY_OLD])
+    assert plan.replaceable == []
+    assert plan.coexist == ["d0"]
 
 
 def test_missing_new_content_fails_safe_to_coexist():
     """调用方没传正文 ⇒ 不许猜"能删"：判不出包含就进并存列表（误删条文比留双胞胎严重）。"""
-    replaceable, coexist = _call([dict(LEGACY_META)], docs=[LEGACY_OLD], new_content="")
-    assert replaceable == []
-    assert coexist == ["d0"]
+    plan = _call([dict(LEGACY_META)], docs=[LEGACY_OLD], new_content="")
+    assert plan.replaceable == []
+    assert plan.coexist == ["d0"]
 
 
 def test_document_falls_back_to_chroma_metadata_key():
     """不传 `documents` 时回退 Chroma 塞进 metadata 的 `chroma:document`（票面点名的回退源）。"""
-    replaceable, coexist = _call([{**LEGACY_META, "chroma:document": LEGACY_OLD}])
-    assert (replaceable, coexist) == (["d0"], [])
+    plan = _call([{**LEGACY_META, "chroma:document": LEGACY_OLD}])
+    assert (plan.replaceable, plan.coexist) == (["d0"], [])
 
 
 def test_admin_input_rejects_reversed_validity_period():

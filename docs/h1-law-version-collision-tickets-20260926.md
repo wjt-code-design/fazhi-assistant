@@ -261,15 +261,21 @@ M3 删 E18 帧 → 5 红；M4 判据丢掉"显式基准日"这一半 → 3 红�
 
 **落地记录（09-26 实施日）**
 
-码按票面落在**单一本体**：`law_versions.replaceable_version_ids` 一次遍历返回两半
-`(可替换 id 列表, 需报警的并存 id 列表)`，新增 origin 白名单常量 `_LEGACY_REPLACEABLE_ORIGINS = ("upload", "manual")`
+⚠️ **返回形状修正（落 T2 时改的，先记在这里免得两票各说一套）**：票面写的是"一次返回两半"。
+两半不够 T2 用 —— 它要单独报出「与 M 条**无时效**旧块并存」，那个 M 数的是"遗留无时效"这一类；
+只给"可替换"总和的话，调用方就得自己重推"哪些是遗留无时效" ⇒ 那是**第二份判据**。
+⇒ 实作为 `ReplacementPlan`（`NamedTuple`，三个桶 `same_version` / `legacy_undated` / `coexist`，
+`replaceable` 是前两桶之和的 property），**仍是一次遍历**，`test_replaceable_is_exactly_the_two_replacement_buckets`
+钉住"删除面只有一个来源"。原语义未动：`same_version` 就是改动前那唯一一条分支。
+
+码按票面落在**单一本体**：`law_versions.replaceable_version_ids` 一次遍历分三个桶，新增 origin 白名单常量 `_LEGACY_REPLACEABLE_ORIGINS = ("upload", "manual")`
 与 `_norm_text`。判"可替换"的三条合取（无 `version_id` / 时效轴两个键皆空 / `origin` 在白名单）**加上**
 归一化包含，全仓只有这一处 —— 票 T2 判据 4 的 grep 复量：`import_laws.py` 里 `effective_from`/`version_id`
 只出现在①入口校验（:62-83，主语是"进来的这条"）与②把新值喂给本函数（:162-166），
 **没有**第二处"库里这块是不是无时效遗留"的空值判断。
 两个调用点都改成 `include=["metadatas", "documents"]` 并传 `new_content`：
-写侧（`knowledge_service.add_text`）只消费第一半 —— 并存块**不删**是安全侧，"要说出来"归预检；
-预检侧（`scripts/import_laws.py`）把第二半暂存为 `_coexist`，由票 T2 消费。
+写侧（`knowledge_service.add_text`）只消费 `plan.replaceable` —— 并存块**不删**是安全侧，"要说出来"归预检；
+预检侧（`scripts/import_laws.py`）三个桶都读，见下面 T2 的落地记录。
 
 测试：`tests/test_law_versions.py` **11 条**（`--collect-only` 现量：判据 1/2/3/4 各一条，
 外加三条边界 —— 只有 `effective_to` 的废止版不算"整个缺失"、调用方没传正文时 **fail-safe 进并存**
@@ -329,6 +335,56 @@ T1 之前 N 恒为 0、`_seed_conflict()`（:96-104）因**库里 0 条 seed** �
 3. 构造一个"互不包含"的假条目（同法名条号 + 正文改一个字）⇒ rc=**1**，且**不写入任何内容**。
 4. 分类判据只在 T1 的函数里有一份；`grep` 本票验收时要确认 `import_laws.py` 里**没有**第二处
   `effective_from`/`version_id` 的空值判断。
+
+---
+
+**落地记录（09-26 实施日）**
+
+预检改成**两趟**：第一趟全量判定 + 播报，第二趟才写。票面"互不包含 ⇒ rc=1 且不写入任何内容"在旧的
+"边判边写"形状下做不到（前几条已落库才发现后面并存 ⇒ 只能回滚）。
+播报是一个**纯函数** `preflight_lines(title, article, plan)`（`LINE_REPLACE` / `LINE_LEGACY` / `LINE_COEXIST`
+三条措辞常量），它只把三个桶说出来，**不重新判** —— 判据仍只有 `law_versions` 那一份。
+`_seed_conflict()` 语义一字未动，但给它补了 docstring 写明"今天对现网是死码"（E7 读数：10266 条 origin 全
+`upload`、seed 0 条 ⇒ 恒 False），免得下一个人把它当"重叠会被拦下"的信心来源。
+
+**判据 4（只有一份判据）机器化成了用例**：`test_import_laws_holds_no_second_copy_of_the_judgment`
+断言 `_LEGACY_REPLACEABLE_ORIGINS` / `_norm_text` / `stored_effective_from` / `chroma:document`
+这四个零件在 `import_laws.py` 里**一次都不出现**。（人肉 grep 的读数同向：该文件里 `effective_from`/`version_id`
+只出现在①入口校验（主语是"进来的这条"）与②把新值喂给判据函数两处。）
+选"符号是否出现"而不是行号：行号会被本文件其他改动挤掉。
+
+**判据 1（报警分支可达且有用例，不 mock 成空列表）**：`tests/test_import_laws_preflight.py` **7 条** ——
+三条单元腿直接吃真 `replaceable_version_ids` 的产物（遗留并存 / 互不包含 / 同版本控制腿），
+三条端点腿真跑 `main()` 打真临时 Chroma（`⚠️` 出现且 rc=0、`✗` ⇒ rc=1 且**两条手**钉住没写入：
+`add_text` 换成会炸的替身 + 集合条目数前后不变），外加一条对照组
+（判据全过的批次**确实**走到写入 ⇒ 防"整批不写入"那条是空枪）。
+
+**判据 2 真实库副本复量（只读那份，逐字）**：
+
+```
+共 3 条，开始预检：
+  将替换 1 旧片段 + 新增：民法典 第一千二百六十条
+  ⚠️ 与 1 条无时效旧块并存（将被 T1 取代）：民法典 第一千二百六十条
+  将替换 1 旧片段 + 新增：劳动争议调解仲裁法 第二十七条
+  ⚠️ 与 1 条无时效旧块并存（将被 T1 取代）：劳动争议调解仲裁法 第二十七条
+  将替换 0 旧片段 + 新增：合同法 第四百二十八条
+
+预检完成：将删除 2 旧片段（其中 2 条是**无时效遗留块**），新增 3 条，跳过 0 条。确认后去掉 --dry-run 实跑。
+```
+
+`⚠️` 只在 1260/27 两行出现、`合同法 428` 不出现（它本就没有旧块）⇒ rc 仍 0。真实库零改动：
+`backend/chroma_db/chroma.sqlite3` mtime 仍 `2026-09-21 02:06`、`find -newermt 2026-09-26` = 0。
+
+**判据 3**：见上面的端点腿 `test_non_contained_blocks_the_whole_batch_without_writing`
+（构造"同法名条号 + 正文互不包含"的假条目 ⇒ `SystemExit.code == 1`、写入替身未被调用、条目数不变）。
+
+**变异 5/5 全杀**（`dispatch-output/t2-preflight-report-20260926/{mutate.py,mutation-verdicts.json}`，
+分母恒 `collected=19`）：M1 删掉 ⚠️ 的产生 → 2 红；M5 把 ⚠️ 改成恒真 → 2 红（含"普通重传不该报"那条控制腿）；
+M2 去掉 `sys.exit(1)` → 1 红；M3 `blocked` 桶永不填 → 1 红；M4 把"先判后写"退成"边判边写" → 1 红。
+后三条都落在同一条端点腿上，说明"整批不写入"这个承诺同时被三个不同的破坏方式守着。
+
+**回退**：`preflight_lines` + `main()` 的两趟结构 + `_seed_conflict` 的 docstring；措辞常量删掉即回到旧输出。
+判据本身没动（仍是 T1 那一处）。
 
 ---
 

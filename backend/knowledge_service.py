@@ -206,15 +206,17 @@ def add_text(
                         where={"$and": [{"source": source}, {"article": article}]},
                         include=["metadatas", "documents"],  # T1：判"遗留无时效块可否被取代"要看旧正文
                     )
-                    # 两半里本路径只消费"可替换"：并存块**不删**是安全侧（宁可留双胞胎，不可误删条文），
-                    # "要说出来"落在预检（票 T2 的 rc 分档）—— 写侧这里没有人工裁决的机会。
-                    stale_ids, _coexist = replaceable_version_ids(
-                        existing["ids"],
-                        existing.get("metadatas") or [],
-                        version_id=version_id,
-                        effective_from=effective_from,
-                        documents=existing.get("documents") or [],
-                        new_content=content,
+                    # 三个桶里本路径只消费"可替换"：并存块**不删**是安全侧（宁可留双胞胎，不可误删条文），
+                    # "要说出来"落在预检（票 T2 的报警 + rc 分档）—— 写侧这里没有人工裁决的机会。
+                    stale_ids = list(
+                        replaceable_version_ids(
+                            existing["ids"],
+                            existing.get("metadatas") or [],
+                            version_id=version_id,
+                            effective_from=effective_from,
+                            documents=existing.get("documents") or [],
+                            new_content=content,
+                        ).replaceable
                     )
                 except Exception:
                     stale_ids = []

@@ -22,7 +22,7 @@ BACKEND = os.path.dirname(HERE)
 sys.path.insert(0, BACKEND)
 os.chdir(BACKEND)
 
-from law_versions import replaceable_version_ids, version_metadata  # noqa: E402
+from law_versions import ReplacementPlan, replaceable_version_ids, version_metadata  # noqa: E402
 from retrieval_core import STATUS_WHITELIST  # noqa: E402
 
 DEFAULT_INPUT = os.path.join(BACKEND, "..", "data", "laws_extra.json")
@@ -30,6 +30,26 @@ _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _REQUIRED = ("title", "article_number", "content")
 # 占位符拦截：防止「忘了替换原文」就导入（新手流程保护）
 _PLACEHOLDER_RE = re.compile(r"请粘贴|条文原文，一字不差|【[^】]*原文[^】]*】|（条文原文|请替换|示例法律名称")
+
+# 预检播报的三个桶各自的措辞（T2）。⚠️ 行**只报数量与法名条号**，不抄旧块正文 —— 那是 10266 条
+# 语料的库，逐条打印正文会把预检输出变成几十兆的噪音，而且复制粘贴反而会诱导人"看着像就放过"。
+LINE_REPLACE = "  将替换 {n} 旧片段 + 新增：{title} {article}"
+LINE_LEGACY = "  ⚠️ 与 {n} 条无时效旧块并存（将被 T1 取代）：{title} {article}"
+LINE_COEXIST = "  ✗ 与 {n} 条旧块互不包含（库里是同一条文的另一套文字，需人工判）：{title} {article}"
+
+
+def preflight_lines(title: str, article: str, plan: ReplacementPlan) -> list[str]:
+    """一条 entry 在预检里要说的那几行 —— **纯函数**，三个桶各一行，空桶不吭声。
+
+    判据只有一份（`law_versions.replaceable_version_ids` 的桶），这里只负责说出来；
+    本函数不许再判一次 `effective_from`/`version_id` 空不空（票 T2 判据 4）。
+    """
+    lines = [LINE_REPLACE.format(n=len(plan.replaceable), title=title, article=article)]
+    if plan.legacy_undated:
+        lines.append(LINE_LEGACY.format(n=len(plan.legacy_undated), title=title, article=article))
+    if plan.coexist:
+        lines.append(LINE_COEXIST.format(n=len(plan.coexist), title=title, article=article))
+    return lines
 
 
 def _text_field(entry: dict, key: str, errors: list[str]) -> str:
@@ -96,6 +116,11 @@ def _load_entries(path: str) -> list:
 
 
 def _seed_conflict(vectorstore, title: str, article: str) -> bool:
+    """只认 `origin=="seed"` 的冲突 —— ⚠️ **今天对现网是死码**（E7 实测：该集合 10266 条 origin 全
+    `upload`、`seed` 0 条 ⇒ 本函数恒 False）。它管的是"种子重建会覆盖 import 版本"那一类，
+    **不是**"新旧条文重叠会不会被拦下"：后者从 T2 起由 `preflight_lines` 的并存报警负责。
+    语义按票面保留不动；这段说明是为了别让下一个人把它当重叠防线（票 T2 §现象）。
+    """
     ids = vectorstore._collection.get(where={"$and": [{"source": title}, {"article": article}]}, include=["metadatas"])[
         "ids"
     ]
@@ -143,7 +168,11 @@ def main():
     from rag_chain import vectorstore  # noqa: PLC0415
 
     print(f"共 {len(entries)} 条，开始{'预检' if args.dry_run else '导入'}：")
-    n_del = n_add = n_skip = 0
+    # 两趟：**先全量判定并播报，再决定写不写**。判据 3 要的是"互不包含 ⇒ rc=1 且不写入任何内容"，
+    # 边判边写做不到这一点（前几条已经落库了才发现第三条并存 ⇒ 只能回滚）。
+    n_del = n_add = n_skip = n_legacy = 0
+    blocked: list[str] = []
+    pending: list[tuple[dict, dict]] = []
     for e in entries:
         title, article = e["title"].strip(), e["article_number"].strip()
         if _seed_conflict(vectorstore, title, article):
@@ -158,8 +187,7 @@ def main():
             where={"$and": [{"source": title}, {"article": article}]},
             include=["metadatas", "documents"],  # T1：判"遗留无时效块可否被取代"要看旧正文
         )
-        # 第二半 `_coexist` = 同 (法名, 条号) 下**不能**被取代的旧块：票 T2 消费它（报警 + rc 分档）。
-        stale, _coexist = replaceable_version_ids(
+        plan = replaceable_version_ids(
             existing["ids"],
             existing.get("metadatas") or [],
             version_id=extra["version_id"],
@@ -167,19 +195,34 @@ def main():
             documents=existing.get("documents") or [],
             new_content=e["content"],
         )
-        n_del += len(stale)
+        for line in preflight_lines(title, article, plan):
+            print(line)
+        n_del += len(plan.replaceable)
+        n_legacy += len(plan.legacy_undated)
         n_add += 1
-        if args.dry_run:
-            print(f"  将替换 {len(stale)} 旧片段 + 新增：{title} {article}")
-            continue
+        if plan.coexist:
+            blocked.append(f"{title} {article}（{len(plan.coexist)} 条）")
+        pending.append((e, extra))
+
+    if blocked:
+        # 脚本无权替法务在两个不同版本里选一个删 ⇒ 整批不写入，交人工判（Owner 已裁的 rc 分档）。
+        print(f"\n预检不通过：{len(blocked)} 条与库里同条文**互不包含**，整批未写入任何内容：")
+        for b in blocked:
+            print(f"  - {b}")
+        sys.exit(1)
+
+    if args.dry_run:
+        print(
+            f"\n预检完成：将删除 {n_del} 旧片段（其中 {n_legacy} 条是**无时效遗留块**），"
+            f"新增 {n_add} 条，跳过 {n_skip} 条。确认后去掉 --dry-run 实跑。"
+        )
+        return
+    for e, extra in pending:
+        title, article = e["title"].strip(), e["article_number"].strip()
         # 同版本旧片段删除由 add_text(origin="import") 在新片段写入成功后处理。
         n = ks.add_text(e["content"], source=title, article=article, origin="import", extra_meta=extra)
         print(f"  已导入：{title} {article}（{n} 片段）")
-
-    if args.dry_run:
-        print(f"\n预检完成：将删除 {n_del} 旧片段，新增 {n_add} 条，跳过 {n_skip} 条。确认后去掉 --dry-run 实跑。")
-    else:
-        print(f"\n导入完成：替换 {n_del} 旧片段，新增 {n_add} 条，跳过 {n_skip} 条。")
+    print(f"\n导入完成：替换 {n_del} 旧片段，新增 {n_add} 条，跳过 {n_skip} 条。")
 
 
 if __name__ == "__main__":

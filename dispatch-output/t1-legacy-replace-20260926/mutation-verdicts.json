@@ -2,16 +2,17 @@
  {
   "mutant": "baseline",
   "red": [],
-  "collected": 31
+  "collected": 32
  },
  {
   "mutant": "M1-drop-upload-from-whitelist",
   "why": "按判据 5：白名单里没有 upload ⇒ 现网那种 upload 遗留块再也不可取代",
   "newly_red": [
    "test_document_falls_back_to_chroma_metadata_key",
+   "test_replaceable_is_exactly_the_two_replacement_buckets",
    "test_undated_legacy_copy_is_replaceable_when_text_is_contained"
   ],
-  "collected": 31,
+  "collected": 32,
   "denominator_drift": false,
   "restored": true,
   "killed": true
@@ -21,9 +22,10 @@
   "why": "判据 5①：不做归一化 ⇒ 旧块的章节行与全角空格让包含恒不成立",
   "newly_red": [
    "test_document_falls_back_to_chroma_metadata_key",
+   "test_replaceable_is_exactly_the_two_replacement_buckets",
    "test_undated_legacy_copy_is_replaceable_when_text_is_contained"
   ],
-  "collected": 31,
+  "collected": 32,
   "denominator_drift": false,
   "restored": true,
   "killed": true
@@ -33,9 +35,10 @@
   "why": "判据 5②：包含换成逐字相等 ⇒ 正是票面否掉过的那条想当然修法",
   "newly_red": [
    "test_document_falls_back_to_chroma_metadata_key",
+   "test_replaceable_is_exactly_the_two_replacement_buckets",
    "test_undated_legacy_copy_is_replaceable_when_text_is_contained"
   ],
-  "collected": 31,
+  "collected": 32,
   "denominator_drift": false,
   "restored": true,
   "killed": true
@@ -47,7 +50,7 @@
    "test_dated_legacy_with_different_effective_from_still_coexists",
    "test_effective_to_alone_blocks_the_legacy_branch"
   ],
-  "collected": 31,
+  "collected": 32,
   "denominator_drift": false,
   "restored": true,
   "killed": true
@@ -58,7 +61,7 @@
   "newly_red": [
    "test_seed_origin_untouched"
   ],
-  "collected": 31,
+  "collected": 32,
   "denominator_drift": false,
   "restored": true,
   "killed": true

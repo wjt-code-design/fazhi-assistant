@@ -1,0 +1,69 @@
+[
+ {
+  "mutant": "baseline",
+  "red": [],
+  "collected": 19
+ },
+ {
+  "mutant": "M1-no-legacy-warning",
+  "why": "删掉 ⚠️ 那一行的产生 ⇒ 并存又变回静默（本票要治的就是这个）",
+  "newly_red": [
+   "test_dry_run_warns_and_exits_zero",
+   "test_undated_legacy_coexist_is_warned_but_not_blocked"
+  ],
+  "ran": 19,
+  "collected": 19,
+  "denominator_drift": false,
+  "restored": true,
+  "killed": true
+ },
+ {
+  "mutant": "M5-always-warn",
+  "why": "把 ⚠️ 的条件改成恒真 ⇒ 普通同版本重传也被报成并存（控制腿必须杀得掉）",
+  "newly_red": [
+   "test_no_warning_when_only_same_version_matches",
+   "test_non_contained_block_is_called_out"
+  ],
+  "ran": 19,
+  "collected": 19,
+  "denominator_drift": false,
+  "restored": true,
+  "killed": true
+ },
+ {
+  "mutant": "M2-no-exit-1",
+  "why": "互不包含不再 sys.exit(1) ⇒ 操作者看到 ✗ 却拿到 rc=0",
+  "newly_red": [
+   "test_non_contained_blocks_the_whole_batch_without_writing"
+  ],
+  "ran": 19,
+  "collected": 19,
+  "denominator_drift": false,
+  "restored": true,
+  "killed": true
+ },
+ {
+  "mutant": "M3-blocked-never-fills",
+  "why": "blocked 这一桶永不填 ⇒ 整批照写（「不写入任何内容」那条承诺失效）",
+  "newly_red": [
+   "test_non_contained_blocks_the_whole_batch_without_writing"
+  ],
+  "ran": 19,
+  "collected": 19,
+  "denominator_drift": false,
+  "restored": true,
+  "killed": true
+ },
+ {
+  "mutant": "M4-write-before-judging",
+  "why": "把「先判后写」改回「边判边写」的可达形状 ⇒ 前几条落库之后才发现后面并存",
+  "newly_red": [
+   "test_non_contained_blocks_the_whole_batch_without_writing"
+  ],
+  "ran": 19,
+  "collected": 19,
+  "denominator_drift": false,
+  "restored": true,
+  "killed": true
+ }
+]
