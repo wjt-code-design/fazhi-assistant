@@ -11,7 +11,9 @@
   可能交错（互删/重复/混版本）。_WRITE_LOCK 串行化写路径后，同一 (source, article) 并发写
   应幂等——最终只有一份完整内容，无重复无混版。
 - 判定降级：替换判据整段包在 `except Exception: stale_ids = []` 里 ⇒"判据崩塌"与"判定后决定
-  不替换"在库侧结果相同，必须靠一条结构化告警分开，且旧块不得被误删。
+  不替换"在库侧结果相同，必须靠一条结构化告警分开，且旧块不得被误删；该告警**不得**携带
+  `exc_info`——异常原文 + traceback 会被 `_JsonFormatter` 整体写进内置键 `exc`，而此处被捕获的
+  `replaceable_version_ids(...)` 入参含条文正文（票 T-A，2026-09-27）。
 """
 
 import os
@@ -124,6 +126,10 @@ _W2_BODIES = (
     "第一条　版本判定崩溃测试再修订条文正文，戊句。W2TOKENC 句。",
 )
 
+# 合成敏感文本（票 T-A）：钉"异常原文不许进日志"。用记号而不是真密文/真密钥，
+# 断言是全 payload 序列化后的子串比对，不需要知道它的形态。
+_SECRET_MARKER = "SECRET-MARKER-条文正文片段"
+
 
 def _w2_ids() -> set[str]:
     return set(ks._collection().get(where={"source": _W2_SOURCE})["ids"])
@@ -142,7 +148,15 @@ def _w2_add(body: str) -> int:
 
 
 def _w2_boom(*args, **kwargs):
-    raise RuntimeError("injected judgment boom")
+    """判据依赖的替身：抛 `RuntimeError`，且**把入参正文复述进异常消息**。
+
+    这不是造出来的刁钻形态：`replaceable_version_ids` 的入参就有 `new_content`（新条文正文）
+    与 `documents`（旧条文正文），异常消息里带一段正文完全现实；而 `_JsonFormatter` 会把
+    `exc_info` 的异常原文 + traceback 整体写进**内置键** `exc`（不受 `_ACCOUNT_FIELDS` 约束）
+    ⇒ 只要带了 `exc_info=True`，正文就随 `exc` 落进 JSON 日志（票 T-A 实测复现）。
+    """
+    new_content = str(kwargs.get("new_content") or "")
+    raise RuntimeError(f"injected judgment boom | {_SECRET_MARKER} | {new_content or '(no content)'}")
 
 
 @pytest.fixture(scope="module")
@@ -202,11 +216,17 @@ def test_version_judgment_crash_keeps_old_chunks(w2_crash_run):
 
 
 def test_version_judgment_crash_is_visible_in_structured_log(w2_crash_run):
-    """另一半：崩溃必须从结构化日志里读得出来。
+    """另一半：崩溃必须从结构化日志里读得出来，且**异常原文/traceback/条文正文都不进日志**。
 
     断言读的是**格式化之后**的 payload —— 键只挂在 record 上而没登记进
     `observability._ACCOUNT_FIELDS` 会被 `_JsonFormatter` 静默丢弃（本仓踩过两次，
     见 `test_log_field_whitelist.py` 的说明），所以只断言属性存在等于没断言。
+
+    泄露通道（票 T-A，2026-09-27）：`_JsonFormatter.format` 会把 `exc_info` 的异常原文 +
+    完整 traceback 写进**内置键** `exc`（内置键，不占 `_ACCOUNT_FIELDS`，登记与否都拦不住），
+    而此处被捕获的 `replaceable_version_ids(...)` 入参含 `new_content`/`documents`（条文正文）
+    ⇒ 原实现（`exc_info=True`）下 `exc` 里能读到合成敏感标记与正文记号。本用例把这条通道钉死：
+    `exc` 键必须为空、标记与正文记号都不得出现，同时保留异常**类名** + 法名/条号的定位能力。
     """
     import json
     import logging
@@ -222,9 +242,17 @@ def test_version_judgment_crash_is_visible_in_structured_log(w2_crash_run):
     assert payload.get("law_version_judgment_failed") is True, (
         f"归因键没登记进 observability._ACCOUNT_FIELDS ⇒ 被 JSON formatter 静默丢弃：{payload}"
     )
-    # 可定位：异常身份要能在日志里读到（"有一条 warning"不算）
-    assert "injected judgment boom" in payload.get("exc", ""), payload
-    # 不泄正文：法名/条号是标识，条文正文一个字都不许进日志
+    # 可定位：异常**类名** + 法名 + 条号要能在日志里读到（"有一条 warning"不算）
+    msg = payload.get("msg", "")
+    assert "RuntimeError" in msg, f"异常类名没落进日志 ⇒ 崩溃无法归因：{payload}"
+    assert _W2_SOURCE in msg and "第一条" in msg, f"日志缺法名/条号定位标识：{payload}"
+    # 不泄原文：异常原文（含 traceback）与条文正文一个字都不许进日志
     dumped = json.dumps(payload, ensure_ascii=False)
+    assert payload.get("exc") in (None, ""), (
+        f"exc_info 仍把异常原文/traceback 写进 JSON（内置键 exc，不受白名单约束）：{payload.get('exc')!r}"
+    )
+    assert _SECRET_MARKER not in dumped, f"异常原文（合成敏感文本）落进了日志：{_SECRET_MARKER}"
+    assert "injected judgment boom" not in dumped, f"异常消息原文落进了日志：{payload}"
+    assert "Traceback" not in dumped, f"traceback 落进了日志：{payload}"
     for token in ("W2TOKENA", "W2TOKENB", "W2TOKENC"):
         assert token not in dumped, f"条文正文落进了日志：{token}"

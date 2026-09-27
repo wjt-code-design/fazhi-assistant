@@ -127,8 +127,13 @@ _ACCOUNT_FIELDS = (
     # 法版本判定降级（2026-09-27，版本安全复核低-2）：`knowledge_service.add_text` 的替换判据整段
     # 包在 `except Exception: stale_ids = []` 里 ⇒ "判据哪天整体崩溃"与"判定后决定不替换"在库侧
     # 结果完全相同（旧块都留着），崩溃这条路今天零信号。留这一个布尔（键本身只承载真/假）；
-    # 配套 warning 的正文含**法名、条号、异常类名**，栈经 exc_info 走 formatter 的 `exc`
-    # （内置键，不占白名单）——不含条文正文、不含密钥。
+    # 配套那条 warning 的正文**只含法名、条号、异常类名**三样，且**刻意不传 `exc_info`**——
+    # 这里不再声明"不含条文正文"这类推断，只记事实：本 formatter 会把 `exc_info` 的异常原文 +
+    # 完整 traceback 整体写进内置键 `exc`（内置键，不占 `_ACCOUNT_FIELDS`，登记与否都拦不住），
+    # 而该处被捕获异常的入参含条文正文 ⇒ 传 `exc_info=True` 就等于给正文开一条通道。
+    # 举证：tests/test_knowledge_service.py::test_version_judgment_crash_is_visible_in_structured_log
+    # 用合成标记实测——传 `exc_info` 时标记出现在 payload["exc"]，移除后 `exc` 键不再出现、
+    # 标记与条文正文记号均不进 JSON。formatter 本体的这行行为见本文件 `_JsonFormatter.format`。
     # 未登记会被 JSON formatter 静默丢弃 ⇒ 这个键本身白写。
     "law_version_judgment_failed",
 )

@@ -227,12 +227,21 @@ def add_text(
                     # 静默降级不可区分：判据整体失效与"判定后决定不替换"结果都是 stale_ids 空，
                     # 只留痕才分得开（version-safety-review-findings-20260927.md 低-2）。
                     stale_ids = []
+                    # 刻意**不传 exc_info**（2026-09-27，票 T-A）：`_JsonFormatter` 会把 exc_info 的
+                    # 异常原文 + 完整 traceback 整体写进内置键 `exc`（内置键，不占 `_ACCOUNT_FIELDS`
+                    # 白名单，登记与否都拦不住），而这里被捕获的 `replaceable_version_ids(...)`
+                    # 入参含 `new_content`（条文正文）+ `documents`（旧正文）⇒ 异常消息只要复述了
+                    # 入参，正文就随 `exc` 落进 JSON 日志。诊断面保留**异常类名 + 法名 + 条号**
+                    # （下面这行的 `error=%s` 与 `source/article`），足以定位是哪一步、对哪一条塌的；
+                    # 需要原文时按同一法名/条号在本地复现即可。
+                    # 举证：tests/test_knowledge_service.py::
+                    # test_version_judgment_crash_is_visible_in_structured_log（合成敏感标记 +
+                    # 断言 `exc` 键为空 + 正文记号不落日志）。
                     logger.warning(
                         "法版本判定失败，按不替换处理 (source=%s article=%s error=%s)",
                         source,
                         article,
                         type(exc).__name__,
-                        exc_info=True,
                         extra={"law_version_judgment_failed": True},
                     )
             chunks = chunking.split_article_text(content, article=article)
