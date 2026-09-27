@@ -26,6 +26,15 @@
 > 并补上"同版本重传真删旧块"与"seed 冲突点名跳过"两条非 slow 用例（该文件 14→**17**）。
 > 已随工作区快照 **`ac426c2`** 提交（含并行会话的 23 个 tracked 修改，本地未推送；本机 pre-commit 钩子未安装，手工 ruff 全绿）。
 > D 轮自己的证据目录 `dispatch-output/d-t5-import-types-20260927/` 仍未跟踪、不在该提交内。
+> **⇒ 更正（09-27 E 段现量）**：该目录（`run_mutations.py` + `mutation-readings.txt` + `patch-derivation.md` + `t5-my-change-only.patch`）
+> **已由 `9557dfb` 随票入库**；上面"未跟踪"是 `ac426c2` 当时的实况，现已过期，保留原文只作历史。
+> **09-27 追加（E 集成轮，详 §9.12.9）**：E 对 B/C/D 三份交付做第三方审核——三份招牌读数**逐条复现（rc 全 0）**、
+> 三处代码改动**读本体判正确**；同时抓到 **D 的变异仪在新树上是"假绿机器"**（新树缺一个未入库的收集期 JSON ⇒
+> 收集期整会话中断 ⇒ 五处变异全报"存活"）。⇒ **D1 已由 E 就地修好并跑出有效读数**：五处变异**全部 KILLED**
+> （新增红 4/1/6/1/2；与 D 原跑 3/1/6/1/2 **同集合**，M1 的 3→4 已归因于 C 的拆条）；**D2 已执行**
+> （B 的驱动/读数入库，提交 `6f95d3a`）。本轮新增待裁**①②** 见 §9.12.9(9)。
+> **⇒ 本轮的一页式汇总件**：`docs/assistant-briefs/next-phase-E-integration-report-20260927.md`（可直接转发）。
+> **最终判定仍为 §9.12.7 的 ②（阶段任务完成，候选仍被具名风险阻断），本轮无新证据改变它。**
 
 **状态（09-25 接手复核更正）**：此前提交仍是本地工作，未部署、服务器未选定。此前的定向用例通过
 不等于相关问题全面收口：复核又发现 R15-2 同子句多日期误拦、QA 非法版本日期放行，接手修复见 §8。
@@ -851,3 +860,474 @@ T3–T8 未因本次窄修复而获得扩展授权。既有变异仪器与读数
   （`t5-my-change-only.patch` / `patch-derivation.md` / `run_mutations.py` / `mutation-readings.txt`）。
   8 份 pytest `*.log` **未入库**——被 `.gitignore:45` 的 `*.log` 拦下（仓库既有卫生规则，未用 `-f` 强加），
   只保留在本机工作树 ⇒ 在仓库里查不到逐条变异的原始日志，能查的是 `mutation-readings.txt` 的汇总读数。
+
+### 9.12 E 集成验收（2026-09-27 深夜；**本节每个读数都绑定当时的 HEAD**）
+
+**派单**：`docs/assistant-briefs/next-phase-E-integration-20260927.md`（E 会话执行）。
+**时点声明**：验收期间 HEAD 被并行会话推进四次（`7eda4bb`→`ac426c2`→`1587478`→`9557dfb`）。
+下表归属文件的**内容哈希在 `ac426c2`→`9557dfb` 之间逐字未变**，故 9.12.2–9.12.4 的读数对这一区间成立；
+`9557dfb` 之后若再有写入，本节读数不作数。**E 一笔都没提交**：`ac426c2`/`1587478`/`9557dfb` 三笔的
+author/committer 都是 Owner 身份（`wjt-code-design`）⇒ 派单第 6 步"精确分批提交"已由他人先行完成（见 9.12.6）。
+
+#### 9.12.1 四份交付对账（只认现量哈希，不认"已通过"）
+
+| 助手 | 归属文件 | sha256 前 16 | 对账结论 |
+|---|---|---|---|
+| A | `docs/h1-law-version-collision-tickets-20260926.md` | `83347648efb8362b` | 与 A 声明的终值逐字一致 |
+| A | `docs/assistant-briefs/t7-dependency-upgrade-options-20260927.md` | `48c1231e95718af7` | 与 A 声明一致；**未跟踪（未入库）** |
+| A | `dispatch-output/a-docs-t7-report-20260927.md` | — | **未跟踪**（A 的回执本身没入库） |
+| B | `scripts/smoke_citation_fast.py` | `d3735bb6d98ad083` | 与 21:37 版一致（该文件在 B 的测试之后又被改过，见下） |
+| B | `scripts/smoke_citation_full.py` | `7b10b968f665213e` | 同上 |
+| B | `tests/test_smoke_citation_assertions.py` | `7b34163d43f87215` | 由 `1587478` 入库；E 复跑 **23 passed, rc=0** |
+| B | `CONTRIBUTING.md` | `47d768f53f774ddd` | 24 项/12 场景计数与上面那条测试对账通过 |
+| C | `backend/schemas.py`（W1 守卫 `:189`） | — | **已随 `ac426c2` 入 HEAD** ⇒ C 报告里"守卫不在 HEAD、判据寄生在未提交 WIP"的最高风险**已消解**（E 用 `git show HEAD:backend/schemas.py` 核过） |
+| D | `scripts/import_laws.py` | `5dc5a76fc899944b` | 与 D 声明的 post 值逐字一致 |
+| D | `tests/test_import_laws_preflight.py` | `1e85b76989232a7b` | 与 D 声明的 post 值逐字一致 |
+| D | `backend/pyproject.toml` | `abc5b05b43c0a602` | D 的第三归属文件；与 D 派单第 7 行"不改 pyproject"字面冲突，由 Owner 的 T5 改点②"选①"授权（E 已向 Owner 复核并留痕） |
+
+两条对账发现：
+
+- **B 没有独立回执**：`docs/assistant-briefs/` 与 `dispatch-output/` 下都查不到 B 的回报件；
+  目前能核的只有随票入库的代码/测试与 `dispatch-output/b-citation-checks-20260927/`（**未跟踪**）下的变异产物。
+  E 按"只认现量"处理：B 的判据本体已用 `23 passed` 独立复跑，回执缺失只记为过程缺口。
+- **归属文件的排序陷阱（可复用的教训）**：B 的测试文件写于 21:32，而两个脚本改于 21:37
+  ⇒ "测试绿"未必覆盖"脚本最后状态"。E 在 21:5x 用当时的脚本重跑过，**仍是 23 passed**，
+  故这条只是顺序风险，不是缺陷。
+
+#### 9.12.2 隔离语料：validate-only + 副本库 dry-run（E2）
+
+- 候选文件是**仓库根的** `data/laws_extra.candidate-20260925.json`（派单写的 `backend/data/` 下**不存在**这个文件）；
+  sha256 `f32f585259c9a3816f34bab12558caad878185538d90da943f611a83eb3631b1`。
+- `--validate-only`（绝对路径入参，隔离环境变量已导出）：rc=**0**，"文件校验通过：3 条；未连接知识库"。
+- `--dry-run`（`%TEMP%\fazhi-chroma-copy-20260927\chroma_db` 副本 + 私有 `QUOTA_DB`/`DATABASE_URL`、
+  `EMBEDDING_PROVIDER=local`、`RERANK_ENABLED=false`）：rc=**0**；
+  "将删除 **2** 旧片段（其中 **2** 条是**无时效遗留块**），新增 **3** 条，跳过 **0** 条"。
+  三条 = 民法典第一千二百六十条 / 劳动争议调解仲裁法第二十七条 / 合同法第四百二十八条；
+  前两条各带一条"与 1 条无时效旧块并存（将被 T1 取代）"的警告。
+- **副作用为零**：真实 `chroma_db`/`app.db`/两个配额库的尺寸与 mtime 前后逐字相同、chroma 目录指纹
+  同为 `39f77952…`、副本上未生成 `-wal/-shm`、私有临时目录跑完仍为空。
+- ⚠️ dry-run 用的集合是 `legal_provisions_cos`（10266 条）——`EMBEDDING_PROVIDER=local` 决定；
+  副本里 `legal_provisions_te4` 同为 10266 条（两者并存，勿混读）。
+
+#### 9.12.3 真实 rerank 下的 24 项门禁（E3；用户已授权）
+
+- 有效配置（只报存在性、不回显值）：`rerank_enabled=True`、`rerank_model=BAAI/bge-reranker-v2-m3`、
+  端点 `https://api.siliconflow.cn/v1`、`rerank_api_key`/`siliconflow_api_key` 均 `SET(51 chars)`、
+  `rerank_quota_total=0`。**`0` 是"纯开关模式"不是耗尽**：`quota_utils.py:121` 在所有模型 total≤0 时
+  直接返回队列首个模型（不限流、仅记内存失败集），`rerank_active_model()` 实测确实返回该模型。
+- **预检**（1 次真实远端调用）：`_rerank_docs` 返回非 None——该函数**所有失败路径都返回 None**，
+  返回解析结果即"远端真的答了"；耗时 2.73s，5 条候选顺序被改写。
+- **固定 24 项快速门禁**（`scripts/smoke_citation_fast.py` @ `d3735bb6`，真实 rerank 开）：
+  **23/24，rc=1**。红点仍是 `retrieve("周末加班，加班费怎么算？")` 期望 `劳动法 × 第四十四条`。
+- **逐题明细**（另跑一次把 `_rerank_docs` 包起来的探针，7 次调用）：**7/7 成功、0 降级**，
+  单次 0.65–1.27s，候选池 12–15 条；召回 **6/7**。漏的那题 top-6 =
+  民法典第二百零一条 / 劳动合同法第三十一条、第八十五条、第六十八条 / 公务员法第八十二条 / **劳动法第三十七条**。
+- **⇒ 更正（2026-09-27，E 自审 + 后续派单复核）**：原文在此写"**第四十四条根本不在候选池**"——**过度归因，撤回**。
+  该探针只记了**候选数量**（12–15 条）与**重排后 top-6**，**未记送入 rerank 的 12 条各自的法名/条号/顺序**
+  （`%TEMP%/e3-detail-rerank.txt`：加班题仅 `n_docs=12`）。
+- **⇒ 定位结论（2026-09-27/28，票 T-C；E 已独立复跑第 4 次确认）**：**丢失在重排**。
+  - 扩充探针（`dispatch-output/c-retrieval-trace-20260927/probe_trace_44.py`，monkeypatch 真实 `retrieval._rerank_docs` 抓输入）读数：
+    ① **重排前 12 条候选**：目标**在池内第 3 位**（`cid=62fe645937`，向量路 rank 3 / 距 0.390）；
+    ② **重排后**：被真实 `BAAI/bge-reranker-v2-m3` 降到**第 8 位**（rel 0.0195，低于 6 条噪声条 0.024–0.35）；
+    ③ **最终 `docs[:6]`**：目标被截掉 ⇒ `hit=False`。
+  - **对照腿**（同池、关 rerank、余弦精排）：目标回到 **top-6 第 3 位** ⇒ `hit=True`。
+  - 4 次独立运行（探针 3 次 + E 1 次）**逐条一致**；每跑真库指纹 `620bf0127dee` 前后不变。
+  - ⇒ **召回没丢、后处理没丢，是 rerank 把已正确召回的第四十四条降到第 6 名开外**。原句
+    "rerank 只改序、不新增候选，故'开了 rerank 也修不掉这条'"**方向反了**：rerank 正是这条红的原因。
+  - 边界：这是 **rerank 模型排序质量**问题，**不是** T1–T5 的代码回归（T1–T5 未改 rerank；离线无 rerank 口径该题为绿）；
+    23/24 这个**总数**仍与历史一致。**修复另开票**，本票只出定位。
+  - 可确证的另两点：① 该条**在库**（`_collection.get(source=劳动法 AND article=第四十四条)` → 1 块，§9.9 记）；
+    ② 全库有 **87** 个"第四十四条" competing（:676）。
+- 运行前后 `rerank_active_model` 不变（无模型被 `mark_utility_depleted`）。
+- 边界：**未调用答案生成模型**、未跑 `smoke_citation_full.py`、未写真实库（私有 `QUOTA_DB` 跑完为空，
+  因为 total≤0 时 `deduct_utility` 直接 no-op）。
+
+#### 9.12.4 综合门禁（E4）：**CI 形状**读数是红的，两处红与 A–D 无关
+
+读数分两种口径，必须分开看：
+
+**(a) 纯发布物树**（`git archive HEAD` 解到 `%TEMP%`，只有 tracked 文件、**无 `.env`**、无未跟踪证据目录）——这就是 CI 看到的东西：
+
+| 门 | 读数 | rc |
+|---|---|---|
+| `ruff check .` | All checks passed! | 0 |
+| `ruff format --check .` | 267 files already formatted | 0 |
+| `mypy .` | **Success: no issues found in 74 source files**（T5 把 `import_laws.py` 纳入后 73→**74**） | 0 |
+| `pytest --co -q`（CI 形状） | **Interrupted: 1 error during collection**（1645/1663 collected） | **2** |
+| `pytest --cov=. --cov-fail-under=70 -q --ignore=tests/test_harness_fact_reveal.py` | **16 failed, 1619 passed, 10 skipped, 18 deselected**，cov **84.91%** | **1** |
+| `mypy --follow-imports=skip scripts/import_laws.py`（T5 直接检查） | Success: no issues found in 1 source file | 0 |
+
+两处红的归因（**都已逐条落到具体文件，不是"环境问题"四个字**）：
+
+1. **收集期 1 error = `tests/test_harness_fact_reveal.py`**：它在 import 期加载
+   `dispatch-output/task1/hidden_runner.py`，后者读同目录 `hidden-cases-v1.json`——
+   而 `.gitignore:77` 整目录忽略了 `dispatch-output/task1/`，该 JSON **从未入库**
+   （`git log --all -- '*hidden-cases-v1.json'` 为空），`hidden_runner.py` 反倒是被跟踪的。
+   ⇒ 任何一次干净检出（CI / 新机器）都收不了集。**本机工作树因为 JSON 在本地才绿**，这是典型"本地绿≠CI 绿"。
+2. **16 条 failed** = 14 条 `tests/test_gate2_runner.py`（`FileNotFoundError: backend/.env`，
+   `gate2_runner.py:404` 无条件读 `.env`，而 `.env` 被 `.gitignore:26` 忽略）
+   + 2 条 `tests/test_eval_agent.py` 的 `release_eligible` 断言——后者**本仓自己已经登记过**：
+   `gate_exit_registry.py:549` 写明"基线余 2 条红是 `tests/test_eval_agent.py` 的 `release_eligible` 断言，
+   在没有本票改动的副本树上同样红、在 live 树 18/18 绿 ⇒ 属副本缺未跟踪资产"。
+   ⇒ 16 条 = 副本缺未跟踪资产，**与 A–D 的改动无关**（A–D 的文件一律不在失败集合里；`1619 passed` 含 B 新入库的 23 条）。
+
+**(b) 本机工作树口径（对照，非 CI）**：前端 `npm run check` rc=**0**（ESLint 无告警、`tsc --noEmit` 过、vitest **54 passed**）；
+`npm run build` rc=**0**（7/7 静态页 + 写入 `public/build-id.txt`）；`dispatch-output/agent-quality-20260911` 守卫
+`ruff check` rc=0 / `ruff format --check` rc=0 / `test_budget_guard.py` **9 passed** rc=0。
+
+**(c) 依赖审计**：`pip-audit -r requirements.txt` ⇒ **rc=1**，"Found **138** known vulnerabilities in **10** packages"
+（`-r` 模式审的是按区间新解析出的安装集，恰为 10 个包：chromadb 0.4.24 / langchain 0.1.20 /
+langchain-community 0.0.38 / langchain-core 0.1.53 / langchain-openai 0.1.7 /
+langchain-text-splitters 0.0.2 / langsmith 0.1.147 / pypdf 5.9.0 / starlette 0.37.2 /
+transformers 4.57.6；与本机实装集口径不同）。
+CI 的 `pip-audit` 步按此读数**必红**——这是**先前存在**的红，处置路径在 A 的 T7 分案（pypdf / FastAPI·Starlette / Chroma 三条），本轮未选型、未升级。
+
+#### 9.12.5 真实库指纹前后核对（E5）
+
+| 路径 | 尺寸 | mtime（前=后，逐字相同） |
+|---|---|---|
+| `backend/chroma_db/chroma.sqlite3` | 210051072 | 2026-09-21 02:06:44.4748985 |
+| `backend/app.db` | 20205568 | 2026-09-19 00:28:25.7167075 |
+| `backend/data/app.db` | 19939328 | 2026-09-23 14:51:15.9526019 |
+| `backend/data/quota_used.sqlite` | 12288 | 2026-09-19 00:12:51.5697889 |
+| `data/quota_used.sqlite` | 4096 | 2026-08-08 04:18:56.2141190 |
+
+外加两条独立读数：`backend/chroma_db` 目录指纹（路径+尺寸排序）前后同为
+`39f779520bd796ef1a9dd33486403308f9b95cff17768b3c4675ca3d3b057d18`；
+`find backend/chroma_db backend/data data -newermt '-30 minutes'` **无输出**；目录内**无 `-wal`/`-shm` 副档**。
+⇒ 本阶段（validate-only / dry-run / 真实 rerank / 纯发布物树门禁）**对真实库零写入**。
+
+#### 9.12.6 未提交／未入库归属，与 E 第 6 步的处理
+
+- 三笔提交（`ac426c2`/`1587478`/`9557dfb`）**都不是 E 出的**；E 全程**未 add、未 commit、未 push、未改历史**。
+  派单第 6 步"逐文件分批提交、绝不 `git add -A`"在本轮**没有可提的对象**：A–D 的 tracked 改动已被上述三笔整体带走。（"E 期间 tracked 修改恒为 0"这句话在 **9.12 之前**成立；本节落笔后不再成立，见下条。）
+- **E 自己唯一的 tracked 修改就是本节**：`git status --porcelain` = **`1 M` + `531 ??`**；`git diff --numstat` 的**删除数恒为 `0`**
+  （纯追加，不动 D 的 §9.11a 一个字；**删除数恒为 0**，插入数随本节增补而变，以最后一次 `git diff --numstat` 为准）。**E 故意不提交它**，两条理由：① 派单开头的排序门槛是"四名助手全部交付后"才
+  提交，而 B 的回执至今缺失（见 9.12.1），门槛没干净满足；② 并行/Owner 会话在 53 分钟内已连提三笔（author 均为
+  `wjt-code-design`），**提交角色事实上已被他占**，两个会话同时动同一个 index 只会互相踩。
+  接管成本只有一条命令（`git add docs/progress-handoff-report-20260925.md && git commit`），故留给 Owner 决断。
+- **本节写入时踩到并已修掉的一个坑（留给后来人）**：Edit 工具落盘时把**整篇** 1010 行改成了 CRLF
+  （HEAD blob 是 0 CRLF / 853 LF）。因 `.gitattributes` 对 `.md` 声明 `text:auto` + `eol:lf`，`git diff` 已归一化
+  （读数仍是 157/0，不是 853 行重写），提交也不会入 CRLF；但**工作区在盘上的字节形态会与别的检出不一致**，
+  若有人用非 git 手段逐字节比对会误判为全文重写。E 已把工作区文件按 LF 归一（现 **CRLF = 0**，全文 LF）。
+- **仍未入库**（应入而未入）：A 的回执 `dispatch-output/a-docs-t7-report-20260927.md`、
+  A 的 T7 分案 `docs/assistant-briefs/t7-dependency-upgrade-options-20260927.md`、
+  C 的回执 `docs/assistant-briefs/next-phase-C-version-write-report-20260927.md`、
+  B 的变异产物目录 `dispatch-output/b-citation-checks-20260927/`、五份派单 brief 本身。
+  D 的同类产物已随 `9557dfb` 入库，B/A/C 的回执件没有 ⇒ **同类物两种待遇**，归属未统一，留裁。
+- **不该入库**（已核）：`.qoder/`、`caddy_data/`、`caddy_config/`、`backend/.ptmp-s4-run2/`
+  （`.gitignore` 未覆盖这四个，`git check-ignore -v` 全 NOT IGNORED；建议另开一处补忽略）。
+- 本次 E 的读数落在 `%TEMP%` 下（本地，不在仓库内）：`e2-dryrun.txt`、`e3-gate-rerank.txt`、
+  `e3-detail-rerank.txt`、`e4b-*.txt`（发布物树门禁）、`e4-arch-*`（前一版 HEAD 的读数）。
+
+#### 9.12.7 最终判定：**②**（阶段任务完成，候选仍被具名风险阻断）
+
+不是 ①（"本地候选就绪"），因为**CI 形状门禁读数是红的**（收集期 1 error + 16 failed）且 `pip-audit` rc=1；
+不是 ③（"门禁失败、候选未就绪"），因为两处红**都各自查到了与本阶段无关的根因**（gitignore 掉的隐藏用例 JSON /
+缺 `.env` / registry 已登记的 2 条副本树基线红 / 依赖区间审计），且 A–D 的归属文件在所有门禁里**没有一条新红**。
+
+逐项状态（**测试绿 ≠ 法律正确 ≠ 可发布**）：
+
+| 项 | 状态 |
+|---|---|
+| 依赖审计 | **红**：`pip-audit -r` rc=1（138 条/10 包）；处置路径见 T7 分案，**未选型未升级** |
+| 独立法律复核 | **未做**（本轮无此授权） |
+| 凭据 | **未轮换**；`:104` 已按 D26 改成形状规则，`.env` 未见入库（`.gitignore:26`） |
+| 真实入库 | **未做**：只跑 `--dry-run`；E7 五组多片段旧块未拼接、未删除 |
+| 远端历史 | **未推送**：本地与 `origin/master` 无共同祖先（远端最新 `15562fc` 连 `gate2_runner.py`/`test_eval_agent.py` 都没有） |
+| 服务器部署 | **未做**（本机服务器尚未选定） |
+
+**给下一手的两条最紧的事**：①把"应入未入"的那批回执/产物按同一口径处理（入 or 明确不入，别两类待遇；**现量名单见 9.12.8**）；
+②若打算推一次性快照分支，先决定"CI 的 pytest 步要不要能绿"——要么把 `hidden-cases-v1.json` 破例入库、
+要么给 `test_harness_fact_reveal.py` 加"文件不存在则 skip"、要么在 CI 里生成 `.env`，否则**一推就是红的**。
+
+#### 9.12.8 补记（B/C 回执到位后的二轮对账；**本节读数为二轮现量**）
+
+报告首轮落盘后，Owner 补发了 B、C 的回执（D 的即本文件 §9.11a），工作树随之变动，按规矩另立本节逐条现量。
+
+**（1）9.12.1 两条结论当场过期，只做诚实标注、不回填**：
+
+- "**B 没有独立回执**" → **作废**：`dispatch-output/b-citation-checks-report-20260927.md` 已到位（未跟踪）。
+  B 的汇报**自身就是交付载体**（其 §9-4 说明 Owner 已裁"写进报告即可"，与 A 的回执同态）。
+- "C 的回执应入未入" → **仍成立但性质变了**：`docs/assistant-briefs/next-phase-C-version-write-report-20260927.md`
+  已存在（未跟踪）。**"已存在" ≠ "已入库"**，9.12.6 的未入库名单照旧。
+
+**（2）独立复核三份汇报里的哈希/状态，全部对上**（口径 = 内容 sha256，非 git blob sha1）：
+
+- B 四件 `worktree sha256 == HEAD blob sha256` 逐字相等：fast `d3735bb6d98ad083`、full `7b10b968f665213e`、
+  CONTRIBUTING `47d768f53f774ddd`、回归网 `7b34163d43f87215` ⇒ B §8 的哈希表与"已入库"声明**成立**。
+- C 声称的 5 个文件（`schemas.py`/`knowledge_service.py`/`observability.py`/`test_knowledge_service.py`/`test_phase5.py`）
+  `git diff --numstat` = **空** ⇒ 其两组 pytest 读数确实跑在**纯 HEAD 内容**上，不再寄生未提交 WIP（与 C §0 补记一致）。
+- 三份汇报 + B 的变异仪器目录 + C 的 D3 探针 + A 的回执，六个路径全部 **exists=True / tracked=False**。
+
+**（3）指针轴向校正**（对 HEAD blob 逐行读数）：`backend/schemas.py` 的 W1 守卫 —— 注释块 `:185-188`、
+**判据行 `:189`**（`if self.article and not self.effective_from:`）、`raise` 在 `:190`。
+⇒ 9.12.1 记的 `:189` 是**判据行**（对）；C 汇报把 if+raise 合写成 `:190`（略松，不算错）。
+
+**（4）两种 collect 口径的 4 条差额已闭合**（此前只在一份读数里，现在两边都有）：
+
+- D 的 **live 树** `-m "not slow" --collect-only -q` = **1649/1667（18 deselected），rc=0**；我复跑逐字相同。
+- 我的**纯发布物树** `--co -q` = **1645/1663，rc=2（1 error）**。
+- 差额 **1667−1663 = 1649−1645 = 4**，恰为 `tests/test_harness_fact_reveal.py` 的**全部 4 条**用例
+  （该文件单独收集实测 `4 tests collected`）——干净检出下它因 `.gitignore:77` 的 `hidden-cases-v1.json` 缺失
+  而在收集期报错、整文件 4 条不进屋。⇒ **两份读数都对，错的是把其中之一当成另一口径去比**。
+
+**（5）B 交给 E 的那条 D3（新判据在真实语料上的读数）—— 已复验，结论与 B 的预判相反**：
+
+- 数据源 = E3 探针落盘的同一批真实检索结果（每题 `got` 即喂给 `recall_hit` 的 docs 全量，`k=6`），
+  离线同时跑**旧口径**（只看条号）与**新口径**（法名×条号）：**逐题读数完全相同，gate 同为 23/24**，
+  `两口径结果不同的题数 = 0`（探针 `%TEMP%\e5-oldvsnew.py`，不重新检索、不调远端）。
+- **尺子有牙（负向自证）**：合成对照 `[("民法典","第四十四条")]` 对期望 `劳动法×第四十四条` ⇒ 旧口径 `True`、
+  新口径 `False`；正例 / 空召回 / 条号错三组均符期望 ⇒ "0 处差异"不是"仪器两口径全同"造成的假绿。
+- 推论：B 预警的"旧口径靠**别部法律同名条号**蒙过的正例转红"在本闸门的 7 个召回用例上**没有实际发生**
+  （这 7 例的期望条号都只出现在期望法名下）。⇒ 收紧是**零新增红、也零关闭红**：历史那 23/24 仍是
+  9.12.3 那条**既有检索缺口**（丢失点已定为**重排**——见 §9.12.3 定位结论），归属检索质量票不变（与 B §0 第 1 条口径一致）。
+
+**（6）C §4 的真库口径更正已被独立复现**：`backend/chroma_db/` 顶层 = `chroma.sqlite3` + **8 个 UUID
+segment 目录**（不是"顶层只有 sqlite"），无 `-wal`/`-shm`。9.12.5 用的是**目录级指纹**（含这 8 个目录），
+故不受该更正影响。
+
+**（7）E 自己的两处自审事故（对话里已坦白，按规矩落进正文）**：
+
+- 9.12.4(c) 原写"starlette 解析到 0.37.2、**pydantic 等**"——`pydantic` **不在这 10 个包内**，是我未核实的补语。
+  已按现量改为实测名单（chromadb / langchain×4 / langsmith / pypdf / starlette 0.37.2 / transformers 4.57.6）。
+- 本节（9.12）写入时 Edit 工具把整篇翻成 CRLF（详见 9.12.6 第三条），已按 LF 归一，现 **CRLF=0（全文 LF）**。
+
+**（8）二轮现量清单（可复核）**：HEAD = `9557dfb`；工作树 = **`1 M`（本报告）+ `531 ??`**；
+`git diff --numstat` 的**删除数恒为 0**（纯追加；插入数随本节增补而变）；真实 `chroma_db`/`app.db`/配额库**未动**（本轮只跑只读探针与 `--collect-only`）；
+本轮**未新增提交、未推送、未动真实库**。
+
+**（9）三份汇报带出的、只等你裁的挂账**（都不是 E 能代决的）：
+B 的 **D1**（`ac426c2` 提交信息没写 B 那三处改了什么 ⇒ 建议台账补一行归属，**不 amend**）、
+B 的 **D2**（`docs/ARCHITECTURE.md:107/:109` 与 `docs/capability-matrix.md:29` 仍是旧计数
+；E 已现量核对，三处文字确是 `17 项` / `10 场景` / `17 项`，落后于脚本现量 `24 项` / `12 场景`）、
+B 的 **D4**（CONTRIBUTING 的"24 项"与测试的"23 条"易串轴，一行改动待你一个字授权）、
+C 的 **D2**（`observability.py:133` 那笔是否保留）、C 的 **D4**（今天这笔是否折进 findings §2 —— C 台账里
+唯一必须由你**指定文件归属**的一条）。
+
+#### 9.12.9 对 B/C/D 的第三方审核（2026-09-27，E 执行；**只认本机复跑与本机读数**）
+
+范围：复跑三份招牌测试 + 读三处代码改动本体 + 复跑两份变异驱动。**未调答案模型、未跑真实 rerank、
+未动真实库**（本轮只跑离线 pytest、`mypy`、离线探针）。
+
+**（1）招牌读数逐条复现（rc 全 0）**
+
+| 交付 | 命令（cwd = `backend`） | 读数 | rc |
+|---|---|---|---|
+| B | `pytest tests/test_smoke_citation_assertions.py` | `23 passed, 1 warning` | 0 |
+| C | `pytest tests/test_knowledge_service.py tests/test_phase5.py -m "not slow"` | `11 passed, 1 deselected` | 0 |
+| C | `pytest tests/test_log_field_whitelist.py` | `2 passed` | 0 |
+| D | `pytest tests/test_import_laws_preflight.py` | `17 passed` | 0 |
+
+⚠️ **更正我自己**：9.12 早前把 B 的读数记成 `30 passed`，那是 **B 的 23 + `test_qa_citation_gate_symmetry.py` 的 7**
+的**合并跑**（实测 `30 passed` 正是这两个文件同跑），**B 自己的套件是 23 条**。
+
+**（2）D 的 mypy「+1」已定到文件**：`mypy .` = **74**；旧 exclude `'(?x)^(tests/|scripts/|venv/)'` = **73**；
+新 exclude 再排掉 `scripts/import_laws\.py` = **73**；只排 `tests/|venv/`（即 scripts 整目录进入作用面）= **74**
+⇒ 73→74 的**唯一**差额就是 `scripts/import_laws.py`，与 D 的抽象结论逐字相符。
+
+**（3）代码本体审核（判"对不对"，不判"测试绿不绿"）**
+
+- **B fast**：`recall_hit` 要求**同一条 doc** 同时满足 `source∈期望 ∧ article∈期望`（"任中一条"语义保留）✅；
+  旧形状 `any(a in arts for a in ea)` 已被删净。
+- **B full**：`citation_pairs` 先按**生产写库顺序**过 `output_normalize.expand_law_names → expand_citations`
+  再邻接配对；`answer_cites` 比的是**归一法名相等 ∧ 条号原文 ∈ 期望列表**。两条"不许漂移"绊线**已现量核对**：
+  `_ART_CORE` 是 `retrieval._ART_FULL_RE.pattern` 里的**逐字子串**；`norm_law_name` 的去前缀+剥尾括注逻辑
+  与 `_source_key`（= `_norm_source` + 同一正则）等价。`output_normalize` **仅 import `re`**，故"import 期无模型成本"成立。
+- **C**：写库侧确用**裸真值**（`knowledge_service.py:184`/`:204`），端点侧现亦为**裸真值**（`schemas.py:189`）✅。
+  守卫的**过拒面已排**：`KnowledgeAddIn` 只被 `main.py:2669 admin_add_knowledge` 一个端点消费，`origin` 由服务端写死 `manual`；
+  upload/preview 走的是别的模型 ⇒ 不存在"把合法上传也拒掉"的面。
+  `law_version_judgment_failed` 已登记 `observability._ACCOUNT_FIELDS`，且 `test_log_field_whitelist.py` 是
+  **带 watch-it-fail 自证的 AST 哨兵**（先证明它能抓到白名单外字段，再断言全仓零漏登）✅。
+
+**（4）三处过程缺口（不影响已复现的读数，但影响"可复核性"）**
+
+1. **B 的证据不在库里**：`dispatch-output/b-citation-checks-20260927/`（驱动 + 读数）**未跟踪且未被忽略**，
+   属 `531 ??` 桶。⇒ B 的"8/8 KILLED"**无法只凭仓库复现**；E 能复现，只是因为那两份文件此刻还躺在共享工作树里
+   （见 (5) 我实跑读数）。对照：**D 的驱动与读数是入库的**。
+2. **C 没有可复跑的变异驱动**：`dispatch-output/` 下与 C 相关的只有 `d3-article-key-probe-20260927.py`；
+   C 报告 §2 的变异 A/B 是**散文描述**，无脚本 ⇒ 不可由文件复跑。
+3. **C 的 `.strip()` → 裸真值这笔，git 里看不见**：`git diff 7eda4bb HEAD -- backend/schemas.py` 把整个守卫渲染成
+   **纯新增 `+`**，没有一行 `-` 是删 `.strip()` 的 ⇒ "修前判 `self.article.strip()`"这句**既不能证实也不能证伪**
+   （中间态只存在于未提交 WIP）。**当前态**可核：`:189` 是裸真值。这正是 C 自己 D1 那条记账歧义的根。
+
+**（5）⚠️ D 的变异仪：在"新树"上是**假绿**（本轮最重的一条）**
+
+- **复现**：删掉 `%TEMP%\d-mut-20260927` 后按驱动自己的跑法重跑 ⇒
+  `干净基线：rc=2  1 warning, 1 error in 15.66s  失败集 = 1 条`，随后 **5 只变异全部**输出
+  `⚠️ 零新增红 —— 这条接线在本仓所有测试里没有守卫（变异存活）`。
+- **根因**：`build_tree()` 只复制 `git ls-files` 的结果；而 **`dispatch-output/task1/hidden-cases-v1.json`
+  被 `.gitignore:77` 忽略、且 `git log --all` 为空（从未入库）**，同时**在库**的
+  `dispatch-output/task1/hidden_runner.py:27` 在**模块级**读该 JSON ⇒ **任何新树的收集期必报错、整会话中断**，
+  15 秒就结束（D 的原始读数是 136 秒 / `27 failed, 1590 passed`，说明当时**真的跑完了**）。
+- **后果**：D 公布的 5 处变异读数**不能由入库的驱动复现**（需要一棵手工塞过那个未入库 JSON 的树）。
+  且驱动**缺一道闸**：基线没真跑过时必须中止——**B 的驱动有这道闸**（`if rc != 0: … 基线就不是绿的 ⇒ 变异实验无意义，直接退出`，`return 3`），**D 的没有**。
+- **公平起见**：D 的**方法**（锚点唯一预检、`--collect-only` 单取分母、junit 集合差分、sha256 还原）是本案最扎实的一份，
+  5 处锚点在原运行里也都过预检；缺口是"树自足"与"基线必须真跑过"，不是算术或结论。
+- **另一处时效**：D 的 M1 证据点名的是 `test_version_judgment_crash_keeps_old_chunk_and_stays_visible`（**合一**的一条），
+  而 live 与现树里是 **两条**（`:196 keeps_old_chunks` / `:204 is_visible_in_structured_log`）⇒ D 那次跑早于 C 的拆分。
+  D 的"附二"只披露了**自有文件**的断言措辞变更，未披露**邻居** `test_knowledge_service.py` 的这次拆分。
+  结论方向不受影响。
+
+**（6）E 自己的一次事故（按规矩落进正文）**：复跑 D 的驱动**覆盖了在库的 `mutation-readings.txt`**
+（用退化读数顶掉了 D 的 132 行）。已用 `git show HEAD:…>` **逐字节还原**，三处 blob 同为 `df1e3847…`
+（HEAD = index = worktree），并清掉随后残留的 stat-cache 幻影 ` M`。**现该目录 `git status` 为空**。
+教训：**跑别人的驱动前先确认它会不会写回在库产物**。
+
+**（7）本轮给你的增量待裁**：**D1** 是否把上面 (5) 的"驱动缺基线闸 + 树不自足"回填给 D 重修（建议修：加 B 那道闸
++ 把 `hidden-cases-v1.json` 改为 `build_tree` 显式 `cp` 真源）；**D2** B 的驱动/读数是否**入库**（建议入，
+否则本轮复现过的 8/8 下次就没了）；（B D1/D2/D4、C D2/D4 见 9.12.8(9)，仍待裁）。
+
+**（8）Owner 已于同日裁决，D1/D2 落地情况**：
+
+- **D2 已执行**：B 的驱动/读数**入库**，提交 **`6f95d3a`**（`test(票B): 引用冒烟变异仪与读数入库`，
+  **2 文件 / 199 插入**，只提这两个文件、`git diff --cached --name-only` 逐个核过未夹带；**未推送**）。
+  ⇒ B 的 8/8 自此可由仓库复现。⚠️ 入库的 `mutation-readings.txt` 是 **E 本轮按同一驱动复跑**的产物
+  （读数与 B 公布同集合），非 B 原件——B 原件已被 E 的复跑覆盖（见 (6)）。
+- **D1 已由 E 就地执行**（Owner 指示"你来执行"，**不经 D 转交**）：改的是
+  `dispatch-output/d-t5-import-types-20260927/run_mutations.py`（**+67 / −6**），四处：
+  1. **基线闸**：`junit 用例数 < collect-only 数` 即中止并 `return 3`，**且不写读数**。判据**不是** `==0`——
+     收集期报错时 junit 里仍剩 **1 条**"收集错误"伪用例（本机实测 collect-only=1663 / junit=1）；
+     **E 第一版就写成 `==0`，实测没拦住**（已把这次踩坑记进驱动 docstring ④ 与代码注释）。
+  2. **树自足**：`build_tree()` 显式补拷**两个**未入库的收集期依赖
+     （`dispatch-output/task1/hidden-cases-v1.json`、`hidden-round-protocol-v1.json`；`.gitignore:77` 忽略、
+     `git log --all` 为空；在库的 `hidden_runner.py` 在**模块级** `:27`/`:29` 读它们），缺任一即 `raise SystemExit`。
+     **只补第一个仍会断**（E 实测踩过）。
+  3. **附录保留 + 落 LF**：`write_readings()` 只重写机器读数、原样保留 `## 附…`；且把
+     `Path.write_text` 换成 `open(..., newline="")`——前者在 Windows 上把 `\n` 翻成 CRLF，而本仓
+     `.gitattributes` 是 `* text=auto eol=lf` ⇒ index 归一后 `git status` 永显 ` M`
+     （实测：一次退化运行把该文件写成 **111 行全 CRLF**，HEAD 是纯 LF）。**这条是 D 原驱动自带的缺陷**，非本轮引入。
+  4. 驱动 docstring 补 ④–⑦ 四条硬约束，把上述三点与"分母只认 `--collect-only`"写进代码。
+- **D1 的负向自检（证明闸真的会红）**：临时把 protocol JSON 移出副本树 ⇒ 驱动打印
+  `‼️ 基线没真跑过（collect-only=1663，junit 用例数=1）⇒ 变异实验无意义，直接退出。`、`rc=3`，
+  且 `mutation-readings.txt` **逐字节未动**（sha256 与运行前一致）。`write_readings` 另做独立自检
+  （往临时路径喂一段旧内容 + 一段 `## 附`）⇒ `CRLF=0 / 附录在 / 正文在`。
+- **D1 修复后的有效运行（exit 0）**：`副本树建好：617 个文件（含 2 个未入库补拷）`；**分母 1667**
+  （退化运行时是 1663 ⇒ 那两个 JSON 缺席时正好少收 4 条）；干净基线
+  `rc=1  21 failed, 1621 passed, 25 skipped`、`失败集 = 21 条 / junit 用例数 = 1667`；
+  **五处变异全部 KILLED：新增红 4 / 1 / 6 / 1 / 2**。
+  ⇒ **D 的原始结论（5/5 全杀）未被推翻**——D1 修的是**可复现性**（新树会复现出"全存活"），不是结论。
+  D 原跑为 3/1/6/1/2；M1 的 3→4 已定到 **C 的拆条**（`test_version_judgment_crash_keeps_old_chunks` /
+  `..._is_visible_in_structured_log` 两条都在 `setup` 上红）。
+- **D1 第③项（时效声明）已落在读数文件的 `## 附六`**（E 补写）：披露"邻居 `test_knowledge_service.py`
+  已由 C 拆成两条"、`test_import_laws_preflight.py` 的 sha256 交付态 `1e85b76989232a7b` 与 D 那次
+  `d446ed48a914a8dd` 的关系、`knowledge_service.py` 无漂移（`fa986e230e6de1ca`）。
+- **D1 的另一处发现（待裁，见本轮新增待裁①②）**：副本树 `TREE_SPECS` 不含仓库**根文件** ⇒ B 的
+  `test_smoke_citation_assertions::test_gate_item_counts_match_contributing` 在树里是**环境假红**
+  （它读**根目录** `CONTRIBUTING.md`）。连带 ⇒ D 的 `## 附一`那份"**27 条既有红**"**已过期**
+  （修复后基线 21 条：7 条 `test_chunking::*` 已转绿、多出这 1 条假红）。
+  E **未擅自改树、也未改任何工程码**，只在该读数里补 `## 附六` 做标注，并把"要不要消掉这条假红"
+  留给 Owner 裁。
+
+**（9）本轮新增待裁（供 Owner 一词一行答）**
+
+- **待裁①**｜是否把 `CONTRIBUTING.md`（仓库根文件）加进驱动 `TREE_SPECS`，消掉 (8) 那条环境假红？
+  E 建议**加**（代价：树基线红由 21 变 20；不改则每次跑都多一条噪声红被减掉，且会掩盖"某变异真的
+  影响了该用例"这一情形）。
+- **待裁②**｜是否让驱动把**基线红清单**（不止计数）机器生成进读数？E 建议**加**——
+  `## 附一` 是手写的 27 条名单，本轮已在无人工干预下过期；把它并入机器段可自动刷新。
+  与 §9.12.9(5) 的"机器读数自动重生成、手写分析原样保留"是同一条纪律。
+
+**（10）E 本轮的自审事故（对外坦白过的，逐条落正文）**
+
+1. **D1 第一版的基线闸判据写错**（写成"junit 用例数 `==0`"而非"`< collect-only 数`"）⇒ 第一次重跑**没拦住**，
+   又产出一次"全存活"退化读数。诊断依据：`collect-only=1663` vs `junit 用例数=1`。已修并写进驱动注释（见 (8) 第 1 条）。
+2. **只列了一个未入库 JSON**：漏了 `hidden-round-protocol-v1.json`（`hidden_runner.py:29` 模块级也读它），
+   被自己的负向自检抓出，已补齐为两个（见 (8) 第 2 条）。
+3. **对话中我曾说"E 的最终判定（①/②/③）仍未给出"——这句话是错的**：判定 **②** 早在 **§9.12.7** 已落盘
+   （"阶段任务完成，候选仍被具名风险阻断"）。本轮无新证据改变它，故**判定不变、不需要重出**；特此更正我自己的口误。
+4. 另有一笔写在 (6)：复跑 D 的驱动**覆盖了在库读数**，已逐字节还原。
+
+⇒ 本轮的自审事故集中在**"仪器/判据阈值的形态"**与**"我自己的口述与已落盘结论不一致"**两类；
+前者已做成驱动里的硬约束（④⑦），后者靠本节的更正条目兜住。
+
+#### 9.12.10 后续派单（A/B/C）执行与验收（2026-09-27/28 夜；**E 既派发又独立复跑**）
+
+依据：`docs/superpowers/plans/2026-09-27-post-E-followup-recommendations.md`。按 `module-dispatch-new` 三契约派发。
+**对 skill 的一处偏离（说明理由）**：skill 要求"独立 worktree 隔离"，但本仓的 `.env`、`backend/chroma_db`、
+`dispatch-output/task1/*.json` 全是**未跟踪/被忽略**的 ⇒ fresh worktree 里全缺，B 的"干净树"证据与 C 的真实检索都会缺料。
+故改用**文件白名单 + 各自独立证据目录 + 隔离环境变量**达成同效（三票触碰的文件两两不相交，且**谁都不提交**）。
+
+**（1）T-A 日志异常泄露通道 —— 验收通过（E 复跑）**
+- 交付：`knowledge_service.py` 去掉 `exc_info=True`（保留 `law_version_judgment_failed` + 异常类名 + 法名/条号）；
+  `observability.py` 只改注释（把那句无举证的"不含条文正文"换成**可查事实** + 举证用例指针）；
+  `tests/test_knowledge_service.py` 换替身**把入参正文复述进异常消息**，断言 `exc` 键必须为空、
+  合成标记/异常原文/`Traceback`/正文记号都不得出现，**并新增**"类名+法名+条号必须可读"的**正向**断言。
+- E 复跑：`pytest tests/test_knowledge_service.py tests/test_log_field_whitelist.py -q -m "not slow"` → **5 passed, 1 deselected**（隔离库）；
+  改前基线同 rc=0。关键点：**旧断言 `"injected judgment boom" in payload["exc"]` 本身就是在要求泄露**，删它不算削弱（新断言在"不泄"维度严格更强）。
+- 待裁：① `backend/retrieval.py:431` 有**同类** `exc_info=True`（`"QA 引用的条文核验读库失败…"`）——全仓业务点**仅剩这一处**；
+  ② 本分支此后**没有栈**，只有类名 + 法名/条号（要原文需本地按同法名/条号复现）。要不要同批收口 ①、要不要为 ② 另加脱敏归因字段，请裁。
+
+**（2）T-B 干净检出测试依赖 —— 验收通过（E 复跑）**
+- 交付：`hidden_runner.py` 的模块级 JSON 读取**改为运行期**（`_read_json`/`load_cases`/`load_protocol` + lazy `_facts()`）；
+  `gate2_runner.py` 的 `.env` 改"存在才读、缺则回落环境变量"；`test_harness_fact_reveal.py` 自带**脱敏内联夹具**；
+  `test_gate2_runner.py`/`test_eval_agent.py` 注入假凭据/假 git rev。**未新增任何文件**，夹具一律内联（保证 `git ls-files` 树上自足）。
+- E 复跑（**自己建树**）：`git ls-files` 副本树（**2509 文件、无 `.env`、无盲测 JSON**）+ CI 形状 `pytest --co -q -m "not slow"` ⇒
+  **1649/1667 collected、rc=0、零 collection error**（改前是 `1645/1663 + Interrupted: 1 error`）。
+  主树（真盲测集在）跑三文件 ⇒ **41 passed**（证明 lazy 路径对真材料仍可用）。
+- E 核对：新增行**无** `skip`/`xfail`；`NO_MATCH_REPLY` 由 `PROTO.get(...)` 改字面量（因协议不入库，必须如此）。
+- 遗留（不阻断收集，供后续票）：`dispatch-output/verify_similarity.py:16`（**被跟踪**）仍模块级读 `hidden-cases-v1.json`，但它不在 `testpaths`、不匹配收集模式。
+
+**（3）T-C 检索丢失点定位 —— 验收通过（E 独立复跑第 4 次）**
+- 结论**写回 §9.12.3 的"定位结论"段**：**丢在重排**（目标在候选池第 3 位 → 被 rerank 降到第 8 位 → `docs[:6]` 截掉）；对照腿（关 rerank）该题命中。
+- E 复跑：`probe_trace_44.py everify1` ⇒ 与探针 3 次**逐条一致**；真库指纹 `620bf0127dee` 前后不变。
+- 边界：探针**未跑**整门 24 项（纪律使然），"23/24 总数"仍是历史读数，本次只是**单点复现 + 机制定位**。
+
+**（4）E 在验收中发现并就地修的问题（纪律事故，落正文）**
+- **子助手把 13 个文件整篇写成了 CRLF**（HEAD 侧均为**纯 LF**）。T-A/T-B 侧 3 个：`observability.py`（241 CRLF）、
+  `tests/test_eval_agent.py`（401）、`tests/test_gate2_runner.py`（717）；T-C 侧 10 个：
+  `dispatch-output/c-retrieval-trace-20260927/` 的**全部读数**（合计 5891 处 CRLF；探针 `.py` 本身是 LF）。
+  E 已**逐文件归一为 LF**（备份 `%TEMP%/crlf-bak-20260928/`、`%TEMP%/tc-crlf-bak-20260928/`），
+  归一后每文件 **CRLF 数 == 归一后 LF 数**、`git diff --stat` 只显示意图内的行数变动 ⇒ 内容无损。
+  **根因**：子助手的写入路径默认 `newline=None`（同 §4 第 3 条那个 D 驱动的老毛病）。
+- ⇒ 纪律补充：**派发契约要显式要求"落 LF、改完自量 `CRLF=0`"**，且**集成者在 `git add` 之前必须复量一遍**。
+  **并更正我上一版写错的那句**：自动信号**不是** `git diff --stat`（它对 CRLF **完全不提示**），
+  而是 `git add` 时那句 `CRLF will be replaced by LF the next time Git touches it`——本次正是这句抓到 T-C 那 10 个文件。
+
+**（5）本轮新增待裁/待办**
+- 待裁③｜`retrieval.py:431` 那处同类 `exc_info` 是否同批收口（见 (1) ①）。
+- 待裁④｜T-A 的"无栈"取舍是否接受，或另加"脱敏归因字段"（见 (1) ②）。
+- 待办｜T-D（两枚变异驱动加固）已派出并在跑；其 `UNTRACKED_FIXTURES` 补拷经 B 修好后**可能已非必需**，由 D 票实测后定并留痕。
+
+---
+
+#### 9.12.11 提交执行记录（2026-09-28 00:5x；Owner 一词"提交"）
+
+**（1）提交前门（逐条现量）**
+
+- `ruff check`（7 个改动文件）→ **All checks passed**；`ruff format --check` → **7 files already formatted**。
+- `mypy .`（CI 同命令）→ **Success: no issues found in 74 source files**（74 = 在册基线计数，作用面无漂移）。
+- `pytest tests/{test_knowledge_service,test_log_field_whitelist,test_gate2_runner,test_harness_fact_reveal,test_eval_agent}.py -q -m "not slow"`
+  → **46 passed, 1 deselected**。
+- 扫密（`.env` 值反查，只打印键名与命中与否）：17 个 ≥8 字符的值里，9 个凭据类键（`*_API_KEY`/`JWT_SECRET`/`ADMIN_PASSWORD`）
+  在 12 个待提文件中 **0 命中**；`sk-`/`AKIA`/`Bearer` 通用形状 **0 命中**；T-C 证据里的 `token` 字样全是 `tokens` 计数字段。
+  3 处**非凭据**值命中并入库：公开模型名 `BAAI/bge-reranker-v2-m3`、厂商公开端点 `https://api.siliconflow.cn/v1`，
+  只出现在两份报告的"有效配置"行。该端点此前 `git grep HEAD` **0 处** ⇒ 本次**首次入库**；E 判它不是密钥故保留，
+  **若 Owner 的口径是"`.env` 出现过的值一律不进仓"，改回 `<.env:RERANK_BASE_URL>` 是一行改动**。
+
+**（2）E 自己制造的一个假信号（落正文，别下轮再上当）**
+
+- 我先用 `mypy knowledge_service.py observability.py scripts/gate2_runner.py`（**手点文件**）跑出 4 条 `gate2_runner.py` 错误，
+  差点当成 T-B 引入的回归。实为**调用方式绕过配置**：mypy 的 `exclude` **对命令行显式给的文件不生效**，
+  而 `pyproject.toml` 注释里明写"已知 `scripts/gate2_runner.py` 有 4 个既有错误"（且这 4 条行号全在 T-B 的 diff 之外）。
+- ⇒ 判 mypy **只认 CI 那条命令**（`mypy .`）；手点文件的读数不是门。
+
+**（3）四笔提交与扣住项**
+
+- `4a37fe4` T-A（3 文件 +51/−9）｜`fdf802d` T-B（5 文件 +180/−64）｜`15b4249` T-C 证据（11 文件 +6306）｜本笔 docs（两份报告）。
+- 每笔先 `git add <显式路径>`、再 `git diff --cached --name-only` 证未夹带；**未 `git add -A`、未推送、未改历史、未部署、未动真实库**。
+- **主动扣住**：① 两枚变异驱动及其读数（`dispatch-output/b-citation-checks-20260927/`、`dispatch-output/d-t5-import-types-20260927/`）
+  —— T-D **正在写盘**（B 的驱动 mtime 00:45、D 的读数 00:39，且 B 那两个文件在提 T-B 之后**新出现 ` M`）⇒ 未验收不提、正在改的提了会锁进半成品；
+  ② 别的会话起草的 `docs/assistant-briefs/t7-dependency-upgrade-options-20260927.md`、A/C 回执、五份派单 brief、
+  `docs/superpowers/plans/2026-09-27-post-E-followup-recommendations.md` —— 等"归属"口径一句话。
+- ⚠️ **扣住的两枚驱动此刻仍会被 T-D 继续改写**，而 `run_mutations.py` 是**直接改工作区真实文件**的仪器
+  （`smoke_citation_fast.py` / `smoke_citation_full.py` / `CONTRIBUTING.md`，跑完还原 + sha256 核对）。
+  若它在还原前那一刻被中断，工作区会留下变异态 ⇒ E 在提 T-C 前后各量过一次，这三个文件**当前无 ` M`**（干净）。
+
+**（4）提交时抓到的一条仓库卫生问题（在册事实，非本次引入）**
+
+- `dispatch-output/task1/` **整体被 `.gitignore` 命中**，而其中 `hidden_runner.py` 是**已跟踪**文件
+  ⇒ `git add` 它时 git 打印 "The following paths are ignored…"（跟踪态优先，内容仍正常暂存）。
+  后果：以后每次修该文件都有这句误导警告，且 `git add dispatch-output/task1/<新文件>` 会被**静默拒绝**。
+  建议：`.gitignore` 加 `!dispatch-output/task1/hidden_runner.py`，或把该脚本挪出被忽略目录。
+
