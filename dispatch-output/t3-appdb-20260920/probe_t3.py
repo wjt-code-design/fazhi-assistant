@@ -34,7 +34,11 @@ MAGIC = b"SQLite format 3\x00"
 
 
 def human_mtime(secs: float) -> str:
-    return datetime.datetime.fromtimestamp(secs).strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    return (
+        datetime.datetime.fromtimestamp(secs, tz=datetime.timezone.utc)
+        .astimezone()
+        .strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+    )
 
 
 def read_one(name: str, path: pathlib.Path) -> dict:

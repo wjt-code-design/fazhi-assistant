@@ -49,15 +49,22 @@ no_implicit_optional = false
 #   ② backend/ 与 scripts/ 均无 __init__.py，scripts/capture_protocol.py 被同时映射为
 #      `capture_protocol`（顶层）与 `scripts.capture_protocol`（命名空间包）⇒ 冲突。
 # 处置：explicit_package_bases + mypy_path 解决同名模块双重映射冲突；exclude 写成能匹配整条路径的形式。
-# ⚠️ 精确说明（2026-09-17 注释勘误）：**scripts/ 在 exclude 内、不参与类型检查**——其内部既有
+# ⚠️ 精确说明（2026-09-17 注释勘误）：**scripts/ 整体在 exclude 内、不参与类型检查**——其内部既有
 # 错误不会暴露（截至 2026-09-16 采集，已知 scripts/gate2_runner.py 有 4 个既有错误，见
-# docs/work-progress-20260916-session3.md；该计数随时间可能变化，以实际采集为准）；
-# 若要纳入检查需先清零这些错误（另开票据），不在本配置改动。原注释"scripts/ 视为命名空间包"
-# 与本 exclude 事实混谈，已改正。
+# docs/work-progress-20260916-session3.md；该计数随时间可能变化，以实际采集为准）。
+# 2026-09-27 票 T5 改点②：Owner 裁"选①"——批导入守门器**必须**过类型，故给 `scripts/import_laws.py`
+# **单文件豁免**（下面 exclude 的负向前瞻），其余 `scripts/*` 照旧整体排除（含 gate2_runner 那 4 条，
+# 纳入它们仍属"另开票据先清零"，不在本配置改动）。豁免只这一条，加第二条前先想清楚 gate 的作用面。
+# 实测余量 = 0：`mypy .` 在 73→74 个文件下仍 0 error；负样本（删掉 `errors: list[str]` 注解）在
+# `mypy .` 这条 CI 命令下 rc=1 报 `import_laws.py [var-annotated]`（checked 74 files）⇒ 这条腿会红，不是装饰。
+# ⚠️ 下面那条 `[^/]+\.py` 不是冗余，是必须的：mypy 的 exclude 在**目录级剪枝**，只写
+# `scripts/(?!import_laws\.py$)` 时目录串 `scripts/` 自身被匹配 ⇒ 整个目录根本不进 discovery，
+# 读数会停在 73 而不报错（假"已纳入"）。加一个必选字符后目录串不再匹配，才会下降到文件级判定。
+# 另：coverage 的 `omit` 仍含 `scripts/*`，本票只动 mypy 作用面，未一并改（选① 没要求）。
 mypy_path = "."
 explicit_package_bases = true
 # （venv 必须排除：首次修好后 mypy 连 venv\Scripts\pywin32_testall.py 都在检查）
-exclude = ["(?x)^(tests/|scripts/|venv/)"]
+exclude = ['(?x)^(tests/|scripts/(?!import_laws\.py$)[^/]+\.py|venv/)']
 
 # SQLAlchemy 2.0 用 Column 而非 Mapped 注解 → Column[T] 被当 T 的误报（框架摩擦，基线忽略）
 # 迁移到 Mapped[mapped_column] 后应移除这些 override

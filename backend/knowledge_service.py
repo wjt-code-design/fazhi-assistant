@@ -9,6 +9,7 @@
 
 import hashlib
 import io
+import logging
 import os
 import threading
 from datetime import UTC, datetime
@@ -23,6 +24,8 @@ import retrieval_core as rc
 from law_versions import replaceable_version_ids, version_metadata
 from models import QaCandidate
 from rag_chain import CHROMA_DIR, QA_COLLECTION_NAME, embeddings, vectorstore
+
+logger = logging.getLogger("legal.knowledge")
 
 _ALLOWED_EXT = {".txt", ".md", ".pdf", ".docx"}
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -175,7 +178,7 @@ def add_text(
 
     - upload：走结构化切分（条号边界/章节前缀/目录跳过，见 chunking.split_law_document）；
       同 file_hash 重传先替换旧切片。
-    - manual/import：单条条文切分；同一法名、条号、生效日视为同一版本，修订版并存。
+    - manual/import：单条条文切分；有明确生效日且同一法名、条号的重传视为同版本，修订版并存。
     - seed：knowledge_base.build 直写，不走本函数。
     """
     if origin in ("manual", "import") and article:
@@ -202,11 +205,12 @@ def add_text(
                 try:
                     version_id = str((extra_meta or {}).get("version_id") or "").strip()
                     effective_from = str((extra_meta or {}).get("effective_from") or "").strip()
+                    effective_to = str((extra_meta or {}).get("effective_to") or "").strip()
                     existing = _collection().get(
                         where={"$and": [{"source": source}, {"article": article}]},
                         include=["metadatas", "documents"],  # T1：判"遗留无时效块可否被取代"要看旧正文
                     )
-                    # 三个桶里本路径只消费"可替换"：并存块**不删**是安全侧（宁可留双胞胎，不可误删条文），
+                    # 本路径只消费"可替换"：并存块**不删**是安全侧（宁可留双胞胎，不可误删条文），
                     # "要说出来"落在预检（票 T2 的报警 + rc 分档）—— 写侧这里没有人工裁决的机会。
                     stale_ids = list(
                         replaceable_version_ids(
@@ -214,12 +218,23 @@ def add_text(
                             existing.get("metadatas") or [],
                             version_id=version_id,
                             effective_from=effective_from,
+                            effective_to=effective_to,
                             documents=existing.get("documents") or [],
                             new_content=content,
                         ).replaceable
                     )
-                except Exception:
+                except Exception as exc:
+                    # 静默降级不可区分：判据整体失效与"判定后决定不替换"结果都是 stale_ids 空，
+                    # 只留痕才分得开（version-safety-review-findings-20260927.md 低-2）。
                     stale_ids = []
+                    logger.warning(
+                        "法版本判定失败，按不替换处理 (source=%s article=%s error=%s)",
+                        source,
+                        article,
+                        type(exc).__name__,
+                        exc_info=True,
+                        extra={"law_version_judgment_failed": True},
+                    )
             chunks = chunking.split_article_text(content, article=article)
             pairs = [
                 (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")})

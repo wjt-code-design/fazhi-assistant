@@ -7,8 +7,9 @@
 1. **装开发依赖**：`pip install -r backend/requirements-dev.txt`（含 ruff / mypy / pytest-cov / pre-commit）。
 2. **安装 pre-commit**：`pre-commit install` —— 提交前自动跑 ruff + 文件卫生。
 3. **改后端**：每个改动跑 `python -m pytest` + `ruff check .` + `mypy .`。
-4. **改检索/引用**：额外跑 `python scripts/smoke_citation_fast.py`（17 项非 LLM 门禁）。
-5. **发版前**：跑 `python scripts/smoke_citation_full.py`（10 场景含 LLM，需后端运行 + `.env` 有 key）。
+4. **改检索/引用**：额外跑 `python scripts/smoke_citation_fast.py`（24 项非 LLM 门禁 = 意图 7 + 召回 7 + 引用校验 3 + 复杂度 4 + 自检 3；召回判据是 `法名×条号` 配对）。
+5. **发版前**：跑 `python scripts/smoke_citation_full.py`（12 场景 = 正向 8 + 负向 2 + 轻量 2；**含答案生成模型调用，有 token 成本**，需后端运行 + `.env` 有 key；引用判据同为 `法名×条号` 配对）。
+   两项计数由 `backend/tests/test_smoke_citation_assertions.py::test_gate_item_counts_match_contributing` 与本文件对账。
 
 ## 门禁规则
 

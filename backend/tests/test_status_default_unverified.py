@@ -49,7 +49,16 @@ def test_api_schema_accepts_unverified():
     """API 侧第二份白名单必须跟着走，否则 `未验证` 会被 422 挡在门外。"""
     from schemas import KnowledgeAddIn
 
-    assert KnowledgeAddIn(title="测试法", article="第一条", content="正文", status="未验证").status == "未验证"
+    assert (
+        KnowledgeAddIn(
+            title="测试法",
+            article="第一条",
+            content="正文",
+            effective_from="2021-01-01",
+            status="未验证",
+        ).status
+        == "未验证"
+    )
 
 
 @pytest.fixture

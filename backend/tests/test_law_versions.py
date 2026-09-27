@@ -44,7 +44,12 @@ def test_replacement_keeps_other_effective_versions():
 # ⇒ 逐字相等恒 False，而去空白归一化后 新 ⊆ 旧。（构造样本；原文由 E7 那批核过。）
 LEGACY_OLD = "第十章　建筑物和物件损害责任\n第一千二百六十条　本法自2021年1月1日起施行。"
 LEGACY_NEW = "第一千二百六十条 本法自2021年1月1日起施行。"
-LEGACY_META = {"source": "民法典", "article": "第一千二百六十条", "origin": "upload"}
+LEGACY_META = {
+    "source": "民法典",
+    "article": "第一千二百六十条",
+    "chapter": "第十章　建筑物和物件损害责任",
+    "origin": "upload",
+}
 
 
 def _call(metas, docs=(), new_content=LEGACY_NEW, version_id="lv-new", effective_from="2021-01-01"):
@@ -59,14 +64,120 @@ def _call(metas, docs=(), new_content=LEGACY_NEW, version_id="lv-new", effective
 
 
 def test_undated_legacy_copy_is_replaceable_when_text_is_contained():
-    """判据 1：无 version_id + 两日期皆空 + origin=upload + 新 ⊆ 旧 ⇒ 可替换，且并存桶为空。"""
+    """无版本日期的 upload 旧块仅多已知章节前缀，完整正文相同才可替换。"""
     plan = _call([dict(LEGACY_META)], docs=[LEGACY_OLD])
     assert plan.replaceable == ["d0"]
     assert plan.coexist == []
     assert plan.legacy_undated == ["d0"], "T2 的 ⚠️ 只数这一桶 ⇒ 落错桶等于不报警"
 
-    # 这条分支**只能**靠包含成立：旧块带章节行 ⇒ 逐字相等恒 False（票面"已被否掉的想当然修法"）。
+    # 原始字符串不等，但差异仅为元数据中已知的章节前缀与空白。
     assert LEGACY_NEW != LEGACY_OLD
+
+
+def test_undated_legacy_copy_is_not_replaced_by_truncated_article():
+    old = "第一条 当事人应履行约定义务。法律另有规定的除外。"
+    new = "当事人应履行约定义务。"
+    plan = _call([{"origin": "upload", "article": "第一条"}], docs=[old], new_content=new)
+    assert plan.replaceable == []
+    assert plan.coexist == ["d0"]
+
+
+def test_missing_new_date_does_not_bypass_complete_body_check():
+    plan = _call(
+        [{"origin": "upload", "article": "第一条"}],
+        docs=["第一条 当事人应履行约定义务。法律另有规定的除外。"],
+        new_content="当事人应履行约定义务。",
+        effective_from="",
+    )
+    assert plan.replaceable == []
+    assert plan.coexist == ["d0"]
+
+
+def test_empty_version_ids_do_not_bypass_complete_body_check():
+    plan = _call(
+        [{"origin": "upload", "article": "第一条"}],
+        docs=["第一条 当事人应履行约定义务。法律另有规定的除外。"],
+        new_content="当事人应履行约定义务。",
+        version_id="",
+        effective_from="",
+    )
+    assert plan.replaceable == []
+    assert plan.coexist == ["d0"]
+
+
+def test_derived_version_id_without_dates_does_not_delete_different_body():
+    from law_versions import derive_version_id
+
+    version_id = derive_version_id("民法典", "第一条", "")
+    plan = _call(
+        [{"origin": "manual", "article": "第一条", "version_id": version_id}],
+        docs=["第一条 当事人应履行约定义务。法律另有规定的除外。"],
+        new_content="第一条 当事人应履行约定义务。",
+        version_id=version_id,
+        effective_from="",
+    )
+    assert plan.replaceable == []
+    assert plan.conflicts == ["d0"]
+
+
+def test_same_version_id_never_deletes_seed():
+    plan = _call(
+        [{"origin": "seed", "article": "第一条", "version_id": "lv-new", "effective_from": "2021-01-01"}],
+        docs=["第一条 原始条文。"],
+        new_content="第一条 修改条文。",
+    )
+    assert plan.replaceable == []
+    assert plan.coexist == ["d0"]
+
+
+def test_undated_legacy_copy_requires_known_prefix():
+    old = "另一条不能随旧片段删除。\n第一条 当事人应履行约定义务。"
+    plan = _call(
+        [{"origin": "upload", "article": "第一条"}],
+        docs=[old],
+        new_content="当事人应履行约定义务。",
+    )
+    assert plan.replaceable == []
+    assert plan.coexist == ["d0"]
+
+
+def test_nonoverlapping_dated_versions_are_compatible():
+    plan = replaceable_version_ids(
+        ["old"],
+        [{"version_id": "lv-old", "effective_from": "2020-01-01", "effective_to": "2020-12-31"}],
+        version_id="lv-new",
+        effective_from="2021-01-01",
+        new_content="同一条文正文",
+    )
+    assert plan.replaceable == []
+    assert plan.coexist == ["old"]
+    assert plan.compatible_versions == ["old"]
+    assert plan.conflicts == []
+
+
+def test_old_end_before_new_start_is_compatible_without_old_start():
+    plan = replaceable_version_ids(
+        ["old"],
+        [{"version_id": "lv-old", "effective_to": "2020-12-31"}],
+        version_id="lv-new",
+        effective_from="2021-01-01",
+        new_content="同一条文正文",
+    )
+    assert plan.replaceable == []
+    assert plan.compatible_versions == ["old"]
+    assert plan.conflicts == []
+
+
+@pytest.mark.parametrize("old_end", ["2021-01-01", "2021-12-31", "", "not-a-date", "2019-12-31"])
+def test_overlapping_or_unverifiable_dated_versions_still_conflict(old_end):
+    plan = replaceable_version_ids(
+        ["overlap"],
+        [{"version_id": "lv-old", "effective_from": "2020-01-01", "effective_to": old_end}],
+        version_id="lv-new",
+        effective_from="2021-01-01",
+        new_content="同一条文正文",
+    )
+    assert plan.conflicts == ["overlap"]
 
 
 def test_replaceable_is_exactly_the_two_replacement_buckets():
@@ -75,7 +186,11 @@ def test_replaceable_is_exactly_the_two_replacement_buckets():
     拆桶是为了给消费者报数，但**删除面**只能有一个来源 —— 这条守的是"两个桶各删各的/漏一个桶"的漂移。
     """
     plan = _call(
-        [{"version_id": "lv-new"}, dict(LEGACY_META), {"version_id": "lv-x", "origin": "upload"}],
+        [
+            {"version_id": "lv-new", "effective_from": "2021-01-01"},
+            dict(LEGACY_META),
+            {"version_id": "lv-x", "origin": "upload"},
+        ],
         docs=[LEGACY_NEW, LEGACY_OLD, LEGACY_OLD],
     )
     assert plan.same_version == ["d0"]
@@ -137,3 +252,18 @@ def test_admin_input_rejects_reversed_validity_period():
             effective_from="2024-01-02",
             effective_to="2024-01-01",
         )
+
+
+@pytest.mark.parametrize("effective_from", [None, ""])
+def test_admin_input_requires_effective_from_for_articles(effective_from):
+    with pytest.raises(ValidationError, match="填写条文时必须提供施行日期"):
+        KnowledgeAddIn(
+            title="示例法",
+            article="第一条",
+            content="条文",
+            effective_from=effective_from,
+        )
+
+
+def test_admin_input_allows_missing_effective_from_without_article():
+    assert KnowledgeAddIn(title="一般知识", content="正文").effective_from is None

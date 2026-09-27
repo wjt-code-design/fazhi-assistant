@@ -155,7 +155,7 @@ class KnowledgeAddIn(BaseModel):
     title: str = Field(..., min_length=1)
     article: str = ""
     content: str = Field(..., min_length=1)
-    # 时效字段（阶段5）：日期必须为 YYYY-MM-DD 或空，保证字典序比较可靠
+    # 时效字段（阶段5）：日期必须为 YYYY-MM-DD 或空；填写条号时施行日期必填。
     effective_from: str | None = None
     effective_to: str | None = None
     status: str | None = None
@@ -182,6 +182,12 @@ class KnowledgeAddIn(BaseModel):
 
     @model_validator(mode="after")
     def _valid_version_period(self):
+        # 谓词必须与写库侧一致：`knowledge_service.add_text` 判裸真值 `and article`
+        # （knowledge_service.py:184/:204）。这里若用 `.strip()`，`article=" "` 会在端点算
+        # "没填条号"而被放行、在写库算"填了"而派生 version_id ⇒ 两次无日期重传即造出
+        # 无日期可判的双胞胎块，事后清不掉（version-safety-review-findings-20260927.md §2 中-1）。
+        if self.article and not self.effective_from:
+            raise ValueError("填写条文时必须提供施行日期")
         if self.effective_from and self.effective_to and self.effective_to < self.effective_from:
             raise ValueError("effective_to 不能早于 effective_from")
         if self.version_id and self.supersedes_version_id == self.version_id:

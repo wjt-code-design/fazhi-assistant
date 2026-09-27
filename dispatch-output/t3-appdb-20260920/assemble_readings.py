@@ -65,7 +65,9 @@ payload = {
     "readings_r1": r1,
     "readings_r2": r2,
     "derived": derived,
-    "assembled_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+    "assembled_at": datetime.datetime.now(tz=datetime.timezone.utc)
+    .astimezone()
+    .strftime("%Y-%m-%d %H:%M:%S"),
 }
 
 (OUT / "readings.json").write_text(

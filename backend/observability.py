@@ -124,6 +124,13 @@ _ACCOUNT_FIELDS = (
     # （条文不在库/已失效/库读不动）。与上面那键**分键不分门**：两个读数才能回答"是哪道门在衰减"，
     # 合成一键就只剩"语料被拦了"。同样只有归因键、没有判据分解、没有题干原文。
     "qa_citation_refused",
+    # 法版本判定降级（2026-09-27，版本安全复核低-2）：`knowledge_service.add_text` 的替换判据整段
+    # 包在 `except Exception: stale_ids = []` 里 ⇒ "判据哪天整体崩溃"与"判定后决定不替换"在库侧
+    # 结果完全相同（旧块都留着），崩溃这条路今天零信号。留这一个布尔（键本身只承载真/假）；
+    # 配套 warning 的正文含**法名、条号、异常类名**，栈经 exc_info 走 formatter 的 `exc`
+    # （内置键，不占白名单）——不含条文正文、不含密钥。
+    # 未登记会被 JSON formatter 静默丢弃 ⇒ 这个键本身白写。
+    "law_version_judgment_failed",
 )
 
 _TEST_REQUEST_ID_FALLBACK = "unit-test-no-middleware-request-id"

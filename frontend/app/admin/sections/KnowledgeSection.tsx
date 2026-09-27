@@ -62,6 +62,10 @@ export function KnowledgeSection({
       setAddMsg({ ok: false, text: "法律名称与条文内容必填" });
       return;
     }
+    if (addForm.article.trim() && !addForm.effective_from) {
+      setAddMsg({ ok: false, text: "填写条号时必须填写施行日期" });
+      return;
+    }
     setAdding(true);
     setAddMsg(null);
     try {
@@ -128,7 +132,7 @@ export function KnowledgeSection({
       <div className="glass-card rounded-xl px-5 py-4">
         <SectionTitle>手动添加条文</SectionTitle>
         <p className="mt-2 text-sm text-slate">
-          逐条录入条文原文与时效信息（YYYY-MM-DD），用于快速补充知识库。
+          逐条录入条文原文与时效信息（YYYY-MM-DD）；填写条号时，施行日期必填。
         </p>
         <div className="mt-3 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_160px_1fr_1fr]">
           <input

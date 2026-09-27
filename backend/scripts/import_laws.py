@@ -3,7 +3,7 @@
 - 模板见 data/laws_extra.example.json（复制为 data/laws_extra.json 后填写）。
 - --validate-only 校验整个输入文件，不连接知识库或加载嵌入模型。
 - --dry-run 还会读取知识库，预览现有版本的替换与种子冲突。
-- 版本化幂等：同法名、条号、生效日替换；不同生效日并存；与 origin=seed 种子重叠时警告并跳过
+- 版本化幂等：有明确生效日且同法名、条号的重传替换；时效不重叠的历史版本并存；库内或批内区间重叠、不明时整批阻断；与 origin=seed 种子重叠时警告并跳过
   （那种内容应改 data/laws.json 后运行 knowledge_base.py 重建）。
 - origin 固定为 "import"（区别于 seed/manual/upload，管理端可显示第三态徽章）。
 
@@ -31,24 +31,27 @@ _REQUIRED = ("title", "article_number", "content")
 # 占位符拦截：防止「忘了替换原文」就导入（新手流程保护）
 _PLACEHOLDER_RE = re.compile(r"请粘贴|条文原文，一字不差|【[^】]*原文[^】]*】|（条文原文|请替换|示例法律名称")
 
-# 预检播报的三个桶各自的措辞（T2）。⚠️ 行**只报数量与法名条号**，不抄旧块正文 —— 那是 10266 条
+# 预检分类各自的措辞（T2）。⚠️ 行**只报数量与法名条号**，不抄旧块正文 —— 那是 10266 条
 # 语料的库，逐条打印正文会把预检输出变成几十兆的噪音，而且复制粘贴反而会诱导人"看着像就放过"。
 LINE_REPLACE = "  将替换 {n} 旧片段 + 新增：{title} {article}"
 LINE_LEGACY = "  ⚠️ 与 {n} 条无时效旧块并存（将被 T1 取代）：{title} {article}"
-LINE_COEXIST = "  ✗ 与 {n} 条旧块互不包含（库里是同一条文的另一套文字，需人工判）：{title} {article}"
+LINE_HISTORICAL = "  保留 {n} 条不重叠历史版本：{title} {article}"
+LINE_COEXIST = "  ✗ 与 {n} 条旧块存在未判定冲突（时效重叠或不明，或正文无法安全匹配，需人工判）：{title} {article}"
 
 
 def preflight_lines(title: str, article: str, plan: ReplacementPlan) -> list[str]:
-    """一条 entry 在预检里要说的那几行 —— **纯函数**，三个桶各一行，空桶不吭声。
+    """一条 entry 的预检输出；只消费分类结果，空类不输出。
 
-    判据只有一份（`law_versions.replaceable_version_ids` 的桶），这里只负责说出来；
+    判据只有一份（`law_versions.replaceable_version_ids`），这里只负责说出来；
     本函数不许再判一次 `effective_from`/`version_id` 空不空（票 T2 判据 4）。
     """
     lines = [LINE_REPLACE.format(n=len(plan.replaceable), title=title, article=article)]
     if plan.legacy_undated:
         lines.append(LINE_LEGACY.format(n=len(plan.legacy_undated), title=title, article=article))
-    if plan.coexist:
-        lines.append(LINE_COEXIST.format(n=len(plan.coexist), title=title, article=article))
+    if plan.compatible_versions:
+        lines.append(LINE_HISTORICAL.format(n=len(plan.compatible_versions), title=title, article=article))
+    if plan.conflicts:
+        lines.append(LINE_COEXIST.format(n=len(plan.conflicts), title=title, article=article))
     return lines
 
 
@@ -65,7 +68,7 @@ def _text_field(entry: dict, key: str, errors: list[str]) -> str:
 def validate_entry(e: dict) -> list[str]:
     if not isinstance(e, dict):
         return ["条目必须是对象"]
-    errors = []
+    errors: list[str] = []
     required = {k: _text_field(e, k, errors) for k in _REQUIRED}
     for k in _REQUIRED:
         if not required[k]:
@@ -173,6 +176,7 @@ def main():
     n_del = n_add = n_skip = n_legacy = 0
     blocked: list[str] = []
     pending: list[tuple[dict, dict]] = []
+    seen_in_batch: dict[tuple[str, str], list[tuple[dict, str]]] = {}
     for e in entries:
         title, article = e["title"].strip(), e["article_number"].strip()
         if _seed_conflict(vectorstore, title, article):
@@ -192,6 +196,7 @@ def main():
             existing.get("metadatas") or [],
             version_id=extra["version_id"],
             effective_from=extra["effective_from"],
+            effective_to=extra["effective_to"],
             documents=existing.get("documents") or [],
             new_content=e["content"],
         )
@@ -200,13 +205,37 @@ def main():
         n_del += len(plan.replaceable)
         n_legacy += len(plan.legacy_undated)
         n_add += 1
-        if plan.coexist:
-            blocked.append(f"{title} {article}（{len(plan.coexist)} 条）")
+        if plan.conflicts:
+            blocked.append(f"{title} {article}（{len(plan.conflicts)} 条）")
+        prior = seen_in_batch.setdefault((title, article), [])
+        if prior:
+            batch_plan = replaceable_version_ids(
+                [str(i) for i in range(len(prior))],
+                [
+                    {
+                        "origin": "import",
+                        "article": article,
+                        "version_id": meta["version_id"],
+                        "effective_from": meta["effective_from"],
+                        "effective_to": meta["effective_to"],
+                    }
+                    for meta, _ in prior
+                ],
+                version_id=extra["version_id"],
+                effective_from=extra["effective_from"],
+                effective_to=extra["effective_to"],
+                documents=[content for _, content in prior],
+                new_content=e["content"],
+            )
+            if batch_plan.replaceable or batch_plan.conflicts:
+                print(f"  ✗ 本批同法同条版本重复或时效冲突：{title} {article}")
+                blocked.append(f"{title} {article}（本批重复或冲突）")
+        prior.append((extra, e["content"]))
         pending.append((e, extra))
 
     if blocked:
         # 脚本无权替法务在两个不同版本里选一个删 ⇒ 整批不写入，交人工判（Owner 已裁的 rc 分档）。
-        print(f"\n预检不通过：{len(blocked)} 条与库里同条文**互不包含**，整批未写入任何内容：")
+        print(f"\n预检不通过：{len(blocked)} 处现有库或本批输入冲突，整批未写入任何内容：")
         for b in blocked:
             print(f"  - {b}")
         sys.exit(1)

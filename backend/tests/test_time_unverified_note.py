@@ -136,28 +136,28 @@ def _ask(
     `quality.self_check` 默认替成 PASS，理由与那份文件同款：**为了鉴别力**。不桩的话样本答复
     会同时触发 E12（自检 FAIL），`cs[-1] == NOTE` 就可能红在别的注记上 —— 那测的不是本票。
     """
-    main.settings.allow_client_law_as_of = True  # 显式历史日期是公开能力，别让环境配置左右期望表
-    # 上面那行**故意不用 monkeypatch**：`allow_client_law_as_of` 是 settings 上的进程级真值，
-    # 夹具要的是"本文件所有用例都在同一档配置下跑"；monkeypatch 会在用例结束还原，
-    # 而 `/api/chat` 的 SSE client 是同步跑完的 ⇒ 还原时机没问题，但一旦有人把 `_ask` 拆成
-    # 生成器分批消费就会静默改档。留原状并在此写明取舍（不是漏改）。
+    previous_allow_client_law_as_of = main.settings.allow_client_law_as_of
+    main.settings.allow_client_law_as_of = True
     import answer_cache
     import quality
 
-    answer_cache.clear()
-    with sse_client(
-        monkeypatch,
-        route=route,
-        flagship_parts=parts,
-        light_text=light_text,
-        fallback_text=fallback_text,
-    ) as c:
-        monkeypatch.setattr(main, "retrieve", lambda q, k=4, cutoff=None: list(docs))
-        monkeypatch.setattr(quality, "self_check", lambda a, cp: quality.Verdict(True))
-        if tune is not None:
-            tune(monkeypatch)
-        payload = {"law_as_of": as_of.isoformat()} if as_of else None
-        return chat_frames(c, login(c), question, payload)
+    try:
+        answer_cache.clear()
+        with sse_client(
+            monkeypatch,
+            route=route,
+            flagship_parts=parts,
+            light_text=light_text,
+            fallback_text=fallback_text,
+        ) as c:
+            monkeypatch.setattr(main, "retrieve", lambda q, k=4, cutoff=None: list(docs))
+            monkeypatch.setattr(quality, "self_check", lambda a, cp: quality.Verdict(True))
+            if tune is not None:
+                tune(monkeypatch)
+            payload = {"law_as_of": as_of.isoformat()} if as_of else None
+            return chat_frames(c, login(c), question, payload)
+    finally:
+        main.settings.allow_client_law_as_of = previous_allow_client_law_as_of
 
 
 # ════════ ① 判据本体（单元腿：两个条件缺一不可） ════════
@@ -170,6 +170,12 @@ def test_judgement_requires_both_conditions():
     assert hit({"sources": [dict(m.metadata) for m in UNDATED]}) is False, "无显式基准日却注记 ⇒ 现行业务被改"
     assert hit({"law_as_of": AS_OF, "sources": [dict(m.metadata) for m in DATED]}) is False, "证据可核验仍注记"
     assert hit({"law_as_of": AS_OF, "sources": []}) is False
+
+
+def test_request_helper_restores_client_date_setting(monkeypatch):
+    monkeypatch.setattr(main.settings, "allow_client_law_as_of", False)
+    _ask(monkeypatch)
+    assert main.settings.allow_client_law_as_of is False
 
 
 def test_note_wording_does_not_collide_with_self_check_markers():
@@ -212,7 +218,7 @@ def test_e7_light_buffered_answer_carries_the_note_inline(monkeypatch):
 
 
 def test_e5_contract_report_answer_carries_the_note(monkeypatch):
-    """E5（合同报告流式增量）+ E18：报告分片已吐出 ⇒ 追加一帧，且带注记的那一份才被写进缓存。"""
+    """E5 + E18：报告分片之后追加注记；显式历史请求不进入共享缓存。"""
     cs = contents_of(_ask(monkeypatch, route="contract_review", parts=CONTRACT_PARTS))
     assert "".join(cs).startswith("".join(CONTRACT_PARTS)), f"注记改写了已吐出的报告正文：{cs}"
     assert NOTE in cs, f"合同出口没产注记帧 ⇒ E18 没接上：{cs}"
