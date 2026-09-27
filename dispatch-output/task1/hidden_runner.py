@@ -17,6 +17,8 @@ from __future__ import annotations
 import argparse
 import datetime
 import json
+import os
+import re
 import sys
 import time
 import urllib.error
@@ -24,21 +26,75 @@ import urllib.request
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
-CASES = json.loads((HERE / "hidden-cases-v1.json").read_text(encoding="utf-8"))["cases"]
-BY_ID = {c["id"]: c for c in CASES}
-PROTO = json.loads((HERE / "hidden-round-protocol-v1.json").read_text(encoding="utf-8"))
-
-# 从 protocol 抽取 fact 文本与关键词（跨轮匹配，与 gate2_runner 语义一致）
-FACT_TEXT: dict[str, str] = {}
-KEYWORDS: dict[str, list[str]] = {}
-for _case, _rounds in PROTO["fact_units"].items():
-    for _rn, _units in _rounds.items():
-        for _u in _units:
-            FACT_TEXT[_u["fact_id"]] = _u["text"]
-            KEYWORDS[_u["fact_id"]] = _u["match_keywords"]
-
-NO_MATCH_REPLY = PROTO.get("no_match_reply", "我没有保留这方面的信息。")
+CASES_PATH = HERE / "hidden-cases-v1.json"
+PROTOCOL_PATH = HERE / "hidden-round-protocol-v1.json"
 ENV = Path(__file__).resolve().parents[2] / "backend" / ".env"
+_FACT_ROUND = re.compile(r"-r(\d+)-f")
+
+# 未命中追问的固定话术（与 hidden-round-protocol-v1.json 的 `no_match_reply` 同值）。
+# 必须写成字面量：该协议**不入库**（理由见 `_read_json`），不能在模块级 `PROTO.get(...)`。
+NO_MATCH_REPLY = "我没有保留这方面的信息。"
+
+
+def _read_json(path: Path) -> dict:
+    """盲测材料一律**运行期**读取（收集期零 IO）。
+
+    `hidden-cases-v1.json` / `hidden-round-protocol-v1.json` 从未入库：`.gitignore:77` 整目录忽略
+    `dispatch-output/task1/`（`git log --all` 对二者为空），而本文件**是**被跟踪的 ⇒ 任何只取
+    `git ls-files` 的干净检出（发布物树 / CI 树）里这两个 JSON 都不存在。原先的模块级读取
+    （`:27` cases、`:29` protocol）会让 `backend/tests/test_harness_fact_reveal.py:25` 的
+    `_load_module(...)` 在**收集期**抛 FileNotFoundError，整场 pytest 会话中断
+    （实测：1645/1663 collected，`Interrupted: 1 error during collection`）。
+    """
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_cases() -> list[dict]:
+    """盲测题集（运行期读取）。"""
+    return _read_json(CASES_PATH)["cases"]
+
+
+def load_protocol() -> dict:
+    """盲测轮次协议（运行期读取）。"""
+    return _read_json(PROTOCOL_PATH)
+
+
+def facts_meta_from_protocol(protocol: dict) -> dict[str, dict]:
+    """protocol → {fact_id: {round, keywords, text}}（纯函数，无 IO）。
+
+    运行期由 `_facts()` 调用；`backend/tests/test_harness_fact_reveal.py` 也用它把**自带脱敏夹具**
+    变成 facts——该回归测试因此不再依赖不入库的真盲测集。
+    """
+    facts: dict[str, dict] = {}
+    for _case, _rounds in protocol.get("fact_units", {}).items():
+        for _rn, _units in _rounds.items():
+            for _u in _units:
+                fid = _u["fact_id"]
+                m = _FACT_ROUND.search(fid)
+                facts[fid] = {
+                    "round": int(m.group(1)) if m else 99,
+                    "keywords": list(_u["match_keywords"]),
+                    "text": _u["text"],
+                }
+    return facts
+
+
+def _admin_credentials() -> tuple[str | None, str | None]:
+    """ADMIN_USERNAME / ADMIN_PASSWORD：backend/.env（存在才读）优先，缺失的键回落进程环境变量。
+
+    干净检出/发布物树不含 `backend/.env`（`.gitignore` 忽略），故这里**不得**假定该文件存在；
+    两条通道都拿不到 → (None, None)，由 login 分支显式报 "login failed" 退出，不静默降级。
+    """
+    user = os.environ.get("ADMIN_USERNAME")
+    pw = os.environ.get("ADMIN_PASSWORD")
+    if ENV.exists():
+        for line in ENV.read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.startswith("ADMIN_USERNAME="):
+                user = line.split("=", 1)[1].strip()
+            elif line.startswith("ADMIN_PASSWORD="):
+                pw = line.split("=", 1)[1].strip()
+    return user, pw
+
 
 # ---- 评测器共享事实投放（2026-09-08，评测器纠偏任务）----
 # 与 backend/scripts/gate2_runner.py 共用 harness_fact_reveal 单一实现（§4.1）。
@@ -50,24 +106,21 @@ if str(_SCRIPTS) not in _sys.path:
 from harness_fact_reveal import match_revealable_facts, FactMatchResult  # noqa: E402
 
 
-def _build_fact_meta() -> dict[str, dict]:
-    import re as _re
-
-    facts: dict[str, dict] = {}
-    for fid, kws in KEYWORDS.items():
-        m = _re.search(r"-r(\d+)-f", fid)
-        rnd = int(m.group(1)) if m else 99
-        facts[fid] = {"round": rnd, "keywords": list(kws), "text": FACT_TEXT.get(fid, "")}
-    return facts
+_FACTS_CACHE: dict[str, dict] | None = None
 
 
-_FACTS = _build_fact_meta()
+def _facts() -> dict[str, dict]:
+    """轮次化事实表（lazy getter）：首次调用（运行期）从协议构建并缓存，收集期不读盘。"""
+    global _FACTS_CACHE
+    if _FACTS_CACHE is None:
+        _FACTS_CACHE = facts_meta_from_protocol(load_protocol())
+    return _FACTS_CACHE
 
 
 def _match_facts(case: str, prompt: str) -> tuple[list[str], list[str]]:
     """兼容旧签名（= 第一轮、无已答）：轮次隔离 + 去重由共享模块保证。"""
     res = match_revealable_facts(
-        case_id=case, prompt=prompt, current_round=1, answered_fact_ids=set(), facts=_FACTS
+        case_id=case, prompt=prompt, current_round=1, answered_fact_ids=set(), facts=_facts()
     )
     return [m["text"] for m in res.matched_facts], res.answered_fact_ids
 
@@ -80,7 +133,7 @@ def _match_facts_tracked(
         prompt=prompt,
         current_round=current_round,
         answered_fact_ids=answered_fact_ids,
-        facts=_FACTS,
+        facts=_facts(),
     )
     return [m["text"] for m in res.matched_facts], res.answered_fact_ids, res
 
@@ -91,12 +144,9 @@ def main() -> int:
     ap.add_argument("--base-url", default="http://127.0.0.1:8000")
     args = ap.parse_args()
 
-    user = pw = None
-    for line in ENV.read_text(encoding="utf-8", errors="replace").splitlines():
-        if line.startswith("ADMIN_USERNAME="):
-            user = line.split("=", 1)[1].strip()
-        elif line.startswith("ADMIN_PASSWORD="):
-            pw = line.split("=", 1)[1].strip()
+    # 盲测材料与凭据都在**运行期**取（收集期零依赖，见 _read_json / _admin_credentials）。
+    by_id = {c["id"]: c for c in load_cases()}
+    user, pw = _admin_credentials()
 
     def post(path: str, payload: dict, token: str | None = None, timeout: int = 3000) -> tuple[int | None, str | None, str | None]:
         """返回 (status, raw, exc_name)；网络异常时 status=None 且 exc_name 为异常类名，不抛出。"""
@@ -143,8 +193,8 @@ def main() -> int:
         raw_dir.mkdir(exist_ok=True)
         results = {}
         print(f"===== RUN {run_id} start {datetime.datetime.now().isoformat(timespec='seconds')} =====", flush=True)
-        for case_id in sorted(BY_ID):
-            c = BY_ID[case_id]
+        for case_id in sorted(by_id):
+            c = by_id[case_id]
             asked, answered, unmatched = [], [], []
             rounds = []
             conv_id = None

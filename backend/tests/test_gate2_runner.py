@@ -114,6 +114,12 @@ def _serve(tmp_path, monkeypatch, cls):
     `server_close()` 才关监听 socket；这里只是把两份拷贝收成一份。
     """
     monkeypatch.setattr(runner, "EVID", tmp_path)
+    # 假凭据（测试自带，不入库真值）：干净检出/发布物树没有 backend/.env（`.gitignore` 忽略），
+    # runner 的 `_admin_credentials()` 按「文件存在则读文件，缺失的键回落进程环境变量」取值。
+    # 这里显式给假用户名/口令，使长跑路径在无 .env 的副本树里也能登录取 token（假服务不校验凭据）；
+    # 子进程路径（_subprocess_run）继承 os.environ，同样生效。
+    monkeypatch.setenv("ADMIN_USERNAME", "t6-fake-admin")
+    monkeypatch.setenv("ADMIN_PASSWORD", "t6-fake-password")
     service = cls()
     server = service.start()
     try:

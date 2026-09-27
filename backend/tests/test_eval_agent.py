@@ -3,6 +3,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
+import scripts.eval_agent as eval_agent
 from scripts.eval_agent import (
     AgentEvalAnswer,
     AgentEvalCase,
@@ -14,6 +15,13 @@ from scripts.eval_agent import (
     main,
     write_report,
 )
+
+# 固定 40 位十六进制 revision：只含 `git ls-files` 的副本树没有 `.git`，`_git_revision()` 必返回
+# None ⇒ 报告恒带 GIT_REVISION_UNAVAILABLE、release_eligible 恒 False。本文件的验收对象是**评测器
+# 与报告装配**，不是"当前目录是否 VCS 工作树"，故显式注入固定版本号（测试自带输入），
+# 使断言在有无 .git 的环境下同真；`GIT_REVISION_UNAVAILABLE` 这条门禁本身另由
+# test_cli_without_adapter_writes_plumbing_report_that_cannot_pass_release 反向钉住。
+_FAKE_GIT_REVISION = "2" * 40
 
 
 def _case() -> AgentEvalCase:
@@ -177,7 +185,8 @@ def test_report_includes_reproducible_execution_environment(tmp_path):
     assert report["environment"]["platform"]
 
 
-def test_report_with_adapter_contains_versioned_recomputable_case_evidence(tmp_path):
+def test_report_with_adapter_contains_versioned_recomputable_case_evidence(tmp_path, monkeypatch):
+    monkeypatch.setattr(eval_agent, "_git_revision", lambda: _FAKE_GIT_REVISION)
     output = tmp_path / "report.json"
 
     report = write_report(
@@ -213,7 +222,11 @@ def test_report_with_adapter_contains_versioned_recomputable_case_evidence(tmp_p
     assert report["cases"][0]["result"]["trace_ref"] == "trace://run-1"
 
 
-def test_cli_without_adapter_writes_plumbing_report_that_cannot_pass_release(tmp_path):
+def test_cli_without_adapter_writes_plumbing_report_that_cannot_pass_release(tmp_path, monkeypatch):
+    # 反向钉住版本号门禁：显式令 _git_revision() 返回 None（干净检出/无 .git 的形态），
+    # 报告必须给出 GIT_REVISION_UNAVAILABLE —— 证明上面两个测试注入的固定 revision 是**测试输入**，
+    # 而不是把这条门禁删掉了。
+    monkeypatch.setattr(eval_agent, "_git_revision", lambda: None)
     cases = tmp_path / "cases.json"
     output = tmp_path / "report.json"
     cases.write_text(json.dumps([_case().model_dump()], ensure_ascii=False), encoding="utf-8")
@@ -224,6 +237,7 @@ def test_cli_without_adapter_writes_plumbing_report_that_cannot_pass_release(tmp
     assert exit_code == 0
     assert report["release_eligible"] is False
     assert "NO_ADAPTER" in report["ineligibility_reasons"]
+    assert "GIT_REVISION_UNAVAILABLE" in report["ineligibility_reasons"]
 
 
 def test_cli_refuses_to_overwrite_existing_evaluation_evidence(tmp_path):
@@ -238,7 +252,8 @@ def test_cli_refuses_to_overwrite_existing_evaluation_evidence(tmp_path):
     assert output.read_text(encoding="utf-8") == "immutable evidence\n"
 
 
-def test_cli_evaluates_only_same_hash_frozen_artifact_and_records_source_provenance(tmp_path):
+def test_cli_evaluates_only_same_hash_frozen_artifact_and_records_source_provenance(tmp_path, monkeypatch):
+    monkeypatch.setattr(eval_agent, "_git_revision", lambda: _FAKE_GIT_REVISION)
     cases_path = tmp_path / "cases.json"
     output = tmp_path / "report.json"
     cases_path.write_text(json.dumps([_case().model_dump()], ensure_ascii=False), encoding="utf-8")

@@ -282,6 +282,26 @@ def _exclusive_create_json(path: Path, payload: dict) -> bool:
     return True
 
 
+def _admin_credentials() -> tuple[str | None, str | None]:
+    """ADMIN_USERNAME / ADMIN_PASSWORD：backend/.env（存在才读）优先，缺失的键回落进程环境变量。
+
+    干净检出/发布物树不含 `backend/.env`（`.gitignore` 忽略），故这里**不得**假定该文件存在：
+    原先直接 `env.read_text(...)` 会让只取 `git ls-files` 的副本树在长跑路径上抛
+    FileNotFoundError（实测 test_gate2_runner.py 14 failed）。两条通道都拿不到 → (None, None)，
+    由 login 分支显式报 "login failed" 退出，不静默降级。
+    """
+    user = os.environ.get("ADMIN_USERNAME")
+    pw = os.environ.get("ADMIN_PASSWORD")
+    env = REPO / "backend" / ".env"
+    if env.exists():
+        for line in env.read_text(encoding="utf-8", errors="replace").splitlines():
+            if line.startswith("ADMIN_USERNAME="):
+                user = line.split("=", 1)[1].strip()
+            elif line.startswith("ADMIN_PASSWORD="):
+                pw = line.split("=", 1)[1].strip()
+    return user, pw
+
+
 def run(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--run", required=True, help="run 标识（如 gate2-run-1）")
@@ -399,13 +419,7 @@ def run(argv: list[str] | None = None) -> int:
         print(f"REFUSE: {out_path.name} 已存在但仍有未完成案例（{pending}）；禁止部分覆盖旧 run")
         return 4
 
-    env = REPO / "backend" / ".env"
-    user = pw = None
-    for line in env.read_text(encoding="utf-8", errors="replace").splitlines():
-        if line.startswith("ADMIN_USERNAME="):
-            user = line.split("=", 1)[1].strip()
-        elif line.startswith("ADMIN_PASSWORD="):
-            pw = line.split("=", 1)[1].strip()
+    user, pw = _admin_credentials()
 
     def post(path: str, payload: dict, token: str | None = None, timeout: int = 2400) -> tuple[int, str]:
         # timeout 2400：LongCat 外呼延迟实测可高达 960s/请求（run-4 观测），
