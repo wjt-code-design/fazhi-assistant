@@ -1,0 +1,49 @@
+=== T-C 探针读数：周末加班 → 劳动法第四十四条 ===
+mode=REAL_rerank_on  query=周末加班，加班费怎么算？  k=6  elapsed=7.25s
+collection=legal_provisions_cos  total=10266  劳动法/第四十四条=1 块  全库第四十四条=87 块
+target_text=第四章　工作时间和休息休假第四十四条　有下列情形之一的，用人单位应当按照下列标准支付高于劳动者正常工作时间工资的工资报酬：（一）安排劳动者延长工作时间的，支付不低于工资的百分之一百五十的工资报酬；（二）休息日安排劳动者工作又不能安排补休的，支付不低于工资的百分之二百的工资报酬；（三）法定休假日安排劳动者工作的，支付不低于工资的百分之三百的工资报酬。
+
+[0] units=[{'text': '周末加班，加班费怎么算？', 'kind': 'original'}]  rerank_query='周末加班，加班费怎么算？'  pool_k=0  rerank_client=True
+
+[1] 重排前进入 _rerank_docs 的候选（12 条）:
+  (in)  1. 劳动合同法/第三十一条  cid=0883205b0e
+  (in)  2. 劳动合同法/第八十五条  cid=b65302ef1d
+  (in)  3. 劳动法/第四十四条  cid=62fe645937   <== 目标
+  (in)  4. 劳动法/第三十七条  cid=c530afe449
+  (in)  5. 劳动合同法/第六十八条  cid=9b87d71137
+  (in)  6. 民法典/第二百零一条  cid=709d22655a
+  (in)  7. 海事诉讼特别程序法/第八十八条  cid=0264446870
+  (in)  8. 刑事诉讼法/第二百三十条  cid=75da2bb9d4
+  (in)  9. 公务员法/第八十二条  cid=72f73c69c0
+  (in) 10. 证券法/第一百六十二条  cid=a9f21493af
+  (in) 11. 劳动合同法/第六十二条  cid=5569f4bd78
+  (in) 12. 劳动法/第五十条  cid=fbfcb84455
+
+[2] 重排后（remote=SUCCESS）:
+  (out)  1. 民法典/第二百零一条  cid=709d22655a rel=0.3474920988082886
+  (out)  2. 劳动合同法/第三十一条  cid=0883205b0e rel=0.15436728298664093
+  (out)  3. 劳动合同法/第八十五条  cid=b65302ef1d rel=0.07623238116502762
+  (out)  4. 劳动合同法/第六十八条  cid=9b87d71137 rel=0.07320579886436462
+  (out)  5. 公务员法/第八十二条  cid=72f73c69c0 rel=0.04365802928805351
+  (out)  6. 劳动法/第三十七条  cid=c530afe449 rel=0.04079341143369675
+  (out)  7. 劳动合同法/第六十二条  cid=5569f4bd78 rel=0.023988546803593636
+  (out)  8. 劳动法/第四十四条  cid=62fe645937 rel=0.019515566527843475   <== 目标
+  (out)  9. 劳动法/第五十条  cid=fbfcb84455 rel=0.007351336069405079
+  (out) 10. 证券法/第一百六十二条  cid=a9f21493af rel=0.003652936313301325
+  (out) 11. 刑事诉讼法/第二百三十条  cid=75da2bb9d4 rel=0.0018808910390362144
+  (out) 12. 海事诉讼特别程序法/第八十八条  cid=0264446870 rel=4.852226993534714e-05
+
+[3] 最终截取 top-k（6 条）:
+  (fin)  1. 民法典/第二百零一条  cid=709d22655a
+  (fin)  2. 劳动合同法/第三十一条  cid=0883205b0e
+  (fin)  3. 劳动合同法/第八十五条  cid=b65302ef1d
+  (fin)  4. 劳动合同法/第六十八条  cid=9b87d71137
+  (fin)  5. 公务员法/第八十二条  cid=72f73c69c0
+  (fin)  6. 劳动法/第三十七条  cid=c530afe449
+
+召回路原序里的目标条：vector top24 内第 3 位 (score=0.39011)；bm25 top24 内第 None 位
+HTTP rerank 调用：[{'url': 'https://api.siliconflow.cn/v1/rerank', 'model': 'BAAI/bge-reranker-v2-m3', 'n_docs_sent': 12, 'ok': True, 'status': 200, 'elapsed_s': 0.796, 'n_results': 12}]
+quota deduct=[{'model': 'qwen3.7-text-embedding', 'tokens': 8}, {'model': 'BAAI/bge-reranker-v2-m3', 'tokens': 917}]  depleted_marked=[]
+真库指纹 before=620bf0127dee after=620bf0127dee unchanged=True
+
+GATE {'expected': '(劳动法, 第四十四条)', 'hit': False, 'target_in_pool(重排前候选)': True, 'target_in_reranked(重排后)': True, 'target_pos_in_vector_recall': 3, 'target_vector_score': 0.39011, 'target_pos_in_bm25_recall': None, 'vector_recall_len': 24, 'bm25_recall_len': 24, 'pool_size': 12, 'target_pos_in_pool': 3, 'target_pos_after_rerank': 8, 'target_rerank_score': 0.019515566527843475, 'target_pos_in_rerank_response': 8, 'rerank_top6_scores': [{'pos': 1, 'source': '民法典', 'article': '第二百零一条', 'relevance_score': 0.3474920988082886}, {'pos': 2, 'source': '劳动合同法', 'article': '第三十一条', 'relevance_score': 0.15436728298664093}, {'pos': 3, 'source': '劳动合同法', 'article': '第八十五条', 'relevance_score': 0.07623238116502762}, {'pos': 4, 'source': '劳动合同法', 'article': '第六十八条', 'relevance_score': 0.07320579886436462}, {'pos': 5, 'source': '公务员法', 'article': '第八十二条', 'relevance_score': 0.04365802928805351}, {'pos': 6, 'source': '劳动法', 'article': '第三十七条', 'relevance_score': 0.04079341143369675}]}

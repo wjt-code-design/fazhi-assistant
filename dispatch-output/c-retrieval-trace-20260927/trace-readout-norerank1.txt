@@ -1,0 +1,27 @@
+=== T-C 探针读数：周末加班 → 劳动法第四十四条 ===
+mode=COUNTERFACTUAL_rerank_off  query=周末加班，加班费怎么算？  k=6  elapsed=7.844s
+collection=legal_provisions_cos  total=10266  劳动法/第四十四条=1 块  全库第四十四条=87 块
+target_text=第四章　工作时间和休息休假第四十四条　有下列情形之一的，用人单位应当按照下列标准支付高于劳动者正常工作时间工资的工资报酬：（一）安排劳动者延长工作时间的，支付不低于工资的百分之一百五十的工资报酬；（二）休息日安排劳动者工作又不能安排补休的，支付不低于工资的百分之二百的工资报酬；（三）法定休假日安排劳动者工作的，支付不低于工资的百分之三百的工资报酬。
+
+[0] units=[{'text': '周末加班，加班费怎么算？', 'kind': 'original'}]  rerank_query='周末加班，加班费怎么算？'  pool_k=0  rerank_client=False
+
+[1] 重排前进入 _rerank_docs 的候选（0 条）:
+  <未调用>
+
+[2] 重排后（remote=n/a）:
+  <降级：无重排输出>
+
+[3] 最终截取 top-k（6 条）:
+  (fin)  1. 劳动合同法/第三十一条  cid=0883205b0e
+  (fin)  2. 劳动合同法/第八十五条  cid=b65302ef1d
+  (fin)  3. 劳动法/第四十四条  cid=62fe645937   <== 目标
+  (fin)  4. 劳动法/第三十七条  cid=c530afe449
+  (fin)  5. 劳动合同法/第六十八条  cid=9b87d71137
+  (fin)  6. 民法典/第二百零一条  cid=709d22655a
+
+召回路原序里的目标条：vector top24 内第 3 位 (score=0.39011)；bm25 top24 内第 None 位
+HTTP rerank 调用：[]
+quota deduct=[{'model': 'qwen3.7-text-embedding', 'tokens': 8}, {'model': 'qwen3.7-text-embedding', 'tokens': 8}, {'model': 'qwen3.7-text-embedding', 'tokens': 912}]  depleted_marked=[]
+真库指纹 before=620bf0127dee after=620bf0127dee unchanged=True
+
+GATE {'expected': '(劳动法, 第四十四条)', 'hit': True, 'target_in_pool(重排前候选)': False, 'target_in_reranked(重排后)': False, 'target_pos_in_vector_recall': 3, 'target_vector_score': 0.39011, 'target_pos_in_bm25_recall': None, 'vector_recall_len': 24, 'bm25_recall_len': 24}

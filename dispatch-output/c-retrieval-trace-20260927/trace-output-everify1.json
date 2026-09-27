@@ -1,0 +1,1219 @@
+{
+ "query": "周末加班，加班费怎么算？",
+ "k": 6,
+ "env": {
+  "CHROMA_DIR": "C:\\Users\\33393\\AppData\\Local\\Temp\\ctrace\\chroma_db_copy",
+  "QUOTA_DB": "C:\\Users\\33393\\AppData\\Local\\Temp\\ctrace_quota.sqlite",
+  "DATABASE_URL": "sqlite:///C:\\Users\\33393\\AppData\\Local\\Temp\\ctrace_app.db",
+  "LLM_BASE_URL": "http://127.0.0.1:9",
+  "dotenv_selected": {
+   "RERANK_ENABLED": "true",
+   "RERANK_MODEL": "BAAI/bge-reranker-v2-m3",
+   "RERANK_MODELS": "BAAI/bge-reranker-v2-m3",
+   "RERANK_API_KEY": "SET(51 chars)",
+   "RERANK_BASE_URL": "https://api.siliconflow.cn/v1",
+   "RERANK_QUOTA_TOTAL": "0",
+   "SILICONFLOW_API_KEY": "SET(51 chars)",
+   "EMBEDDING_PROVIDER": "local",
+   "EMBEDDING_MODEL": "qwen3.7-text-embedding"
+  },
+  "rerank_enabled": true,
+  "rerank_models": [
+   "BAAI/bge-reranker-v2-m3"
+  ],
+  "rerank_base_url": "https://api.siliconflow.cn/v1",
+  "rerank_quota_total": 0,
+  "rerank_hard_threshold": 0.05,
+  "retrieval_pool_k": 0,
+  "query_rewrite_enabled": false,
+  "feature_hybrid": true,
+  "embedding_provider": "local",
+  "rerank_client_built": true
+ },
+ "spies": {
+  "vector_top": [
+   {
+    "query": "周末加班，加班费怎么算？",
+    "n": 24,
+    "rows": [
+     {
+      "source": "劳动合同法",
+      "article": "第三十一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "0883205b0e",
+      "head": "第三章　劳动合同的履行和变更第三十一条　用人单位应当",
+      "score": 0.369202,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第八十五条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "b65302ef1d",
+      "head": "第七章　法律责任第八十五条　用人单位有下列情形之一的",
+      "score": 0.37546,
+      "is_target": false
+     },
+     {
+      "source": "劳动法",
+      "article": "第四十四条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "62fe645937",
+      "head": "第四章　工作时间和休息休假第四十四条　有下列情形之一",
+      "score": 0.39011,
+      "is_target": true
+     },
+     {
+      "source": "劳动法",
+      "article": "第三十七条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "c530afe449",
+      "head": "第四章　工作时间和休息休假第三十七条　对实行计件工作",
+      "score": 0.41621,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第六十八条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "9b87d71137",
+      "head": "第五章　特别规定第六十八条　非全日制用工，是指以小时",
+      "score": 0.421919,
+      "is_target": false
+     },
+     {
+      "source": "民法典",
+      "article": "第二百零一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "709d22655a",
+      "head": "第十章　期间计算第二百零一条　按照年、月、日计算期间",
+      "score": 0.4337,
+      "is_target": false
+     },
+     {
+      "source": "劳动法",
+      "article": "第五十条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "fbfcb84455",
+      "head": "第五章　工　　资第五十条　工资应当以货币形式按月支付",
+      "score": 0.434517,
+      "is_target": false
+     },
+     {
+      "source": "社会保险法",
+      "article": "第三十九条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "0396c7f76d",
+      "head": "第四章　工伤保险第三十九条　因工伤发生的下列费用，按",
+      "score": 0.437214,
+      "is_target": false
+     },
+     {
+      "source": "劳动法",
+      "article": "第四十一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "2cb499b188",
+      "head": "第四章　工作时间和休息休假第四十一条　用人单位由于生",
+      "score": 0.438808,
+      "is_target": false
+     },
+     {
+      "source": "劳动法",
+      "article": "第九十条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "7a261ccb26",
+      "head": "第十二章　法律责任第九十条　用人单位违反本法规定，延",
+      "score": 0.438911,
+      "is_target": false
+     },
+     {
+      "source": "劳动法",
+      "article": "第九十一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "20f3e9a8ae",
+      "head": "第十二章　法律责任第九十一条　用人单位有下列侵害劳动",
+      "score": 0.444978,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第八十七条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "6f051c7d6a",
+      "head": "第七章　法律责任第八十七条　用人单位违反本法规定解除",
+      "score": 0.44593,
+      "is_target": false
+     },
+     {
+      "source": "劳动法",
+      "article": "第四十五条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "b9bd3eeb46",
+      "head": "第四章　工作时间和休息休假第四十五条　国家实行带薪年",
+      "score": 0.446911,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第三十条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "2db8f9f59f",
+      "head": "第三章　劳动合同的履行和变更第三十条　用人单位应当按",
+      "score": 0.447303,
+      "is_target": false
+     },
+     {
+      "source": "劳动争议调解仲裁法",
+      "article": "第十六条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "d2d385d268",
+      "head": "第二章　调　　解第十六条　因支付拖欠劳动报酬、工伤医",
+      "score": 0.449041,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第六十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "5569f4bd78",
+      "head": "第五章　特别规定第六十二条　用工单位应当履行下列义务",
+      "score": 0.449153,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第十一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "c385f3a4be",
+      "head": "第二章　劳动合同的订立第十一条　用人单位未在用工的同",
+      "score": 0.449301,
+      "is_target": false
+     },
+     {
+      "source": "社会保险法",
+      "article": "第三十五条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "f5c0d12ced",
+      "head": "第四章　工伤保险第三十五条　用人单位应当按照本单位职",
+      "score": 0.450456,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第八十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "66f5fd711b",
+      "head": "第七章　法律责任第八十二条　用人单位自用工之日起超过",
+      "score": 0.451782,
+      "is_target": false
+     },
+     {
+      "source": "社会保险法",
+      "article": "第六十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "bd2b024cdf",
+      "head": "第七章　社会保险费征缴第六十二条　用人单位未按规定申",
+      "score": 0.452813,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第四十七条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "1b26739958",
+      "head": "第四章　劳动合同的解除和终止第四十七条　经济补偿按劳",
+      "score": 0.452901,
+      "is_target": false
+     },
+     {
+      "source": "社会保险法",
+      "article": "第三十八条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "ae48ac867b",
+      "head": "第四章　工伤保险第三十八条　因工伤发生的下列费用，按",
+      "score": 0.456572,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第七十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "2d8f647258",
+      "head": "第五章　特别规定第七十二条　非全日制用工小时计酬标准",
+      "score": 0.457015,
+      "is_target": false
+     },
+     {
+      "source": "社会保险法",
+      "article": "第四十一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "c81e3a2a44",
+      "head": "第四章　工伤保险第四十一条　职工所在用人单位未依法缴",
+      "score": 0.459069,
+      "is_target": false
+     }
+    ]
+   }
+  ],
+  "bm25_top": [
+   {
+    "query": "周末加班，加班费怎么算？",
+    "n": 24,
+    "rows": [
+     {
+      "source": "劳动合同法",
+      "article": "第三十一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "0883205b0e",
+      "head": "第三章　劳动合同的履行和变更第三十一条　用人单位应当",
+      "score": 26.382456,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第八十五条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "b65302ef1d",
+      "head": "第七章　法律责任第八十五条　用人单位有下列情形之一的",
+      "score": 17.562559,
+      "is_target": false
+     },
+     {
+      "source": "海事诉讼特别程序法",
+      "article": "第八十八条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "0264446870",
+      "head": "第八章　审判程序第八十八条　当事人就共同海损的纠纷，",
+      "score": 12.494918,
+      "is_target": false
+     },
+     {
+      "source": "刑事诉讼法",
+      "article": "第二百三十条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "75da2bb9d4",
+      "head": "第三章　第二审程序第二百三十条　不服判决的上诉和抗诉",
+      "score": 12.47144,
+      "is_target": false
+     },
+     {
+      "source": "公务员法",
+      "article": "第八十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "72f73c69c0",
+      "head": "第十二章　工资、福利与保险第八十二条　公务员按照国家",
+      "score": 11.234456,
+      "is_target": false
+     },
+     {
+      "source": "证券法",
+      "article": "第一百六十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "a9f21493af",
+      "head": "第十章　证券服务机构第一百六十二条　证券服务机构应当",
+      "score": 9.933077,
+      "is_target": false
+     },
+     {
+      "source": "兵役法",
+      "article": "第二十九条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "181af2425d",
+      "head": "第四章　士兵的现役和预备役第二十九条　士兵服现役的时",
+      "score": 9.734506,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第六十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "5569f4bd78",
+      "head": "第五章　特别规定第六十二条　用工单位应当履行下列义务",
+      "score": 9.113544,
+      "is_target": false
+     },
+     {
+      "source": "民事诉讼法",
+      "article": "第二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "f1c2c91f03",
+      "head": "第一章　任务、适用范围和基本原则第二条　中华人民共和",
+      "score": 4.12541,
+      "is_target": false
+     },
+     {
+      "source": "劳动法",
+      "article": "第五条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "9c16a6f986",
+      "head": "第一章　总　　则第五条　国家采取各种措施，促进劳动就",
+      "score": 4.09566,
+      "is_target": false
+     },
+     {
+      "source": "立法法",
+      "article": "第一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "7e62f42885",
+      "head": "第一章　总　　则第一条　为了规范立法活动，健全国家立",
+      "score": 4.092359,
+      "is_target": false
+     },
+     {
+      "source": "地方各级人民代表大会和地方各级人民政府组织法",
+      "article": "第三十条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "99edebd801",
+      "head": "第二章　地方各级人民代表大会第三十条　地方各级人民代",
+      "score": 4.081413,
+      "is_target": false
+     },
+     {
+      "source": "道路交通安全法",
+      "article": "第八十条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "0812f4d2df",
+      "head": "第六章　执法监督第八十条　交通警察执行职务时，应当按",
+      "score": 4.071589,
+      "is_target": false
+     },
+     {
+      "source": "建筑法",
+      "article": "第六十九条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "8dab982d2e",
+      "head": "第七章　法律责任第六十九条　工程监理单位与建设单位或",
+      "score": 4.070932,
+      "is_target": false
+     },
+     {
+      "source": "建筑法",
+      "article": "第六十五条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "35709f36ea",
+      "head": "第七章　法律责任第六十五条　发包单位将工程发包给不具",
+      "score": 4.066586,
+      "is_target": false
+     },
+     {
+      "source": "刑法",
+      "article": "第六十九条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "03be8bfe12",
+      "head": "第四章　刑罚的具体运用第六十九条　判决宣告以前一人犯",
+      "score": 4.053211,
+      "is_target": false
+     },
+     {
+      "source": "数据安全法",
+      "article": "第八条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "5ec4848dd1",
+      "head": "第一章　总　　则第八条　开展数据处理活动，应当遵守法",
+      "score": 4.05027,
+      "is_target": false
+     },
+     {
+      "source": "网络安全法",
+      "article": "第十条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "fc58c65d75",
+      "head": "第一章　总　　则第十条　网络运营者开展经营和服务活动",
+      "score": 4.041479,
+      "is_target": false
+     },
+     {
+      "source": "土地管理法",
+      "article": "第一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "4127cfd739",
+      "head": "第一章　总　　则第一条　为了加强土地管理，维护土地的",
+      "score": 4.041479,
+      "is_target": false
+     },
+     {
+      "source": "疫苗管理法",
+      "article": "第一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "9f70cc1e9b",
+      "head": "第一章　总　　则第一条　为了加强疫苗管理，保证疫苗质",
+      "score": 4.040179,
+      "is_target": false
+     },
+     {
+      "source": "道路交通安全法",
+      "article": "第九十一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "f8684ad6c3",
+      "head": "第七章　法律责任第九十一条　饮酒后驾驶机动车的，处暂",
+      "score": 4.038294,
+      "is_target": false
+     },
+     {
+      "source": "电影产业促进法",
+      "article": "第九条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "5bb6bb00b3",
+      "head": "第一章　总　　则第九条　电影行业组织依法制定行业自律",
+      "score": 4.034668,
+      "is_target": false
+     },
+     {
+      "source": "个人独资企业法",
+      "article": "第三十五条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "22a7fbeeda",
+      "head": "第五章　法律责任第三十五条　涂改、出租、转让营业执照",
+      "score": 4.034668,
+      "is_target": false
+     },
+     {
+      "source": "乡村振兴促进法",
+      "article": "第三十条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "6aef5f20ad",
+      "head": "第四章　文化繁荣第三十条　各级人民政府应当采取措施丰",
+      "score": 4.031369,
+      "is_target": false
+     }
+    ]
+   }
+  ],
+  "append_unique": [
+   {
+    "call": 0,
+    "label": "vector_pool",
+    "incoming": 6,
+    "dst_after": 6
+   },
+   {
+    "call": 1,
+    "label": "bm25_pool",
+    "incoming": 6,
+    "dst_after": 10
+   },
+   {
+    "call": 2,
+    "label": "rrf_top",
+    "incoming": 12,
+    "dst_after": 12
+   }
+  ],
+  "rerank": [
+   {
+    "rerank_query": "周末加班，加班费怎么算？",
+    "n_in": 12,
+    "elapsed_s": 0.765,
+    "remote_result": "SUCCESS",
+    "in": [
+     {
+      "source": "劳动合同法",
+      "article": "第三十一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "0883205b0e",
+      "head": "第三章　劳动合同的履行和变更第三十一条　用人单位应当",
+      "pos": 1,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第八十五条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "b65302ef1d",
+      "head": "第七章　法律责任第八十五条　用人单位有下列情形之一的",
+      "pos": 2,
+      "is_target": false
+     },
+     {
+      "source": "劳动法",
+      "article": "第四十四条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "62fe645937",
+      "head": "第四章　工作时间和休息休假第四十四条　有下列情形之一",
+      "pos": 3,
+      "is_target": true
+     },
+     {
+      "source": "劳动法",
+      "article": "第三十七条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "c530afe449",
+      "head": "第四章　工作时间和休息休假第三十七条　对实行计件工作",
+      "pos": 4,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第六十八条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "9b87d71137",
+      "head": "第五章　特别规定第六十八条　非全日制用工，是指以小时",
+      "pos": 5,
+      "is_target": false
+     },
+     {
+      "source": "民法典",
+      "article": "第二百零一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "709d22655a",
+      "head": "第十章　期间计算第二百零一条　按照年、月、日计算期间",
+      "pos": 6,
+      "is_target": false
+     },
+     {
+      "source": "海事诉讼特别程序法",
+      "article": "第八十八条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "0264446870",
+      "head": "第八章　审判程序第八十八条　当事人就共同海损的纠纷，",
+      "pos": 7,
+      "is_target": false
+     },
+     {
+      "source": "刑事诉讼法",
+      "article": "第二百三十条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "75da2bb9d4",
+      "head": "第三章　第二审程序第二百三十条　不服判决的上诉和抗诉",
+      "pos": 8,
+      "is_target": false
+     },
+     {
+      "source": "公务员法",
+      "article": "第八十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "72f73c69c0",
+      "head": "第十二章　工资、福利与保险第八十二条　公务员按照国家",
+      "pos": 9,
+      "is_target": false
+     },
+     {
+      "source": "证券法",
+      "article": "第一百六十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "a9f21493af",
+      "head": "第十章　证券服务机构第一百六十二条　证券服务机构应当",
+      "pos": 10,
+      "is_target": false
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第六十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "5569f4bd78",
+      "head": "第五章　特别规定第六十二条　用工单位应当履行下列义务",
+      "pos": 11,
+      "is_target": false
+     },
+     {
+      "source": "劳动法",
+      "article": "第五十条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "fbfcb84455",
+      "head": "第五章　工　　资第五十条　工资应当以货币形式按月支付",
+      "pos": 12,
+      "is_target": false
+     }
+    ],
+    "out": [
+     {
+      "source": "民法典",
+      "article": "第二百零一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "709d22655a",
+      "head": "第十章　期间计算第二百零一条　按照年、月、日计算期间",
+      "pos": 1,
+      "in_pos": 6,
+      "is_target": false,
+      "relevance_score": 0.3527567684650421
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第三十一条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "0883205b0e",
+      "head": "第三章　劳动合同的履行和变更第三十一条　用人单位应当",
+      "pos": 2,
+      "in_pos": 1,
+      "is_target": false,
+      "relevance_score": 0.15436728298664093
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第八十五条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "b65302ef1d",
+      "head": "第七章　法律责任第八十五条　用人单位有下列情形之一的",
+      "pos": 3,
+      "in_pos": 2,
+      "is_target": false,
+      "relevance_score": 0.07448776066303253
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第六十八条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "9b87d71137",
+      "head": "第五章　特别规定第六十八条　非全日制用工，是指以小时",
+      "pos": 4,
+      "in_pos": 5,
+      "is_target": false,
+      "relevance_score": 0.07289672642946243
+     },
+     {
+      "source": "公务员法",
+      "article": "第八十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "72f73c69c0",
+      "head": "第十二章　工资、福利与保险第八十二条　公务员按照国家",
+      "pos": 5,
+      "in_pos": 9,
+      "is_target": false,
+      "relevance_score": 0.042765725404024124
+     },
+     {
+      "source": "劳动法",
+      "article": "第三十七条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "c530afe449",
+      "head": "第四章　工作时间和休息休假第三十七条　对实行计件工作",
+      "pos": 6,
+      "in_pos": 4,
+      "is_target": false,
+      "relevance_score": 0.040343496948480606
+     },
+     {
+      "source": "劳动合同法",
+      "article": "第六十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "5569f4bd78",
+      "head": "第五章　特别规定第六十二条　用工单位应当履行下列义务",
+      "pos": 7,
+      "in_pos": 11,
+      "is_target": false,
+      "relevance_score": 0.02394188567996025
+     },
+     {
+      "source": "劳动法",
+      "article": "第四十四条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "62fe645937",
+      "head": "第四章　工作时间和休息休假第四十四条　有下列情形之一",
+      "pos": 8,
+      "in_pos": 3,
+      "is_target": true,
+      "relevance_score": 0.019724469631910324
+     },
+     {
+      "source": "劳动法",
+      "article": "第五十条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "fbfcb84455",
+      "head": "第五章　工　　资第五十条　工资应当以货币形式按月支付",
+      "pos": 9,
+      "in_pos": 12,
+      "is_target": false,
+      "relevance_score": 0.007365706842392683
+     },
+     {
+      "source": "证券法",
+      "article": "第一百六十二条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "a9f21493af",
+      "head": "第十章　证券服务机构第一百六十二条　证券服务机构应当",
+      "pos": 10,
+      "in_pos": 10,
+      "is_target": false,
+      "relevance_score": 0.0034502691123634577
+     },
+     {
+      "source": "刑事诉讼法",
+      "article": "第二百三十条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "75da2bb9d4",
+      "head": "第三章　第二审程序第二百三十条　不服判决的上诉和抗诉",
+      "pos": 11,
+      "in_pos": 8,
+      "is_target": false,
+      "relevance_score": 0.0019370338413864374
+     },
+     {
+      "source": "海事诉讼特别程序法",
+      "article": "第八十八条",
+      "category": null,
+      "effective_from": "",
+      "effective_to": "",
+      "origin": "upload",
+      "cid": "0264446870",
+      "head": "第八章　审判程序第八十八条　当事人就共同海损的纠纷，",
+      "pos": 12,
+      "in_pos": 7,
+      "is_target": false,
+      "relevance_score": 4.7008747060317546e-05
+     }
+    ]
+   }
+  ]
+ },
+ "http_rerank_calls": [
+  {
+   "url": "https://api.siliconflow.cn/v1/rerank",
+   "model": "BAAI/bge-reranker-v2-m3",
+   "n_docs_sent": 12,
+   "ok": true,
+   "status": 200,
+   "elapsed_s": 0.765,
+   "n_results": 12,
+   "results": [
+    {
+     "index": 5,
+     "relevance_score": 0.3527567684650421
+    },
+    {
+     "index": 0,
+     "relevance_score": 0.15436728298664093
+    },
+    {
+     "index": 1,
+     "relevance_score": 0.07448776066303253
+    },
+    {
+     "index": 4,
+     "relevance_score": 0.07289672642946243
+    },
+    {
+     "index": 8,
+     "relevance_score": 0.042765725404024124
+    },
+    {
+     "index": 3,
+     "relevance_score": 0.040343496948480606
+    },
+    {
+     "index": 10,
+     "relevance_score": 0.02394188567996025
+    },
+    {
+     "index": 2,
+     "relevance_score": 0.019724469631910324
+    },
+    {
+     "index": 11,
+     "relevance_score": 0.007365706842392683
+    },
+    {
+     "index": 9,
+     "relevance_score": 0.0034502691123634577
+    },
+    {
+     "index": 7,
+     "relevance_score": 0.0019370338413864374
+    },
+    {
+     "index": 6,
+     "relevance_score": 4.7008747060317546e-05
+    }
+   ]
+  }
+ ],
+ "quota": {
+  "deduct": [
+   {
+    "model": "qwen3.7-text-embedding",
+    "tokens": 8
+   },
+   {
+    "model": "BAAI/bge-reranker-v2-m3",
+    "tokens": 917
+   }
+  ],
+  "depleted_marked": []
+ },
+ "real_kb_fingerprint": {
+  "before": {
+   "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\chroma.sqlite3",
+   "size": 210051072,
+   "mtime": 1789927604.475,
+   "md5": "620bf0127deea64e4351830b602d9732"
+  },
+  "after": {
+   "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\chroma.sqlite3",
+   "size": 210051072,
+   "mtime": 1789927604.475,
+   "md5": "620bf0127deea64e4351830b602d9732"
+  }
+ },
+ "kb": {
+  "chroma_dir": "C:\\Users\\33393\\AppData\\Local\\Temp\\ctrace\\chroma_db_copy",
+  "collection": "legal_provisions_cos",
+  "total_vectors": 10266,
+  "target_rows": 1,
+  "target_meta": {
+   "article": "第四十四条",
+   "chapter": "第四章　工作时间和休息休假",
+   "effective_from": "",
+   "effective_to": "",
+   "file_hash": "5c94703bd8481fbe00f58eba49ac0c7d8d36e1c7133bc73eb6ba3231cc8c52c4",
+   "origin": "upload",
+   "source": "劳动法",
+   "status": "现行"
+  },
+  "target_text": "第四章　工作时间和休息休假第四十四条　有下列情形之一的，用人单位应当按照下列标准支付高于劳动者正常工作时间工资的工资报酬：（一）安排劳动者延长工作时间的，支付不低于工资的百分之一百五十的工资报酬；（二）休息日安排劳动者工作又不能安排补休的，支付不低于工资的百分之二百的工资报酬；（三）法定休假日安排劳动者工作的，支付不低于工资的百分之三百的工资报酬。",
+  "competing_第四十四条": 87
+ },
+ "units": [
+  {
+   "text": "周末加班，加班费怎么算？",
+   "kind": "original"
+  }
+ ],
+ "elapsed_s": 5.718,
+ "routing": {
+  "parse_article_query": null,
+  "bridge_query": "周末加班，加班费怎么算？",
+  "rerank_query": "周末加班，加班费怎么算？",
+  "cache_hit": false
+ },
+ "final_topk": [
+  {
+   "source": "民法典",
+   "article": "第二百零一条",
+   "category": null,
+   "effective_from": "",
+   "effective_to": "",
+   "origin": "upload",
+   "cid": "709d22655a",
+   "head": "第十章　期间计算第二百零一条　按照年、月、日计算期间",
+   "pos": 1,
+   "is_target": false
+  },
+  {
+   "source": "劳动合同法",
+   "article": "第三十一条",
+   "category": null,
+   "effective_from": "",
+   "effective_to": "",
+   "origin": "upload",
+   "cid": "0883205b0e",
+   "head": "第三章　劳动合同的履行和变更第三十一条　用人单位应当",
+   "pos": 2,
+   "is_target": false
+  },
+  {
+   "source": "劳动合同法",
+   "article": "第八十五条",
+   "category": null,
+   "effective_from": "",
+   "effective_to": "",
+   "origin": "upload",
+   "cid": "b65302ef1d",
+   "head": "第七章　法律责任第八十五条　用人单位有下列情形之一的",
+   "pos": 3,
+   "is_target": false
+  },
+  {
+   "source": "劳动合同法",
+   "article": "第六十八条",
+   "category": null,
+   "effective_from": "",
+   "effective_to": "",
+   "origin": "upload",
+   "cid": "9b87d71137",
+   "head": "第五章　特别规定第六十八条　非全日制用工，是指以小时",
+   "pos": 4,
+   "is_target": false
+  },
+  {
+   "source": "公务员法",
+   "article": "第八十二条",
+   "category": null,
+   "effective_from": "",
+   "effective_to": "",
+   "origin": "upload",
+   "cid": "72f73c69c0",
+   "head": "第十二章　工资、福利与保险第八十二条　公务员按照国家",
+   "pos": 5,
+   "is_target": false
+  },
+  {
+   "source": "劳动法",
+   "article": "第三十七条",
+   "category": null,
+   "effective_from": "",
+   "effective_to": "",
+   "origin": "upload",
+   "cid": "c530afe449",
+   "head": "第四章　工作时间和休息休假第三十七条　对实行计件工作",
+   "pos": 6,
+   "is_target": false
+  }
+ ],
+ "gate": {
+  "expected": "(劳动法, 第四十四条)",
+  "hit": false,
+  "target_in_pool(重排前候选)": true,
+  "target_in_reranked(重排后)": true,
+  "target_pos_in_vector_recall": 3,
+  "target_vector_score": 0.39011,
+  "target_pos_in_bm25_recall": null,
+  "vector_recall_len": 24,
+  "bm25_recall_len": 24,
+  "pool_size": 12,
+  "target_pos_in_pool": 3,
+  "target_pos_after_rerank": 8,
+  "target_rerank_score": 0.019724469631910324,
+  "target_pos_in_rerank_response": 8,
+  "rerank_top6_scores": [
+   {
+    "pos": 1,
+    "source": "民法典",
+    "article": "第二百零一条",
+    "relevance_score": 0.3527567684650421
+   },
+   {
+    "pos": 2,
+    "source": "劳动合同法",
+    "article": "第三十一条",
+    "relevance_score": 0.15436728298664093
+   },
+   {
+    "pos": 3,
+    "source": "劳动合同法",
+    "article": "第八十五条",
+    "relevance_score": 0.07448776066303253
+   },
+   {
+    "pos": 4,
+    "source": "劳动合同法",
+    "article": "第六十八条",
+    "relevance_score": 0.07289672642946243
+   },
+   {
+    "pos": 5,
+    "source": "公务员法",
+    "article": "第八十二条",
+    "relevance_score": 0.042765725404024124
+   },
+   {
+    "pos": 6,
+    "source": "劳动法",
+    "article": "第三十七条",
+    "relevance_score": 0.040343496948480606
+   }
+  ]
+ },
+ "mode": "REAL_rerank_on"
+}
