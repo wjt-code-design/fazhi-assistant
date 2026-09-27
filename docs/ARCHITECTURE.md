@@ -102,11 +102,12 @@
 
 ## 5. 测试与门禁
 
-- **单元/集成测试**：pytest 114 个（含 mock LLM/向量库，CI 零 token 可跑）。
+- **单元/集成测试**：pytest（含 mock LLM/向量库，CI 零 token 可跑）。**用例数本档不复抄**——它随每次加用例漂，
+  要看现量跑 `python -m pytest --co -q -m "not slow"`。
 - **回归门禁**三档：
-  - 快：`smoke_citation_fast.py`（17 项，非 LLM，pre-commit/CI）
+  - 快：`smoke_citation_fast.py`（24 项非 LLM 门禁，pre-commit/CI）
   - 慢：CI（pytest 跳 slow + ruff/mypy/cov≥70 + 前端 build）
-  - 全量：`smoke_citation_full.py`（10 场景，含 LLM，release 前跑）
+  - 全量：`smoke_citation_full.py`（12 场景，含 LLM，release 前跑）
 
 ---
 
