@@ -130,3 +130,17 @@ dispatch-output/**/*auth-state*.json
 # `git gc`/`prune` 不做：C: 盘空闲 99.0 GB（无压力），而本仓缺父提交 `0263bd5`、推不动也 fetch 不回来
 # ⇒ 在难回退的操作上换 0.1% 的盘不划算。**触发条件**：真出现磁盘压力，或历史被修好之后。
 .git-backup-20260916/
+
+# F 项 4（2026-09-28）：四个"用途已确认、且目录内被跟踪文件为 0"的运行期产物目录补忽略。
+# 逐条确认过的用途：
+#   caddy_data/ caddy_config/  = Caddy 反代运行时目录（现量各 2 个文件：instance.uuid / last_clean.json /
+#     autosave.json，暂无密钥）。但 Caddy 一旦签发证书会往 caddy_data/caddy/pki 写**私钥**，
+#     所以按"先忽略再说话"处理，不能等它有内容。
+#   .qoder/ = 编辑器/会话产物（现量 3 个文件：better-harness 的 canvas.json/findings.json/report.canvas.tsx）。
+#   backend/.ptmp-s4-run2/ = 一次 pytest 跑留下的每用例临时目录（内含 agent-repository.db 若干，2.2 MB）。
+#     写成 .ptmp-*/ 通配，避免下一个 run3/run4 又冒出来。
+# 现量依据：git ls-files 这四个目录 = 0 个被跟踪文件 ⇒ 补忽略不会让任何在跟踪的东西"看起来消失"。
+caddy_data/
+caddy_config/
+.qoder/
+backend/.ptmp-*/
