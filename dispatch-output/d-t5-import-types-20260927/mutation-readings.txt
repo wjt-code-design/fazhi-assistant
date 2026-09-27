@@ -1,0 +1,132 @@
+分母（--collect-only 单取）= 1642
+干净基线：rc=1  27 failed, 1590 passed, 25 skipped, 229 warnings in 136.33s (0:02:16)  失败集 = 27 条
+交付文件 sha256：import_laws.py=5dc5a76fc899944b、test_import_laws_preflight.py=d446ed48a914a8dd
+
+### M1（backend/knowledge_service.py:246）— 断开「写入成功后删旧」这一句本身
+  rc=1  30 failed, 1587 passed, 25 skipped, 229 warnings in 140.30s (0:02:20)
+  还原后逐字一致=True
+  新增红 3 条 / 基线红消失 0 条 []
+    [红] tests.test_import_laws_preflight::test_same_version_retransmit_really_removes_the_old_block
+         AssertionError: 旧块没被删，还在库里：b04d8272-47b6-4697-b337-e45a04420302 ∈ ['954e5147-1a6f-4e0a-b8dd-bd6af6bc6380', 'b04d8272-47b6-4697-b337-e45a04420302'] assert 'b04d8272-47b6-4697-b337-e45a04420302' not in ['954e5147-1a6f-4e0a
+    [红] tests.test_knowledge_service::test_concurrent_add_text_idempotent
+         AssertionError: 并发写后 chunk 数 5 != 基线 1（重复或丢失） assert 5 == 1  +  where 5 = len(['第一条\u3000这是版本2的并发测试条文正文，句子一。句子二。', '第一条\u3000这是版本0的并发测试条文正文，句子一。句子二。', '第一条\u3000这是版本1的并发测试条文正文，句子一。句子二。', '第一条\u3000这是版本3的并发测试条文正文，句子一。句子二。
+    [红] tests.test_knowledge_service::test_version_judgment_crash_keeps_old_chunk_and_stays_visible
+         AssertionError: 对照腿失效：判据正常时旧块应被替换，否则被测腿没有区分度 assert not ({'6c3acf3a-401a-4d52-93de-880023f430b2'} & {'4a820569-2348-4b0c-bb30-0fc34063ed2d', '6c3acf3a-401a-4d52-93de-880023f430b2'})  +  where {'4a820569-2348-4b0c-bb30-0f
+
+### M2（backend/scripts/import_laws.py:134）— seed 判定永不命中：跳过路径整条失效
+  rc=1  28 failed, 1589 passed, 25 skipped, 229 warnings in 170.70s (0:02:50)
+  还原后逐字一致=True
+  新增红 1 条 / 基线红消失 0 条 []
+    [红] tests.test_import_laws_preflight::test_seed_conflict_is_named_and_kept_out_of_the_batch[seed]
+         AssertionError: seed 冲突该被点名跳过、不阻断整批，却退出 rc=1：   共 1 条，开始预检：     将替换 0 旧片段 + 新增：受控测试法 第一千二百六十条     ✗ 与 1 条旧块存在未判定冲突（时效重叠或不明，或正文无法安全匹配，需人工判）：受控测试法 第一千二百六十条      预检不通过：1 处现有库或本批输入冲突，整批未写入任何内容：     - 受控测试法 第一千二百六十条（1 条）    a
+
+### M2b（backend/scripts/import_laws.py:134）— seed 判定恒命中：证明 upload 对照腿不是空枪
+  rc=1  33 failed, 1584 passed, 25 skipped, 229 warnings in 165.73s (0:02:45)
+  还原后逐字一致=True
+  新增红 6 条 / 基线红消失 0 条 []
+    [红] tests.test_import_laws_preflight::test_dry_run_keeps_nonoverlapping_historical_version[2020-01-01-2020-12-31-2021-01-01-]
+         AssertionError: assert '保留 1 条不重叠历史版本' in '共 1 条，开始预检：\n  跳过（与种子冲突，请改 laws.json 后重建）：受控测试法 第一千二百六十条\n\n预检完成：将删除 0 旧片段（其中 0 条是**无时效遗留块**），新增 0 条，跳过 1 条。确认后去掉 --dry-run 实跑。\n'
+    [红] tests.test_import_laws_preflight::test_dry_run_keeps_nonoverlapping_historical_version[2021-01-01--2020-01-01-2020-12-31]
+         AssertionError: assert '保留 1 条不重叠历史版本' in '共 1 条，开始预检：\n  跳过（与种子冲突，请改 laws.json 后重建）：受控测试法 第一千二百六十条\n\n预检完成：将删除 0 旧片段（其中 0 条是**无时效遗留块**），新增 0 条，跳过 1 条。确认后去掉 --dry-run 实跑。\n'
+    [红] tests.test_import_laws_preflight::test_dry_run_warns_and_exits_zero
+         AssertionError: 共 1 条，开始预检：     跳过（与种子冲突，请改 laws.json 后重建）：受控测试法 第一千二百六十条      预检完成：将删除 0 旧片段（其中 0 条是**无时效遗留块**），新增 0 条，跳过 1 条。确认后去掉 --dry-run 实跑。    assert '⚠️ 与 1 条无时效旧块并存（将被 T1 取代）' in '共 1 条，开始预检：\n  跳过（与种子冲突，请改 laws
+    [红] tests.test_import_laws_preflight::test_non_contained_blocks_the_whole_batch_without_writing
+         Failed: DID NOT RAISE SystemExit
+    [红] tests.test_import_laws_preflight::test_same_version_retransmit_really_removes_the_old_block
+         AssertionError: 共 1 条，开始导入：     跳过（与种子冲突，请改 laws.json 后重建）：受控测试法 第一千二百六十条      导入完成：替换 0 旧片段，新增 0 条，跳过 1 条。    assert '将替换 1 旧片段' in '共 1 条，开始导入：\n  跳过（与种子冲突，请改 laws.json 后重建）：受控测试法 第一千二百六十条\n\n导入完成：替换 0 旧片段，新增 0 条，跳过 1 
+    [红] tests.test_import_laws_preflight::test_seed_conflict_is_named_and_kept_out_of_the_batch[upload]
+         AssertionError: 非 seed 的旧块也被点名跳过了：   共 1 条，开始预检：     跳过（与种子冲突，请改 laws.json 后重建）：受控测试法 第一千二百六十条      预检完成：将删除 0 旧片段（其中 0 条是**无时效遗留块**），新增 0 条，跳过 1 条。确认后去掉 --dry-run 实跑。    assert '  跳过（与种子冲突，...测试法 第一千二百六十条' not in '共 1 条
+
+### M2c（backend/scripts/import_laws.py:183）— 跳过了但不点名：让「点名」二字独占一条会红的断言
+  rc=1  28 failed, 1589 passed, 25 skipped, 229 warnings in 175.01s (0:02:55)
+  还原后逐字一致=True
+  新增红 1 条 / 基线红消失 0 条 []
+    [红] tests.test_import_laws_preflight::test_seed_conflict_is_named_and_kept_out_of_the_batch[seed]
+         AssertionError: seed 冲突没被点名跳过（缺法名/条号）：   共 1 条，开始预检：     跳过（与种子冲突，请改 laws.json 后重建）      预检完成：将删除 0 旧片段（其中 0 条是**无时效遗留块**），新增 0 条，跳过 1 条。确认后去掉 --dry-run 实跑。    assert '  跳过（与种子冲突，请改 laws.json 后重建）：受控测试法 第一千二百六十条' in '共 1
+
+### M3（backend/scripts/import_laws.py:252）— 脚本不把算好的版本元数据交给写入器：断在脚本→写入器的参数上
+  rc=1  29 failed, 1588 passed, 25 skipped, 229 warnings in 221.84s (0:03:41)
+  还原后逐字一致=True
+  新增红 2 条 / 基线红消失 0 条 []
+    [红] tests.test_import_laws_preflight::test_control_admitted_batch_reaches_the_writer
+         TypeError: 'NoneType' object is not subscriptable
+    [红] tests.test_import_laws_preflight::test_same_version_retransmit_really_removes_the_old_block
+         AssertionError: 旧块没被删，还在库里：0ec267be-475f-4635-9f23-73b70ac6a61c ∈ ['0ec267be-475f-4635-9f23-73b70ac6a61c', 'a58fb86e-d012-4849-b0c3-730a77203f61'] assert '0ec267be-475f-4635-9f23-73b70ac6a61c' not in ['0ec267be-475f-4635
+
+
+## 附一：干净基线的 27 条既有红
+
+副本树无 `.env` / 无真实 chroma + 其他助手在途改动所致；**上面每条变异的"新增红"都是从这份名单里减出来的**。
+- tests.test_chunking::test_article_coverage_exactly_once
+- tests.test_chunking::test_article_has_headline_kept
+- tests.test_chunking::test_chapter_prefix_injected
+- tests.test_chunking::test_long_article_sentence_split
+- tests.test_chunking::test_midline_citation_not_split
+- tests.test_chunking::test_toc_skipped
+- tests.test_chunking::test_variants_recognized
+- tests.test_eval_agent::test_cli_evaluates_only_same_hash_frozen_artifact_and_records_source_provenance
+- tests.test_eval_agent::test_report_with_adapter_contains_versioned_recomputable_case_evidence
+- tests.test_gate2_runner::test_clarification_loop_terminates_when_server_never_finalizes
+- tests.test_gate2_runner::test_client_timeout_pauses_queue_and_marks_unknown
+- tests.test_gate2_runner::test_http_error_is_recorded_and_queue_continues
+- tests.test_gate2_runner::test_mid_run_process_kill_recovers_from_checkpoint
+- tests.test_gate2_runner::test_multi_case_run_keeps_attribution_per_case
+- tests.test_gate2_runner::test_non_sse_response_is_recorded_without_agent_completion
+- tests.test_gate2_runner::test_redline_counts_every_clarification_round_including_scope
+- tests.test_gate2_runner::test_redline_not_triggered_when_server_stops_after_two_rounds
+- tests.test_gate2_runner::test_resume_skips_completed_cases_without_reissuing_requests
+- tests.test_gate2_runner::test_resume_with_retry_unknown_reruns_marked_case
+- tests.test_gate2_runner::test_scope_budget_exhaustion_aborts_run_without_hanging
+- tests.test_gate2_runner::test_scope_clarification_replies_issue_numbers_not_no_match_reply
+- tests.test_gate2_runner::test_scope_menu_does_not_consume_fact_clarification_budget
+- tests.test_gate2_runner::test_two_cases_complete_outputs_written_and_rerun_refuses
+- tests.test_gate_exit_registry::test_committed_md_is_the_generated_artifact
+- tests.test_init_release_evidence::test_initializer_creates_only_blocked_templates
+- tests.test_r15_runner_injection::test_watershed_cases_conform_to_case_schema
+- tests.test_r15_runner_injection::test_watershed_fact_reveal_is_consumable_by_runner
+
+## 附二：读数的时效与之后的两处补测（写于五处变异之后，勿与上面混读）
+
+- 上面 `交付文件 sha256` 记的是 `test_import_laws_preflight.py=d446ed48a914a8dd`。此后该文件**只改了一处**：
+  `test_control_admitted_batch_reaches_the_writer` 的断言措辞（由 M3 的证据驱动，见下）。交付态 = `1e85b76989232a7b`；
+  `import_laws.py` 全程 = `5dc5a76fc899944b` 未再变动。
+- **M3 复跑（定向 `-k control_admitted or same_version_retransmit`，副本树）**：红**集合不变**（仍这 2 条），
+  但那条旧的 T2 用例从 `TypeError: 'NoneType' object is not subscriptable` 变成
+  `AssertionError: 脚本没把算好的版本元数据交给写入器：extra_meta=None` ⇒ 改的就是「红了要能说清是哪条规则红的」。
+- 变异所依据的邻居文件 `knowledge_service.py` 在复跑时仍与 live 逐字一致（两边 sha256 均 `fa986e230e6de1ca`）
+  ⇒ M1 的结论对当前工作树成立。行号 246 只是本轮读数：同一文件在本次会话内从 `:233` 漂到了 `:246`
+  （并行助手在其上方插了约 13 行）⇒ 引用时认锚点文本 `if n and stale_ids:`，别认行号。
+
+## 附三：票 §T5 改点②「守门器是否必须过类型」的余量实测（在副本树做；写本附时 live 的 pyproject.toml 尚未动，随后按附四改了）
+
+| 跑法 | 结果 |
+|---|---|
+| A `mypy .`（CI 现状，`scripts/` 整目录被 exclude） | Success, 0 error, **73** source files, rc=0 |
+| B `mypy . scripts/import_laws.py`（把这一个文件并进作用面） | Success, 0 error, **74** source files, rc=0 |
+| C 负样本：B 之上把 `errors: list[str] = []` 改回 `errors = []` | **rc=1**，`import_laws.py:71: error: Need type annotation for "errors" [var-annotated]`，checked 74 files |
+
+⇒ 选项① 的"全量余量"实测 = **0**，且没有触发配置注释里担心的 "Source file found twice" 中止；
+C 那行证明 B 不是"文件被 exclude 静默跳过"的假绿（尺子能红，且红的是 `[var-annotated]` 这条规则）。
+
+## 附四：票 §T5 改点② 已按 Owner 裁决「选①」落地（2026-09-27，改的是 live 的 backend/pyproject.toml）
+
+票面 选① = 把 `scripts/import_laws.py`（只这一个文件）加进 mypy 作用面。落地过程与读数：
+
+| # | 动作 / 跑法 | 读数 |
+|---|---|---|
+| 1 | 第一版 exclude 写 `scripts/(?!import_laws\.py$)`，跑 `mypy .` | **74 未出现，仍 73 source files** ⇒ 豁免没生效 |
+| 2 | 单测该正则（`re.match` 对文件串） | `scripts/import_laws.py` match=False、`scripts/gate2_runner.py` match=True ⇒ **正则本身没错** |
+| 3 | 把 `--exclude='(?x)^(tests/|venv/)'`（整目录都不排）传进去跑 `mypy .` | 仍 73 ⇒ 该 CLI 参数没换来目录内文件 ⇒ 排除发生在**目录级剪枝**，`scripts/` 目录串被匹配后根本不进 discovery |
+| 4 | 改成 `scripts/(?!import_laws\.py$)[^/]+\.py`（负向前瞻后**必须再吃一个字符**，目录串 `scripts/` 因此不匹配） | `mypy .` → **Success, 74 source files**, rc=0 ⇒ 73+1，其余 scripts（含 gate2_runner 那 4 条既有错误）仍排除 |
+| 5 | 负样本：副本树里把 `errors: list[str] = []` 改回 `errors = []`，跑 **CI 那条 `mypy .`** | **rc=1**，`scripts\import_laws.py:71: error: Need type annotation for "errors" [var-annotated]`（checked 74 source files）⇒ 这条门真的会红 |
+
+⇒ 附三那张表里的 B 行（`mypy . scripts/import_laws.py`）走的是"命令行显式文件不受 exclude 约束"这条旁路，
+**不等于** CI 的 `mypy .` 能看见它；4/5 两行才是选① 的落地证据。第 1 版配置若没做 4/5，
+就会留下一条"注释说已纳入、实际零覆盖"的假绿 —— 与本文件 §附二 记的是同一族失效。
+
+其余收口读数（配置改完后）：`mypy .` rc=0 / 74 files；`mypy --follow-imports=skip scripts/import_laws.py` rc=0；
+`mypy scripts/import_laws.py` rc=0；`ruff check .` rc=0（全 backend）；`ruff format --check` 两归属文件 rc=0；
+`pytest -m "not slow" --collect-only` 在 live = 1660 收集 / 18 被 deselect（副本树快照口径是 1642，其间别人加了用例）。
+
+## 附五：pyproject 改完后的全量复核（副本树）
+`pytest -q` = 27 failed / 1590 passed / 25 skipped，与干净基线（附一那 27 条）**逐条同集合** ⇒ 配置改动对测试面零影响；rc=1 来自那 27 条既有红，非本次引入。日志见 pytest-aftercfg.log。

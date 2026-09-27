@@ -23,7 +23,9 @@
 > 全在 §9.5c–§9.5e；`4439519` 之后的本地提交依次为 `0082e22`、`5d479e9`、`a96df2c`、
 > `dc88bb1`、`7eda4bb`。§9.11 的修复仍是工作区修改，尚未提交。
 > **09-27 追加**：D 轮（票 T5，§9.11a）把 `scripts/import_laws.py` 单文件纳入 mypy 作用面（`mypy .` 73→**74 文件、0 error**，负样本会红），
-> 并补上"同版本重传真删旧块"与"seed 冲突点名跳过"两条非 slow 用例（该文件 14→**17**）。同为未提交工作区修改。
+> 并补上"同版本重传真删旧块"与"seed 冲突点名跳过"两条非 slow 用例（该文件 14→**17**）。
+> 已随工作区快照 **`ac426c2`** 提交（含并行会话的 23 个 tracked 修改，本地未推送；本机 pre-commit 钩子未安装，手工 ruff 全绿）。
+> D 轮自己的证据目录 `dispatch-output/d-t5-import-types-20260927/` 仍未跟踪、不在该提交内。
 
 **状态（09-25 接手复核更正）**：此前提交仍是本地工作，未部署、服务器未选定。此前的定向用例通过
 不等于相关问题全面收口：复核又发现 R15-2 同子句多日期误拦、QA 非法版本日期放行，接手修复见 §8。
@@ -803,7 +805,8 @@ T3–T8 未因本次窄修复而获得扩展授权。既有变异仪器与读数
 
 **"删旧接线断开测试会红"的证据**：5 处单点变异 + 副本树 junit 差分，产物在
 `C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/d-t5-import-types-20260927/`
-（`run_mutations.py` + 6 份日志 + `mutation-readings.txt`）——离开随票入库的脚本，那些数字不可复核。
+（`run_mutations.py` + `mutation-readings.txt` + patch 随本笔入库；8 份 pytest `*.log` 被 `.gitignore:45` 的 `*.log` 拦下、
+只留在本机工作树，见下面的"提交与未入库"）——离开随票入库的脚本，那些数字不可复核。
 
 **"只我这笔"的 patch**：`dispatch-output/d-t5-import-types-20260927/t5-my-change-only.patch`
 （sha256 前 16 `b9b17eb1b46e52c1`；来历与三条校验见同目录 `patch-derivation.md`）。
@@ -823,4 +826,28 @@ T3–T8 未因本次窄修复而获得扩展授权。既有变异仪器与读数
 - `coverage.omit` 仍含 `scripts/*`：本轮只动 mypy 作用面（选① 未要求改覆盖率）；扩面会同时改 `cov≥70` 的**分母**，须另开一票先测读数。
 - 归属三文件：`import_laws.py` `5dc5a76fc899944b…`、测试文件 `1e85b76989232a7b…`、`pyproject.toml` `abc5b05b43c0a602…`。
   `git status` 里另有 13 个 M 文件（`observability.py` / `smoke_citation_fast.py` / `smoke_citation_full.py` /
-  `test_phase5.py` / `CONTRIBUTING.md` / 本文件等）属并行会话在飞，**一个没碰**。
+  `test_phase5.py` / `CONTRIBUTING.md` / 本文件等）属并行会话在飞，**审查阶段未碰**；
+  其后按 Owner 指令连同它们一起提交，见下面"提交与未入库"。
+
+**提交与未入库（09-27，D 会话执行）**：
+
+- 提交 **`ac426c2`**（本地，**未推送**）：`chore(工作区快照): 并入并行会话的未提交修改（T1/T2 版本判据 + T5 导入类型门 + 文档/前端/证据）`，
+  **23 个 tracked 修改**、1187 insertions / 173 deletions。组成 = T5 三文件 + T1/T2 的
+  `law_versions.py` / `knowledge_service.py` / `import_laws.py` + 5 个测试文件 + 其他会话的
+  `backend/observability.py` / `scripts/smoke_citation_fast.py` / `smoke_citation_full.py` / `backend/schemas.py` /
+  `frontend/app/admin/sections/KnowledgeSection.tsx` / `CONTRIBUTING.md` + 三份文档 + `dispatch-output` 下 5 个既有件小修。
+  提交后 tracked 修改清零；归属三文件哈希与提交前逐字一致。
+  ⚠️ 这是**多会话整体快照，不是单会话单笔**；回退用 `git reset --soft HEAD~1`（本地可逆，工作树未被改写）。
+- **门禁口径（诚实标注）**：本机 `.git/hooks/pre-commit` **不存在**、也无 `core.hooksPath`
+  ⇒ pre-commit 的 ruff / trailing-whitespace / end-of-file / check-yaml **没有随这次提交运行**。
+  提交前手工补跑：13 个暂存 `.py` 的 `ruff check` + `format --check` **全绿**；
+  暂存 diff 扫密（`password|secret|api[_-]?key|token|PRIVATE KEY`）**无字面凭据**
+  （3 处命中均为变量名 `token`/`password` 与文档计数行）；`--numstat` 无二进制新增。
+- **未入库（一个没加）**：`git status` 剩 **530** 个未跟踪项。其中**不该入库**的四个：
+  `.qoder/`（IDE 状态，120K）、`caddy_data/` + `caddy_config/`（Caddy 运行时卷；已扫过**无私钥/证书**）、
+  `backend/.ptmp-s4-run2/`（临时）。其余多为历史 `dispatch-output/` 证据（09-12–09-20）与他会话今天新建的未跟踪件。
+  `.gitignore` **未覆盖**这四个（`git check-ignore -v` 四个全 `NOT IGNORED`）——建议另开一处加忽略，本轮未擅改。
+- **本轮自己的证据目录**：`dispatch-output/d-t5-import-types-20260927/` 在 `ac426c2` 之后**已入库 4 件**
+  （`t5-my-change-only.patch` / `patch-derivation.md` / `run_mutations.py` / `mutation-readings.txt`）。
+  8 份 pytest `*.log` **未入库**——被 `.gitignore:45` 的 `*.log` 拦下（仓库既有卫生规则，未用 `-f` 强加），
+  只保留在本机工作树 ⇒ 在仓库里查不到逐条变异的原始日志，能查的是 `mutation-readings.txt` 的汇总读数。
