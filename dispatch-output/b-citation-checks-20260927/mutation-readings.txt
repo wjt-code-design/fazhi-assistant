@@ -1,35 +1,59 @@
-== 基线（未变异）==
-rc=0  23 passed, 1 warning in 11.43s
+== 基线（未变异，副本树）==
+分母（--collect-only 单取）=23  junit 用例数=23
+rc=0  23 passed, 1 warning in 20.10s
+### 基线红清单（机器生成，逐条列全；共 0 条）
+（基线 rc=0 ⇒ 空；此后任一只变异的失败都是新增）
+活动工作树指纹（进入前，本次全程不得变）：
+  CONTRIBUTING.md  sha256=47d768f53f77…
+  backend/scripts/smoke_citation_fast.py  sha256=d3735bb6d98a…
+  backend/scripts/smoke_citation_full.py  sha256=7b10b968f665…
 [KILLED] S1｜fast 判据退回只看条号（丢掉法名那一半）
-          rc=1  4 failed, 19 passed, 1 warning in 11.71s  (smoke_citation_fast.py)
+          rc=1  4 failed, 19 passed, 1 warning in 20.37s  (backend/scripts/smoke_citation_fast.py)
+          运行完整性：本次 junit 用例数=23 / 基线=23 ⇒ 通过
+          副本树还原逐字一致=True；活动工作树未被触碰=True
           - test_recall_hit_rejects_right_article_from_wrong_law
           - test_recall_hit_rejects_pair_split_across_two_docs
           - test_recall_hit_survives_docs_without_source_or_article
           - test_recall_hit_defaults_follow_production_spelling_rules
 [KILLED] S2｜full 判定对法名失明（只比条号）
-          rc=1  1 failed, 22 passed, 1 warning in 11.58s  (smoke_citation_full.py)
+          rc=1  1 failed, 22 passed, 1 warning in 19.03s  (backend/scripts/smoke_citation_full.py)
+          运行完整性：本次 junit 用例数=23 / 基线=23 ⇒ 通过
+          副本树还原逐字一致=True；活动工作树未被触碰=True
           - test_answer_cites_rejects_right_article_from_wrong_law
 [KILLED] S3｜full 去掉 expand_law_names（裸法名不再补书名号）
-          rc=1  1 failed, 22 passed, 1 warning in 12.21s  (smoke_citation_full.py)
+          rc=1  1 failed, 22 passed, 1 warning in 17.85s  (backend/scripts/smoke_citation_full.py)
+          运行完整性：本次 junit 用例数=23 / 基线=23 ⇒ 通过
+          副本树还原逐字一致=True；活动工作树未被触碰=True
           - test_citation_pairs_accepts_bare_law_name_without_book_marks
 [KILLED] S4｜full 去掉 expand_citations（连续省略条号不再展开）
-          rc=1  1 failed, 22 passed, 1 warning in 11.78s  (smoke_citation_full.py)
+          rc=1  1 failed, 22 passed, 1 warning in 18.20s  (backend/scripts/smoke_citation_full.py)
+          运行完整性：本次 junit 用例数=23 / 基线=23 ⇒ 通过
+          副本树还原逐字一致=True；活动工作树未被触碰=True
           - test_citation_pairs_expands_continuous_article_list
 [KILLED] S5｜fast 法名归一退化为恒等（不再走 retrieval._source_key）
-          rc=1  2 failed, 21 passed, 1 warning in 11.61s  (smoke_citation_fast.py)
+          rc=1  2 failed, 21 passed, 1 warning in 19.87s  (backend/scripts/smoke_citation_fast.py)
+          运行完整性：本次 junit 用例数=23 / 基线=23 ⇒ 通过
+          副本树还原逐字一致=True；活动工作树未被触碰=True
           - test_recall_hit_defaults_follow_production_spelling_rules
           - test_recall_hit_defaults_delegate_to_retrieval_instead_of_a_second_copy
 [KILLED] S6｜full 条号形状收窄（丢掉 〇○ 两字，与 retrieval._ART_FULL_RE 分叉）
-          rc=1  1 failed, 22 passed, 1 warning in 11.45s  (smoke_citation_full.py)
+          rc=1  1 failed, 22 passed, 1 warning in 20.12s  (backend/scripts/smoke_citation_full.py)
+          运行完整性：本次 junit 用例数=23 / 基线=23 ⇒ 通过
+          副本树还原逐字一致=True；活动工作树未被触碰=True
           - test_full_citation_pattern_cannot_drift_from_retrieval
 [KILLED] S7｜full 拆掉一处接线（两个出口里少一处过判据）
-          rc=1  1 failed, 22 passed, 1 warning in 11.13s  (smoke_citation_full.py)
+          rc=1  1 failed, 22 passed, 1 warning in 13.53s  (backend/scripts/smoke_citation_full.py)
+          运行完整性：本次 junit 用例数=23 / 基线=23 ⇒ 通过
+          副本树还原逐字一致=True；活动工作树未被触碰=True
           - test_full_main_is_wired_to_the_pair_judge
 [KILLED] S8｜CONTRIBUTING 计数漂回旧值（17 项）
-          rc=1  1 failed, 22 passed, 1 warning in 11.33s  (CONTRIBUTING.md)
+          rc=1  1 failed, 22 passed, 1 warning in 19.36s  (CONTRIBUTING.md)
+          运行完整性：本次 junit 用例数=23 / 基线=23 ⇒ 通过
+          副本树还原逐字一致=True；活动工作树未被触碰=True
           - test_gate_item_counts_match_contributing
-== 还原校验 ==
+== 汇总：KILLED 8 / SURVIVED 0 / 实验无效 0（其中还原失败 0、中断 0）/ 共 8 只 ==
+== 退出码判据：存活=0 无效=0（还原失败=0 中断=0）⇒ rc=0 ==
+== 还原校验（对比进入前的活动工作树指纹）==
 OK  CONTRIBUTING.md  sha256=47d768f53f77…
-OK  backend\scripts\smoke_citation_full.py  sha256=7b10b968f665…
-OK  backend\scripts\smoke_citation_fast.py  sha256=d3735bb6d98a…
-== 汇总：KILLED 8 / SURVIVED 0 / 共 8 只 ==
+OK  backend/scripts/smoke_citation_fast.py  sha256=d3735bb6d98a…
+OK  backend/scripts/smoke_citation_full.py  sha256=7b10b968f665…

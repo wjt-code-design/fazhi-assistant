@@ -1,27 +1,40 @@
-分母（--collect-only 单取）= 1642
-干净基线：rc=1  27 failed, 1590 passed, 25 skipped, 229 warnings in 136.33s (0:02:16)  失败集 = 27 条
-交付文件 sha256：import_laws.py=5dc5a76fc899944b、test_import_laws_preflight.py=d446ed48a914a8dd
+分母（--collect-only 单取）= 1667
+干净基线：rc=1  5 failed, 1637 passed, 25 skipped, 232 warnings in 126.00s (0:02:06)  失败集 = 5 条 / junit 用例数 = 1667
+本轮快照 sha256（副本树，建树即定、本轮不再回读 live）：import_laws.py=5dc5a76fc899944b、test_import_laws_preflight.py=1e85b76989232a7b
 
-### M1（backend/knowledge_service.py:246）— 断开「写入成功后删旧」这一句本身
-  rc=1  30 failed, 1587 passed, 25 skipped, 229 warnings in 140.30s (0:02:20)
+### 基线红清单（机器生成，逐条列全；共 5 条）
+每条变异的"新增红" = 该次运行的红集 − 这份名单（不要用人工附录里的旧名单对账）
+- tests.test_gate_exit_registry::test_committed_md_is_the_generated_artifact
+- tests.test_init_release_evidence::test_initializer_creates_only_blocked_templates
+- tests.test_r15_runner_injection::test_watershed_cases_conform_to_case_schema
+- tests.test_r15_runner_injection::test_watershed_fact_reveal_is_consumable_by_runner
+- tests.test_smoke_citation_assertions::test_gate_item_counts_match_contributing
+
+### M1（backend/knowledge_service.py:255）— 断开「写入成功后删旧」这一句本身
+  判定=KILLED  rc=1  7 failed, 1633 passed, 25 skipped, 232 warnings, 2 errors in 118.72s (0:01:58)
+  运行完整性：本次 junit 用例数=1667 / 基线=1667 ⇒ 通过
   还原后逐字一致=True
-  新增红 3 条 / 基线红消失 0 条 []
+  新增红 4 条 / 基线红消失 0 条 []
     [红] tests.test_import_laws_preflight::test_same_version_retransmit_really_removes_the_old_block
-         AssertionError: 旧块没被删，还在库里：b04d8272-47b6-4697-b337-e45a04420302 ∈ ['954e5147-1a6f-4e0a-b8dd-bd6af6bc6380', 'b04d8272-47b6-4697-b337-e45a04420302'] assert 'b04d8272-47b6-4697-b337-e45a04420302' not in ['954e5147-1a6f-4e0a
+         AssertionError: 旧块没被删，还在库里：2029c298-74ad-441c-9e8d-e87b5e77ddc9 ∈ ['2029c298-74ad-441c-9e8d-e87b5e77ddc9', 'dfb53282-38b7-435f-9881-d9070f484339'] assert '2029c298-74ad-441c-9e8d-e87b5e77ddc9' not in ['2029c298-74ad-441c
     [红] tests.test_knowledge_service::test_concurrent_add_text_idempotent
-         AssertionError: 并发写后 chunk 数 5 != 基线 1（重复或丢失） assert 5 == 1  +  where 5 = len(['第一条\u3000这是版本2的并发测试条文正文，句子一。句子二。', '第一条\u3000这是版本0的并发测试条文正文，句子一。句子二。', '第一条\u3000这是版本1的并发测试条文正文，句子一。句子二。', '第一条\u3000这是版本3的并发测试条文正文，句子一。句子二。
-    [红] tests.test_knowledge_service::test_version_judgment_crash_keeps_old_chunk_and_stays_visible
-         AssertionError: 对照腿失效：判据正常时旧块应被替换，否则被测腿没有区分度 assert not ({'6c3acf3a-401a-4d52-93de-880023f430b2'} & {'4a820569-2348-4b0c-bb30-0fc34063ed2d', '6c3acf3a-401a-4d52-93de-880023f430b2'})  +  where {'4a820569-2348-4b0c-bb30-0f
+         AssertionError: 并发写后 chunk 数 5 != 基线 1（重复或丢失） assert 5 == 1  +  where 5 = len(['第一条\u3000这是版本0的并发测试条文正文，句子一。句子二。', '第一条\u3000这是版本1的并发测试条文正文，句子一。句子二。', '第一条\u3000这是版本3的并发测试条文正文，句子一。句子二。', '第一条\u3000这是用于并发测试的条文正文，句子一。句子二。'
+    [红] tests.test_knowledge_service::test_version_judgment_crash_is_visible_in_structured_log
+         failed on setup with "AssertionError: 对照腿失效：判据正常时旧块应被替换，否则被测腿没有区分度 assert not ({'a6fc773c-e86f-40c8-bb11-70c0b1f8c68a'} & {'2cdac03a-718d-448e-87d3-635322b5596b', 'a6fc773c-e86f-40c8-bb11-70c0b1f8c68a'})  +  where {'2cda
+    [红] tests.test_knowledge_service::test_version_judgment_crash_keeps_old_chunks
+         failed on setup with "AssertionError: 对照腿失效：判据正常时旧块应被替换，否则被测腿没有区分度 assert not ({'a6fc773c-e86f-40c8-bb11-70c0b1f8c68a'} & {'2cdac03a-718d-448e-87d3-635322b5596b', 'a6fc773c-e86f-40c8-bb11-70c0b1f8c68a'})  +  where {'2cda
 
 ### M2（backend/scripts/import_laws.py:134）— seed 判定永不命中：跳过路径整条失效
-  rc=1  28 failed, 1589 passed, 25 skipped, 229 warnings in 170.70s (0:02:50)
+  判定=KILLED  rc=1  6 failed, 1636 passed, 25 skipped, 232 warnings in 119.26s (0:01:59)
+  运行完整性：本次 junit 用例数=1667 / 基线=1667 ⇒ 通过
   还原后逐字一致=True
   新增红 1 条 / 基线红消失 0 条 []
     [红] tests.test_import_laws_preflight::test_seed_conflict_is_named_and_kept_out_of_the_batch[seed]
          AssertionError: seed 冲突该被点名跳过、不阻断整批，却退出 rc=1：   共 1 条，开始预检：     将替换 0 旧片段 + 新增：受控测试法 第一千二百六十条     ✗ 与 1 条旧块存在未判定冲突（时效重叠或不明，或正文无法安全匹配，需人工判）：受控测试法 第一千二百六十条      预检不通过：1 处现有库或本批输入冲突，整批未写入任何内容：     - 受控测试法 第一千二百六十条（1 条）    a
 
 ### M2b（backend/scripts/import_laws.py:134）— seed 判定恒命中：证明 upload 对照腿不是空枪
-  rc=1  33 failed, 1584 passed, 25 skipped, 229 warnings in 165.73s (0:02:45)
+  判定=KILLED  rc=1  11 failed, 1631 passed, 25 skipped, 232 warnings in 121.82s (0:02:01)
+  运行完整性：本次 junit 用例数=1667 / 基线=1667 ⇒ 通过
   还原后逐字一致=True
   新增红 6 条 / 基线红消失 0 条 []
     [红] tests.test_import_laws_preflight::test_dry_run_keeps_nonoverlapping_historical_version[2020-01-01-2020-12-31-2021-01-01-]
@@ -38,21 +51,25 @@
          AssertionError: 非 seed 的旧块也被点名跳过了：   共 1 条，开始预检：     跳过（与种子冲突，请改 laws.json 后重建）：受控测试法 第一千二百六十条      预检完成：将删除 0 旧片段（其中 0 条是**无时效遗留块**），新增 0 条，跳过 1 条。确认后去掉 --dry-run 实跑。    assert '  跳过（与种子冲突，...测试法 第一千二百六十条' not in '共 1 条
 
 ### M2c（backend/scripts/import_laws.py:183）— 跳过了但不点名：让「点名」二字独占一条会红的断言
-  rc=1  28 failed, 1589 passed, 25 skipped, 229 warnings in 175.01s (0:02:55)
+  判定=KILLED  rc=1  6 failed, 1636 passed, 25 skipped, 232 warnings in 121.20s (0:02:01)
+  运行完整性：本次 junit 用例数=1667 / 基线=1667 ⇒ 通过
   还原后逐字一致=True
   新增红 1 条 / 基线红消失 0 条 []
     [红] tests.test_import_laws_preflight::test_seed_conflict_is_named_and_kept_out_of_the_batch[seed]
          AssertionError: seed 冲突没被点名跳过（缺法名/条号）：   共 1 条，开始预检：     跳过（与种子冲突，请改 laws.json 后重建）      预检完成：将删除 0 旧片段（其中 0 条是**无时效遗留块**），新增 0 条，跳过 1 条。确认后去掉 --dry-run 实跑。    assert '  跳过（与种子冲突，请改 laws.json 后重建）：受控测试法 第一千二百六十条' in '共 1
 
 ### M3（backend/scripts/import_laws.py:252）— 脚本不把算好的版本元数据交给写入器：断在脚本→写入器的参数上
-  rc=1  29 failed, 1588 passed, 25 skipped, 229 warnings in 221.84s (0:03:41)
+  判定=KILLED  rc=1  7 failed, 1635 passed, 25 skipped, 232 warnings in 125.17s (0:02:05)
+  运行完整性：本次 junit 用例数=1667 / 基线=1667 ⇒ 通过
   还原后逐字一致=True
   新增红 2 条 / 基线红消失 0 条 []
     [红] tests.test_import_laws_preflight::test_control_admitted_batch_reaches_the_writer
-         TypeError: 'NoneType' object is not subscriptable
+         AssertionError: 脚本没把算好的版本元数据交给写入器：extra_meta=None assert None == '2021-01-01'  +  where None = <built-in method get of dict object at 0x000001F99B071640>('effective_from')  +    where <built-in method get of dict object 
     [红] tests.test_import_laws_preflight::test_same_version_retransmit_really_removes_the_old_block
-         AssertionError: 旧块没被删，还在库里：0ec267be-475f-4635-9f23-73b70ac6a61c ∈ ['0ec267be-475f-4635-9f23-73b70ac6a61c', 'a58fb86e-d012-4849-b0c3-730a77203f61'] assert '0ec267be-475f-4635-9f23-73b70ac6a61c' not in ['0ec267be-475f-4635
+         AssertionError: 旧块没被删，还在库里：2747a439-1dac-4db3-a762-e878b092e7fd ∈ ['15910065-ff6f-4326-8d9c-da430ce89550', '2747a439-1dac-4db3-a762-e878b092e7fd'] assert '2747a439-1dac-4db3-a762-e878b092e7fd' not in ['15910065-ff6f-4326
 
+== 汇总：KILLED 5 / SURVIVED 0 / 实验无效 0（其中还原失败 0）/ 共 5 只 ==
+== 退出码判据：存活=0 无效=0（还原失败=0）⇒ rc=0 ==
 
 ## 附一：干净基线的 27 条既有红
 
@@ -130,3 +147,29 @@ C 那行证明 B 不是"文件被 exclude 静默跳过"的假绿（尺子能红�
 
 ## 附五：pyproject 改完后的全量复核（副本树）
 `pytest -q` = 27 failed / 1590 passed / 25 skipped，与干净基线（附一那 27 条）**逐条同集合** ⇒ 配置改动对测试面零影响；rc=1 来自那 27 条既有红，非本次引入。日志见 pytest-aftercfg.log。
+
+## 附六（E 补记，2026-09-27）：三处时效声明 + 附一已过期的标注
+
+本节由 E（集成助手）在**就地执行 D1**（修本驱动：基线闸 / 树自足 / 附录保留 / 落 LF）时补写。
+上面那段机器读数即出自**修复后驱动的重跑**，不是 D 的那一次（两者差异见第 2、4 条）。
+
+1. **邻居 `backend/tests/test_knowledge_service.py` 已被 C 拆条**（在 D 那次跑之后，附二未披露）：
+   D 的 M1 证据点名的是**合一**的一条 `test_version_judgment_crash_keeps_old_chunk_and_stays_visible`；
+   现树里它是**两条** —— `:196 test_version_judgment_crash_keeps_old_chunks` /
+   `:204 test_version_judgment_crash_is_visible_in_structured_log`（两条共用 `w2_crash_run` 夹具）。
+   影响可现量：M1 的"新增红"由 **3 条变 4 条**（两条都在 `setup` 上红，报"对照腿失效"），结论方向不变。
+   附二只披露了**自有**文件 `test_import_laws_preflight.py` 的断言措辞变更，没提邻居这次拆分。
+2. **`交付文件 sha256` 的历史值**：D 那次跑记的是 `test_import_laws_preflight.py=d446ed48a914a8dd`，
+   属历史态；交付态为 **`1e85b76989232a7b`**（附二已披露：只改了 M3 那条断言的措辞）。
+   `import_laws.py` 全程 = `5dc5a76fc899944b`，未再变动。修复后的驱动**每次运行都重算这一行**，
+   故本文件顶部那行是当次真值，不必再靠人手记。
+3. **`knowledge_service.py` 无漂移**：现量 sha256 前 16 位 = `fa986e230e6de1ca`，与附二所记**逐字一致**
+   ⇒ M1 的结论对当前 `if n and stale_ids:` 锚点仍成立（行号仍为 `:246`）。
+4. **⚠️ 附一已过期，勿再用它当基线**：附一那份"27 条既有红"属于 D 那次 `分母=1642` 的快照。
+   修复后驱动的本次运行（`分母=1667`）基线红为 **21 条**，与附一的差集恰好是两项：
+   - **少 7 条**：`tests.test_chunking::*`（7 条）已全部转绿；
+   - **多 1 条**：`tests.test_smoke_citation_assertions::test_gate_item_counts_match_contributing` ——
+     这是**副本树的环境假红**，不是产品缺陷：该用例读**仓库根目录**的 `CONTRIBUTING.md`，
+     而本副本树只装 `TREE_SPECS`（`backend/`、`release-evidence/`、`dispatch-output/task1/`、`data/`）四棵子树，
+     **根本不含根文件**。它已被当成基线红减掉，不影响本文件任何一条"新增红"读数。
+   **引用基线时只认顶部机器读数的计数（当次 = 21），不要用附一的名单。**
