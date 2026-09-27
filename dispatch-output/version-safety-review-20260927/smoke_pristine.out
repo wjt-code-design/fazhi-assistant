@@ -1,0 +1,38 @@
+Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event CollectionQueryEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event CollectionGetEvent: capture() takes 1 positional argument but 3 were given
+Building prefix dict from the default dictionary ...
+Loading model from cache C:\Users\33393\AppData\Local\Temp\jieba.cache
+Loading model cost 0.518 seconds.
+Prefix dict has been built successfully.
+=== 意图分类 ===
+  [PASS] intent(公司违法解除劳动合同，赔偿金怎么算？) = legal_query, 期望 legal_query
+  [PASS] intent(公司合同到期不续签，经济补偿金怎么算) = legal_query, 期望 legal_query
+  [PASS] intent(劳动合同试用期最长能约定多久？) = legal_query, 期望 legal_query
+  [PASS] intent(周末加班，加班费怎么算？) = legal_query, 期望 legal_query
+  [PASS] intent(机动车发生交通事故，交强险先赔还是商) = legal_query, 期望 legal_query
+  [PASS] intent(交了定金又不想买了，定金能退吗？) = legal_query, 期望 legal_query
+  [PASS] intent(网购商品七天无理由退货需要满足什么条) = legal_query, 期望 legal_query
+=== 检索召回期望条文（选引地基）===
+  [PASS] retrieve(公司违法解除劳动合同，赔偿金怎么算？) 召回 ['第八十七条']
+  [PASS] retrieve(公司合同到期不续签，经济补偿金怎么算) 召回 ['第四十七条']
+  [PASS] retrieve(劳动合同试用期最长能约定多久？) 召回 ['第十九条']
+  [PASS] retrieve(周末加班，加班费怎么算？) 召回 ['第四十四条']
+  [PASS] retrieve(机动车发生交通事故，交强险先赔还是商) 召回 ['第一千二百一十三条']
+  [PASS] retrieve(交了定金又不想买了，定金能退吗？) 召回 ['第五百八十六条', '第五百八十七条']
+  [PASS] retrieve(网购商品七天无理由退货需要满足什么条) 召回 ['第二十五条']
+=== 引用校验（罐头）===
+  [PASS] citation_verify(依据《刑法》第十三条和《劳动合同法》...) = [], 期望 []
+  [PASS] citation_verify(依据《刑法》第九百九十九条。...) = ['《刑法》第九百九十九条'], 期望 ['《刑法》第九百九十九条']
+  [PASS] citation_verify(《中华人民共和国刑法》第二十条、《刑...) = [], 期望 []
+=== 复杂度路由 / 回答自检（罐头）===
+  [PASS] admit_light 短+命中+单轮 → 放行
+  [PASS] admit_light 高利害词 → 拒绝
+  [PASS] admit_light 无命中 → 拒绝
+  [PASS] admit_light 多轮 → 拒绝
+  [PASS] self_check 命中却无引用 → FAIL
+  [PASS] self_check 命中且有在库引用 → PASS
+  [PASS] self_check 空答 → empty
+
+fast 门禁：24/24 通过

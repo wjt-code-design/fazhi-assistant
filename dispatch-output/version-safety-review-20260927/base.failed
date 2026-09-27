@@ -1,0 +1,12 @@
+FAILED tests/test_chunking.py::test_article_coverage_exactly_once
+FAILED tests/test_chunking.py::test_article_has_headline_kept
+FAILED tests/test_chunking.py::test_chapter_prefix_injected
+FAILED tests/test_chunking.py::test_long_article_sentence_split
+FAILED tests/test_chunking.py::test_midline_citation_not_split
+FAILED tests/test_chunking.py::test_toc_skipped
+FAILED tests/test_chunking.py::test_variants_recognized
+FAILED tests/test_eval_agent.py::test_cli_evaluates_only_same_hash_frozen_artifact_and_records_source_provenance
+FAILED tests/test_eval_agent.py::test_report_with_adapter_contains_versioned_recomputable_case_evidence
+FAILED tests/test_gate5_judge_layers.py::test_t7_c05_historical_rerun_mechanical_yes_full_no
+FAILED tests/test_gate_exit_registry.py::test_committed_md_is_the_generated_artifact
+FAILED tests/test_init_release_evidence.py::test_initializer_creates_only_blocked_templates

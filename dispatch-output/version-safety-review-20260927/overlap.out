@@ -1,0 +1,11 @@
+Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientStartEvent: capture() takes 1 positional argument but 3 were given
+Failed to send telemetry event ClientCreateCollectionEvent: capture() takes 1 positional argument but 3 were given
+共 2 条，开始预检：
+  将替换 0 旧片段 + 新增：受控复核法 第一条
+  将替换 0 旧片段 + 新增：受控复核法 第一条
+  ✗ 本批同法同条版本重复或时效冲突：受控复核法 第一条
+
+预检不通过：1 处现有库或本批输入冲突，整批未写入任何内容：
+  - 受控复核法 第一条（本批重复或冲突）

@@ -1,0 +1,21 @@
+HEAD 实现上跑改后测试：20 条红逐用例映射（--junit-xml）
+?                                test_import_laws_preflight::test_overlapping_dated_version_is_reported_as_time_conflict
+?                                test_law_versions::test_derived_version_id_without_dates_does_not_delete_different_body
+?                                test_law_versions::test_empty_version_ids_do_not_bypass_complete_body_check
+?                                test_law_versions::test_missing_new_date_does_not_bypass_complete_body_check
+?                                test_law_versions::test_same_version_id_never_deletes_seed
+?                                test_law_versions::test_undated_legacy_copy_is_not_replaced_by_truncated_article
+?                                test_law_versions::test_undated_legacy_copy_requires_known_prefix
+AssertionError                   test_import_laws_preflight::test_non_contained_block_is_called_out
+AssertionError                   test_import_laws_preflight::test_same_article_batch_duplicate_or_overlap_blocks_before_writing[2020-01-01]
+AssertionError                   test_import_laws_preflight::test_same_article_batch_duplicate_or_overlap_blocks_before_writing[2021-01-01]
+AssertionError                   test_import_laws_preflight::test_writer_keeps_complete_legacy_article_when_new_text_is_truncated
+AttributeError                   test_law_versions::test_nonoverlapping_dated_versions_are_compatible
+AttributeError                   test_law_versions::test_old_end_before_new_start_is_compatible_without_old_start
+AttributeError                   test_law_versions::test_overlapping_or_unverifiable_dated_versions_still_conflict[2019-12-31]
+AttributeError                   test_law_versions::test_overlapping_or_unverifiable_dated_versions_still_conflict[2021-01-01]
+AttributeError                   test_law_versions::test_overlapping_or_unverifiable_dated_versions_still_conflict[2021-12-31]
+AttributeError                   test_law_versions::test_overlapping_or_unverifiable_dated_versions_still_conflict[]
+AttributeError                   test_law_versions::test_overlapping_or_unverifiable_dated_versions_still_conflict[not-a-date]
+SystemExit                       test_import_laws_preflight::test_dry_run_keeps_nonoverlapping_historical_version[2020-01-01-2020-12-31-2021-01-01-]
+SystemExit                       test_import_laws_preflight::test_dry_run_keeps_nonoverlapping_historical_version[2021-01-01--2020-01-01-2020-12-31]

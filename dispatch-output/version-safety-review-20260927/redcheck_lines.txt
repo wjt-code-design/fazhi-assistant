@@ -1,0 +1,20 @@
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:81: AssertionError: assert ['d0'] == []
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:92: AssertionError: assert ['d0'] == []
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:104: AssertionError: assert ['d0'] == []
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:119: AssertionError: assert ['d0'] == []
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:129: AssertionError: assert ['d0'] == []
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:140: AssertionError: assert ['d0'] == []
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:154: AttributeError: 'ReplacementPlan' object has no attribute 'compatible_versions'
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:167: AttributeError: 'ReplacementPlan' object has no attribute 'compatible_versions'
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:180: AttributeError: 'ReplacementPlan' object has no attribute 'conflicts'
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:180: AttributeError: 'ReplacementPlan' object has no attribute 'conflicts'
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:180: AttributeError: 'ReplacementPlan' object has no attribute 'conflicts'
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:180: AttributeError: 'ReplacementPlan' object has no attribute 'conflicts'
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_law_versions.py:180: AttributeError: 'ReplacementPlan' object has no attribute 'conflicts'
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_import_laws_preflight.py:129: AssertionError:   ✗ 与 1 条旧块互不包含（库里是同一条文的另一套文字，需人工判）：受控测试法 第一千二百六十条
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_import_laws_preflight.py:143: assert False
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_import_laws_preflight.py:224: AssertionError: assert '13df02fc-03f5-442f-a3df-ee917fdd2bd2' in ['38811e2b-bc8e-4e93-a0a4-6a57e29915fa']
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\scripts\import_laws.py:212: SystemExit: 1
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\scripts\import_laws.py:212: SystemExit: 1
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_import_laws_preflight.py:270: AssertionError: 冲突批次不应开始写入
+C:\Users\33393\AppData\Local\Temp\vsr-review-20260927\redcheck\backend\tests\test_import_laws_preflight.py:270: AssertionError: 冲突批次不应开始写入
