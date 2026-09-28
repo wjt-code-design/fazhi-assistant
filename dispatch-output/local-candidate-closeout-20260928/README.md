@@ -109,6 +109,11 @@
   对**已存在**的嵌套 ref 做同样操作，ref 文件连同父目录一并被删。对照：顶层名（`refs/heads/zz`）正常；
   `git init` 的全新仓库里嵌套引用也正常 ⇒ **不是 git 2.55 通用 bug，本仓库特有**（`extensions.worktreeConfig=true`
   与多 worktree 在临时仓库里复现不出）。
+- **决定性时序证据（2026-09-29 实测，脚本 `watch_ref.py`，10ms 级轮询）**：git 其实**写成功了** ——
+  `mkdir refs/heads/zzy` → 建 `one.lock` → 写 reflog → **`.lock` 改名为 `one`（ref 出现）** → 之后
+  **113–144 ms（三次：122.5 / 113 / 124.5 ms）** 该 ref 与其父目录被**另一个进程**删除。
+  ⇒ **推翻"git 写失败"的假设，改判为"外部进程在 git 提交 ref 后约 120 ms 删除它"**。
+  旁证：手工 `printf >` 写的同名 ref **可长期存活**（已复核 ≥25 分钟）；顶层 ref 不受影响。
 - 应对（本轮实际使用，已验证）：每次提交后按 reflog 回填引用 ——
   `mkdir -p .git/refs/heads/codex && printf '%s\n' "$(tail -n 1 .git/logs/refs/heads/codex/local-candidate-closeout | awk '{print $2}')" > .git/refs/heads/codex/local-candidate-closeout`
   然后核对 `git worktree list` 与 `git status`。

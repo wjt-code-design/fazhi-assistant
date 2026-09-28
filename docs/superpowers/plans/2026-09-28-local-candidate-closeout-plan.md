@@ -40,6 +40,9 @@ git -C $Candidate rev-parse HEAD
 
 接手后按这个顺序处理：① 审阅候选差异并在候选分支精确提交；② 在提交后的候选代码上完成 E 的后端复验；③ 在主工作区保留既有修改，追加两份报告并分别提交经审阅的文档；④ 将依赖风险和真实 rerank 留作明确阻塞，待 Owner 裁定风险、轮换凭据后再完成相应验收。若 Owner 尚未处理阻塞，先完成前三步并报告“阶段仍未完成/候选受阻”。
 
+> **2026-09-28 接手会话执行结果：①②③ 已完成，④ 的两项阻塞仍在。** 候选分支 `HEAD = fbc29e8`（4 笔 / 7 文件），master `HEAD = 8ae321b`（2 笔文档）。
+> 提交后九步门禁读数见 §3 E 段；两项 Owner 动作与新发现的仓库 git 缺陷见 §6。三态结论：**阶段仍未完成 / 候选受阻**。
+
 ## 1. 当前事实与完成边界
 
 ### 1.1 已完成且不重复实现
@@ -156,7 +159,15 @@ git diff --check
 
 ## E. 固定候选综合验收
 
-- [ ] 提交后固定候选提交 SHA、环境清单与代码/测试/依赖文件集，并在无未提交代码修改的候选树复跑 E 的后端静态检查、完整 pytest 与 `pip check`。`backend-full-tests-final-v2.log` 来自未提交工作树，当时未保存完整文件哈希，不能证明最终提交树已通过。候选树不得包含真实 `.env`、个人评测资产或生产库；之后仅改报告不再重复全量测试。
+- [x] 提交后固定候选提交 SHA、环境清单与代码/测试/依赖文件集，并在无未提交代码修改的候选树复跑 E 的后端静态检查、完整 pytest 与 `pip check`。`backend-full-tests-final-v2.log` 来自未提交工作树，当时未保存完整文件哈希，不能证明最终提交树已通过。候选树不得包含真实 `.env`、个人评测资产或生产库；之后仅改报告不再重复全量测试。
+
+  **2026-09-28 接手会话执行结果**：候选分支 `codex/local-candidate-closeout` 落 4 笔（`ca0eb5e`/`ecdc6b3`/`39f4266`/`fbc29e8`），`HEAD = fbc29e8`，`git status` 无未提交改动；
+  该树上复跑九步（日志 `dispatch-output/local-candidate-closeout-20260928/postcommit-gates.log`）：
+  `pip check` 0、`ruff check`/`format --check` 0/0、`mypy .` 74 files 0、
+  `pytest -m 'not slow' --cov=. --cov-fail-under=70` = **1650 passed / 10 skipped / 18 deselected / cov 85.25%**（211.38s）、
+  agent-quality `ruff` 0/0 + `test_budget_guard.py` 9 passed、`pip_audit -r requirements.txt` = **47 条/8 包/扫 132 包** rc=1。
+  候选树无真实 `.env`、无 `app.db`；其 `backend/chroma_db` 为 144KB 空桩，非主树 349MB 真实库。
+  41 个保护对象重算 size+SHA-256 = **41/41 与 A 基线一致**（`protected-postcommit-check.log`）。
 - [x] 后端使用候选解释器，从候选树 `backend/` 运行下列门禁。最终全量测试与静态检查已完成；审计命令因发现漏洞返回 1，不能作为安全通过。
 
 ```powershell
@@ -195,6 +206,9 @@ $env:COVERAGE_FILE = Join-Path $env:TEMP 'legal-closeout-20260928\candidate-cove
 - [x] 前端在候选树 `frontend/` 按现有 `package-lock.json` 用 `npm ci` 安装，运行 `npm run check` 与 `npm run build`。不修改前端依赖来顺手升级项目。
 - [ ] 在最终候选环境和稳定 Chroma 副本上运行 `backend/scripts/smoke_citation_fast.py` 一次；先验证真实 rerank 成功响应，记录模型名、调用成功/降级以及 `(法名, 条号)` 结果。只白名单传入 rerank 所需配置，配额和数据库均隔离。
 - [ ] 本批固定快速题集应达到 24/24；如因远端不可用而降级，不能计作真实 rerank 通过。先判断网络、候选依赖和数据原因，避免反复付费刷题。
+
+  **仍为未完成（阻塞）**：真实 rerank 的**凭据轮换属 Owner 动作且未完成**，本轮**未调用真实 rerank**，因此
+  **没有本阶段的 24/24 新读数**；报告与证件中继续引用历史 23/24，不得改写成本轮现量。轮换完成并告知后按既有授权只重跑一次。
 - [x] 不运行会登录本地真实服务并调用生成模型的 `smoke_citation_full.py`。它列入后续发布表：需独立隔离服务、合成账户/会话和生成调用范围，然后才能执行。
 - [x] 真实库指纹与 A 对照。发现变化先确认并发写入来源；无法解释时保留证据并暂停涉及数据的验收，不直接恢复覆盖。
 
@@ -202,13 +216,18 @@ $env:COVERAGE_FILE = Join-Path $env:TEMP 'legal-closeout-20260928\candidate-cove
 
 ## F. 提交、文档和阶段判定
 
-- [ ] 使用 `git diff --check` 和逐文件差异复核已验证改动。分别提交 PDF、Web 依赖及必要测试，再提交经审阅的报告；两项依赖互相依赖才能合并一笔。精确暂存并检查暂存区，不带入无关产物。
-- [ ] 代码提交只在候选工作区的 `codex/local-candidate-closeout` 上精确暂存；主工作区的两份报告在 `master` 已有未提交修改，先审阅并保留，再在主工作区分别提交经审阅的文档。报告必须写明升级代码仍只在候选分支，不得把分支提交描述成 `master` 已合入。不要把两个工作区的未提交文件相互覆盖，也不要在本轮自行合并分支。`docs/superpowers/plans/2026-09-28-local-candidate-closeout-plan.md` 与本轮证据目录目前未跟踪，若纳入文档提交也要逐项审阅和暂存。
+- [x] 使用 `git diff --check` 和逐文件差异复核已验证改动。分别提交 PDF、Web 依赖及必要测试，再提交经审阅的报告；两项依赖互相依赖才能合并一笔。精确暂存并检查暂存区，不带入无关产物。
+  已完成：`git diff --check` 干净；PDF / Web / 测试捕获 / T7 分开四笔，`requirements.txt` 按差异块分别暂存（先 `git add -p` 只暂存 pypdf 行，再只暂存 fastapi 行）。
+- [x] 代码提交只在候选工作区的 `codex/local-candidate-closeout` 上精确暂存；主工作区的两份报告在 `master` 已有未提交修改，先审阅并保留，再在主工作区分别提交经审阅的文档。报告必须写明升级代码仍只在候选分支，不得把分支提交描述成 `master` 已合入。不要把两个工作区的未提交文件相互覆盖，也不要在本轮自行合并分支。`docs/superpowers/plans/2026-09-28-local-candidate-closeout-plan.md` 与本轮证据目录目前未跟踪，若纳入文档提交也要逐项审阅和暂存。
 
   候选工作区截至本次复核的变更归属：PDF 为 `backend/knowledge_service.py`、`backend/tests/test_pdf_upload.py` 和 `backend/requirements.txt` 的 pypdf 行；Web 为 `backend/main.py`、`backend/tests/test_upload_rate_limit.py` 和同一 requirements 文件的 FastAPI 行；测试捕获修正为 `backend/tests/test_request_bootstrap.py`；T7 分案为 `docs/assistant-briefs/t7-dependency-upgrade-options-20260927.md`。共享的 requirements 文件按差异块暂存，提交前检查 `git diff --cached`。若接手时文件集不同，以实际差异核对归属，不照抄清单暂存。
-- [ ] 由当前助手统一追加 `docs/progress-handoff-report-20260925.md` 与 `docs/assistant-briefs/next-phase-E-integration-report-20260927.md` 的新阶段记录，保留现有未提交更正与历史测试时点，不批量替换历史 23/24 或旧 HEAD。
-- [ ] 两份报告使用同一来源数据：执行基线、最终代码提交、候选环境版本、命令/退出码、漏洞与接受状态、真实 rerank 条件、隔离语料结果、未提交项归属和后续发布事项。报告引用被测试的代码提交，不要求报告提交“引用自己的最终哈希”。
-- [ ] 对其他 worktree 和未跟踪产物只列归属/保留建议；本轮不批量合并、删除或归档。
+- [x] 由当前助手统一追加 `docs/progress-handoff-report-20260925.md` 与 `docs/assistant-briefs/next-phase-E-integration-report-20260927.md` 的新阶段记录，保留现有未提交更正与历史测试时点，不批量替换历史 23/24 或旧 HEAD。
+  已完成：主报告新增 `§9.12.17`，E 报告新增「十一、本地候选收口（2026-09-28）—— 一页式」；两份报告原有未提交更正**逐字保留**，未改写历史 23/24 与旧 HEAD。master 两笔：`725a207`（两份报告）、`8ae321b`（计划书 + 证据目录 24 文件）。
+- [x] 两份报告使用同一来源数据：执行基线、最终代码提交、候选环境版本、命令/退出码、漏洞与接受状态、真实 rerank 条件、隔离语料结果、未提交项归属和后续发布事项。报告引用被测试的代码提交，不要求报告提交“引用自己的最终哈希”。
+  已完成：两份报告同源（均引用候选 `fbc29e8` 与同一份 `postcommit-gates.log` 读数）。
+- [x] 对其他 worktree 和未跟踪产物只列归属/保留建议；本轮不批量合并、删除或归档。
+  已完成：其余 8 个 worktree 只登记；主工作区未跟踪 34107 个（`dispatch-output` 占 33938），未 `git add -A`；
+  只暂存本证据目录与本计划。
 
 **最终只能给以下三类结论之一：**
 
@@ -245,7 +264,17 @@ wheelhouse 已由助手准备，隔离候选环境已完成离线安装；旧的
 
 1. **凭据安全（Owner 操作）：** 检查本地配置时曾有命令意外将 `.env` 中 rerank 凭据值打印到工具输出。凭据值不写入本计划或仓库文件；请撤销/轮换活动 SiliconFlow key，并确认注释中保留的旧备用 key 已失效或一并撤销。新凭据不要发到聊天。完成后告知，即可按既有授权恢复一次隔离 rerank 验收；轮换前不调用真实 rerank。
 2. **依赖风险裁定（Owner 决策）：** requirements 审计仍有 47 条/8 包；独立环境审计为 57 条/10 包（含测试/开发工具）。需基于具体漏洞清单决定后续修复分案或接受范围；助手不得自行忽略或代签。裁定前候选不能标为就绪。
-3. **本地收口（执行待办）：** 更新两份进度报告，复核候选精确文件集并做经检查的本地提交。该项未完成前仍不得宣布 A–F 收口；本地提交不包含 push、真实库写入或部署。
+3. ~~**本地收口（执行待办）：** 更新两份进度报告，复核候选精确文件集并做经检查的本地提交。~~ **已于 2026-09-28 完成（接手会话）**：
+   候选分支 4 笔（`ca0eb5e`/`ecdc6b3`/`39f4266`/`fbc29e8`，共 7 文件）+ 主工作区 2 笔（`725a207` 报告、`8ae321b` 计划与证据目录）；
+   提交后九步门禁在该树上复跑（读数见 §3 E 段）。未 push、未写真实库、未部署。
+4. 🚨 **新发现（2026-09-28 实测，非计划内）：本仓库对嵌套分支引用的写入会被外部进程删除。**
+   `git commit`/`git update-ref` 写 `refs/heads/<目录>/<名>` 时 git **确实写成功了**（观测到 `.lock` → ref 改名，rc=0，reflog 已落），
+   但 **约 113–144 ms（三次实测：122.5 / 113 / 124.5 ms）后该 ref 与其父目录被另一个进程删除**；
+   顶层引用不受影响；**手工写同名 ref 文件可长期存活**（已验证 ≥25 分钟）；`git init` 的全新仓库不复现。
+   ⇒ 后果是 `codex/...` 分支提交"成功"但指针不落盘，下一次读报 `your current branch ... does not have any commits yet`。
+   **本轮应对已在用**：每次提交后按 reflog 回填 ref 文件并验证（命令见 `dispatch-output/local-candidate-closeout-20260928/README.md` 与主报告 §9.12.17(7)）。
+   **未定因**（配置干净、无相关钩子、无 `.lock` 残留、无并发 git 进程；最可疑是同机常驻的文件监视类进程）。
+   **接手者动 `codex/**` 分支前必须先复核引用仍在**；恢复靠 reflog，提交对象不会丢。
 
 | 任务 | 状态 | 执行时填入的证据 |
 |---|---|---|
@@ -253,5 +282,5 @@ wheelhouse 已由助手准备，隔离候选环境已完成离线安装；旧的
 | B | 依赖安装与针对性兼容验证通过 | pypdf 6.16.1；PDF/DOCX/合同文件相关用例通过；`pip check=0`，见候选测试日志与 `pip-check-final.log` |
 | C | 依赖安装与候选兼容门禁通过；安全风险未清零 | FastAPI 0.141.1 / Starlette 1.7.0；完整后端回归通过；requirements 审计有 47 条/8 包，实装环境审计有 57 条/10 包（含测试/开发工具），均未获接受；见 `candidate-requirements-pip-audit.json`、`candidate-installed-pip-audit.json` |
 | D | 隔离语料导入、幂等、恢复已验证 | 三条语料去向和 26 组残余通报见证据目录；操作均在副本，不是实际库写入 |
-| E | 未提交工作树的自动化门禁通过；提交树待复验，真实 rerank 暂缓 | 前端 54 passed/build rc=0；后端 1650 passed、10 skipped、18 deselected、coverage 85.25%；mypy、Ruff、格式、`pip check` 通过。提交后须复验；真实 rerank 未调用，需先轮换凭据；旧全量测试记录见 `backend-full-tests-final-v2.log` |
-| F | 待收口 | 更新两份进度报告、复核精确候选差异、分别本地提交已验证改动，并给出阶段三态结论；不 push、不部署 |
+| E | 提交后复验**已完成**；真实 rerank 仍暂缓 | 候选树 `fbc29e8`（无未提交改动）复跑九步：`pip check` 0、`ruff check`/`format` 0/0、`mypy .` 74 files 0、全量 `pytest -m 'not slow' --cov --cov-fail-under=70` = **1650 passed / 10 skipped / 18 deselected / cov 85.25%**（211.38s）、agent-quality `ruff` 0/0 + `test_budget_guard.py` 9 passed、`pip_audit -r requirements.txt` = **47 条/8 包/扫 132 包** rc=1。日志 `postcommit-gates.log`；41 个保护对象 41/41 未变（`protected-postcommit-check.log`）。真实 rerank 未调用（凭据待轮换），故无本阶段 24/24 新读数 |
+| F | **本地交接已完成**（三态结论：阶段仍未完成 / 候选受阻） | 候选分支 4 笔 / 7 文件（`ca0eb5e`/`ecdc6b3`/`39f4266`/`fbc29e8`）+ master 2 笔（`725a207` 两份报告、`8ae321b` 计划与证据目录 24 文件）；只暂存本轮证据与本计划，未 `git add -A`、未 push、未部署、未合并分支 |

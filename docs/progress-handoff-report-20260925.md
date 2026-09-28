@@ -1660,6 +1660,11 @@ pydantic 2.13.5 / SQLAlchemy 2.1.1 / mypy 2.3.1 / pytest 8.4.2 / ruff 0.16.9 / c
   但 `refs/heads/x/y` 不存在；对**已存在**的嵌套 ref 做同样操作，ref 文件连同其父目录一起被删掉。
   对照：`git update-ref refs/heads/<顶层名> <sha>` 正常；在 `git init` 的**全新**仓库里嵌套引用也正常
   ⇒ **不是 git 2.55 的通用 bug，本仓库特有**（`extensions.worktreeConfig=true` 与多 worktree 在临时仓库里复现不出）。
+- **决定性时序证据（2026-09-29 实测，10ms 级轮询脚本）**：git **其实写成功了** —— 观测到
+  `mkdir refs/heads/zzy` → 建 `one.lock` → 写 reflog → **`.lock` 改名为 `one`**（ref 出现）→ 其后
+  **113–144 ms（三次：122.5 / 113 / 124.5 ms）** ref 与其父目录被**另一个进程**删除。
+  ⇒ **改判**：不是 git 写失败，是**外部进程在 git 提交 ref 后约 120 ms 删掉它**。
+  旁证：手工 `printf >` 写的同名 ref **可长期存活**（复核 ≥25 分钟）；顶层 ref 不受影响。
 - **影响**：以 `codex/...` 命名的分支在本仓库**无法可靠提交** —— 提交会"成功"（rc=0、对象与 reflog 都在），
   但分支指针不落盘，紧接着的读操作就看到"分支无提交"。
 - **本轮应对（可复现、已验证）**：每次提交后按 reflog 回填引用 ——
