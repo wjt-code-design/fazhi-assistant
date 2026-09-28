@@ -57,7 +57,9 @@ REPO = Path(__file__).resolve().parents[2]
 BACKEND = REPO / "backend"
 PY = BACKEND / "venv" / "Scripts" / "python.exe"
 TREE = Path(os.environ["TEMP"]) / "d-mut-20260927"
-TREE_SPECS = ("backend", "release-evidence", "dispatch-output/task1", "data")
+# 根文件 CONTRIBUTING.md 必须进树：`test_smoke_citation_assertions::test_gate_item_counts_match_contributing`
+# 读的是**仓库根**那份，缺了它就是一条与产品无关的环境假红（2026-09-28 补；B 侧的驱动早已带它）。
+TREE_SPECS = ("backend", "release-evidence", "dispatch-output/task1", "data", "CONTRIBUTING.md")
 OWNED = ("backend/scripts/import_laws.py", "backend/tests/test_import_laws_preflight.py")
 READINGS = Path(__file__).resolve().with_name("mutation-readings.txt")
 # 未入库的收集期依赖（历史必需、现为**尽力而为**）：见模块 docstring ⑤。
