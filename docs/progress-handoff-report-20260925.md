@@ -1466,3 +1466,100 @@ CI 的 ruff/mypy 只在 `backend/` 里跑（`dispatch-output` 只有 `agent-qual
 pytest 的 `testpaths` 也只指 `backend/tests` ⇒ **这六步的作用面没被这两笔碰到，不必重跑整轮**。
 但我也把话说到头：若要把"候选 = 最新 HEAD"这条坐实，就得对新 HEAD 再重放一次六步（约 6 分钟），
 那是一次**为了口径一致的重跑**，不是因为有什么证据说它可能红。
+
+#### 9.12.15 推送判定与 pip-audit 选型（2026-09-28 凌晨；Owner 两问问的就是这两个）
+
+**先给结论**：**不推**。pip-audit 按「**两行区间清零 91 条 + 一族迁移评估 + 两档风险接受**」分治，
+并且每一档"升级到底能不能清零"是**把候选版本钉住重跑 audit 实测出来的**，不是从 `fix_versions` 推出来的。
+
+**（1）六步门禁对最新 HEAD 复放（上面那条"要不要重跑"的悬案，我跑了）**
+
+- 树：`git archive HEAD`（HEAD = `360dca7`）解到 `%TEMP%/e-f2-tree-20260928` ⇒ **2559 文件、无 `.env`、无 `backend/chroma_db`**（这就是 CI 看到的形状）。
+- `8272322..360dca7` 的改动面（`git diff --name-status`）= **四个文件**：D 的驱动 + D 的读数 + 两份报告。
+- 六步读数（日志 `%TEMP%/e-f2-replay-20260928.log`）：① `ruff check .` rc=**0**；② `ruff format --check .` = **266 files already formatted** rc=**0**；
+  ③ `mypy .` = **Success: no issues found in 74 source files** rc=**0**（另有 5 条 `annotation-unchecked` **note**，不是 error，CI 同形）；
+  ④ `../dispatch-output/agent-quality-20260911` 的 check + format = All checks passed / **4 files already formatted**，rc=**0/0**；
+  ⑤ `test_budget_guard.py` = **9 passed** rc=**0**；⑥ `PYTEST_ADDOPTS="-m 'not slow'" pytest --cov=. --cov-fail-under=70 -q` =
+  **1639 passed, 10 skipped, 18 deselected**、coverage **84.91%**、rc=**0**（139.72s）。
+- 与 §9.12.13 的唯一差别：**"其后只追加了纯文本附录，故不外推"那条限定，现在被现量取代** —— 六步是对最新 HEAD 跑的。
+- **限定不换**：本机等形重放 **≠** 远端 CI 绿；远端至今没看过这些提交。
+- 真实库零副作用（复放**跑前/跑后**逐字相同）：`backend/app.db` 20205568 / 09-19 00:28、`backend/data/app.db` 19939328 / 09-23 14:51、
+  `backend/chroma_db/chroma.sqlite3` 210051072 / 09-21 02:06。复放后工作树里 mtime 新于 09-28 的三个 `.py`
+  （`observability.py`、`tests/test_eval_agent.py`、`tests/test_gate2_runner.py`）是 T-A/T-B **已提交**的改动留下的，不是复放写出来的。
+
+**（2）pip-audit 的分布，和每一档"能不能清零"的实测**
+
+现量：`backend/venv/Scripts/python.exe -m pip_audit -r requirements.txt` ⇒ **rc=1**，**138 条 / 命中 10 包 / 扫描 132 包**
+（JSON 在 `%TEMP%/pip-audit-20260928.json`，聚合脚本见本节末"复现"）。
+
+| 包 | requirements 里的区间 | `-r` 解析版本 | 本机装机 | 条数 | 最高修复版本 | **钉到该版本重跑的条数** | 我们代码的直接 import 面 |
+|---|---|---|---|---|---|---|---|
+| pypdf | `>=4.0,<6.0` | 5.9.0 | **6.14.2（越过声明上限）** | 77 | 6.16.1 | **0** | **1 文件**（`knowledge_service` 取文） |
+| starlette | 由 fastapi 传递 | 0.37.2 | 0.36.3（与自身区间冲突） | 14 | 1.3.1 | **0** | **0 文件** |
+| langchain-core | `>=0.1,<0.2` | 0.1.53 | 0.1.53 | 11 | 1.3.3 | **0** | 28 文件（`langchain_*` 合计） |
+| langchain-community | `>=0.0.38,<0.1` | 0.0.38 | 0.0.38 | 8 | 0.3.27 | 自身 0，**但拖出** langchain@0.3.30=2、core@0.3.86=3、splitters@0.3.11=2 | **0 文件** |
+| transformers | 传递 | 4.57.6 | 4.57.6 | 8 | 5.10.0 | **0** | **0 文件** |
+| langchain | `>=0.1,<0.2` | 0.1.20 | 0.1.20 | 7 | 1.3.9 | **0**（含依赖整棵树 43 包全 0） | 见上 |
+| langsmith | 传递 | 0.1.147 | 0.1.147 | 5 | 0.8.18 | **0** | 0 文件 |
+| langchain-text-splitters | 传递 | 0.0.2 | 0.0.2 | 4 | 1.1.2 | **0** | 2 处 import |
+| langchain-openai | `>=0.1,<0.2` | 0.1.7 | 0.1.7 | 2 | 1.1.14 | **0** | 4 处 import |
+| chromadb | `>=0.4,<0.5` | 0.4.24 | 0.4.24 | 2 | **无**（两条的 `fix_versions` 皆空） | **1.5.9 实测 = 5 条**（比现在还多 3 条，两条老的仍在） | **9 文件** |
+
+另补一条把"未核"变成读数的：`pip_audit fastapi==0.141.1`（含依赖解析）⇒ **rc=0，No known vulnerabilities found**，
+树内 starlette 落 **1.7.0**、10 包全 0 ⇒ **"starlette 那 14 条靠谁清"不再是需要猜的前置**。
+
+**（3）选型决定（按"清零数 ÷ 爆炸半径"排，不给选项清单）**
+
+- **① pypdf 抬区间** → `pypdf>=6.16.1,<7.0`。**一行消 77/138 = 56%**，且它是唯一"声明区间本身就挡路"的一条：
+  `<6.0` 把所有修复版本挡在外面，而装机早已是 6.14.2（**环境自己越界**）。直接 import 面 1 个文件、
+  纯文本抽取、10MB 上限、登录门后、不碰数据面 ⇒ 收益/风险比最高，**先做**。
+- **② fastapi 抬到 `>=0.141,<0.142`**：实测整棵树 0 条，连带清掉 starlette 的 14 条，并顺手解掉 `pip check` 那条
+  自相矛盾（fastapi 0.110.3 要 `starlette>=0.37.2,<0.38.0`，装的是 0.36.3）。**①+② = 91/138 两条区间清零**。
+- **③ langchain 一家 37 条**（langchain 7 + core 11 + community 8 + openai 2 + splitters 4 + langsmith 5）
+  ⇒ **不排"升级票"，排"迁移评估票"**：实测只有 **1.x** 归零，而 0.3.x 是**中间态脏**
+  （community 钉到 0.3.27 自己 0 条，却拖出 7 条）；同时要动 `langchain-chroma` / `langchain-huggingface` 两个我们没直接 import、
+  却挂在树里的邻居。**这是能级迁移，不是版本号动作。**
+- **④ chromadb 2 条：不碰，风险接受登记**。两条告警的 `fix_versions` 为空，且**最新版 1.5.9 实测 5 条** ⇒
+  升级不但不能清零还会变差；再叠 `chroma_db`（210MB、09-21 那份）迁移不可逆、9 个文件直接依赖它。
+  它是内嵌库、**无网络监听面** ⇒ 登记口径写清"不接受以消红为名的数据迁移"。
+- **⑤ transformers 8 条：同样不排升级票**。5.10.0 实测 0 条，但它是**本地 embedding 链路**的依赖（我们 0 个文件直接 import）⇒
+  版本一动向量空间可能变，**整库 10266 块要重嵌**，那是语料级动作。先登记，等 embedding 侧另裁。
+- **⑥ CI 的门不为了绿而放宽**：①②落地后剩 **47 条**（37 + 8 + 2），处置方式是**逐条 ID 的 `--ignore-vuln` 白名单 + 每条给归因**
+  （可查、可追责、可到期复审），而不是把 `pip-audit` 改成非阻断或直接关掉。
+- **前置（对任何升级票都成立）**：必须从**全新自洽 venv** 起步。现有 venv 不是自洽安装集
+  （`pip check` rc=1 两条；pypdf 6.14.2、uvicorn 0.52.1 均越过声明上限）⇒ 在不自洽的环境上"升上去测一下"的读数不可信。
+
+**（4）推送判定：现在不推**
+
+现量三条事实：`git merge-base HEAD origin/master` ⇒ **rc=1，无共同祖先**；
+`git rev-list --left-right --count origin/master...HEAD` ⇒ **192 / 187**；且本地 `origin/master` 这个 ref 比真远端**旧 12 笔**（在册）。
+
+- 无共同祖先 ⇒ 推 `master` 只能 force，而 **force 是你定的禁手**；唯一合规形状就是路线 A 已裁的**一次性快照分支**。
+- 路线 A 的前两步里**口令轮换还没做**。**轮换之前推 = 先把历史里的凭据暴露面打开**，把风险最高的一步排在了最前面 ——
+  顺序本身是风控，不是流程洁癖。
+- 推送**不解锁任何待办**：真实入库、pip-audit 落地都不依赖远端；而"拿 CI 当裁判"这份收益，快照分支推一次就能拿到，不必抢在轮换前。
+- **我建议的顺序**：轮换 → `:104` 形状规则复扫（含 `https://api.siliconflow.cn/v1` 这类"不是密钥但点名服务商"的串要不要换成占位符，**这条你还没裁**）
+  → 推一次性快照分支（`git push origin HEAD:refs/heads/snapshot/20260928-e`，**永不 force，回车由你按**）
+  → **用远端 CI 读数替换掉本机这份等形重放**。这也正好回到在册那条"裁判选更强的那个，别在本机重复"。
+
+**（5）本轮我自己的三条读数事故（按规矩落正文）**
+
+1. **"pypdf 一行 `>=6.16.1,<7.0` 就清干净"这句当时没有读数支撑**。`fix_versions` 在 JSON 里是**离散版本号列表**（pypdf 28 个、
+   starlette 6 个），不是区间；我把它当区间读了。方向碰巧没错，但**当时的形态是推理不是证据** —— 现在它有证据了
+   （钉 `pypdf==6.16.1` 重跑 = 0 条）。
+2. **"两条告警的 `fix_versions` 为空 ⇒ 永远无解"这个推法被实测打断两次**：transformers 那两条空 fix 的 ID，在 5.10.0 实测是 **0 条**
+   （说明 OSV 没给修复版本 ≠ 更高版本仍受影响）；chromadb 恰好**成立**，但那是我**跑出来的**（1.5.9 = 5 条），不是推出来的。
+   ⇒ 教训：**空 fix 列表只说明"OSV 没列修复版本"，判"升上去还中不中"唯一办法是钉住候选版本再跑一次 audit。**
+   我在上一轮把 chromadb 的结论写成"风险接受"，当时给的是形状理由，这次给的是读数 —— 两者不是一个强度。
+3. **blast-radius 那条 grep 是假读数**：`grep -rhoE ... | grep -v "^./venv"` 过滤的是**匹配行**而不是**文件路径**，
+   所以 venv 里的 import 全被算进来了（第一次给出"from langchain_core 3816 处"这种数）；同一条式子又用 `^(from|import) pypdf`
+   锚在行首，**漏掉函数内缩进的 import**，于是 pypdf 报 0 文件。两条错在一个命令里同时发生，一个数偏高、一个数偏低。
+   重测（`find -not -path "./venv/*"` 喂 `xargs -0 grep`，且 `^[[:space:]]*` 允许缩进）才是上面那张表的 import 面：
+   **pypdf 1 文件、chromadb 9 文件、`langchain_*` 28–33 文件、starlette / transformers / langchain-community 均 0 文件**。
+   正是这个 0 让我把 ③④⑤ 从"升级"重排成"迁移评估"与"风险接受" —— 同一个 138，**读到 import 面才分得出轻重**。
+
+**复现**（本节所有数字都可自行重跑）：
+`cd backend && venv/Scripts/python.exe -m pip_audit -r requirements.txt --format json > %TEMP%/a.json`（rc=1）；
+逐包清零判定 = `printf 'pypdf==6.16.1\n' > %TEMP%/one.txt && venv/Scripts/python.exe -m pip_audit --no-deps -r %TEMP%/one.txt`
+（注意 `-n` 短形式在本版本不存在，只有 `--no-deps`）；
+门禁复放 = `git archive HEAD | tar -x -C <空目录>` 后在该目录的 `backend/` 里按上表六条命令依次跑，日志留档。
