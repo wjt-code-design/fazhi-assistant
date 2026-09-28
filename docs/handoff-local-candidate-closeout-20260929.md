@@ -11,7 +11,8 @@
 ## 0. 30 秒定位
 
 - 仓库：`C:\Users\33393\Desktop\ai-legal-helper`（Windows / Git Bash；**全部本地提交，远端未推送**）。
-- 发布线 `master` = `e4ea073`；**代码候选**在另一个 worktree 的分支上：`codex/local-candidate-closeout` = `fbc29e8`
+- 发布线 `master` = `87e5227`（**本文初次落地的那笔提交**；其后只可能再叠加文档提交，一律以 `git log` 实测为准）；
+  **代码候选**在另一个 worktree 的分支上：`codex/local-candidate-closeout` = `fbc29e8`
   → 目录 `C:\Users\33393\.codex\worktrees\local-candidate-closeout\ai-legal-helper`。
 - **接手第一件事（3 条命令，别跳）**：
 
@@ -40,7 +41,7 @@ git worktree list                            # 确认候选 worktree 仍显示 f
 
 | 位置 | HEAD | 内容 |
 |---|---|---|
-| `master`（发布线） | `e4ea073` | `aec8d5c` 之后**只有文档**：`725a207` 两份报告、`8ae321b` 计划书+证据目录、`0429c42` 计划书对账、`e4ea073` 恢复工具+bundle 登记 |
+| `master`（发布线） | `87e5227` | `aec8d5c` 之后**只有文档**：`725a207` 两份报告、`8ae321b` 计划书+证据目录、`0429c42` 计划书对账、`e4ea073` 恢复工具+bundle 登记、`87e5227` 本交接书 |
 | `codex/local-candidate-closeout`（候选） | `fbc29e8` | 起点 `aec8d5c`，**4 笔 / 7 文件**（见下表），**未合入 master、未推送、未建远端分支** |
 
 候选分支改动面（`git diff --name-status aec8d5c..fbc29e8`）：
