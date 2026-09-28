@@ -2,7 +2,7 @@
 
 写给 Owner（可转发）。派单：`docs/assistant-briefs/next-phase-E-integration-20260927.md`。
 本文把 E 本轮（本职五项 + 对 A–D 的第三方审核 + D1/D2 落地）**汇总成一份**，供你一次读完。
-明细正文在 `docs/progress-handoff-report-20260925.md` §9.12.1–§9.12.15；本文是它的**一页式汇总**，数字全部**现量**。
+明细正文在 `docs/progress-handoff-report-20260925.md` §9.12.1–§9.12.16；本文是它的**一页式汇总**。下表区分历史读数与本轮现量；未标注“本轮复跑”的历史门禁数，不代表本轮重测。
 
 ---
 
@@ -34,11 +34,11 @@
 |---|---|---|
 | 候选语料输入校验 | `--validate-only` rc=**0**，"文件校验通过：3 条" | 通过 |
 | 候选语料 dry-run（副本库） | rc=**0**，"将删除 **2** 旧片段（其中 **2** 条为无时效遗留块），新增 **3**，跳过 **0**" | 通过 |
-| 真实 rerank 下的 24 项快速门禁 | **23/24**，rc=1 | 唯一红点**已定位为 rerank 降权截掉**（池内第 3 → 第 8），**不是**召回缺口 ⇒ 原写"既有检索缺口"是错的，见 §7(3) |
+| 固定 24 项快速门禁（历史读数；脚本 @ `d3735bb6`） | **23/24**，rc=1；本轮未重跑整套 24 项 | 本轮 T-C 对失败题做了单题追踪，支持“候选池第 3 → rerank 第 8 → top-6 截掉”；不把历史总数写成本轮现量，见 §7(3) |
 | CI 形状门禁（纯发布物树） | 提交前复量：ruff/format/mypy 全 rc=0（mypy **74** files）、`pytest --co` **rc=0**；主树定向 `pytest -m "not slow"` **46 passed, 1 deselected** | 原先那条 `--co` rc=2（1 error）**已由 T-B 收口**（`fdf802d`）；`16 failed` 那批 = `test_eval_agent` 2 + `test_gate2_runner` 14，同因同修；收口时整门已在纯发布物树复跑，见 §9 |
 | 前端 / 守卫 | `npm run check` rc=0（vitest 54 passed）；`npm run build` rc=0；`test_budget_guard.py` 9 passed | 通过 |
 | 依赖审计 `pip-audit -r` | rc=**1**，**138** 条 / 命中 **10** 包 / 扫描 **132** 包 | **红**；**已选型**（不是"未处置"）：两行区间清零 91 条、langchain 37 条走迁移评估、transformers+chromadb 10 条登记不碰 —— 见 §0 末与主报告 §9.12.15 |
-| 六步门禁**对最新 HEAD**复放 | `git archive HEAD`（2559 文件、无 `.env`）⇒ ①ruff ②format(**266 files**) ③mypy(**74 files**) ④agent-quality ⑤守卫(**9 passed**) ⑥全量(**1639 passed / 0 failed / cov 84.91%**) | **六步 rc 全 0**（这条把原先"读数只对 `8272322` 负责"那条限定换成了现量；**仍不等于远端 CI 绿**） |
+| 六步 CI 形状门禁（对代码快照 `360dca7`） | ①ruff ②format(**266 files**) ③mypy(**74 files**) ④agent-quality ⑤守卫(**9 passed**) ⑥全量(**1639 passed / 0 failed / cov 84.91%**) | 该快照六步 rc 全 0。当前 HEAD `553912b` 相对它只增加两份报告文档，未对 `553912b` 字面重跑；代码门禁证据适用于同一代码快照，但**不等于远端 CI 绿** |
 | 真实库副作用 | 5 个库的尺寸 + mtime 前后**逐字相同**；chroma 目录指纹 `39f77952…` 不变；无 `-wal/-shm`。**复放这一轮再量一次**：`app.db` 20205568/09-19、`data/app.db` 19939328/09-23、`chroma.sqlite3` 210051072/09-21 跑前跑后一致 | **零写入** |
 
 **本轮实际动过的文件（按提交结果重列，HEAD 后现量）**
@@ -48,14 +48,14 @@
 | `backend/knowledge_service.py`、`backend/observability.py`、`backend/tests/test_knowledge_service.py` | T-A 泄露通道 | **已提交 `4a37fe4`** |
 | `dispatch-output/task1/hidden_runner.py`、`backend/scripts/gate2_runner.py`、`backend/tests/{test_harness_fact_reveal,test_gate2_runner,test_eval_agent}.py` | T-B 干净检出 | **已提交 `fdf802d`** |
 | `dispatch-output/c-retrieval-trace-20260927/`（探针 + 4 次读数 + 对照腿，共 11 文件） | T-C 丢失点定位证据 | **已提交 `15b4249`** |
-| `docs/progress-handoff-report-20260925.md`（§9.12 全节）＋ 本文 | E 的审核与落地记录 | 本笔提交 |
-| `dispatch-output/d-t5-import-types-20260927/{run_mutations.py,mutation-readings.txt}` | D1 修的驱动 + 读数 | **扣住不提**：T-D 正在改写（00:33/00:39 mtime），未验收不提 |
-| `dispatch-output/b-citation-checks-20260927/{run_mutations.py,mutation-readings.txt}` | B 的驱动（D2 已入库 `6f95d3a`） | **扣住不提**：T-D 00:45 起在改，现已是 ` M` |
-| `docs/assistant-briefs/t7-dependency-upgrade-options-20260927.md`（A 起草、E 改三处）、A 的回执、五份派单 brief、`docs/superpowers/plans/2026-09-27-post-E-followup-recommendations.md` | 别的会话起草 | **扣住不提**：等 §5「归属」那一行你定口径 |
+| `docs/progress-handoff-report-20260925.md`（§9.12 全节）＋ 本文 | E 的审核与落地记录 | 已提交于 `553912b`；本次口径更正仅改文档，尚未提交 |
+| `dispatch-output/d-t5-import-types-20260927/{run_mutations.py,mutation-readings.txt}` | D1 修的驱动 + 读数 | **已提交并验收**：驱动收口于 `8272322`，后续读数/基线说明见 `27a1285`、`65f2964` |
+| `dispatch-output/b-citation-checks-20260927/{run_mutations.py,mutation-readings.txt}` | B 的驱动 + T-D 加固与读数 | **已提交并验收**：初始读数 `6f95d3a`，加固验收 `8272322` |
+| `docs/assistant-briefs/t7-dependency-upgrade-options-20260927.md`、A/C 回执、五份派单 brief、`docs/superpowers/plans/2026-09-27-post-E-followup-recommendations.md` | 其他会话起草并经 F-4 归档 | **已提交 `1504392`，均已跟踪**；T7 是分案建议，未改 `requirements*` 或共享 venv |
 
 **边界（本轮没做什么，一句不省）**：未部署；未真实入库（只 `--dry-run`）；**未推送**；未改历史；
-**未调用答案生成模型**；**未跑** `smoke_citation_full.py` 与 `smoke_citation_fast.py`（两脚本 `os.chdir` + `load_dotenv(".env")`，
-会装真实配置与真实配额库）；未回显任何 `.env` 值（只报存在性/长度）；未动真实库；未 bulk-stage、未 `git add -A`。
+**未调用答案生成模型**；本轮**未运行** `smoke_citation_full.py` 与 `smoke_citation_fast.py`（两脚本 `os.chdir` + `load_dotenv(".env")`，
+会装真实配置与真实配额库）。表中的 **23/24 是此前固定快门禁的历史结果**，本轮只对失败题做 T-C 单题追踪；未回显任何 `.env` 值（只报存在性/长度）；未动真实库；未 bulk-stage、未 `git add -A`。
 
 ---
 
@@ -89,7 +89,7 @@
   端点 `https://api.siliconflow.cn/v1`、两个 key 均 `SET(51 chars)`、`rerank_quota_total=0`。
   **`0` 是"纯开关模式"不是耗尽**：`quota_utils.py:121` 在所有模型 total≤0 时直接返回队列首个模型（不限流）。
 - 预检 1 次真实远端调用：`_rerank_docs` 返回非 `None`（该函数**所有失败路径都返回 None**）⇒ 远端真的答了；耗时 2.73s。
-- **固定 24 项快速门禁**（`scripts/smoke_citation_fast.py` @ `d3735bb6`，rerank 开）：**23/24，rc=1**；
+- **固定 24 项快速门禁（历史读数）**（`scripts/smoke_citation_fast.py` @ `d3735bb6`，rerank 开）：**23/24，rc=1**；
   红点仍是 `retrieve("周末加班，加班费怎么算？")` 期望 `劳动法 × 第四十四条`。
 - 逐题探针（7 次调用）：**7/7 成功、0 降级**；召回 6/7；漏的那题**重排后 top-6** 里无第四十四条。
   ⚠️（E 自审更正）：该探针只记**候选数量**与**重排后 top-6**，**未记送入 rerank 的 12 条身份** ⇒
@@ -99,7 +99,7 @@
   - 真实 `BAAI/bge-reranker-v2-m3` 把它降到**第 8 位**（rel 0.0195 < 6 条噪声条 0.024–0.35）；
   - 最终 `docs[:6]` 截掉它 ⇒ `hit=False`；**对照腿**（同池、关 rerank）它回到 **top-6 第 3 位**。
   - ⇒ 召回没丢、后处理没丢；"rerank 只改序不新增候选，故开了 rerank 也修不掉"**方向反了**——rerank 正是这条红的原因。
-  - 边界：**rerank 模型排序质量**问题，非 T1–T5 代码回归；23/24 总数与历史一致。**修复另开票**。
+  - 边界：**rerank 模型排序质量**问题，非 T1–T5 代码回归；23/24 是历史总数，本轮未复测整体门禁。**修复另开票**。
   - 证据：`dispatch-output/c-retrieval-trace-20260927/`（探针脚本 + 4 份脱敏读数）；真库指纹跑前后不变。
 
 ### E4 综合门禁
@@ -258,7 +258,7 @@ langchain-text-splitters 0.0.2 / langsmith 0.1.147 / pypdf 5.9.0 / starlette 0.3
 | **pip-audit** | 138 条怎么选？ | **①pypdf 抬区间**（实测 77→0，import 面 1 文件，先做）→ **②fastapi→0.141**（整棵树实测 0，连带清掉 starlette 14 条，①+②=91 条）→ **③langchain 37 条排"迁移评估票"不排升级票**（只有 1.x 归零，0.3.x 中间态脏）→ **④transformers 8 条 / chromadb 2 条登记不碰**（前者一动要重嵌整库；后者最新版实测 5 条比现在更差且迁移不可逆）→ **⑤CI 门不放宽**，剩 47 条用逐 ID `--ignore-vuln` 白名单 + 归因。**任何升级票的前置 = 全新自洽 venv** |
 | 待裁① | 把 `CONTRIBUTING.md` 加进驱动 `TREE_SPECS`，消掉那条环境假红？ | **两侧都已解决**：B 侧由 T-D 带进 specs；**D 侧由我按 Owner 的「按建议动手」补上**——副本树 615→616、机器基线红 **5→4**、五只变异仍 KILLED 5/5、自证 5/5 PASS、rc=0（现量见主报告 §9.12.14） |
 | 待裁② | 让驱动把**基线红清单**（不止计数）机器生成进读数？ | **已实现**（`8272322`）：D 的读数现在有 `### 基线红清单（机器生成，逐条列全；共 5 条）`，并写明"不要用人工附录里的旧名单对账"。附一那份手写 27 条**保留原样**（它已过期，是历史证据） |
-| 待裁③ | 本轮产物**是否现在提交**？ | **已执行**（09-28 00:5x，Owner 发话"提交"）：四笔 `4a37fe4`(T-A) / `fdf802d`(T-B) / `15b4249`(T-C 证据) / 本笔 docs。**显式路径、未 `git add -A`、未推送**。两枚 T-D 正在改的驱动**扣住**、别人起草的文件**扣住**（见 §8） |
+| 待裁③ | 本轮产物**是否现在提交**？ | **已执行**：T-A/B/C 与报告先后提交；T-D 驱动/读数于 `8272322` 收口，其他派单、回执、T7 分案和计划于 `1504392` 归档。最初提交时的“扣住”是阶段性状态，已不适用于当前文件状态。全程未 `git add -A`、未推送 |
 | 派单 | 后续派单书 `docs/superpowers/plans/2026-09-27-post-E-followup-recommendations.md` 的 **A–F** 六项谁做？ | **A–F 全部执行完毕**（按你发话"直接派子 agent 执行"）：A/B/C/D 由我派发 + 独立复跑验收（§7），E 项就地执行、F1 已撤回并定论，**F 项 1–5 由我收口**（§8、§9、主报告 §9.12.12–13）。剩余待裁只有 A-①/A-② 与下面几行 |
 | F1 | §9.12.3 "第四十四条**根本不在候选池**" 过度归因 | **已撤回，并已定论**：票 T-C 实测**丢在重排**（池内第 3 → rerank 降到第 8 → 截掉；对照腿关 rerank 即命中）。见 §7 |
 | A-① | `backend/retrieval.py:431` 有**同类形状**的 `exc_info=True`（`"QA 引用的条文核验读库失败…"`） | **改判：建议保留、不收口**。我先前那句"同一泄露形状、留一处等于留半扇门"只比了形状、没读函数本体；读完的事实是——这条链上没有任何 `raise` 把条文正文拼进异常消息（`retrieval.py` 全文只有 `raise_for_status()` 与一个裸 `raise`），`_valid_docs` 虽把正文读进 `Document`，但抛出来的只会是 chroma 返回形状类的 `KeyError/IndexError`（消息里是缺失的键名）。而 T-A 那处的异常消息是**我们自己用 `new_content` 拼的** ⇒ 两者不是一个泄露面。这里的栈反而有诊断价值（键形状问题不带栈看不懂）。详见附录 A 第 7 条 |
@@ -267,7 +267,7 @@ langchain-text-splitters 0.0.2 / langsmith 0.1.147 / pypdf 5.9.0 / starlette 0.3
 | D | T-D（两枚变异驱动加固） | **已交付 + 已验收 + 已入库 `8272322`**（B 8/8、D 5/5 全杀，自证 B 5 条 / D 5 条我本机全 PASS）。E 验收时另补一条"固定快照"闸，见 §7(6) |
 | B-D1 | `ac426c2` 提交信息没写 B 那三处改了什么 | 台账补一行归属，**不 amend** |
 | B-D2 | `docs/ARCHITECTURE.md:107/:109`、`docs/capability-matrix.md:29` 仍是旧计数（`17 项`/`10 场景`） | 改成脚本现量 `24 项`/`12 场景` |
-| 派单-E | 派单书 §E：T7 分案三处自相矛盾/不成立 | **已就地执行**：`docs/assistant-briefs/t7-dependency-upgrade-options-20260927.md`（**未跟踪文件**）——改正 ①"应为 24/24"（现量 23/24）②pypdf 失败回退两条互斥路径 ③fastapi 失败回退"删 starlette 行重装"不可复现；顶部加修订记录。**只记账，未动 `requirements*/venv`** |
+| 派单-E | 派单书 §E：T7 分案三处自相矛盾/不成立 | **已修订并归档**：`docs/assistant-briefs/t7-dependency-upgrade-options-20260927.md` 已在 `1504392` 跟踪——更正 ①历史 23/24 口径 ②pypdf 失败回退路径 ③FastAPI 失败回退步骤。**只记账，未动 `requirements*/venv`** |
 | B-D4 | CONTRIBUTING 的"24 项"与测试的"23 条"易串轴 | 一行改动待你授权 |
 | C-D2 | `observability.py:133` 那笔是否保留 | 待你裁 |
 | C-D4 | 今天这笔是否折进 findings §2（C 台账唯一必须由你**指定文件归属**的一条） | 待你裁 |
@@ -283,14 +283,12 @@ langchain-text-splitters 0.0.2 / langsmith 0.1.147 / pypdf 5.9.0 / starlette 0.3
   清单：`4a37fe4`(T-A) → `fdf802d`(T-B) → `15b4249`(T-C 证据)
   → `6ce1e8b`(两份报告) → `1504392`(归档 F-4) → `d41cf5e`(旧计数修正) → `a5c129d`(.gitignore)
   → `8272322`(T-D) → `27a1285`(读数附七)。E 全程**未推送、未改历史、未 `git add -A`、未部署、未动真实库**。
-- 本笔提交后工作树 tracked 修改 = **只剩这两份报告自身**（§9 与 §7(6) 的新增段落）；`git status` 的未跟踪噪声
-  已因 `a5c129d` 少掉四类目录。
-- **§9.12.1–§9.12.11 自 `6ce1e8b` 起已在库**（此前整节都是未提交内容）。本笔在其上追加 §9.12.12 / §9.12.13：
-  主报告现量 **1425 行**、对 HEAD `git diff --numstat` = **94 / 2**（HEAD 版 1333 行）。
-  那 2 行删除是把"环境假红"那段的措辞改准，**未删任何已提交的历史结论**。
+- 本次复核开始时 HEAD = `553912b`；该提交只更新两份报告。当前这次口径更正也只修改两份报告，尚未提交；未改代码、测试、依赖或数据，也未重跑门禁。
+- **当时的提交记录**：§9.12.1–§9.12.11 自 `6ce1e8b` 起已入库；此前汇总收口时，主报告为 1425 行、对 HEAD 的 `git diff --numstat` 为 **94 / 2**（HEAD 版 1333 行）。
+  那 2 行删除是把"环境假红"那段的措辞改准，**未删任何已提交的历史结论**；这些行数与 diff 是当时快照读数，不是本次文档更正后的现量。
 - 明细落点：主报告 §9.12.1–§9.12.15（§9.12.10 = A/B/C 验收、§9.12.11 = 提交执行记录、
   §9.12.12 = 票 T-D 验收与 E 的补闸、§9.12.13 = F 项 2/5 综合门禁与最终回报、§9.12.14 = Owner 裁后动手的两件（A-① 改判 + D 补根文件）、
-  **§9.12.15 = 推送判定 + pip-audit 选型实测 + 六步门禁对最新 HEAD 的复放**）。
+  **§9.12.15 = 推送判定 + pip-audit 选型实测 + 六步门禁对当时代码快照 `360dca7` 的复放；§9.12.16 记录后续 HEAD 对账**）。
 - 证据落点（全部已入库）：变异读数 `dispatch-output/d-t5-import-types-20260927/mutation-readings.txt`
   （机器段 + 附一至**附七**）、`dispatch-output/b-citation-checks-20260927/mutation-readings.txt`；
   检索定位 `dispatch-output/c-retrieval-trace-20260927/`（探针 + 5 份读数）；本轮派单/回执/评审 38 文件见 `1504392`。
@@ -395,9 +393,9 @@ langchain-text-splitters 0.0.2 / langsmith 0.1.147 / pypdf 5.9.0 / starlette 0.3
 - **两枚变异驱动**：`dispatch-output/b-citation-checks-20260927/{run_mutations.py,mutation-readings.txt}` 与
   `dispatch-output/d-t5-import-types-20260927/{run_mutations.py,mutation-readings.txt}`。
   **依据**：T-D 仍在写盘——B 的驱动 00:45 mtime、D 的读数 00:39 mtime，且 B 那两个文件在我提 T-B 之后**新出现 ` M`**。
-  未验收的产物不提，正在改的文件提了会锁进半成品。T-D 交付并被我复跑后单独一笔。
+  未验收的产物不提，正在改的文件提了会锁进半成品。**这是当时的阶段性扣留状态**：T-D 后续于 `8272322` 收口并验收。
 - **别的会话起草的文件**：`docs/assistant-briefs/t7-dependency-upgrade-options-20260927.md`（A 起草、E 改三处）、A/C 的回执、
-  五份派单 brief、`docs/superpowers/plans/2026-09-27-post-E-followup-recommendations.md` —— 等 §5「归属」那行你定口径。
+  五份派单 brief、`docs/superpowers/plans/2026-09-27-post-E-followup-recommendations.md` —— **当时暂扣；后续已由 `1504392` 归档并跟踪**。
 - `.qoder/`、`caddy_data/`、`caddy_config/`、`backend/.ptmp-s4-run2/`：`git check-ignore` 全 NOT IGNORED 但**不该入库**（§5「忽略」行）。
 
 **（4）提交时顺手抓到的一条仓库卫生问题（在册事实，非本次引入）**
@@ -413,10 +411,10 @@ langchain-text-splitters 0.0.2 / langsmith 0.1.147 / pypdf 5.9.0 / starlette 0.3
 
 **候选** = `6f95d3a..HEAD`（**笔数与清单以 `git log --oneline 6f95d3a..HEAD` 为准，我不在这里抄数**）；
 起点是 T-A `4a37fe4`、T-B `fdf802d`、T-C `15b4249`、报告 `6ce1e8b`、归档 `1504392`、计数 `d41cf5e`、gitignore `a5c129d`、T-D `8272322`、附七 `27a1285`，其后到 HEAD 的几笔都是 docs 与仪表。
-**门禁原先只对 `8272322` 的归档树负责**——这一条已按 Owner 之问对**最新 HEAD 复放**并取代（见下面限定①与 §9.12.15）。
+**门禁原先只对 `8272322` 的归档树负责**——这一条后来在当时代码快照 `360dca7` 上复放并取代。之后 `553912b` 仅更新两份报告；当前复核的精确 HEAD 口径见 §9.12.16。
 
 **门禁重放**（下表 = **`8272322` 那一轮**的历史读数，树解到 `%TEMP%/e-f2-tree`，**2559 文件、无 `.env`、无盲测 JSON**，用 live venv 解释器在树内跑；
-对**最新 HEAD** 的复放在 §0 表格最后一行与主报告 §9.12.15(1)，**同形、同步、同样六步全 rc=0**）：
+对**当时代码快照 `360dca7`** 的复放在 §0 表格最后一行与主报告 §9.12.15(1)，**六步全 rc=0**；当前 HEAD `553912b` 未被字面重跑）：
 
 | 步 | 命令（与 CI 同形） | 读数 | rc |
 |---|---|---|---|
@@ -426,9 +424,9 @@ langchain-text-splitters 0.0.2 / langsmith 0.1.147 / pypdf 5.9.0 / starlette 0.3
 | 5 | `pytest …/test_budget_guard.py` | 9 passed | **0** |
 | 6 | `PYTEST_ADDOPTS="-m 'not slow'" pytest --cov=. --cov-fail-under=70 -q` | **1639 passed, 10 skipped, 18 deselected, 0 failed**，coverage **84.91%** | **0** |
 
-**两条限定，不替我省**：① ~~那轮跑的是 `8272322` 的归档树~~ —— **这条已被现量取代**：应 Owner 之问（"现在推不推"需要"最新候选能不能推"的证据），
-六步已在 **HEAD = `360dca7`** 的归档树上重放一遍，六步 rc 全 0（`1639 passed / 0 failed / cov 84.91%`、`mypy 74 files`、`format 266 files`、守卫 9 passed；
-日志 `%TEMP%/e-f2-replay-20260928.log`，明细主报告 §9.12.15(1)）。`8272322..360dca7` 的改动面只有四个文件（D 的驱动 + D 的读数 + 两份报告）。
+**两条限定，不替我省**：① ~~那轮跑的是 `8272322` 的归档树~~ —— **在当时复核时已由新读数取代**：应 Owner 之问（"现在推不推"需要"最新候选能不能推"的证据），
+六步当时在 **HEAD = `360dca7`** 的归档树上重放，六步 rc 全 0（`1639 passed / 0 failed / cov 84.91%`、`mypy 74 files`、`format 266 files`、守卫 9 passed；
+日志 `%TEMP%/e-f2-replay-20260928.log`，明细主报告 §9.12.15(1)）。`8272322..360dca7` 的改动面只有四个文件（D 的驱动 + D 的读数 + 两份报告）。当前 HEAD `553912b` 只比测试快照多两份报告文档；没有对该精确 HEAD 重跑六步。
 ② **本机等形重放 ≠ 远端 CI 绿**：本轮**仍未推送**，远端实际运行**没有证据**——这一条不因为复放而改变，只能靠推快照分支拿到。
 
 **这一轮消掉了 §0 表格原先那条红**：纯发布物树从"`--co` rc=2（1 error）+ `--cov` rc=1（16 failed）"变成 **0 failed / rc=0**。
@@ -483,3 +481,55 @@ langchain-text-splitters 0.0.2 / langsmith 0.1.147 / pypdf 5.9.0 / starlette 0.3
     重测（`find -not -path "./venv/*" -print0 | xargs -0 grep` + `^[[:space:]]*` 允许缩进）才给出 §0 那四档排序的依据：
     **pypdf 1 文件、chromadb 9 文件、`langchain_*` 28–33 文件，starlette / transformers / langchain-community 各 0 文件**。
     **同一个 138，要读到 import 面才分得出轻重** —— 只看 audit 条数，我会把 transformers 和 pypdf 排成同一类票。
+
+---
+
+## 十一、本地候选收口（2026-09-28）—— 一页式
+
+执行入口 `docs/superpowers/plans/2026-09-28-local-candidate-closeout-plan.md`（A–F）；证据索引
+`dispatch-output/local-candidate-closeout-20260928/README.md`。**明细正文见
+`docs/progress-handoff-report-20260925.md` §9.12.17，两处使用同一份来源数据。**
+
+**① 结论（F 节三态）**：**阶段仍未完成 / 候选受阻** —— 技术门禁与数据副本验收都通过，
+但**依赖风险 47/57 条未获你接受**、**真实 rerank 未复验（凭据未轮换）**。按 F 节判据，这两条不解除就不能给"就绪"。
+
+**② 代码落在哪**：**只在候选分支** `codex/local-candidate-closeout`（起点 `aec8d5c`），**未合入 `master`、未推送**。
+四笔 / 7 文件：`ca0eb5e`(pypdf 6.16.1 + PDF 解析异常转受控 400 + 新测试) → `ecdc6b3`(FastAPI 0.141.1 + mypy 标注 + 限流用例)
+→ `39f4266`(留痕捕获改独立 Handler) → `fbc29e8`(T7 分案修订)。`master` 仍是 `aec8d5c`。
+
+**③ 提交后门禁（对无未提交修改的 `fbc29e8` 候选树，日志 `postcommit-gates.log`）**
+
+| 步 | 读数 | rc |
+|---|---|---|
+| `pip check` | No broken requirements found | **0** |
+| `ruff check .` / `ruff format --check .` | All checks passed / 全部已格式化 | **0 / 0** |
+| `mypy .` | Success: no issues found in **74** source files | **0** |
+| 全量 `pytest -m 'not slow' --cov --cov-fail-under=70` | **1650 passed, 10 skipped, 18 deselected**，coverage **85.25%** | **0** |
+| agent-quality `ruff` check / format / `test_budget_guard.py` | All checks passed / 4 files formatted / **9 passed** | **0 / 0 / 0** |
+| `pip_audit -r requirements.txt` | **47 条 / 8 包 / 扫 132 包** | **1**（漏洞非零） |
+
+- **审计那行有个坑必须分开记**：首跑（`postcommit-gates.log`）**不是漏洞读数，是扫描器自身失败** ——
+  `pypi.org` `ReadTimeout（read timeout=15）`。先分析、只重试一次并加大到 `--timeout 60`，才得到上表 47/8
+  （日志 `postcommit-pip-audit-retry.log`）。**扫描器故障不能写成"零漏洞"，也不能和"漏洞非零"混算。**
+- 三条多出来的红是**本机路径形态**造成的假红：`/c/Users/...` 被当相对路径解析成 `C:\c\Users\...`。
+  换 `C:/Users/...` 重跑全绿，日志标 `[6R]/[7R]/[8R]`。**这条坑此前已踩过，这次又踩了三次**，值得写进命令模板。
+- 41 个保护对象（两处 `app.db`、两处配额库、`chroma_db` 全量文件等）提交+测试后重算 size+SHA-256：**41/41 与 A 基线一致**，
+  **真实库零写入**。候选树自带的 `chroma_db` 是 144KB 空桩，不碰主树那份 349MB 真实库。
+
+**④ 依赖风险**：解析集 47/8/132、实装集 57/10/167（多出的是 setuptools/pytest，**两组口径不可相加**）。
+**两项升级目标已归零**（pypdf 6.16.1、fastapi 0.141.1 在解析集审计中各 0 条）。
+剩余 47/57 条**未获接受**，逐项清单与待裁状态在 `residual-risk-review.md`。**我不代签，也不加忽略项。**
+
+**⑤ 本轮没做什么（一句不省）**：未部署；未写真实库；未推送、未改历史；**未调用生成模型**；
+**未运行** `smoke_citation_full.py` 与 `smoke_citation_fast.py`（真实 rerank 因凭据待轮换而暂停，故本轮**没有 24/24 新读数**，
+23/24 仍是历史值）；未 `git add -A`；未动共享 venv 与其余 worktree。
+
+**⑥ 要你决策的两件事**
+
+1. **依赖风险裁定**：基于 `residual-risk-review.md` 的具体清单与 47/57 条现状，决定后续修复分案或接受范围。
+2. **凭据轮换**：活动 SiliconFlow key 与注释里保留的旧备用 key 是否都已撤销；完成后告知，我再按既有授权只跑一次隔离 rerank。
+
+**⑦ 一条必须转达的仓库缺陷**：本仓库对**嵌套分支引用**（`refs/heads/<目录>/<名>`）的写入会被静默抹除 ——
+`git update-ref refs/heads/x/y <sha>` rc=0、reflog 有记录，ref 文件却不存在；`git commit` 到 `codex/...` 分支因此
+**提交成功但分支指针不落盘**，下次读就报"分支无提交"。全新仓库不复现 ⇒ **本仓库特有，根因未定**。
+本轮靠"提交后按 reflog 回填引用"完成，做法与命令写在 §9.12.17(7)。**任何人动该分支前先复核引用仍在。**

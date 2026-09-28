@@ -1333,9 +1333,10 @@ C 的 **D2**（`observability.py:133` 那笔是否保留）、C 的 **D4**（今
   —— T-D **正在写盘**（B 的驱动 mtime 00:45、D 的读数 00:39，且 B 那两个文件在提 T-B 之后**新出现 ` M`）⇒ 未验收不提、正在改的提了会锁进半成品；
   ② 别的会话起草的 `docs/assistant-briefs/t7-dependency-upgrade-options-20260927.md`、A/C 回执、五份派单 brief、
   `docs/superpowers/plans/2026-09-27-post-E-followup-recommendations.md` —— 等"归属"口径一句话。
-- ⚠️ **扣住的两枚驱动此刻仍会被 T-D 继续改写**，而 `run_mutations.py` 是**直接改工作区真实文件**的仪器
+- **后续结账（截至 `553912b`）**：上面是当时的阶段性暂扣状态，不是当前状态。T-D 驱动/读数后来于 `8272322` 收口并验收，后续读数说明见 `27a1285`、`65f2964`；T7、派单、回执与后续计划已由 `1504392` 归档并跟踪。详见 §9.12.16。
+- ⚠️ **当时扣住的两枚驱动会被 T-D 继续改写**，而 `run_mutations.py` 是**直接改工作区真实文件**的仪器
   （`smoke_citation_fast.py` / `smoke_citation_full.py` / `CONTRIBUTING.md`，跑完还原 + sha256 核对）。
-  若它在还原前那一刻被中断，工作区会留下变异态 ⇒ E 在提 T-C 前后各量过一次，这三个文件**当前无 ` M`**（干净）。
+若它在还原前那一刻被中断，工作区会留下变异态 ⇒ E 在提 T-C 前后各量过一次，这三个文件在该次核对时**无 ` M`**（干净）。该风险描述记录的是当时的运行状态；T-D 后续已验收并提交，见 §9.12.16。
 
 **（4）提交时抓到的一条仓库卫生问题（在册事实，非本次引入）**
 
@@ -1464,7 +1465,7 @@ C 的 **D2**（`observability.py:133` 那笔是否保留）、C 的 **D4**（今
 其后落的两笔（附七/附八那笔与本笔）改的都是 `dispatch-output/` 下的仪表与读数文本——
 CI 的 ruff/mypy 只在 `backend/` 里跑（`dispatch-output` 只有 `agent-quality-20260911` 被点名），
 pytest 的 `testpaths` 也只指 `backend/tests` ⇒ **这六步的作用面没被这两笔碰到，不必重跑整轮**。
-但我也把话说到头：若要把"候选 = 最新 HEAD"这条坐实，就得对新 HEAD 再重放一次六步（约 6 分钟），
+但我也把话说到头：若要把"候选 = 当时最新 HEAD"这条坐实，就得对新 HEAD 再重放一次六步（约 6 分钟），
 那是一次**为了口径一致的重跑**，不是因为有什么证据说它可能红。
 
 #### 9.12.15 推送判定与 pip-audit 选型（2026-09-28 凌晨；Owner 两问问的就是这两个）
@@ -1472,16 +1473,16 @@ pytest 的 `testpaths` 也只指 `backend/tests` ⇒ **这六步的作用面没�
 **先给结论**：**不推**。pip-audit 按「**两行区间清零 91 条 + 一族迁移评估 + 两档风险接受**」分治，
 并且每一档"升级到底能不能清零"是**把候选版本钉住重跑 audit 实测出来的**，不是从 `fix_versions` 推出来的。
 
-**（1）六步门禁对最新 HEAD 复放（上面那条"要不要重跑"的悬案，我跑了）**
+**（1）六步门禁对当时最新代码快照 `360dca7` 复放（上面那条"要不要重跑"的悬案，当时已跑）**
 
-- 树：`git archive HEAD`（HEAD = `360dca7`）解到 `%TEMP%/e-f2-tree-20260928` ⇒ **2559 文件、无 `.env`、无 `backend/chroma_db`**（这就是 CI 看到的形状）。
+- 树：测试时 `git archive HEAD`（HEAD = `360dca7`）解到 `%TEMP%/e-f2-tree-20260928` ⇒ **2559 文件、无 `.env`、无 `backend/chroma_db`**（这就是 CI 看到的形状）。
 - `8272322..360dca7` 的改动面（`git diff --name-status`）= **四个文件**：D 的驱动 + D 的读数 + 两份报告。
 - 六步读数（日志 `%TEMP%/e-f2-replay-20260928.log`）：① `ruff check .` rc=**0**；② `ruff format --check .` = **266 files already formatted** rc=**0**；
   ③ `mypy .` = **Success: no issues found in 74 source files** rc=**0**（另有 5 条 `annotation-unchecked` **note**，不是 error，CI 同形）；
   ④ `../dispatch-output/agent-quality-20260911` 的 check + format = All checks passed / **4 files already formatted**，rc=**0/0**；
   ⑤ `test_budget_guard.py` = **9 passed** rc=**0**；⑥ `PYTEST_ADDOPTS="-m 'not slow'" pytest --cov=. --cov-fail-under=70 -q` =
   **1639 passed, 10 skipped, 18 deselected**、coverage **84.91%**、rc=**0**（139.72s）。
-- 与 §9.12.13 的唯一差别：**"其后只追加了纯文本附录，故不外推"那条限定，现在被现量取代** —— 六步是对最新 HEAD 跑的。
+- 与 §9.12.13 的唯一差别：**"其后只追加了纯文本附录，故不外推"那条限定，在当时被新读数取代** —— 六步对测试时 HEAD `360dca7` 跑过；当前 HEAD 的后续文档差异见 §9.12.16。
 - **限定不换**：本机等形重放 **≠** 远端 CI 绿；远端至今没看过这些提交。
 - 真实库零副作用（复放**跑前/跑后**逐字相同）：`backend/app.db` 20205568 / 09-19 00:28、`backend/data/app.db` 19939328 / 09-23 14:51、
   `backend/chroma_db/chroma.sqlite3` 210051072 / 09-21 02:06。复放后工作树里 mtime 新于 09-28 的三个 `.py`
@@ -1563,3 +1564,115 @@ pytest 的 `testpaths` 也只指 `backend/tests` ⇒ **这六步的作用面没�
 逐包清零判定 = `printf 'pypdf==6.16.1\n' > %TEMP%/one.txt && venv/Scripts/python.exe -m pip_audit --no-deps -r %TEMP%/one.txt`
 （注意 `-n` 短形式在本版本不存在，只有 `--no-deps`）；
 门禁复放 = `git archive HEAD | tar -x -C <空目录>` 后在该目录的 `backend/` 里按上表六条命令依次跑，日志留档。
+
+#### 9.12.16 当前状态对账更正（2026-09-28）
+
+本节补记后续 HEAD 与历史读数的边界，避免把阶段性状态当成现量：
+
+- 本次校订开始时 HEAD 为 `553912b`。六步门禁的实际测试快照是 `360dca7`；`git diff --name-status 360dca7 553912b` 仅列出这两份报告文档，**代码未变**。因此六步结果对代码快照仍有参考效力，但没有在字面上的 `553912b` 完整归档树重跑；不得称为“对当前 HEAD 实际重放”。本次只改报告，不重跑代码门禁。
+- 固定快速门禁的 **23/24** 来自较早的 `smoke_citation_fast.py @ d3735bb6`。本轮没有重跑完整 24 项；T-C 只对失败题做了单题追踪并确认目标由 rerank 降至第 8、再被 top-6 截掉。单题定位不更新也不重验 23/24 总数。
+- §9.12.11 的“暂扣”是当时提交流程中的状态：T-D 驱动/读数后续于 `8272322` 收口，后续读数说明见 `27a1285`、`65f2964`；T7 分案、派单 brief、回执和后续计划已由 `1504392` 归档并跟踪。不要再把这些文件列为当前未跟踪或待裁归属。
+- 以上更正不改变整体候选结论：`pip-audit` 仍为 138 项、远端 CI 未验证、没有执行依赖升级、部署或真实库写入。
+
+#### 9.12.17 本地候选收口执行记录（2026-09-28，接手会话补录）
+
+执行入口 `docs/superpowers/plans/2026-09-28-local-candidate-closeout-plan.md`（A–F）；证据索引
+`dispatch-output/local-candidate-closeout-20260928/README.md`。**本节与
+`docs/assistant-briefs/next-phase-E-integration-report-20260927.md` 的同名小节使用同一份来源数据。**
+
+**（1）基线与提交**
+
+- 主工作区 `master` = `aec8d5c`（未变）。候选工作树
+  `C:\Users\33393\.codex\worktrees\local-candidate-closeout\ai-legal-helper`，分支 `codex/local-candidate-closeout`，起点 `aec8d5c`。
+- 本轮在候选分支落**四笔**（**只在候选分支，未合入 master、未推送、未建远端分支**），共 7 个文件：
+  `ca0eb5e` pypdf 固定 6.16.1 + `knowledge_service.py` 把 `PyPdfError` 转受控 `ValueError` + 新增 `test_pdf_upload.py`；
+  `ecdc6b3` FastAPI 固定 0.141.1 + `main.py` 补 mypy 必需类型标注 + 新增 `test_upload_rate_limit.py`；
+  `39f4266` `test_request_bootstrap.py` 留痕捕获改用独立 Handler；`fbc29e8` T7 分案修订。
+  提交后候选树 `git status` 无未提交改动，`HEAD = fbc29e8`。
+- `main.py` 的标注改动**有复现依据**不是顺手改：`backend-static-gates.log` 留痕 mypy 2.3.1 报
+  `main.py:2461/2643/2854 error: Need type annotation`。
+- 共享 `backend/venv` 未动；未部署、未 push、未写真实库、未调用生成模型。
+
+**（2）候选环境（可重建）**
+
+`C:\Users\33393\AppData\Local\Temp\legal-closeout-20260928\venv`，Python 3.11.0，离线 wheelhouse 安装。
+关键版本：pypdf 6.16.1 / fastapi 0.141.1 / starlette 1.7.0（由 FastAPI 声明 `starlette>=0.46.0` 解析得到，**未硬钉**）/
+pydantic 2.13.5 / SQLAlchemy 2.1.1 / mypy 2.3.1 / pytest 8.4.2 / ruff 0.16.9 / chromadb 0.4.24 / langchain 0.1.20。
+
+**（3）提交后门禁复验（对无未提交修改的 `fbc29e8` 候选树；日志 `postcommit-gates.log`）**
+
+| 步 | 命令 | 读数 | rc |
+|---|---|---|---|
+| 1 | `pip check` | No broken requirements found | 0 |
+| 2 | `ruff check .` | All checks passed | 0 |
+| 3 | `ruff format --check .` | 全部已格式化 | 0 |
+| 4 | `mypy .` | Success: no issues found in 74 source files | 0 |
+| 5 | `pytest -m 'not slow' --cov=. --cov-fail-under=70` | **1650 passed, 10 skipped, 18 deselected**，coverage **85.25%**（211.38s） | 0 |
+| 6 | `ruff check <agent-quality-20260911>` | All checks passed | 0 |
+| 7 | `ruff format --check <同上>` | 4 files already formatted | 0 |
+| 8 | `pytest test_budget_guard.py` | 9 passed | 0 |
+| 9 | `pip_audit -r requirements.txt --format json` | **47 条 / 8 包 / 扫 132 包**（重试日志 `postcommit-pip-audit-retry.log`，`--timeout 60`；与 `candidate-requirements-pip-audit.json` 一致） | 1（**漏洞非零**） |
+
+- **第 9 步首跑不是漏洞读数，是扫描器自身失败**：`postcommit-gates.log` 里该步抛
+  `requests.exceptions.ReadTimeout: HTTPSConnectionPool(host='pypi.org', port=443): Read timed out. (read timeout=15)`，rc=1。
+  按纪律**不与"漏洞非零"混算**；先分析再重试（默认 15s 超时被网络拖死），**只重试一次**并加大到 `--timeout 60`，才得到上表那行 47/8。
+- 第 6–8 步第一次跑红（`ruff E902 系统找不到指定的文件`、`pytest file or directory not found`），
+  原因是本机把 `/c/Users/...` 形态的路径按相对路径解析成 `C:\c\Users\...`（本仓已多次踩到）；
+  **换 `C:/Users/...` 原生形态重跑后三步全 rc=0**，日志里以 `[6R]/[7R]/[8R]` 标出。
+- 前端本轮未改，沿用此前读数（`npm ci` rc=0；`npm run check` 7 files / 54 tests passed；`npm run build` rc=0）。
+- 保护对象复验：41 个（`backend/app.db`、`backend/data/app.db`、两处配额库、`backend/chroma_db` 全量文件等）
+  在提交与测试后重算 size + SHA-256，**41/41 与 A 基线逐项一致**（`protected-postcommit-check.log`）。
+- 候选树的 `backend/chroma_db` 是 144KB 空桩（测试自建），**不是**主树那份 349MB 真实库 ⇒ 候选测试不污染真实 KB。
+
+**（4）依赖风险读数与处置状态**
+
+- 候选 requirements 解析集：**47 条 / 8 包 / 扫 132 包** —— langchain-core 11、langchain-community 8、transformers 8、
+  langchain 7、langsmith 5、langchain-text-splitters 4、langchain-openai 2、chromadb 2。
+- 候选 venv 实装集：**57 条 / 10 包 / 扫 167 包** —— 多出的 `setuptools 8`、`pytest 2` 是测试/开发工具，不在应用依赖集内；
+  两组数字口径不同，**不可相加**。
+- **两项升级的目标告警已解除**：`fastapi==0.141.1` 与 `pypdf==6.16.1` 在解析集审计中均为 **0 条**。
+- **本阶段未接受任何剩余风险**：47/57 条仍是**红**读数；逐项触发条件、可达性与待裁状态见 `residual-risk-review.md`，
+  **待 Owner 裁定**。助手未加忽略项、未写 `--ignore-vuln`、未放宽 CI。
+- 真实 rerank 与 `smoke_citation_full.py` 均**未运行**（见（6））。
+
+**（5）隔离语料（D 节，全部在副本上）**
+
+- 候选输入 SHA-256 `f32f5852…` 与旧记录一致，三条 `content` 与各自 `source_document_sha256` 逐项一致；
+  民法典 1260、仲裁法 27 与 `data/laws_clean/` 逐字对照命中，合同法 428 仍单源。
+- 稳定快照副本上 `--validate-only` / `--dry-run` rc=0；首次实际导入替换 2 个无日期旧块、新增 3 条、跳过 0；
+  重跑幂等（每条只留 1 份 import 块、共 10267 条，目标语义哈希与无关记录哈希不变）；
+  从导入前快照恢复到另一临时目录，全记录与元数据哈希匹配导入前 10266 条状态；38 个原始 Chroma 文件拷贝前后逐文件哈希一致。
+- **真实库零写入**（见（3）末的保护对象复验）。
+
+**（6）本轮未完成项与阻塞（三条，全部在册）**
+
+1. **凭据轮换（Owner 动作，未完成）**：本阶段真实 rerank 验收暂停。**没有本阶段的 24/24 新读数**，只有历史 23/24；
+   轮换完成并告知后才能按既有授权只重跑一次。
+2. **依赖风险裁定（Owner 决策，未完成）**：47/57 条未获接受 ⇒ 按 F 节判据，本轮**不能**给"本地候选就绪"。
+3. 🚨 **新发现：本仓库对嵌套分支引用的写入缺陷（本轮首次观测并留痕）** —— 见（7）。
+
+**（7）🚨 仓库 git 缺陷：`refs/heads/<目录>/<名>` 的写入被静默抹除（2026-09-28 实测）**
+
+- **现象**：候选分支 `codex/local-candidate-closeout` 的 loose ref 在 `git commit` 之后消失，
+  `git log` 报 `your current branch 'codex/local-candidate-closeout' does not have any commits yet`；
+  但**提交对象与该分支的 reflog 都完好**（恢复正是靠 reflog）。
+- **复现（对**任意**嵌套引用都成立）**：`git update-ref refs/heads/x/y <sha>` → rc=**0**、reflog 有记录，
+  但 `refs/heads/x/y` 不存在；对**已存在**的嵌套 ref 做同样操作，ref 文件连同其父目录一起被删掉。
+  对照：`git update-ref refs/heads/<顶层名> <sha>` 正常；在 `git init` 的**全新**仓库里嵌套引用也正常
+  ⇒ **不是 git 2.55 的通用 bug，本仓库特有**（`extensions.worktreeConfig=true` 与多 worktree 在临时仓库里复现不出）。
+- **影响**：以 `codex/...` 命名的分支在本仓库**无法可靠提交** —— 提交会"成功"（rc=0、对象与 reflog 都在），
+  但分支指针不落盘，紧接着的读操作就看到"分支无提交"。
+- **本轮应对（可复现、已验证）**：每次提交后按 reflog 回填引用 ——
+  `mkdir -p .git/refs/heads/codex && printf '%s\n' "$(tail -n 1 .git/logs/refs/heads/codex/local-candidate-closeout | awk '{print $2}')" > .git/refs/heads/codex/local-candidate-closeout`
+  随后 `git worktree list` 显示 `fbc29e8 [codex/local-candidate-closeout]`、`git status` 干净。
+- **未定因**：本轮未定到根因（`.git/config` 正常、无相关钩子、无 `.lock` 残留、无并发 git 进程在跑）。
+  **接手者动这个分支前必须先复核该引用仍在。**
+- 排查期间建的对照引用（`zz-top`、`zzz-control*`、`zzdir` 等）与临时对照仓库**已全部清除**，`git show-ref` 现只列既有引用。
+
+**（8）未跟踪产物与归属（本轮不批量处理）**
+
+- 主工作区 tracked 修改只有本节所在报告与 E 报告；未跟踪 **34107** 个（`dispatch-output` 占 33938）。
+  本轮**只暂存本轮证据目录与本计划**，未 `git add -A`，未批量提交未跟踪产物。
+- **证据目录的入库边界**：`.gitignore:45` 全仓忽略 `*.log`，故本目录 59 个文件里只有 **23 个非 `.log` 文件入库**，
+  36 个 `.log` 留在磁盘供人工查看（关键日志路径已列在证据 README 里）；读数另摘录进本报告与 E 报告。
+- 其余 worktree（`ai-legal-helper-005/006/007/008/009`、`legal-agent-v1`、`master-e8826c5b`、`-e9b0e17`）**只登记、不动**。
