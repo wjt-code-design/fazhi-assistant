@@ -135,9 +135,10 @@
 **未跟踪产物归属**：本轮只暂存本证据目录与本计划；主工作区未跟踪 34107 个（`dispatch-output` 占 33938），未 `git add -A`；
 其余 worktree 只登记不动。
 
-**本目录的入库边界（`.gitignore:45` 全仓忽略 `*.log`）**：本目录 59 个文件中，**23 个非 `.log` 文件入库**
+**本目录的入库边界（`.gitignore:45` 全仓忽略 `*.log`）**：本目录 62 个文件中，**26 个非 `.log` 文件入库**
 （README、各 audit/resolve/install 的 `.json`、`protected-before.json`、`requirements-web-candidate.txt`、`remote-ci.yml`、
-`remote-tree-diff.txt`、`residual-risk-review.md`、两份回执、`summarize_audit.py`、`verify_corpus.py`）。
+`remote-tree-diff.txt`、`residual-risk-review.md`、两份回执、`summarize_audit.py`、`verify_corpus.py`、
+`watch-ref-write.py`、`restore-candidate-ref.sh`、`verify-protected.py`）。
 36 个 `.log` 按仓规不入库、**留在磁盘上供人工查看**，读数已摘录进本文件与报告；关键日志路径：
 `postcommit-gates.log`（提交后 1–9 步）、`postcommit-pip-audit-retry.log`（第 9 步加大超时的重试读数）、
 `protected-postcommit-check.log`（41 个保护对象复验）、`backend-full-tests-final-v2.log`（提交前全量）、
