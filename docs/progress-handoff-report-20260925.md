@@ -1268,6 +1268,7 @@ C 的 **D2**（`observability.py:133` 那笔是否保留）、C 的 **D4**（今
 - E 复跑：`pytest tests/test_knowledge_service.py tests/test_log_field_whitelist.py -q -m "not slow"` → **5 passed, 1 deselected**（隔离库）；
   改前基线同 rc=0。关键点：**旧断言 `"injected judgment boom" in payload["exc"]` 本身就是在要求泄露**，删它不算削弱（新断言在"不泄"维度严格更强）。
 - 待裁：① `backend/retrieval.py:431` 有**同类** `exc_info=True`（`"QA 引用的条文核验读库失败…"`）——全仓业务点**仅剩这一处**；
+  **（①的判据后来被我自己推翻，见 §9.12.10(5) 与 §9.12.14 的改判）**
   ② 本分支此后**没有栈**，只有类名 + 法名/条号（要原文需本地按同法名/条号复现）。要不要同批收口 ①、要不要为 ② 另加脱敏归因字段，请裁。
 
 **（2）T-B 干净检出测试依赖 —— 验收通过（E 复跑）**
@@ -1297,7 +1298,7 @@ C 的 **D2**（`observability.py:133` 那笔是否保留）、C 的 **D4**（今
   而是 `git add` 时那句 `CRLF will be replaced by LF the next time Git touches it`——本次正是这句抓到 T-C 那 10 个文件。
 
 **（5）本轮新增待裁/待办**
-- 待裁③｜`retrieval.py:431` 那处同类 `exc_info` 是否同批收口（见 (1) ①）。
+- 待裁③｜`retrieval.py:431` 那处同类 `exc_info` 是否同批收口（见 (1) ①）。**→ 2026-09-28 改判：建议保留、不收口**（读完被调函数本体后发现两处不是一个泄露面，理由见 §9.12.14；原文不删，因为它记的是我当时真实的判据状态）。
 - 待裁④｜T-A 的"无栈"取舍是否接受，或另加"脱敏归因字段"（见 (1) ②）。
 - 待办｜T-D（两枚变异驱动加固）已派出并在跑；其 `UNTRACKED_FIXTURES` 补拷经 B 修好后**可能已非必需**，由 D 票实测后定并留痕。
 
@@ -1423,3 +1424,45 @@ C 的 **D2**（`observability.py:133` 那笔是否保留）、C 的 **D4**（今
 ⇒ 按派单书 F 项 5 的口径："门禁仍失败则候选仍未就绪"。本轮门禁**不再失败**，但 1–4 任一条都足以让候选停在"未就绪"，
 所以判定不变、理由更新。
 
+
+---
+
+#### 9.12.14 Owner 裁"按建议动手"后的两件（2026-09-28 凌晨）
+
+**（1）A-① 改判：`retrieval.py:431` 建议保留、不收口**。我原先给的是"同一泄露形状、留一处等于留半扇门"，
+那句只比了调用点的**形状**，没读被调函数本体。读完的事实：
+
+- `retrieval.py` 全文只有两处 `raise_for_status()`（rerank 的 HTTP 出口）和一个裸 `raise`（embedding 配额上达 409）——
+  **这条链上没有任何 `raise` 把条文正文拼进异常消息**。
+- `exact_article_lookup()` → `_valid_docs()` 确实把正文读进 `Document(page_content=...)`，但正文只进返回值、不进异常；
+  这条 `except Exception` 实际会捕到的是 chroma 返回形状类的 `KeyError/IndexError`，`exc` 里是**缺失的键名 + 栈帧**。
+- 对比 T-A 那处：异常消息是**我们自己用 `new_content` 拼出来的**，所以 `exc_info=True` 才真的把正文送进日志。
+- ⇒ 两处不是同一个泄露面；这里的栈反而有诊断价值（键形状问题不带栈看不懂）。**建议保留**，
+  并把我那句过头话在 §5 台账与附录 A 第 7 条改判留痕。教训：**"同一形状"≠"同一风险"**。
+
+**（2）给 D 的驱动补根文件进 `TREE_SPECS`**（与 B 侧对齐）。机理已核：`test_smoke_citation_assertions.py:36-37`
+用 `parents[1].parent / "CONTRIBUTING.md"` 解析根目录 ⇒ 副本树缺它时那条对账用例**必红**，是纯环境假红。
+
+| 项 | 改前（同一次会话早前实测） | 改后现量 |
+|---|---|---|
+| 副本树文件数 | 615 | **616**（只多根文件那一个） |
+| `--collect-only` 分母 | 1667 | **1667**（根文件不是用例来源，符合预期） |
+| 机器段基线红 | 5 条 | **4 条**，消失的正是 `test_gate_item_counts_match_contributing` |
+| 五只变异 | KILLED 5/5 | **KILLED 5/5**，每只"运行完整性 1667/1667 + 还原后逐字一致=True" |
+| `--selftest all`（含 drift 共 5 条） | 全 PASS | **全 PASS** |
+
+命令与退出码：`… run_mutations.py --selftest all` ⇒ **rc=0**；`… run_mutations.py` ⇒ **rc=0**（`SELFTEST_RC=0`、`FULL_RC=0`）。
+剩下的 4 条环境假红成因清楚（缺 `docs/gate-exit-registry.md` 1 条、release-evidence 初始化面 1 条、
+缺 `evals/watershed-cases-r15.json` 2 条）——**要不要把 `docs/` 与 `evals/` 也放进 specs 我没顺手做**：
+那会把树撑大不少，而且基线名单现在由机器逐条列全，留着它不会误导。
+
+**（3）顺手抓到的一处自指过期**：这一改动让**我两小时前写的附七第 2 条**（"基线红由 21 条降到 5 条"）当场过期。
+按纪律**不回填**，另开**附八**给现量并点名它追过了谁——这正好是本票把基线名单改成机器生成的理由：
+**人每抄一次数，就多一个会过期的点**。
+
+**（4）这两件对 §9.12.13 那轮门禁的影响，说清边界**：§9.12.13 的六步 rc=0 是对 `8272322` 的归档树跑的；
+其后落的两笔（附七/附八那笔与本笔）改的都是 `dispatch-output/` 下的仪表与读数文本——
+CI 的 ruff/mypy 只在 `backend/` 里跑（`dispatch-output` 只有 `agent-quality-20260911` 被点名），
+pytest 的 `testpaths` 也只指 `backend/tests` ⇒ **这六步的作用面没被这两笔碰到，不必重跑整轮**。
+但我也把话说到头：若要把"候选 = 最新 HEAD"这条坐实，就得对新 HEAD 再重放一次六步（约 6 分钟），
+那是一次**为了口径一致的重跑**，不是因为有什么证据说它可能红。
