@@ -1,0 +1,248 @@
+[
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\app.db",
+    "bytes": 20205568,
+    "modified_utc": "2026-09-18T16:28:25.7167075Z",
+    "sha256": "3638B2E453ED73B78DEC7255C6673DBBA03AC5B6DA8E34E9B9A6BBFE6E151F4A"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\data\\app.db",
+    "bytes": 19939328,
+    "modified_utc": "2026-09-23T06:51:15.9526019Z",
+    "sha256": "ED307BD3F8E5C4078EB89893177D8A003FB95007C4EEF4085F0BF224E65ABB02"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\data\\quota_used.sqlite",
+    "bytes": 12288,
+    "modified_utc": "2026-09-18T16:12:51.5697889Z",
+    "sha256": "922DC764DEE23263FB508EAADA2B2188A7BC1D310D63B2707375184A93131131"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\chroma.sqlite3",
+    "bytes": 210051072,
+    "modified_utc": "2026-09-20T18:06:44.4748985Z",
+    "sha256": "B551677BDDAB4B851E7C1A18B89E87FB1DD495FEFA664C4359F19BCDE5DDDC91"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\2cddf19e-efd3-4930-b052-b098b583befd\\data_level0.bin",
+    "bytes": 32120000,
+    "modified_utc": "2026-09-06T11:50:08.3661746Z",
+    "sha256": "029BACC634F742C500C2F53DF36F79C9B08B0354DDE5832FFE90205D788DE356"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\2cddf19e-efd3-4930-b052-b098b583befd\\header.bin",
+    "bytes": 100,
+    "modified_utc": "2026-09-06T11:50:08.3397700Z",
+    "sha256": "134F4095B784D0185024F918A3702FAB9D4D4277C0ECF8828102749AE3ABC5DE"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\2cddf19e-efd3-4930-b052-b098b583befd\\index_metadata.pickle",
+    "bytes": 287209,
+    "modified_utc": "2026-09-06T11:50:08.3742407Z",
+    "sha256": "431FD99E0E4F8758ACD2918DB07F66F7C5185BBCFF6D6CF19496DD5E519A579B"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\2cddf19e-efd3-4930-b052-b098b583befd\\length.bin",
+    "bytes": 40000,
+    "modified_utc": "2026-09-06T11:50:08.3691084Z",
+    "sha256": "5A03784B1A1237A7D34B8DC019A5FB04DBAAFAF56C63C725E2A6613AAF15E7A2"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\2cddf19e-efd3-4930-b052-b098b583befd\\link_lists.bin",
+    "bytes": 87396,
+    "modified_utc": "2026-09-06T11:50:08.3711893Z",
+    "sha256": "CAC328058E56838E3D1F73430031A471135A70BC2C369079D2DB957F16D5AAEA"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\2e19d2cd-e1f7-41df-9d49-523980733fb0\\data_level0.bin",
+    "bytes": 32120000,
+    "modified_utc": "2026-09-06T11:50:08.4341846Z",
+    "sha256": "9373AAA7A8BA6CB79A07FC12111AB5279F708F6EE0FFCE79729CBCD76D7A9243"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\2e19d2cd-e1f7-41df-9d49-523980733fb0\\header.bin",
+    "bytes": 100,
+    "modified_utc": "2026-09-06T11:50:08.4362426Z",
+    "sha256": "134F4095B784D0185024F918A3702FAB9D4D4277C0ECF8828102749AE3ABC5DE"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\2e19d2cd-e1f7-41df-9d49-523980733fb0\\index_metadata.pickle",
+    "bytes": 287209,
+    "modified_utc": "2026-09-06T11:50:08.4079763Z",
+    "sha256": "A57F1B1CC3E3FA78E4C3AAB4274106A7D63E3849CBCA7D93EC9A4D3D6A1CAF63"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\2e19d2cd-e1f7-41df-9d49-523980733fb0\\length.bin",
+    "bytes": 40000,
+    "modified_utc": "2026-09-06T11:50:08.4099875Z",
+    "sha256": "6EF8D68AC251A4C18281B4BFECE97D7344DD288FA58402AD3414BA430BF1D9F6"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\2e19d2cd-e1f7-41df-9d49-523980733fb0\\link_lists.bin",
+    "bytes": 87396,
+    "modified_utc": "2026-09-06T11:50:08.4050288Z",
+    "sha256": "02556E0F8D3ED71BD9B176E9DD7D06BF975DEE280FBE9F3436DDCE525AD5EED2"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\3488d9e6-9de4-4a32-994a-f46702c86949\\data_level0.bin",
+    "bytes": 16760000,
+    "modified_utc": "2026-09-06T11:50:08.3987352Z",
+    "sha256": "E5A1139CA180F91C57FF3274A32A5EB2060AB03E0C8E32823509E68FA7662746"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\3488d9e6-9de4-4a32-994a-f46702c86949\\header.bin",
+    "bytes": 100,
+    "modified_utc": "2026-09-06T11:50:08.3762526Z",
+    "sha256": "3C4EBED993B6B4B5FFB76F041700CFFDAE91CD21FDB81B6CC9E6846364B27D3C"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\3488d9e6-9de4-4a32-994a-f46702c86949\\index_metadata.pickle",
+    "bytes": 578355,
+    "modified_utc": "2026-09-06T11:50:08.3807604Z",
+    "sha256": "F978D3F0916B69B642065DDB227617CA4506CF830CF15854B66EC263599FD0AE"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\3488d9e6-9de4-4a32-994a-f46702c86949\\length.bin",
+    "bytes": 40000,
+    "modified_utc": "2026-09-06T11:50:08.4023791Z",
+    "sha256": "8C8C45237C7BEAA29CA8F2785921B1799962EA11977CE5F00414768BDC6D5C52"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\3488d9e6-9de4-4a32-994a-f46702c86949\\link_lists.bin",
+    "bytes": 87464,
+    "modified_utc": "2026-09-06T11:50:08.3838395Z",
+    "sha256": "137A1F1879DAA94A571FC7EAB704A735BF34EAA7C9529669374C026CB044A8DB"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\6448dd57-3906-41dc-a47c-23cac7c7a80d\\data_level0.bin",
+    "bytes": 3212000,
+    "modified_utc": "2026-09-06T11:50:08.4501587Z",
+    "sha256": "A13E72541800C513C73DCCEA69F79E39CF4BAEF4FA23F7E117C0D6B0F5F99670"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\6448dd57-3906-41dc-a47c-23cac7c7a80d\\header.bin",
+    "bytes": 100,
+    "modified_utc": "2026-09-06T11:50:08.4382383Z",
+    "sha256": "0EC6DF10978B056A10062ED99EFEEF2702FA4A1301FAD702B53DD2517103C746"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\6448dd57-3906-41dc-a47c-23cac7c7a80d\\length.bin",
+    "bytes": 4000,
+    "modified_utc": "2026-09-06T11:50:08.4402433Z",
+    "sha256": "2624C3FADF5C4293B9BAADE50FD20BF0E97AD5257848D2ABC92A3D1955C29627"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\6448dd57-3906-41dc-a47c-23cac7c7a80d\\link_lists.bin",
+    "bytes": 0,
+    "modified_utc": "2026-09-06T11:50:08.4511044Z",
+    "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\89541a20-2c00-4ccc-8519-89bc260fcb5d\\data_level0.bin",
+    "bytes": 3212000,
+    "modified_utc": "2026-09-06T11:50:08.4670007Z",
+    "sha256": "A13E72541800C513C73DCCEA69F79E39CF4BAEF4FA23F7E117C0D6B0F5F99670"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\89541a20-2c00-4ccc-8519-89bc260fcb5d\\header.bin",
+    "bytes": 100,
+    "modified_utc": "2026-09-06T11:50:08.4679963Z",
+    "sha256": "0EC6DF10978B056A10062ED99EFEEF2702FA4A1301FAD702B53DD2517103C746"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\89541a20-2c00-4ccc-8519-89bc260fcb5d\\length.bin",
+    "bytes": 4000,
+    "modified_utc": "2026-09-06T11:50:08.4548641Z",
+    "sha256": "9F7A68A9B13D7E8830125F64FDB1414B5F870AB91DBF1E0F5AC603849A32246F"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\89541a20-2c00-4ccc-8519-89bc260fcb5d\\link_lists.bin",
+    "bytes": 0,
+    "modified_utc": "2026-09-06T11:50:08.4559096Z",
+    "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\9f605bf2-1ce3-4532-96a7-9d744169fc02\\data_level0.bin",
+    "bytes": 3212000,
+    "modified_utc": "2026-09-22T05:34:51.9708984Z",
+    "sha256": "A13E72541800C513C73DCCEA69F79E39CF4BAEF4FA23F7E117C0D6B0F5F99670"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\9f605bf2-1ce3-4532-96a7-9d744169fc02\\header.bin",
+    "bytes": 100,
+    "modified_utc": "2026-09-22T05:34:51.9698985Z",
+    "sha256": "0EC6DF10978B056A10062ED99EFEEF2702FA4A1301FAD702B53DD2517103C746"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\9f605bf2-1ce3-4532-96a7-9d744169fc02\\length.bin",
+    "bytes": 4000,
+    "modified_utc": "2026-09-22T05:34:51.9708984Z",
+    "sha256": "113AE33B88E2370D53832E261B4A4B047D17611F813050017F6374C9085339DB"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\9f605bf2-1ce3-4532-96a7-9d744169fc02\\link_lists.bin",
+    "bytes": 0,
+    "modified_utc": "2026-09-22T05:34:51.9698985Z",
+    "sha256": "E3B0C44298FC1C149AFBF4C8996FB92427AE41E4649B934CA495991B7852B855"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\c887503d-c573-4676-ab00-97867e944bfe\\data_level0.bin",
+    "bytes": 32120000,
+    "modified_utc": "2026-09-06T11:50:08.3362165Z",
+    "sha256": "11B3AA5919A9AA3641B83779FD43202186A0882E9FE30CD606A3AEBD0E0131BA"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\c887503d-c573-4676-ab00-97867e944bfe\\header.bin",
+    "bytes": 100,
+    "modified_utc": "2026-09-06T11:50:08.3372149Z",
+    "sha256": "1D39D0B5CDEAA4254CBD493D81EED35CC15595EF6009C6CD4405D365D634BB80"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\c887503d-c573-4676-ab00-97867e944bfe\\index_metadata.pickle",
+    "bytes": 578355,
+    "modified_utc": "2026-09-06T11:50:08.3052739Z",
+    "sha256": "C020A46DE78701543370D992A17F92DAACB3586E873DBC8B74BCAB9E8605E244"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\c887503d-c573-4676-ab00-97867e944bfe\\length.bin",
+    "bytes": 40000,
+    "modified_utc": "2026-09-06T11:50:08.2986608Z",
+    "sha256": "7DE16838A30D00A62750E7A0E232B3F3D54FEC6E65871D3DC3780BEC341AD2A3"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\c887503d-c573-4676-ab00-97867e944bfe\\link_lists.bin",
+    "bytes": 87396,
+    "modified_utc": "2026-09-06T11:50:08.3022145Z",
+    "sha256": "6A714725C8812899E52A40C7C6E2A2BF7217D7189224471EB91023A6E99CA264"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\d9e7deb4-a7c8-45ce-a1c2-0927f6532a32\\data_level0.bin",
+    "bytes": 29852328,
+    "modified_utc": "2026-09-06T11:50:08.6589877Z",
+    "sha256": "65F4068BCE9A614E8EF9DA42E2FB7CFF6AFF6C40847C87286CC01A6AA011DA68"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\d9e7deb4-a7c8-45ce-a1c2-0927f6532a32\\header.bin",
+    "bytes": 100,
+    "modified_utc": "2026-09-06T11:50:08.6363596Z",
+    "sha256": "F13D890966FFE320BF4D155BFFF6BE7B707DF9DF7F237BF15158F323553FAB89"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\d9e7deb4-a7c8-45ce-a1c2-0927f6532a32\\index_metadata.pickle",
+    "bytes": 536918,
+    "modified_utc": "2026-09-06T11:50:08.6297127Z",
+    "sha256": "2AB02ABA248991EB496F9ECA8DBBD5D5033CA6954601B7834FBE24279D2BECF0"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\d9e7deb4-a7c8-45ce-a1c2-0927f6532a32\\length.bin",
+    "bytes": 37176,
+    "modified_utc": "2026-09-06T11:50:08.6322749Z",
+    "sha256": "D1AD2E87BA9A35B4E99676AFD68B7AB9A684A142AD00E113CDA8488AA6D43E0F"
+  },
+  {
+    "path": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\backend\\chroma_db\\d9e7deb4-a7c8-45ce-a1c2-0927f6532a32\\link_lists.bin",
+    "bytes": 79336,
+    "modified_utc": "2026-09-06T11:50:08.6343192Z",
+    "sha256": "2B523648414D4C8026214F09A6887FB6A36CF30702BE3C2B03A904DEEC840A2D"
+  }
+]
