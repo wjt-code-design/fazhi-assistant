@@ -119,6 +119,19 @@
   然后核对 `git worktree list` 与 `git status`。
 - 未定因；排查期建的对照引用与临时仓库已全部清除。**接手者动该分支前必须先复核引用仍在。**
 
+**双保险（2026-09-29 落地，Owner 选「分层：回填+备份，根因另立诊断」）**
+
+1. **恢复脚本**：`restore-candidate-ref.sh`（本目录）。两级恢复 + 三处核对，已实测两条路径：
+   引用存在时直接判 OK；把 ref 文件挪走后能从 reflog 恢复并核对 `rev-parse`/`worktree list`/`log`。
+   用法 `bash restore-candidate-ref.sh [仓库路径] [bundle 路径]`。
+2. **增量 bundle 备份**（**故意放在仓库外**，以便 `.git` 本身受损时仍可用）：
+   `C:\Users\33393\Desktop\ai-legal-helper-bundles\local-candidate-closeout-fbc29e8.bundle`
+   —— 7299 B，含 `refs/heads/codex/local-candidate-closeout = fbc29e8`，前置依赖 `aec8d5c`（本机存在）；
+   sha256 `f706c1ccf80e39c214e29dd90b819a5416636d4d725c8b52d3a94bfc41c36de7`。
+   核对：`git bundle verify <bundle>` → `is okay`。重建：`git bundle create <bundle> codex/local-candidate-closeout --not master`
+   （**路径必须用 `C:/...` 原生形态**，用 `/c/...` 会报 `.bundle.lock: No such file or directory`）。
+3. 根因（哪个进程删的）**未定**，已列为待排的定向诊断；期间每次提交后都要回填并核对。
+
 **未跟踪产物归属**：本轮只暂存本证据目录与本计划；主工作区未跟踪 34107 个（`dispatch-output` 占 33938），未 `git add -A`；
 其余 worktree 只登记不动。
 
