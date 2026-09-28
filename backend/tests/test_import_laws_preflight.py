@@ -20,6 +20,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -276,6 +277,17 @@ def test_seed_conflict_is_named_and_kept_out_of_the_batch(monkeypatch, tmp_path,
         assert "新增 1 条" in out and "跳过 0 条" in out, out
         assert "将替换 1 旧片段" in out, out
     assert tmp_collection._collection.get()["ids"] == before, "dry-run 动了知识库"
+
+
+def test_seed_conflict_finds_seed_after_upload():
+    matches = {"upload-id": {"origin": "upload"}, "seed-id": {"origin": "seed"}}
+
+    def get(*, where=None, ids=None, include=None):
+        found = ["upload-id", "seed-id"] if where is not None else ids
+        return {"ids": found, "metadatas": [matches[item] for item in found]}
+
+    vectorstore = SimpleNamespace(_collection=SimpleNamespace(get=get))
+    assert _load_script()._seed_conflict(vectorstore, "受控测试法", "第一千二百六十条")
 
 
 def test_import_laws_holds_no_second_copy_of_the_judgment():

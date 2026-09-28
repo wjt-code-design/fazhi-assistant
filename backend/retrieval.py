@@ -306,6 +306,7 @@ def _num_to_cn(n: int) -> str:
 _QUERY_BRIDGE = [
     (re.compile(r"高空抛物"), "从建筑物中抛掷物品"),
     (re.compile(r"受案范围"), "申请行政复议"),
+    (re.compile(r"周末加班"), "休息日安排劳动者工作"),
 ]
 
 

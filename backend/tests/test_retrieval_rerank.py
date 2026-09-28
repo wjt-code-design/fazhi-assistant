@@ -30,6 +30,7 @@ def _in_top(docs, source, article):
 def test_bridge_query_rewrites():
     assert "从建筑物中抛掷物品" in retrieval._bridge_query("高空抛物致人损害，由谁承担责任？")
     assert "申请行政复议" in retrieval._bridge_query("行政复议的受案范围包括哪些情形？")
+    assert "休息日安排劳动者工作" in retrieval._bridge_query("周末加班，加班费怎么算？")
 
 
 def test_bridge_query_passthrough():

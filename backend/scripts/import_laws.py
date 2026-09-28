@@ -124,14 +124,12 @@ def _seed_conflict(vectorstore, title: str, article: str) -> bool:
     **不是**"新旧条文重叠会不会被拦下"：后者从 T2 起由 `preflight_lines` 的并存报警负责。
     语义按票面保留不动；这段说明是为了别让下一个人把它当重叠防线（票 T2 §现象）。
     """
-    ids = vectorstore._collection.get(where={"$and": [{"source": title}, {"article": article}]}, include=["metadatas"])[
-        "ids"
-    ]
-    if not ids:
-        return False
     # 存在 seed 即视为冲突（重建会覆盖 import 版本）
-    metas = vectorstore._collection.get(ids=ids[:1], include=["metadatas"])["metadatas"] or []
-    return bool(metas) and metas[0].get("origin") == "seed"
+    matches = vectorstore._collection.get(
+        where={"$and": [{"source": title}, {"article": article}]},
+        include=["metadatas"],
+    )
+    return any(meta and meta.get("origin") == "seed" for meta in matches["metadatas"] or [])
 
 
 def main():

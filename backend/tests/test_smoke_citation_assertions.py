@@ -270,28 +270,48 @@ def test_full_citation_pattern_cannot_drift_from_retrieval(full):
     assert full._ART_CORE in retrieval._ART_FULL_RE.pattern, "full 的条号正则与生产正则已不是同一截"
 
 
-# ==================== 表本身：法名映射与门禁项数 ====================
+# ==================== 场景期望与门禁项数 ====================
 
-# 派单第 2 条给的归属：格式条款/交强险/定金→民法典；违法解除/经济补偿/试用期→劳动合同法；
-# 周末加班→劳动法；七天退货→消保法。轻量两条沿用同一条文的母场景归属。
-BRIEF_LAW_BY_SCENARIO = {
-    "网购退货格式条款": "民法典",
-    "违法解除赔偿金": "劳动合同法",
-    "合法解除经济补偿": "劳动合同法",
-    "试用期上限": "劳动合同法",
-    "周末加班费": "劳动法",
-    "交强险赔偿顺序": "民法典",
-    "定金退不退": "民法典",
-    "七天无理由退货": "消费者权益保护法",
-    "轻量-试用期": "劳动合同法",
-    "轻量-七天退货": "消费者权益保护法",
+# 期望值独立写在测试里；不可从脚本用例表推导，否则改错条号也会全绿。
+EXPECTED_FAST_PAIRS = {
+    "公司违法解除劳动合同，赔偿金怎么算？": ({"劳动合同法"}, {"第八十七条"}),
+    "公司合同到期不续签，经济补偿金怎么算？": ({"劳动合同法"}, {"第四十七条"}),
+    "劳动合同试用期最长能约定多久？": ({"劳动合同法"}, {"第十九条"}),
+    "周末加班，加班费怎么算？": ({"劳动法"}, {"第四十四条"}),
+    "机动车发生交通事故，交强险先赔还是商业险先赔？": ({"民法典"}, {"第一千二百一十三条"}),
+    "交了定金又不想买了，定金能退吗？": ({"民法典"}, {"第五百八十六条", "第五百八十七条"}),
+    "网购商品七天无理由退货需要满足什么条件？": ({"消费者权益保护法"}, {"第二十五条"}),
 }
 
 
-def test_full_tables_pair_each_scenario_with_its_briefed_law(full):
-    """钉住 10 个带引用断言的场景各归哪部法——把法名悄悄改回"只看条号"或挪去别的法，这里就红。"""
-    table = {label: source for label, _q, source, _arts in [*full.POSITIVE, *full.LIGHT_POSITIVE]}
-    assert table == BRIEF_LAW_BY_SCENARIO
+def test_fast_table_keeps_each_scenario_law_and_articles(fast):
+    """七个检索场景的法名和可接受条号都由独立期望锁定。"""
+    table = {query: (set(sources), set(articles)) for query, sources, articles, _intent in fast.RETRIEVAL_CASES}
+    assert len(table) == len(fast.RETRIEVAL_CASES), "检索问题重复"
+    assert table == EXPECTED_FAST_PAIRS
+
+
+# 派单的法名归属与各题操作性条文；两种数字写法均可接受。
+EXPECTED_FULL_PAIRS = {
+    "网购退货格式条款": ("民法典", {"第四百九十六条", "第496条", "第四百九十七条", "第497条"}),
+    "违法解除赔偿金": ("劳动合同法", {"第八十七条", "第87条"}),
+    "合法解除经济补偿": ("劳动合同法", {"第四十七条", "第47条"}),
+    "试用期上限": ("劳动合同法", {"第十九条", "第19条"}),
+    "周末加班费": ("劳动法", {"第四十四条", "第44条"}),
+    "交强险赔偿顺序": ("民法典", {"第一千二百一十三条", "第1213条"}),
+    "定金退不退": ("民法典", {"第五百八十六条", "第586条", "第五百八十七条", "第587条"}),
+    "七天无理由退货": ("消费者权益保护法", {"第二十五条", "第25条"}),
+    "轻量-试用期": ("劳动合同法", {"第十九条", "第19条"}),
+    "轻量-七天退货": ("消费者权益保护法", {"第二十五条", "第25条"}),
+}
+
+
+def test_full_tables_keep_each_scenario_law_and_articles(full):
+    """十个带引用断言的场景逐项锁定法名和可接受条号。"""
+    rows = [*full.POSITIVE, *full.LIGHT_POSITIVE]
+    table = {label: (source, set(articles)) for label, _query, source, articles in rows}
+    assert len(table) == len(rows), "场景名重复"
+    assert table == EXPECTED_FULL_PAIRS
 
 
 def test_full_negatives_carry_no_citation_expectation(full):
