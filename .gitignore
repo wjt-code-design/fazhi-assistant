@@ -26,6 +26,9 @@ htmlcov/
 .env
 .env.local
 .env.*.local
+# 日期后缀的 .env 备份（如 backend/.env.bak-20260910-pre-qwen38）既不被 `.env` 也不被 `*.bak` 覆盖，
+# 此前只靠 .git/info/exclude 兜住——那是每个克隆各自的文件，换机器/别人 clone 就没了。
+.env.bak*
 
 # ===== 向量库 / 模型缓存 =====
 backend/chroma_db/
