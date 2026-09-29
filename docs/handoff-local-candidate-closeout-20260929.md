@@ -286,6 +286,13 @@ AQ="C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/agent-quality-2026091
   （驱动把 `RERANK_ENABLED` 关成 false，而本机 `.env` 实为 true）；
   ④ `backend/scripts/*` 与**子进程 / 第二解释器**不在这两场窗口内（仪器只桩本进程）；
   ⑤ 模型**文件**完整性未验（探针只证"没放行远程代码"，不证那份权重没被动过）。
+  ⚠️ **2026-09-29 这条被加重了**：torch 轴上有一条 **`weights_only` 反序列化器绕过**通报（可被构造的 checkpoint 绕过，
+  修复版 2.10.0，实装 2.6.0 在区间内；编号与逐条判据见 `residual-risk-review-torch-20260929.md`，
+  它**不在本页 26 行的册内**，所以签字页不写它的编号）。
+  我实测本机 `torch.load` 默认**确实是** `weights_only=True`（造了一枚会执行 `os.system` 的 pickle，被 `UnpicklingError` 拦住、副作用没发生）——
+  但**那条通报声称绕过的正是这个默认防护** ⇒ "默认开着"**不是它的缓解证明**；而其前置条件是"一份被改动的模型文件"，
+  ⇒ **⑤ 现在不是"一件没测的事"，而是"一条通报正压在上面的缺口"**。缓存里 `model.safetensors` 与 `pytorch_model.bin` **同时存在**
+  （pickle 加载路径实体在盘上，不是假设）。
 
 **二·补、另一根轴：本笔签字**覆盖不到**的环境范围（不是"探针射程"那条轴，是"包范围"那条轴）**
 
@@ -297,6 +304,10 @@ AQ="C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/agent-quality-2026091
   **签了也不覆盖这一轴** —— 它既未判适用、也未判不适用，**保持待处置**。
   ⑦ **一个包根本没被审计**：实装 `torch 2.6.0+cpu` 在扫描读数里带 `skip_reason`（PyPI 无该分发），
   ⇒ 扫描器**没给出任何漏洞读数**。这是**盲区，不是零风险**；且**不得**拿解析集里解析出的那个 torch 版本替代它说话。
+  ✅ **2026-09-29 该盲区已消除**：把本地标签 `+cpu` 摘掉、拿实装的上游版本本体 `torch==2.6.0` 单独审
+  （`pip_audit -r <pin> --no-deps`）⇒ **24 行 = 22 条唯一通报**。逐条判据（区间/构建变体 `+cu124` vs 本机 `+cpu`/调用面/
+  `fix_versions` 空的 4 条）在 **`residual-risk-review-torch-20260929.md`**（torch 单轴件，不进 26 行那根分母）。
+  ⇒ 这一轴现在的状态是**"审过了，但没清零"**：其中那条 `weights_only` 绕过通报与 ⑤ 直接挂钩、要 2.10.0+ 才消（属 C 档另案，本阶段不改码）。
   ⑧ **两条"待核"不是"待处置"的同义词**：`CVE-2026-1839` 的跨包前提（公告要求的 torch 版本）与
   `CVE-2026-45833` 对嵌入式 chromadb 0.4.24 的适用性，**一手证据未取到**，签字时这两条只能记"未决"。
   ⇒ 另有一条已定：`CVE-2024-7774`（上面②）本轮已判定为上游映射缺陷、对本项目 Python 依赖不适用。
@@ -336,7 +347,8 @@ AQ="C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/agent-quality-2026091
 
 6. ⚠️ **2026-09-29 复扫新置的两条在册待办**（不属于"签字即消"的那批）：
    6a. **开发/构建工具那一轴**（`pytest` / `setuptools` 的通报，只在实装集命中）—— 本笔签字**不覆盖**，仍是待处置。
-   6b. **实装 `torch 2.6.0+cpu` 未被审计**（扫描读数带 `skip_reason`）—— 盲区不是零风险，需按 PyTorch 官方通报单独核查。
+   6b. **实装 `torch 2.6.0+cpu` 曾被扫描器跳过**（读数带 `skip_reason`）—— 2026-09-29 已按实装上游版本补审出 22 条，
+   但**没有一条被消案**：其中那条 `weights_only` 绕过通报与 ⑤（模型文件完整性）绑在一起，要 torch ≥ 2.10.0 才消除，属 C 档另案。
    ⇒ 逐条读数与三轴归属见 `dispatch-output/local-candidate-closeout-20260928/scope-recount-20260929.md`
    （重跑：`python b_scope_recount.py --write`；该件自带闭合检查，对不上就 rc=1）。
 

@@ -167,6 +167,14 @@ python b_scope_recount.py --write    # -> scope-recount-20260929.md（闭合检�
 
 
 
+## torch 那一轴的盲区（2026-09-29 已消除）
+
+实装 `torch 2.6.0+cpu` 原先被扫描器跳过（读数带 `skip_reason`）。本轮摘掉本地构建标签、按实装的上游版本本体补审出
+22 条唯一通报，逐条判据与实测结论另立一件：**`residual-risk-review-torch-20260929.md`**
+（重算命令：`python -m pip_audit -r <pin torch==2.6.0> --no-deps --format json`，读数 `C-torch-2.6.0-pinned-pip-audit.json`）。
+**该轴不在本页 26 行「应用运行时」的分母内，也不在 D2 那笔签字的射程内**；其中一条与实际暴露面直接挂钩，
+所以本页的共同状态不因它而改变。
+
 ## 可执行分案，不在本轮直接实施
 
 1. LangChain 族：从当前实际使用面（消息、ChatOpenAI/OpenAIEmbeddings、Chroma 适配器、HuggingFaceEmbeddings、RecursiveCharacterTextSplitter）开始，先找可兼容且消除目标通报的版本组合；不预设一定要整套重写 Agent。覆盖流式响应、工具调用、嵌入输出及引用门禁。删除未使用的依赖也须先查传递依赖，不能只查直接 import。
