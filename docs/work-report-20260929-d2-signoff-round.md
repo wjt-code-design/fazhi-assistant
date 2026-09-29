@@ -793,6 +793,26 @@ collect **1678**、`-m 'not slow'` 全量 **1650 passed／10 skipped／18 desele
 5. **凭据轴不变**：8 把键的按值普查仍 0、`ADMIN_PASSWORD` 的活体正对照仍能红；被纠正的是**形状轴那个"0"的措辞**（⑤）。
 6. **推送树自足**由第三方运行期读数背书（⑦）——这是本轮唯一"变好"的一条。
 
+### 9.4 O-7 的代价我已经量到"哪只剔得起"（先量价再问人，不空问）
+
+要问的是一句话：**这些防过拟合的尺子，要不要跟着快照公开**。但"剔出去"这件事**每只文件的代价不一样**，
+所以我逐只查了"推送树里谁真的在运行期读它"（命令：`git grep -l -F <文件名> <快照> -- backend`）：
+
+| 文件 | 推送树里的消费者 | 剔出去的代价 |
+|---|---|---|
+| `evals/holdout-cases-r1.json` | **0**（只有 4 份 docs 提它） | ✅ 零成本 |
+| `evals/frozen-cases-v2.json` | **0 处代码**（`backend/knowledge_base/law_annotations.json:5` 是**出处注记字符串**，不是读取） | ✅ 零成本 |
+| `evals/probe-results.json`／`probe-results-k4.json`／`filter-simulation-r1.json` | **0** | ✅ 零成本 |
+| `release-evidence/legal-agent-v1-complex-v1-20260907/holdout-cases-v1.json` ＋同目录 3 只 run 产物 | **0**（是历史证据文件） | ✅ 零成本 |
+| **`evals/watershed-cases-r15.json`** | **`backend/tests/test_r15_runner_injection.py:49` 与 `:85` 运行期 `read_text` 真读** | 🔴 **不零成本**：剔它必须同时改这两只用例 ⇒ 那是本窗口第一次动 `backend/tests`，与"生产码/测试一个没动"的在册状态冲突 |
+⚠️ 那只 `watershed` 的**注释性**引用另有一处在 `backend/agent/limitation_calc.py:70`（"需求真源"），但那行是注释，不是加载 ⇒ 生产码不依赖它。
+
+⇒ **我的推荐（一词可答）**：**剔上面全部 ✅ 项，只留 `watershed-cases-r15.json`**，并在 D2 的限制栏里显式写一句：
+"该只题集随本快照公开 ⇒ 以它为真源的那批 R15 读数，其'不可 gaming'属性自公开之日起失效"。
+理由两条：① 其余留出集公开**没有任何换来**的东西（CI 不读它们）；② 唯一剔不起的那只，剔它的代价是**在收口窗口里动测试**，
+而我们要买的恰恰是"这棵树的测试在 Linux 上跑得过"——**先改测试再去测它，等于把被测对象换掉**。
+剔完必做的复验（顺序固定）：`b_snapshot_trim_diff.py`（收集面）→ 该树全量 `pytest -m 'not slow'`（**不是**只跑 collect）→ `b_build_snapshot.py`（重建＋按值普查）。
+
 ## 10. 对原票（`2026-09-29-local-candidate-decision-and-release-prep.md` §2 A–E）的进度汇报
 
 > 这一节是按**票面文字**逐格交的，不是按我的记忆。票的 §3 要求"只给 ①/②/③ 之一 + 当前 SHA + 证据文件 + 退出码 + 未完成项"，
@@ -838,7 +858,7 @@ collect **1678**、`-m 'not slow'` 全量 **1650 passed／10 skipped／18 desele
 | 6 | **两个未跟踪、又没被忽略的文件里写着现役 `LLM_API_KEY`**（§9.1③ 新抓到） | Owner 处置（删／挪出仓／补忽略规则） | `python b_worktree_value_scan.py` 面 A 命中数应从 **2 → 0**；这条**不影响本次推送**（那两个文件不在任何提交里，`git ls-tree -r <快照> \| grep -c ta5-arms` ⇒ 0） |
 | 7 | **合并进 `master`** | Owner 下令后我执行（`git merge --no-ff`） | 合并前记下 `master` 现号作回退锚点；合并后逐文件复核 ＋ 跑受影响门禁（票 §2D 明文：**不能以原候选测试代替**） |
 | 8 | **真实库写入 / 部署选型** | 各开一票（Q5、Q12 已裁：本窗口不动） | — |
-| **9** | **O-7（新，且是唯一"回车之后收不回"的一件）：留出集与冻结题集要不要跟着公开**——`evals/holdout-cases-r1.json`（自述 `status:FROZEN`）、`frozen-cases-v2.json`、`watershed-cases-r15.json` ＋ `release-evidence/**` 里 4 条 holdout 路径 | **Owner 一词可答**（我的推荐：**跟着剔出快照**，理由见 §9.2②——D2 那套读数的"不可 gaming"属性只在题集不公开时成立） | 剔之前必须重跑收集面差分（`test_r15_runner_injection.py:22` 钉的就是 `evals/watershed-cases-r15.json`）：`python b_snapshot_trim_diff.py --full <对照> --trim <新对象>` ⇒ 要求 `collected` 相等且错误行 0；再跑 `b_build_snapshot.py` 的 `[5]/[5b]` 普查 |
+| **9** | **O-7（新，且是唯一"回车之后收不回"的一件）：留出集与冻结题集要不要跟着公开**——`evals/holdout-cases-r1.json`（自述 `status:FROZEN`）、`frozen-cases-v2.json`、`watershed-cases-r15.json` ＋ `release-evidence/**` 里 4 条 holdout 路径 | **Owner 一词可答**（我的推荐已按"哪只剔得起"分档，见 **§9.4**：**剔全部 ✅ 项、只留 `watershed-cases-r15.json` 并在 D2 记它失效**） | 剔之前必须重跑收集面差分（`test_r15_runner_injection.py:49/:85` 真读 `watershed`）：`python b_snapshot_trim_diff.py --full <对照> --trim <新对象>` ⇒ 要求 `collected` 相等且错误行 0；**再在那棵树上跑一次全量**（collect 相同≠运行相同）；最后 `b_build_snapshot.py` 重建＋按值普查 |
 | **10** | **O-8（新）：公开仓与本地主线之间没有已裁的路**——两侧**无共同祖先**，而票面禁 force／禁合并无关历史 ⇒ "合完 `master`"之后"让公开仓反映我们的工作"**没有走法** | **Owner 裁**（三选一：① 接受"一次性快照分支＝公开面，主线永不推"；② 另裁一条"远端整仓替换"的路线；③ 把窗口终点从"合 master"改画成"到推分支为止"） | 现量：`git merge-base master origin/master` ⇒ **空**（本轮实测；`git merge-base --is-ancestor codex/local-candidate-closeout snapshot/…` ⇒ **rc=1** ⇒ 快照里也没有候选）。⚠️ 两条限定：① 这里的 `origin/master` 是**本地陈旧 ref**（真远端头 `985d53e` 从未 fetch 到本地 ⇒ 与它的关系只能推完分支后用匿名 compare 读）；② `git rev-list --count master..origin/master`（本轮 192）与反向（224）**在无共同祖先时不表示"落后/领先"**，别拿这两个数讲故事（第九次记账同一根绊线） |
 | **11** | **机器身份进公开仓**：`C:\Users\33393` 出现在推送树 **202** 只文件（另一斜杠写法另 **133** 只） | Owner（剔／改相对路径／接受） | `git grep -I -l -F 'C:\Users\33393' <快照> \| wc -l`（口径：只量字面 Windows 写法） |
 
