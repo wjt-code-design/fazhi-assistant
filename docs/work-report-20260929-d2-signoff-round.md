@@ -398,3 +398,19 @@ A-3（开发/构建工具那 5 条逐条给触发前提/平台条件/修复版�
   ⇒ 真要推时**用命令行里内联的 ssh URL**，不动 `git config`（在册的 `credential.helper=manager` 是否可用**仍未证**——dry-run 从没跑到过鉴权那步）。
 - **一件只能在 GitHub 页面上确认的**：仓库转 private 之后，Actions 消耗的是套餐分钟数（Free 档每月 2000），而这条 job 要装 torch CPU 再跑 1650 条测试。
   分钟数若已用尽，private 里的 CI 只会排队不出结果。匿名 API 读不到（`/repos/…/actions/permissions` ⇒ **401 Requires authentication**），所以我只能说"未见异常"，不能说"够用"。
+
+### 8.2 补记 3：CI 触发路已定，并据此省掉一次本地全量预跑
+
+- **触发路（Owner 已裁）**：推完快照分支后先跑匿名 compare 读 `merge_base`/`status` ⇒ **能比就开 PR**（零管线改动）；
+  `merge_base` 为 null（无共同祖先）就**不开 PR**，改在**那条一次性分支自带的** `ci.yml` 里把分支名加进 `on: push.branches` 再推一次。
+  `workflow_dispatch` 排除：GitHub 只列默认分支上存在的 workflow，而我们改 `ci.yml` 要先让它进默认分支就得先合 `master` ⇒ 循环依赖（D2 未签）。
+- **我先前那句"合并树 vs `master` 差 7 个文件"已经过期**（记账，第十次）：`7e2a758` 是在我那两笔文档提交**之前**算的；
+  文档落进 `master` 后同一比较变成 8 个文件。派生的树号必须重算，别拿旧号继续推。重算：
+  `git merge-tree --write-tree --name-only master codex/local-candidate-closeout` ⇒ rc=**0**，新树 **`cdcf579`**（无冲突）。
+- **省掉预跑的依据是逐字节比对，不是"改动笔数为 0"的推断**：候选带进来的 7 个文件在合并树里的 blob 与候选侧**全部相同**
+  （`git rev-parse <候选>:<file>` 与 `git rev-parse cdcf579:<file>` 逐一相等：`knowledge_service.py`、`main.py`、`requirements.txt`、
+  `tests/test_pdf_upload.py`、`tests/test_request_bootstrap.py`、`tests/test_upload_rate_limit.py`、`t7-dependency-upgrade-options-20260927.md`）。
+  ⇒ **候选那份六步全绿读数可迁移到合并树**，不必在 Windows 上再跑一遍全量（那还得临时再动 scratch venv）。
+- ⚠️ 但迁移有一条边界要说清：`backend/requirements-dev.txt` **不在差集里**，合并树取的是 `master` 那份 blob `a71ea7c`
+  （候选那份是 `339f391`），内容就是 `pytest>=9.0.3,<10` ⇒ **CI 装的是 9.x**，而那 1650 条本地腿是在 8.4.2 与 9.1.1 两套 venv 上分别跑的。
+  ⇒ 结论：CI 这次要买到的新信息只有两件——**Linux 这条腿**、以及**全新安装依赖集**下的结果；本地已有读数不覆盖它们。
