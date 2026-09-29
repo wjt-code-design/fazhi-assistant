@@ -19,7 +19,7 @@ from pathlib import Path
 
 EVIDENCE = Path(__file__).resolve().parent
 TARGET = EVIDENCE / "b_probe_claim_check.py"
-DOC_TARGET = EVIDENCE.parent.parent / "docs" / "handoff-local-candidate-closeout-20260929.md"
+REPO = EVIDENCE.parent.parent
 PY = Path(r"C:/Users/33393/AppData/Local/Temp/legal-closeout-20260928/venv/Scripts/python.exe")
 
 # (名字, 唯一锚点, 替换, 期望红掉的主张名片段)
@@ -129,48 +129,74 @@ MUTANTS = [
         'cols = ("一、接受范围", "二、不写进", "三、随接受", "四、必须一起算进", "五、复审日期", "七、根本不存在的栏")',
         "D2 可签文本六栏齐备",
     ),
+    (
+        "第六条的推送顺序串换成一个不存在的写法",
+        'chain = "Q4（两条凭据轮换）→ 复扫 → Q6" in six',
+        'chain = "Q9（根本不存在的顺序）" in six',
+        "第六条把两条凭据分开列",
+    ),
 ]
 
 # 复算器侧的变异只证"这条主张真的在拿现算值算"。但 D2 签字页是**我手抄的文档**，
 # 它的失败模式是"抄错"，不是"恒真" ⇒ 还得从文档侧打反例：把签字页改错，主张必须红。
 # 本轮就是这么撞上的：我口头把复审日期建议成 2026-12-31，而登记表钉 2026-10-05。
-# (名字, 文档唯一锚点, 替换, 期望红掉的主张名片段)
+# (名字, 目标文件（相对仓库根）, 唯一锚点, 替换, 期望红掉的主张名片段)
 DOC_MUTANTS = [
     (
         "签字页日期抄成 2026-12-31",
+        "docs/handoff-local-candidate-closeout-20260929.md",
         "五、复审日期：沿用登记表已有的 2026-10-05",
         "五、复审日期：沿用登记表已有的 2026-12-31",
         "D2 签字页的复审日期",
     ),
     (
         "签字页无桩清单漏抄一条公告",
+        "docs/handoff-local-candidate-closeout-20260929.md",
         "、CVE-2026-9856；",
         "；",
         "D2 签字页的「无桩可答」清单",
     ),
+    (
+        "登记表第二处日期被改（第一处仍是原值 ⇒ 只比第一个 site 的写法会放过）",
+        "dispatch-output/local-candidate-closeout-20260928/residual-risk-review.md",
+        "复审最迟日期 **2026-10-05** 不变",
+        "复审最迟日期 **2026-11-11** 不变",
+        "复审日期与登记表**全部**出现处一致",
+    ),
 ]
 
 
-def run_doc_one(name: str, anchor: str, repl: str, expect: str) -> tuple[bool, str]:
-    """文档侧反例：把**手抄的签字页**改错，复算器必须红。
+def run_doc_one(name: str, rel: str, anchor: str, repl: str, expect: str) -> tuple[bool, str]:
+    """文档侧反例：把**手抄的那段文档**改错，复算器必须红。
 
     复算器侧的变异证"主张不是恒真"；这里证"抄错文档会被抓到"。两者不可互相替代。
-    原地改同一份可转发交接书，所以：字节级 sha 先留底，`finally` 按原字节还原，
+    原地改同一份可转发交接书（或登记表），所以：字节级 sha 先留底，`finally` 按原字节还原，
     还原后再比一次哈希 —— 哈希不等就判本只变异无效（宁可不算覆盖，也不留一份被改脏的文档）。
+    另有并发守卫：窗口内若有别的写入者动过这个文件，"按原字节还原"会静默吞掉别人的改动，
+    那种情况同样判无效并如实报。
     """
-    raw = DOC_TARGET.read_bytes()
+    target = REPO / rel
+    raw = target.read_bytes()
     before = hashlib.sha256(raw).hexdigest()
     src = raw.decode("utf-8")
     if src.count(anchor) != 1:
         return False, f"{name}: 文档锚点命中 {src.count(anchor)} 次（要恰好 1 次），变异未施加，不算覆盖"
+    mutated_raw = src.replace(anchor, repl).encode("utf-8")
+    _interloper = False
     try:
-        DOC_TARGET.write_text(src.replace(anchor, repl), encoding="utf-8", newline="\n")
+        target.write_bytes(mutated_raw)
         proc = subprocess.run([str(PY), str(TARGET)], capture_output=True, text=True, timeout=600)
+        _interloper = target.read_bytes() != mutated_raw
     finally:
-        DOC_TARGET.write_bytes(raw)
-    after = hashlib.sha256(DOC_TARGET.read_bytes()).hexdigest()
+        target.write_bytes(raw)
+    after = hashlib.sha256(target.read_bytes()).hexdigest()
     if after != before:
         return False, f"{name}: 🚨 还原后字节哈希变了（{before[:8]}→{after[:8]}），文档可能被改脏，本只不算覆盖"
+    # 并发守卫：本仓有多个会话共写同一份交接书（台账 D28 记过两起污染事故）。
+    # 窗口内若别人也写了这个文件，"按原字节还原"就会**静默吞掉他们的改动**，
+    # 而 sha 复比只证"我还原对了"，不证"没毁别人的东西" ⇒ 这里显式检测并判本只无效。
+    if _interloper:
+        return False, f"{name}: 🚨 变异窗口内该文件被别的写入者改动过，本只不算覆盖（已按原字节还原）"
     out = proc.stdout + proc.stderr
     failed = [ln.strip() for ln in out.splitlines() if "[FAIL]" in ln]
     if proc.returncode == 0:

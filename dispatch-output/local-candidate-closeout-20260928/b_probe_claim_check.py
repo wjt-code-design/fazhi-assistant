@@ -181,7 +181,7 @@ def extra_claims(suite: dict[str, Any], app: dict[str, Any]) -> None:
         )
         return
     listed = set(cve_re.findall(reg.read_text(encoding="utf-8")))
-    reg_date = re.search(r"复审最迟日期为\s*(\d{4}-\d{2}-\d{2})", reg.read_text(encoding="utf-8"))
+    reg_dates = re.findall(r"复审最迟日期\s*(?:为)?\s*\*{0,2}\s*(\d{4}-\d{2}-\d{2})", reg.read_text(encoding="utf-8"))
     covered = {
         c
         for d in (suite, app)
@@ -208,10 +208,16 @@ def extra_claims(suite: dict[str, Any], app: dict[str, Any]) -> None:
     block = body[b0:b1] if b0 >= 0 and b1 > b0 else ""
     # 只在签字页那一段里找日期：全文搜会被 §10「带范围+复审日期」那类旁提及补记里的复述污染。
     page_date = re.search(r"复审日期[：:]\s*[^\n]*?(\d{4}-\d{2}-\d{2})", block)
+    # 登记表里日期出现**不止一处**（开头共同状态一行、09-29 附录一行）。只看第一处 ⇒ 有人改了第二处
+    # 而主张仍绿，正是"第一个 site 代表全文"的假绿。这里要求：登记表内所有日期一致，且都等于页面日期。
     claim(
-        "D2 签字页的复审日期与登记表字面一致",
-        reg_date is not None and page_date is not None and page_date.group(1) == reg_date.group(1) == expected_date,
-        f"登记表 {reg_date.group(1) if reg_date else '未解析'} / 签字页 {page_date.group(1) if page_date else '未解析'} / 在册期望 {expected_date}",
+        "D2 签字页的复审日期与登记表**全部**出现处一致",
+        bool(reg_dates)
+        and len(set(reg_dates)) == 1
+        and page_date is not None
+        and page_date.group(1) in set(reg_dates)
+        and page_date.group(1) == expected_date,
+        f"登记表出现 {reg_dates} / 签字页 {page_date.group(1) if page_date else '未解析'} / 在册期望 {expected_date}",
     )
     stray = sorted(set(cve_re.findall(block)) - listed)
     claim(
@@ -226,6 +232,19 @@ def extra_claims(suite: dict[str, Any], app: dict[str, Any]) -> None:
         "D2 可签文本六栏齐备且带签字位（草案不是签字，但结构不能缺栏）",
         b0 >= 0 and b1 > b0 and not miss,
         f"缺 {miss}",
+    )
+    # 第六条是"签了也不解除"的那一栏 —— 独立评审抓出我在这儿**漏了一条已暴露的凭据**（只写了 ADMIN_PASSWORD）。
+    # 漏一条阻塞的后果是 Owner 把一次签字读成整批放行，所以这条不能只靠我记得写进去。
+    s6 = block.find("**六、签了也不解除")
+    six = block[s6:] if s6 >= 0 else ""
+    has_admin = "ADMIN_PASSWORD" in six
+    has_exposed_key = "SiliconFlow" in six or "rerank key" in six
+    chain = "Q4（两条凭据轮换）→ 复扫 → Q6" in six
+    q5_not_pending = "Q5（改 `:104` 形状）→" not in six
+    claim(
+        "D2 签字页第六条把两条凭据分开列（含已暴露的那把 rerank key）且推送顺序不含已完成的 Q5",
+        bool(six) and has_admin and has_exposed_key and chain and q5_not_pending,
+        f"ADMIN_PASSWORD={has_admin} 已暴露凭据={has_exposed_key} 顺序串={chain} Q5 未被当待走={q5_not_pending}",
     )
 
 
@@ -411,22 +430,30 @@ def main() -> int:
         if not d.is_file():
             continue
         lines = d.read_text(encoding="utf-8").splitlines()
-        block, start = [], 0
-        blocks = []
-        for i, ln in enumerate(lines + [""]):
-            if ln.strip():
-                if not block:
-                    start = i + 1
-                block.append(ln)
-            elif block:
-                blocks.append((start, block))
-                block = []
-        for start, blk in blocks:
-            if not scope.search("\n".join(blk)):
+        # 段 = 空行分隔；但**缩进的续行折回上一段**（列表项折行，含中间隔一个空行的松散写法），
+        # 否则"上一行提本件、下一行才写数"那种形状永远不进作用域 ⇒ 绊线会假装干净（评审指出的形状）。
+        blocks: list[list[tuple[int, str]]] = []
+        for i, ln in enumerate(lines, 1):
+            if not ln.strip():
                 continue
-            for off, ln in enumerate(blk):
+            prev = blocks[-1] if blocks else None
+            loose = prev is not None and ln[:1] in (" ", "\t") and i - prev[-1][0] <= 2
+            if loose:
+                prev.append((i, ln))
+            else:
+                blocks.append([(i, ln)])
+        for bi, blk in enumerate(blocks):
+            text = "\n".join(t for _, t in blk)
+            in_scope = bool(scope.search(text))
+            if not in_scope and bi:  # 上一段是"只有一行且提到本件的标题" ⇒ 本段算它的正文
+                p = blocks[bi - 1]
+                if len(p) == 1 and p[0][1].lstrip().startswith("#") and scope.search(p[0][1]):
+                    in_scope = True
+            if not in_scope:
+                continue
+            for ln_no, ln in blk:
                 for m in hand.finditer(ln):
-                    stale_counts.append(f"{d.name}:{start + off} {m.group(0)}")
+                    stale_counts.append(f"{d.name}:{ln_no} {m.group(0)}")
     claim(
         "文档里指向本复算器的段落不出现手抄条数（只准写命令）",
         not stale_counts,
