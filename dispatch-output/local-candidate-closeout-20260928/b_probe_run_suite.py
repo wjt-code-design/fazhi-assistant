@@ -19,7 +19,9 @@ import xml.etree.ElementTree as ET
 from pathlib import Path
 
 EVIDENCE = Path(r"C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/local-candidate-closeout-20260928")
-PY = Path(r"C:/Users/33393/AppData/Local/Temp/legal-closeout-20260928/venv/Scripts/python.exe")
+# 解释器可用 B_PROBE_PY 覆盖（O-6 用它把 pytest 从 8.4.2 换到 9.1.1 复跑同一套门禁）。
+# ⚠️ 覆盖后读数属**另一套环境**：打印时必须连解释器路径与 pytest 版本一起落盘，否则两个版本的答案会被读成同一场。
+PY = Path(os.environ.get("B_PROBE_PY") or r"C:/Users/33393/AppData/Local/Temp/legal-closeout-20260928/venv/Scripts/python.exe")
 
 
 def build_env(tree: Path, run_dir: Path, probe_out: Path) -> dict[str, str]:
@@ -83,6 +85,17 @@ def main(argv: list[str]) -> int:
     probe_out = EVIDENCE / f"b-probe-readings-pytest-{stamp}.json"
     xml_path = run_dir / "junit.xml"
     env = build_env(tree, run_dir, probe_out)
+
+    ver = subprocess.run(
+        [str(PY), "-c", "import sys,pytest;print(sys.version.split()[0],pytest.__version__)"],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    print(f"[B-PROBE 环境] interpreter={PY}  py/pytest={ver.stdout.strip() or ver.stderr.strip()[:120]}")
+    if not PY.is_file():
+        print(f"FATAL: 解释器不存在 -> {PY}")
+        return 2
 
     collect = subprocess.run(
         [str(PY), "-m", "pytest", "-q", "-p", "no:cacheprovider", "--collect-only", "-m", "not slow"],

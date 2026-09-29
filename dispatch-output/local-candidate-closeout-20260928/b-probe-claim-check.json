@@ -202,13 +202,13 @@
       "ok": true
     },
     {
-      "claim": "compile 单独计数（测试场 9826，未混进外联）",
-      "detail": "实得 9826",
+      "claim": "compile 单独计数（按 pytest_version=8.4.2 查表）",
+      "detail": "实得 9826 期望 9826",
       "ok": true
     },
     {
       "claim": "upload 步骤写入 2 个切片",
-      "detail": "实得 {'chroma_dir': 'C:\\\\Users\\\\33393\\\\AppData\\\\Local\\\\Temp\\\\b-probe-app-20260929-103841\\\\iso\\\\chroma', 'chunks_written': 2, 'kind': '.txt', 'parsed_chars': 45}",
+      "detail": "实得 {'chroma_dir': 'C:\\\\Users\\\\33393\\\\AppData\\\\Local\\\\Temp\\\\b-probe-app-20260929-204540\\\\iso\\\\chroma', 'chunks_written': 2, 'kind': '.txt', 'parsed_chars': 45}",
       "ok": true
     },
     {
@@ -257,7 +257,7 @@
       "ok": true
     },
     {
-      "claim": "两腿复跑逐桩五轴零差异（b-probe-readings-pytest-20260929-103147.json vs b-probe-readings-pytest-20260929-103511.json）",
+      "claim": "两腿复跑逐桩五轴零差异（b-probe-readings-pytest-20260929-204600.json vs b-probe-readings-pytest-20260929-205049.json）",
       "detail": "差异 []",
       "ok": true
     },
@@ -298,17 +298,17 @@
     },
     {
       "claim": "pytest 读数晚于仪器与驱动的最后编辑",
-      "detail": "读数 b-probe-readings-pytest-20260929-103511.json vs 代码 mtime 1790648816",
+      "detail": "读数 b-probe-readings-pytest-20260929-205049.json vs 代码 mtime 1790685807",
       "ok": true
     },
     {
       "claim": "app 读数晚于仪器与驱动的最后编辑",
-      "detail": "读数 b-probe-readings-app-20260929-103841.json vs 代码 mtime 1790648816",
+      "detail": "读数 b-probe-readings-app-20260929-204540.json vs 代码 mtime 1790685807",
       "ok": true
     },
     {
       "claim": "自检读数同样出自现行仪器",
-      "detail": "实得 1790649662",
+      "detail": "实得 1790685928",
       "ok": true
     },
     {
@@ -323,7 +323,7 @@
     },
     {
       "claim": "D2 签字页里出现的每条公告号都在登记表内（防编出不存在的通报）",
-      "detail": "页长 7583 字符，页外公告号 []",
+      "detail": "页长 7968 字符，页外公告号 []",
       "ok": true
     },
     {

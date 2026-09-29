@@ -1,5 +1,7 @@
 -r requirements.txt
-pytest>=7.4,<9
+# 下限 9.0.3 = CVE-2025-71176 的修复版本；原先写成 `<9` 时上限正好把修复挡在外面。
+# 判据、隔离环境两场全量读数与未验证面见 residual-risk-review-devtools-20260929.md「三之补」。
+pytest>=9.0.3,<10
 ruff>=0.6
 mypy>=1.10
 pytest-cov>=5.0

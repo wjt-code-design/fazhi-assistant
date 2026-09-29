@@ -685,6 +685,9 @@ def snapshot(mode: str, extra: dict[str, Any] | None = None) -> dict[str, Any]:
         "candidate_tree": str(CAND),
         "interpreter": sys.executable,
         "python": sys.version.split()[0],
+        # 读数必须自带"是哪套 pytest 跑出来的"：O-6 那轮在同一棵树上换过框架版本，
+        # compile 事件总数随版本变（8.4.2=9826 / 9.1.1=9830）。不落这个字段，两个版本的答案会被读成同一场。
+        "pytest_version": getattr(sys.modules.get("pytest"), "__version__", None),
         "targets": targets,
         "imports_watched": STATE["imports"],
         "net_events": dict(sorted(STATE["net"].items(), key=lambda kv: (-kv[1], kv[0]))[:400]),

@@ -75,9 +75,22 @@ def extra_claims(suite: dict[str, Any], app: dict[str, Any]) -> None:
         claim("存在测试场日志", False)
 
     # 2) 两腿复跑零差异（报告里"逐条一致"这句的机器版）
-    cands = [
+    # ⚠️ 选腿必须**按 pytest 版本同组**：O-6 那轮在同一棵树上就地换过框架版本，compile 事件数随版本变
+    #    （8.4.2=9826 / 9.1.1=9830）。原先直接拿"最后两个文件"当同环境双跑，一旦跨版本就比出假差异。
+    #    规则定成**"读数自己声明版本才参与比对"**：不带 pytest_version 的是该字段引入之前的旧件，
+    #    一律排除——**不给它们猜版本**（猜错就是把两场不同环境的读数当双跑差分，正是这条 claim 存在的意义）。
+    def pv_of(path: Path) -> str | None:
+        try:
+            return json.loads(path.read_text(encoding="utf-8")).get("pytest_version")
+        except (OSError, ValueError):
+            return None
+
+    all_cands = [
         Path(p) for p in sorted(glob.glob(str(EVIDENCE / "b-probe-readings-pytest-*.json"))) if ".INVALID" not in p
     ]
+    declared = [p for p in all_cands if pv_of(p)]
+    newest_pv = pv_of(declared[-1]) if declared else None
+    cands = [p for p in declared if pv_of(p) == newest_pv]
     if len(cands) >= 2:
         a, b = (json.loads(p.read_text(encoding="utf-8")) for p in cands[-2:])
         ax = ("verdict", "count", "dry_runs", "callers", "arg_samples")
@@ -379,10 +392,17 @@ def main() -> int:
         if k.split(" :: ")[0] in ("socket.connect", "socket.getaddrinfo", "http.client.connect", "urllib.Request")
     ]
     claim("应用路径场 连接类事件=0", not app_conn, f"实得 {len(app_conn)}")
+    # compile 事件总数**随 pytest 版本变**（O-6 实测：8.4.2=9826、9.1.1=9830，各两场逐字相同；
+    # 其余读数——net 348/206、collected 1660、exitstatus 0、imports_watched——两版本完全一致）。
+    # 所以这条不能钉死一个数：钉 9826 会把换版本的合法读数误判成仪器坏了。
+    # 判据改成"按读数自带的 pytest_version 查表"；表里没有的版本 ⇒ 红，逼人来补一次实测。
+    COMPILE_BY_PYTEST = {"8.4.2": 9826, "9.1.1": 9830}
+    pv = suite.get("pytest_version")
+    exp = COMPILE_BY_PYTEST.get(pv, 9826 if pv is None else None)
     claim(
-        "compile 单独计数（测试场 9826，未混进外联）",
-        suite.get("compile_event_total") == 9826,
-        f"实得 {suite.get('compile_event_total')}",
+        f"compile 单独计数（按 pytest_version={pv or '未记录→按 8.4.2 基线'} 查表）",
+        exp is not None and suite.get("compile_event_total") == exp,
+        f"实得 {suite.get('compile_event_total')} 期望 {exp if exp is not None else '该版本未实测，先跑一场再把数记进表'}",
     )
 
     # --- 应用路径两步的结果 ---
