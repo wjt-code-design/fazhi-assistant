@@ -535,3 +535,38 @@ langchain-text-splitters 0.0.2 / langsmith 0.1.147 / pypdf 5.9.0 / starlette 0.3
 （10ms 级轮询实测把判据钉死了：git 的 `.lock`→ref 改名**成功**，ref 出现后 **113–144 ms** 被**另一个进程**删掉；
 手工写的同名 ref 可存活 ≥25 分钟。）本轮靠"提交后按 reflog 回填引用"完成，做法与命令写在 §9.12.17(7)，
 探查脚本 `dispatch-output/local-candidate-closeout-20260928/watch-ref-write.py`。**任何人动该分支前先复核引用仍在。**
+
+**⑧ 2026-09-29 接续会话：B 档运行时探针已做完（Owner 裁「先做探针我再裁」）**
+上面 ④ 里"grep 判不了内部路径"这一档，证据等级已从**静态 0 命中**升到**运行时 0 调用**：
+测试场两腿各 selected 1660 / junit 1660 / failed 0（171.6s 与 176.9s），应用路径场两步跑通，
+两场完整性读数都干净（"装桩前应用已加载"为空）。
+Core 反序列化与模板构造 7 只桩两场均 **0 调用**（模块都在场，不是缺席造成的假绿）；图片 token 计数 **0 调用**；
+模型与 config 加载**各 1 次**，调用方唯一归到 `backend/rag_chain.py:39`，模型名只有常量 `BAAI/bge-base-zh-v1.5`，
+`trust_remote_code` **取值 False**；`langchain_community`、`langchain.chains`、`langsmith.middleware` 两场均**从未被导入**（且**不是"包没装"**：
+  五个目标模块在候选 venv 里 `find_spec` 全部 FOUND ⇒ 真阴性）。
+  ⚠️ **两处要收回的过头话**：① 应用路径场那条 `langchain_openai` "从未被导入"是**驱动没 import `llm_registry`**
+  （真实 `/api/chat` 必加载它）⇒ 该场对 G2 是**未测**不是阴性；② `trust_remote_code=False` **只覆盖传这个实参的
+  `G3a/G3b`**，`G3d/G3e` 的实参里没这个键。
+外联是直接读数，不靠推断，而且是**对全部 206 个网络事件键逐条机器归类**得出的（归类器自带 8 条合成反例，其中 3 条必须判非环回）：
+测试场连接类事件 **312 次环回 + 1 次对 `test.invalid:443` 的 DNS 解析尝试 + 35 次"键里没有主机字段"**
+（`ctypes.dlopen`/`subprocess.Popen` 单列一档，不折进环回充数）；应用路径场 **0 次**。
+那 1 次非环回**已归因到用例**：`tests/test_phase3.py::test_healthz_components` → `backend/main.py:337-342` 的
+`socket.create_connection` —— 即 `/healthz` 按 `LLM_BASE_URL` 做的设计内连通探测（假端点解析失败、无 `socket.connect`、连接未建立）。
+⇒ 给裁定的一句话：这批读数撑得起"这 22 个运行期入口不在路径上"，**撑不起"这个应用不会 outbound"**。
+  而且**这次普查是在外发面被关掉的前提下做的**：驱动把 rerank / 云端嵌入 / 配额都关了或归零，而本机 `backend/.env`
+  实为 `RERANK_ENABLED=true` ⇒ rerank 的 `httpx.post(..., Authorization: Bearer)`（`retrieval.py:85-87` 开关短路 `:168`/`:184`）、
+  LLM 调用本身、`mcp_server.py:45,51`、`/api/chat/transcribe` 这些**带凭据的外呼一次都没进样本**。
+  "外联已普查"这句话只对本轮两个窗口成立，**不是全量外发审计**。
+**公告视角由脚本现生**：登记表 26 条公告拆成「有桩可答 **17** 条 / 探针答不上 **9** 条」（闭合 `17+9==26` PASS）；
+答不上的 9 条不许读成"已排除"（Chroma HTTP 面、text-splitters 的 XSLT/URL splitter、Trainer/LightGlue/X-CLIP/save_pretrained，
+以及 `CVE-2024-7774` 那条映射问题）。
+⚠️ **还有一处限定**：测试场里流式生成链是**替身**（`tests/_sse_harness.py:207` 用 `_FakeChain` 顶掉 `main.make_chain`），所以那部分"0 调用"里含"替身没去调真链"的成分 ⇒ 本节所有"运行时 0 调用"都要读成"**这两个窗口内** 0 调用"。同样在外：子进程与第二解释器、类内/闭包里的别名遮蔽、`torch.load`/`pickle.loads` 等**解序列化原语**（只记导入不记调用）、以及 `langchain_core.load.dumpd` 与 `PromptTemplate.__init__` 这类没桩的入口。
+边界照旧：**`pip-audit` 仍 47 条 / 8 包红**（探针不减漏洞条数，只升可达性证据等级）、**助手不代签接受范围**；
+18 条 slow 未跑；真实 rerank 仍未调用（凭据待轮换）。
+逐条判定表由读数现生：`dispatch-output/local-candidate-closeout-20260928/b-probe-verdict-matrix.md`；
+仪器本轮付掉的 **17 处**缺陷与修法记在同目录 README 的 G.3——其中一条必须单列：
+**提交前扫密发现读数里带着 HTTP 请求体**（审计事件 `urllib.Request` 的 `args[1]` 就是请求体，测试里的假口令被原样记进两份读数），
+两份污染读数已从磁盘删除、仪器改为只记 URL/方法/头键名、补哨兵对照，并**用改后代码复跑了全部场**，
+本节引用的读数即复跑后的那批。
+主张侧另加两道：`b_probe_claim_check.py` 把文档每条数字对着入库读数重算（现量 **61/61 通过**），
+`b_probe_claim_mutants.py` 用 12 只反例证明**这条复算真的会红**（12/12 被杀）。

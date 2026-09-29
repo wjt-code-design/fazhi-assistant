@@ -1678,6 +1678,76 @@ pydantic 2.13.5 / SQLAlchemy 2.1.1 / mypy 2.3.1 / pytest 8.4.2 / ruff 0.16.9 / c
 
 - 主工作区 tracked 修改只有本节所在报告与 E 报告；未跟踪 **34107** 个（`dispatch-output` 占 33938）。
   本轮**只暂存本轮证据目录与本计划**，未 `git add -A`，未批量提交未跟踪产物。
-- **证据目录的入库边界**：`.gitignore:45` 全仓忽略 `*.log`，故本目录 59 个文件里只有 **23 个非 `.log` 文件入库**，
-  36 个 `.log` 留在磁盘供人工查看（关键日志路径已列在证据 README 里）；读数另摘录进本报告与 E 报告。
+- **证据目录的入库边界**：`.gitignore:45` 全仓忽略 `*.log`，故"目录件数"与"入库件数"永远不等，这不是丢件。
+  上一稿这里写的"59 个文件 / 23 个非 `.log` 入库 / 36 个 `.log`"是**当时的快照**，且与证据 README 同一天写的
+  "62 / 26 / 36"**本来就对不上**（两份手写计数差 3 只）—— 这正好说明手抄计数会 rot，口径只认命令：
+  `find . -maxdepth 1 -type f | wc -l`、`... -name '*.log' | wc -l`、`git ls-files . | wc -l`（现量见证据 README G.5/G.6）。
+  2026-09-29 本轮收尾时的一次现量：总 120 / `.log` 60 / 非 `.log` 60（其中 2 只是被闸门判废的 `*.INVALID`，留盘不入库）
+  ⇒ 实际可提交 58 只，其中 32 只是本轮新增。
+  关键日志路径列在证据 README 里；读数另摘录进本报告与 E 报告。
 - 其余 worktree（`ai-legal-helper-005/006/007/008/009`、`legal-agent-v1`、`master-e8826c5b`、`-e9b0e17`）**只登记、不动**。
+
+**（9）B 档运行时探针（2026-09-29 接续会话；Owner 于本轮裁「先做 B 档探针，我再裁风险」）**
+
+把（4）里 B 档那条"grep 判不了内部路径"升级为**运行时调用次数**。驱动、仪器与读数都在 `dispatch-output/local-candidate-closeout-20260928/`，
+判定表由读数现生（`python b_probe_matrix.py`），细节与本轮为这批读数付的 **17 处仪器/证据代价**见该目录 README 的 G.3（⑬–⑰ 出自独立评审那一轮）。本节只记会影响裁定的几条：
+
+- **两场的完整性**：测试场两腿各 selected **1660** / total 1678 / deselected 18，junit **1660**，failed **0**，rc 0
+  （171.6s / 176.9s；入库读数 `b-probe-readings-pytest-20260929-103147.json` 与 `...-103511.json`），
+  且"装桩前应用已加载"读数为**无**；应用路径场（`...-app-20260929-103841.json`）直调 `rag_chain` 装载 +
+  `retrieval.retrieve_for_test` 与 `knowledge_service` 上传解析 → `add_text`（写 2 个切片进空副本集合），完整性读数同样干净。
+- **读数可复跑、主张可复算**：同一版入库代码把测试场跑了两遍，22 只桩在判定/计数/干跑数/调用方集合/实参摘要五个轴上**零差异**
+  （比对已脚本化：`python b_probe_pair_check.py <A> <B>`，rc=0）；
+  `python b_probe_claim_check.py` 把文档里每条数字对着入库读数重算，现量 **61/61 通过**。
+  这台复算器自己红过三次，三次都是它自身的缺陷（模型名没截 `kw=` 尾巴、`glob` 返回的字符串当 `Path` 用、
+  变异件放临时目录跑导致 12 只变异"全 rc=2 缺读数"看起来像跑过），修完才转绿——
+  记下来是因为"尺子会红"本身要先归因，才能拿来红别人。
+  它自己的可红性另跑了一轮证明：`python b_probe_claim_mutants.py` 对 12 条关键主张各造一只反例，
+  **12/12 都被如期打红**（且红的正是该钉的那一条）。
+- **B 档三组的运行时答案**：G1 Core 反序列化与模板构造 7 只桩 **两场均 ZERO-CALL**（相关模块都在场，所以"0 调用"不是模块缺席的假绿）；
+  G2 图片 token 计数 3 只桩 **0 调用**；G3 模型与 config 加载 **各 1 次**，调用方全部归到 `backend/rag_chain.py:39`，
+  模型名只有源码常量 `BAAI/bge-base-zh-v1.5`，**`trust_remote_code` 取值 `False`**。
+  结构性的一条：`langchain_community` 与 `langchain.chains` 在两场均**从未被导入**，`langsmith.middleware` 同 ——
+  并且这**不是"包没装"**：五个目标模块在候选 venv 里 `importlib.util.find_spec` 全部 FOUND（`langchain-community 0.0.38`、
+  `langchain 0.1.20`、`langsmith 0.1.147`），所以是真阴性。
+  ⚠️ **但 G2 在应用路径场是"未测"不是阴性**：那场驱动从不 import `main`/`llm_registry`
+  （`llm_registry.py:20` 是模块级 `from langchain_openai import ChatOpenAI`，真实 `/api/chat` 必加载），
+  故"该场 `chat_models.base` 从未被导入"只说明驱动没建聊天客户端。`trust_remote_code=False` 同样**只覆盖传该实参的
+  `G3a/G3b`**，`G3d/G3e` 的实参里没有这个键（读数 `[]`）。
+- **外联是直接读数，不靠推断，且是"全部键"读出来的**：测试场 348 次事件 / 206 个键逐条机器归类
+  （`b_probe_net_audit.py`，自带 8 条合成反例证明归类器能红）——连接类目的为 **312 次 127.0.0.1 +
+  1 次对 `test.invalid:443` 的 DNS 解析尝试 + 35 次"键里没有主机字段"**（`ctypes.dlopen`/`subprocess.Popen` 单列，不折进环回）。
+  那 1 次非环回**已归因到用例**：`tests/test_phase3.py::test_healthz_components` → `backend/main.py:337-342` 的
+  `socket.create_connection`，即 `/healthz` 对 `LLM_BASE_URL` 主机的设计内连通探测（解析失败、**无 `socket.connect`、连接未建立**）。
+  应用路径场连接类事件 **0** 次。`compile` 事件 9826 次单独计数，不混进外联。
+  ⚠️ **外联普查是在外发面被关掉的前提下跑的**：驱动设 `RERANK_ENABLED=false` / `EMBEDDING_PROVIDER=local` / 配额 0 /
+  假 LLM 端点，而**本机 `backend/.env` 是 `RERANK_ENABLED=true`** ⇒ rerank（`retrieval.py:85-87` 开关短路掉
+  `:168`/`:184` 的 `httpx.post(..., Authorization: Bearer)`）、云端嵌入、LLM 调用本身、`mcp_server.py:45,51` 的
+  `httpx.Client`、`/api/chat/transcribe`（`main.py:1464`）这些**带凭据的外呼一次都没进过样本**。
+  另：`knowledge_base.py:5` 会无条件把 `HF_HUB_OFFLINE` 改回 `0`，本轮两场都没导入它（读数里 `hf-mirror` 0 痕迹）
+  ⇒ "离线"在这两场是**结果不是保证**。
+- **公告视角由脚本现生（D2 材料）**：登记表 26 条公告里，本探针**有桩可答 17 条**、**答不上 9 条**
+  （`17+9==26` 闭合检查 PASS）。答不上的 9 条不许读成"已排除"：Chroma HTTP 面、text-splitters 的 XSLT/URL splitter、
+  Trainer/LightGlue/X-CLIP/save_pretrained 等本来就没有运行期入口可桩，`CVE-2024-7774` 是映射问题不是调用点问题。
+- 🚨 **本轮的一次自审事故（照实留痕）**：提交前扫密发现**读数里带着 HTTP 请求体** —— 审计事件 `urllib.Request` 的
+  `args[1]` 就是请求体，测试里那几次假登录的 `{"username":…, "password":…}` 被原样记进两份读数（各 44 条）。
+  处置：两份受污染读数**已从磁盘删除**（不留含样本件）；仪器改为只记 URL / 方法 / 头的**键名**
+  （`data` 一律不碰，审计签名 `(full_url, data, headers, method)` 已对着 `Python311/Lib/urllib/request.py:518` 核过轴）；
+  补哨兵对照 `b_probe_net_sanity.py`（同一个键既要"确实记下 URL/方法/`Authorization` 键名"，又要"哨兵口令 0 命中"，
+  只断言后者会被"这条根本没记录"蒙过去），并把本目录脚本按仓库 ruff 规则集（含 `UP`）清了一遍风格；
+  **清完又复跑全部场**，所以本节引用的读数（`103147` / `103511` / `103841`）晚于仪器与驱动的最后一次编辑。
+  另一次自我污染：**03:21 我无参跑了 `verify-protected.py`，覆盖了 09-28 那份被报告引用的 `protected-postcommit-check.log`**；
+  两份 `diff` 为空（同 41/41）⇒ 结论没丢，但"上一轮那份未被覆盖"此前是错的，脚本已补可选 `argv[1]` 输出路径。
+  **独立评审两路（只读）改判了我写下的东西**：A 路逐条复现行号与读数，抓出 11 处不符（自检未装上的桩是 3 只不是 5 只、
+  `trust_remote_code` 被我推广到不传该键的桩、上面那条覆盖日志、`各含 44 条` 随样本销毁已不可复算、
+  `watch_ref.py` 是死文件名、`total=1678` 只打在标准输出未落日志、`main.py` 行号在两棵树差 1 等），除最后不可复算那条外**全部已改**；
+  B 路挑战论点，抓出三处 over-claim（应用场 G2 是"未测"不是阴性、外联普查漏掉被开关关掉的**带凭据外呼**、
+  "运行时 0 调用"里含测试替身成分：`tests/_sse_harness.py:207` 用 `_FakeChain` 顶掉了 `make_chain`）
+  与归类器三种**方向朝"更安全"漏**的静默漏判（IPv6 四元组 / 十进制整数 IP / `os.system` 带 URL）。
+  全部已修：判据改为 non-loopback 优先 + `ipaddress` 认址，合成反例 8→15 条，另加真数据注入对照
+  `b_probe_net_audit.py --injected-selftest`；复算器主张 58→**61** 条（补文档在位、qa 真判据、G2"未测"三条，
+  换掉一名实不符与一冗余）。
+  教训：**外联明细天然是敏感面**，"只记有没有连"这件事本身就要求脱敏，此前我没把它当敏感面看。
+- **不超出证据的边界**：这不是"不可达证明"，只覆盖这两个执行窗口；18 条 slow 未跑；真实 rerank 与生成模型仍未调用（凭据待轮换）；
+  `CVE-2024-7774` 的包映射疑点不在这把尺子射程内；**`pip-audit` 仍 47 条 / 8 包（解析集）红**，本探针不减漏洞条数，只升可达性证据等级；
+  尤其一句：**"运行期 0 调用"撑不起"这个应用不会 outbound"**——`/healthz` 就是按配置主动外发的探测点。
