@@ -414,3 +414,28 @@ A-3（开发/构建工具那 5 条逐条给触发前提/平台条件/修复版�
 - ⚠️ 但迁移有一条边界要说清：`backend/requirements-dev.txt` **不在差集里**，合并树取的是 `master` 那份 blob `a71ea7c`
   （候选那份是 `339f391`），内容就是 `pytest>=9.0.3,<10` ⇒ **CI 装的是 9.x**，而那 1650 条本地腿是在 8.4.2 与 9.1.1 两套 venv 上分别跑的。
   ⇒ 结论：CI 这次要买到的新信息只有两件——**Linux 这条腿**、以及**全新安装依赖集**下的结果；本地已有读数不覆盖它们。
+
+### 8.3 补记 4：一条会把"形状普查干净"读成"口令安全"的坑（Owner 授权后已修）
+
+同一轮派出去的部署勘察回来说有一条比前五题都硬的现量，我自己复现了：
+
+- `backend/.env.bak-20260910-pre-qwen38:11` 的 `ADMIN_PASSWORD=` 是**非空、13 位、字母数字混合**的字面值（值未打印、未入库、未发到聊天）。
+- `git check-ignore -v` 该文件 ⇒ 命中的是 **`.git/info/exclude:9`（`.env.bak*`）**，**不是** `.gitignore`。
+  ⚠️ 这就是要害：`.git/info/exclude` 是**每个克隆各自**的文件，不随仓库走 ⇒ 别人 clone、换机器、重装环境时那行值**没有任何规则挡**，一次 `git add -A` 就把管理口令提交进主线。
+- 我此前那句"推送对象集合不带凭据形状"的普查**覆盖不到它**，两个原因叠在一起：① 它只扫 tracked 对象（未跟踪文件结构上不在面内）；② **任意口令没有形状**（`sk-`／`AKIA` 那类前缀对口令不适用）⇒ 形状尺子量不到，只有**按值**反查能量到（＝O-2）。
+- 同轮量到的两个数（这才是"不会带出口令"该有的说法）：**未跟踪且未被忽略 528** 个文件，其中写着非空 `ADMIN_PASSWORD` 的 **0** 个。
+  命令：`git status --porcelain -unormal` 数集合，再对每个文件正则 `^ADMIN_PASSWORD=.+$`（只打印命中数，不打印值）。
+- ⚠️ 文档口径不一致（登记不裁决）：`docs/progress-handoff-report-20260925.md:442-443` 说口令字面值"逐字等于 3 份 `.env`"，
+  而勘察实测**含字面值的文件是 8 个**（3 份 `.env` ＋ 5 个 `dispatch-output/**.bak`）。那 5 个 `.bak` 落在 `.gitignore:88 dispatch-output/config-backups-*/` 与 `:89 *.bak` 里 ⇒ 未被跟踪，但**文档那句"3 份"是窄的**。
+
+**已修的这一条**：`.gitignore` 环境变量段补一行 `.env.bak*`（在 `.env`／`.env.local` 之后），把兜底从"本机私有"变成"随仓库走"。五条验证：
+
+1. 规则本身有效（临时仓、无 `info/exclude` 干扰）：`git check-ignore -v backend/.env.bak-20260910-pre-qwen38` ⇒ `.gitignore:31:.env.bak*`。
+2. **不误伤已跟踪文件**：`git ls-files | git check-ignore --no-index --stdin -v | grep -c '\.env\.bak'` ⇒ **0**。
+3. 负对照（必须不命中）：`.env.example`、`backend/.env.example`、`dispatch-output/*/.env.example` ⇒ 三条 `check-ignore` 全 rc=**1**。
+4. `未跟踪且未忽略` 计数仍是 **528** ⇒ 这次改动没有悄悄缩小或放大那个集合。
+5. ⚠️ 顺带量到一条**既有**卫生问题，不在本票范围、只登记不处置：`git ls-files | git check-ignore --no-index --stdin` 有 **72** 个"已被跟踪却又被忽略规则命中"的文件，
+   归类是 `.gitignore:72`（69 个 `docs/benchmark_results/*2026*.json`）、`:48 *.log`（2 个）、`:80 dispatch-output/task1/`（1 个）。
+
+**这条修的边界（别读成"泄露面消除了"）**：它只挡"以后不误提交"。那个 `.bak` 里的明文还在磁盘上，真消除属 **O-3 口令轮换**那一格；
+`.git/info/exclude:9` 我**没删**（删了会让这台机器上的历史快照立刻变成"未跟踪且未忽略"，反而扩大面）。
