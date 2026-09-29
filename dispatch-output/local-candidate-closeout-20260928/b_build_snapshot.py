@@ -28,7 +28,17 @@ CI_PATH = ".github/workflows/ci.yml"
 TRIM_DIRS = ("diag/frozen-index-004", "diag/frozen-index-005")
 SSH_URL = "ssh://git@ssh.github.com:443/wjt-code-design/fazhi-assistant.git"
 # 按值普查的键；值只进变量，永不打印
-CENSUS_KEYS = ("ADMIN_PASSWORD", "JWT_SECRET", "RERANK_API_KEY", "LLM_API_KEY")
+# 覆盖面必须等于汇报里那句"8 个密钥类键全 0"——先前列了 4 个，是声明比仪器宽（自己抓到，记账）
+CENSUS_KEYS = (
+    "ADMIN_PASSWORD",
+    "JWT_SECRET",
+    "RERANK_API_KEY",
+    "LLM_API_KEY",
+    "EMBEDDING_API_KEY",
+    "ZHIPUAI_API_KEY",
+    "DASHSCOPE_API_KEY",
+    "SILICONFLOW_API_KEY",
+)
 # 活体正对照：这个值确实曾进过 tracked 文件，用它证明尺子能红
 POSITIVE_REF = "817e7d3"
 
@@ -172,6 +182,8 @@ def main() -> int:
     print("[5] 按值普查（值不打印；rc=1 才是'没有'，命令失败不是 0 命中）")
     bad = 0
     control_dead = 0
+    measured = 0
+    skipped = []
     # 负对照必须**运行时生成**：写死在源码里的对照串，一旦这个脚本被提交，
     # 它就出现在待验树里 ⇒ 对照自己失效（本轮实测：负对照 rc=0，因为我刚把本脚本提交进了 master）。
     nonce = "zz-absent-" + secrets.token_hex(8)
@@ -186,7 +198,9 @@ def main() -> int:
         v = vals.get(k, "")
         if not v:
             print(f"    {k:<15} 跳过：本机 .env 里该键为空")
+            skipped.append(k)
             continue
+        measured += 1
         # ⚠️ 一律带 -C REPO：git grep 在子目录里跑会**隐式收窄到该子目录**（同一棵树同一个值，
         #    仓根命中 1、本子目录命中 0）。不写 -C 就会把"查错了地方"输出成"整棵树都没有"。
         g1 = git("-C", str(REPO), "grep", "-l", "-F", v, commit, "--")
@@ -202,6 +216,12 @@ def main() -> int:
             bad += 1
         if k == "ADMIN_PASSWORD" and hits2 == 0:
             control_dead += 1
+    print(
+        f"[5b] 闭合：声明要查 {len(CENSUS_KEYS)} 个 = 实查 {measured} + 空值跳过 {len(skipped)}"
+    )
+    if measured + len(skipped) != len(CENSUS_KEYS):
+        print("FATAL: 普查覆盖面不闭合（有键既没查也没声明跳过）——不许推")
+        return 12
     if control_dead:
         print(
             "FATAL: 正对照打不红（ADMIN_PASSWORD 打在 817e7d3 上本应命中）⇒ 尺子失效，"
