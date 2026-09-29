@@ -30,7 +30,7 @@ PY = Path(
 )
 
 COLLECTED_RE = re.compile(r"(\d+)\s+tests?\s+collected")
-ERROR_LINE_RE = re.compile(r"^ERROR\s+\S+", re.M)
+ERROR_LINE_RE = re.compile(r"^ERROR\s+\S+", re.MULTILINE)
 
 
 def expand(commit: str, dest: Path) -> None:
@@ -40,7 +40,9 @@ def expand(commit: str, dest: Path) -> None:
         check=False,
     )
     if proc.returncode != 0:
-        raise SystemExit(f"FATAL: git archive {commit} rc={proc.returncode} {proc.stderr[:200]}")
+        raise SystemExit(
+            f"FATAL: git archive {commit} rc={proc.returncode} {proc.stderr[:200]}"
+        )
     dest.mkdir(parents=True, exist_ok=True)
     with tarfile.open(fileobj=io.BytesIO(proc.stdout)) as tf:
         # 配方抄在册建树器 b_probe_build_tree.py：副本树那套 venv 是 3.11.0，没有 filter= 参数，
@@ -50,7 +52,11 @@ def expand(commit: str, dest: Path) -> None:
             return
         for member in tf.getmembers():
             name = member.name.replace("\\", "/")
-            if name.startswith("/") or ".." in Path(name).parts or not (member.isfile() or member.isdir()):
+            if (
+                name.startswith("/")
+                or ".." in Path(name).parts
+                or not (member.isfile() or member.isdir())
+            ):
                 print(f"FATAL: archive 里有越界成员 {name}，拒绝解压")
                 return
         tf.extractall(str(dest))
@@ -71,7 +77,8 @@ def env_for(tree: Path, run_dir: Path) -> dict[str, str]:
             "TRANSFORMERS_OFFLINE": "1",
             "LANGCHAIN_TRACING_V2": "false",
             "LANGSMITH_TRACING": "false",
-            "DATABASE_URL": "sqlite:///" + str(run_dir / "iso-app.db").replace("\\", "/"),
+            "DATABASE_URL": "sqlite:///"
+            + str(run_dir / "iso-app.db").replace("\\", "/"),
             "QUOTA_DB": str(run_dir / "iso-quota.db"),
         }
     )
@@ -121,12 +128,17 @@ def main() -> int:
             print(f"FATAL: 提交 {ref} 不可解析（对象可能已被回收，重建快照后再跑）")
             return 2
 
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+    stamp = datetime.now().astimezone().strftime("%Y%m%d-%H%M%S")
     root = Path(tempfile.gettempdir()) / f"b-snapdiff-{stamp}"
     root.mkdir(parents=True, exist_ok=True)
     print(f"解释器={PY}")
 
-    out: dict[str, object] = {"stamp": stamp, "interpreter": str(PY), "full": args.full, "trim": args.trim}
+    out: dict[str, object] = {
+        "stamp": stamp,
+        "interpreter": str(PY),
+        "full": args.full,
+        "trim": args.trim,
+    }
     runs: dict[str, dict[str, object]] = {}
     trees: dict[str, Path] = {}
     for label, sha in (("full", args.full), ("trim", args.trim)):
@@ -140,7 +152,10 @@ def main() -> int:
             f"错误行={runs[label]['error_total']} 树={runs[label]['tree_mb']}MB"
         )
 
-    same = runs["full"]["collected"] == runs["trim"]["collected"] and runs["full"]["errors"] == runs["trim"]["errors"]
+    same = (
+        runs["full"]["collected"] == runs["trim"]["collected"]
+        and runs["full"]["errors"] == runs["trim"]["errors"]
+    )
     verdict = "PASS 差分零变化" if same else "FAIL 差分非空——剔目录改变了收集面"
     if runs["full"]["collected"] is None or runs["trim"]["collected"] is None:
         verdict = "FAIL 有一侧没读到 collected 数（别把'没报数'读成'没变化'）"
@@ -150,7 +165,9 @@ def main() -> int:
     print(f"体积差={round(runs['full']['tree_mb'] - runs['trim']['tree_mb'], 1)} MB")
 
     target = EVIDENCE / f"b-snapdiff-{stamp}.json"
-    target.write_text(json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n")
+    target.write_text(
+        json.dumps(out, ensure_ascii=False, indent=2), encoding="utf-8", newline="\n"
+    )
     print(f"EVIDENCE={target}")
     return 0 if verdict.startswith("PASS") else 1
 
