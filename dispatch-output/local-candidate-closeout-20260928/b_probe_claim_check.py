@@ -167,6 +167,67 @@ def extra_claims(suite: dict[str, Any], app: dict[str, Any]) -> None:
         f"实得 {'缺件' if not sp.is_file() else format(sp.stat().st_mtime, '.0f')}",
     )
 
+    # 7) D2「可签文本」与登记表同源。签字页是**手抄件**，而手抄必过期（本仓栽过好几回）；
+    #    更要命的是签字页会被当成结论读，所以它抄错的数字比正文抄错更贵。
+    #    三条各自能红：清单与现算集合不符 / 日期被"建议"成别的值 / 页面上出现登记表里没有的公告号。
+    #    第二条就是本轮真事：我口头把复审日期建议成 2026-12-31，而登记表钉的是 2026-10-05。
+    cve_re = re.compile(r"CVE-\d{4}-\d{4,7}")
+    reg, handoff = EVIDENCE / "residual-risk-review.md", DOCS[0]
+    if not (reg.is_file() and handoff.is_file()):
+        claim(
+            "D2 签字页三条主张可复算（登记表与交接书都在）",
+            False,
+            f"缺 {[str(p) for p in (reg, handoff) if not p.is_file()]}",
+        )
+        return
+    listed = set(cve_re.findall(reg.read_text(encoding="utf-8")))
+    reg_date = re.search(r"复审最迟日期为\s*(\d{4}-\d{2}-\d{2})", reg.read_text(encoding="utf-8"))
+    covered = {
+        c
+        for d in (suite, app)
+        for rec in (d or {}).get("targets", [])
+        for c in cve_re.findall(str(rec.get("cves", "")))
+    }
+    uncovered = listed - covered
+    body = handoff.read_text(encoding="utf-8")
+    head = next((ln for ln in body.splitlines() if ln.strip().startswith("① 探针答不上的")), "")
+    page_cves = set(cve_re.findall(head))
+    page_count = re.search(r"探针答不上的\s*(\d+)\s*条公告", head)
+    expected_uncovered = 9
+    claim(
+        "D2 签字页的「无桩可答」清单与登记表+读数现算集合逐条一致",
+        bool(head)
+        and page_count is not None
+        and int(page_count.group(1)) == len(page_cves) == len(uncovered) == expected_uncovered
+        and page_cves == uncovered,
+        f"页面写 {page_count.group(1) if page_count else '无'} 条/列了 {len(page_cves)} 条；现算 {len(uncovered)} 条；差 {sorted(page_cves ^ uncovered)[:6]}",
+    )
+    expected_date = "2026-10-05"
+    b0 = body.find("**D2 可签文本（草案）**")
+    b1 = body.find("**签字位**", b0)
+    block = body[b0:b1] if b0 >= 0 and b1 > b0 else ""
+    # 只在签字页那一段里找日期：全文搜会被 §10「带范围+复审日期」那类旁提及补记里的复述污染。
+    page_date = re.search(r"复审日期[：:]\s*[^\n]*?(\d{4}-\d{2}-\d{2})", block)
+    claim(
+        "D2 签字页的复审日期与登记表字面一致",
+        reg_date is not None and page_date is not None and page_date.group(1) == reg_date.group(1) == expected_date,
+        f"登记表 {reg_date.group(1) if reg_date else '未解析'} / 签字页 {page_date.group(1) if page_date else '未解析'} / 在册期望 {expected_date}",
+    )
+    stray = sorted(set(cve_re.findall(block)) - listed)
+    claim(
+        "D2 签字页里出现的每条公告号都在登记表内（防编出不存在的通报）",
+        bool(block) and not stray,
+        f"页长 {len(block)} 字符，页外公告号 {stray}",
+    )
+    # 结构齐全 ≠ 内容对（内容由上面三条管）；这条只防"改着改着把某一栏删了"。
+    cols = ("一、接受范围", "二、不写进", "三、随接受", "四、必须一起算进", "五、复审日期", "六、签了也不解除")
+    miss = [c for c in cols if c not in block] + ([] if b1 > b0 else ["签字位锚点"])
+    claim(
+        "D2 可签文本六栏齐备且带签字位（草案不是签字，但结构不能缺栏）",
+        b0 >= 0 and b1 > b0 and not miss,
+        f"缺 {miss}",
+    )
+
 
 def main() -> int:
     suite = latest("b-probe-readings-pytest-*.json")
@@ -336,6 +397,41 @@ def main() -> int:
     for b in banned:
         hit = b in text_all
         claim(f"文档中不应残留「{b}」", not hit)
+
+    # 手抄的"复算器条数 / 变异只数"必然过期：每加一条主张，全仓所有引用点同时变陈旧。
+    # 所以**指向本件的那一段**里不许写这种数（只准指向命令）。
+    # 两点口径教训：① 范围要按"空行分隔的段"而不是单行 —— 第一版按单行扫，README 里
+    #   "`python b_probe_claim_mutants.py` 对 11 条…" 与下一行的"现量 12/12 被杀"被空行连着
+    #   却分在两行，单行口径会**假装干净**；② 不收全仓，否则会误伤别的变异仪（`mutate.py` 的
+    #   `1/1 被杀`、hidden_runner 的 `5 只变异`、smoke 的 `23/24 通过` 都是另一台机器的史实）。
+    scope = re.compile(r"b_probe_claim_check|b_probe_claim_mutants|主张复算|复算器|变异对照")
+    hand = re.compile(r"\d+/\d+\s*(?:通过|被杀|被如期打红)|\d+\s*条(?:关键)?主张|\d+\s*只(?:变异|反例)")
+    stale_counts = []
+    for d in DOCS:
+        if not d.is_file():
+            continue
+        lines = d.read_text(encoding="utf-8").splitlines()
+        block, start = [], 0
+        blocks = []
+        for i, ln in enumerate(lines + [""]):
+            if ln.strip():
+                if not block:
+                    start = i + 1
+                block.append(ln)
+            elif block:
+                blocks.append((start, block))
+                block = []
+        for start, blk in blocks:
+            if not scope.search("\n".join(blk)):
+                continue
+            for off, ln in enumerate(blk):
+                for m in hand.finditer(ln):
+                    stale_counts.append(f"{d.name}:{start + off} {m.group(0)}")
+    claim(
+        "文档里指向本复算器的段落不出现手抄条数（只准写命令）",
+        not stale_counts,
+        f"命中 {len(stale_counts)} 处：{stale_counts[:6]}",
+    )
 
     extra_claims(suite, app)
 

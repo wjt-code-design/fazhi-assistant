@@ -1,6 +1,6 @@
 """给主张复算器做「这把尺子能不能红」的变异对照。
 
-为什么要有这个文件：`b_probe_claim_check.py` 报 58/58 全绿，本身不构成证据——
+为什么要有这个文件：`b_probe_claim_check.py` 报"全绿"本身不构成证据——
 一条永远不会红的断言不是复算，是装饰（本轮确实抓出过一条这样的：`claim(..., True, "人工核对")`，已删）。
 这里对**每条关键主张各造一个反例**，要求两件事同时成立：
   ① 整体 rc=1；
@@ -12,12 +12,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
 
 EVIDENCE = Path(__file__).resolve().parent
 TARGET = EVIDENCE / "b_probe_claim_check.py"
+DOC_TARGET = EVIDENCE.parent.parent / "docs" / "handoff-local-candidate-closeout-20260929.md"
 PY = Path(r"C:/Users/33393/AppData/Local/Temp/legal-closeout-20260928/venv/Scripts/python.exe")
 
 # (名字, 唯一锚点, 替换, 期望红掉的主张名片段)
@@ -97,7 +99,85 @@ MUTANTS = [
         "installed_n == 20",
         "自检 桩装上 19/22",
     ),
+    (
+        "签字页无桩条数期望改 10（现算 9）",
+        "expected_uncovered = 9",
+        "expected_uncovered = 10",
+        "D2 签字页的「无桩可答」清单",
+    ),
+    (
+        "签字页日期期望改成一个不在册的值",
+        'expected_date = "2026-10-05"',
+        'expected_date = "2026-12-31"',
+        "D2 签字页的复审日期",
+    ),
+    (
+        "签字页公告号『都在登记表内』改成恒不成立（塞一条页外号）",
+        "stray = sorted(set(cve_re.findall(block)) - listed)",
+        'stray = sorted(set(cve_re.findall(block)) | {"CVE-1970-00001"})',
+        "D2 签字页里出现的每条公告号",
+    ),
+    (
+        "手抄条数检查的作用域放宽到每一行（文档里合法存在别处的计数，应立刻命中）",
+        'scope = re.compile(r"b_probe_claim_check|b_probe_claim_mutants|主张复算|复算器|变异对照")',
+        'scope = re.compile(r".")',
+        "文档里指向本复算器的段落不出现手抄条数",
+    ),
+    (
+        "可签文本六栏清单里换成一个不存在的栏名",
+        'cols = ("一、接受范围", "二、不写进", "三、随接受", "四、必须一起算进", "五、复审日期", "六、签了也不解除")',
+        'cols = ("一、接受范围", "二、不写进", "三、随接受", "四、必须一起算进", "五、复审日期", "七、根本不存在的栏")',
+        "D2 可签文本六栏齐备",
+    ),
 ]
+
+# 复算器侧的变异只证"这条主张真的在拿现算值算"。但 D2 签字页是**我手抄的文档**，
+# 它的失败模式是"抄错"，不是"恒真" ⇒ 还得从文档侧打反例：把签字页改错，主张必须红。
+# 本轮就是这么撞上的：我口头把复审日期建议成 2026-12-31，而登记表钉 2026-10-05。
+# (名字, 文档唯一锚点, 替换, 期望红掉的主张名片段)
+DOC_MUTANTS = [
+    (
+        "签字页日期抄成 2026-12-31",
+        "五、复审日期：沿用登记表已有的 2026-10-05",
+        "五、复审日期：沿用登记表已有的 2026-12-31",
+        "D2 签字页的复审日期",
+    ),
+    (
+        "签字页无桩清单漏抄一条公告",
+        "、CVE-2026-9856；",
+        "；",
+        "D2 签字页的「无桩可答」清单",
+    ),
+]
+
+
+def run_doc_one(name: str, anchor: str, repl: str, expect: str) -> tuple[bool, str]:
+    """文档侧反例：把**手抄的签字页**改错，复算器必须红。
+
+    复算器侧的变异证"主张不是恒真"；这里证"抄错文档会被抓到"。两者不可互相替代。
+    原地改同一份可转发交接书，所以：字节级 sha 先留底，`finally` 按原字节还原，
+    还原后再比一次哈希 —— 哈希不等就判本只变异无效（宁可不算覆盖，也不留一份被改脏的文档）。
+    """
+    raw = DOC_TARGET.read_bytes()
+    before = hashlib.sha256(raw).hexdigest()
+    src = raw.decode("utf-8")
+    if src.count(anchor) != 1:
+        return False, f"{name}: 文档锚点命中 {src.count(anchor)} 次（要恰好 1 次），变异未施加，不算覆盖"
+    try:
+        DOC_TARGET.write_text(src.replace(anchor, repl), encoding="utf-8", newline="\n")
+        proc = subprocess.run([str(PY), str(TARGET)], capture_output=True, text=True, timeout=600)
+    finally:
+        DOC_TARGET.write_bytes(raw)
+    after = hashlib.sha256(DOC_TARGET.read_bytes()).hexdigest()
+    if after != before:
+        return False, f"{name}: 🚨 还原后字节哈希变了（{before[:8]}→{after[:8]}），文档可能被改脏，本只不算覆盖"
+    out = proc.stdout + proc.stderr
+    failed = [ln.strip() for ln in out.splitlines() if "[FAIL]" in ln]
+    if proc.returncode == 0:
+        return False, f"{name}: 签字页被改错后复算器仍 rc=0（这条抄错抓不到）"
+    if not any(expect in ln for ln in failed):
+        return False, f"{name}: 红的是别的条目 {failed[:2]}，期望「{expect}」"
+    return True, f"{name}: 如期红且文档已按原字节还原（sha {before[:8]} 不变）-> {failed[0][:90]}"
 
 
 def run_one(name: str, anchor: str, repl: str, expect: str) -> tuple[bool, str]:
@@ -143,15 +223,29 @@ def main() -> int:
     results = []
     for m in MUTANTS:
         results.append((m[0], *run_one(*m)))
-    print("=== 复算器变异对照（每行都必须「如期红」）")
+    doc_results = []
+    for m in DOC_MUTANTS:
+        doc_results.append((m[0], *run_doc_one(*m)))
+    print("=== 复算器侧变异对照（每行都必须「如期红」）")
     ok_all = True
     for _name, ok, detail in results:
         print(f"  {'KILLED' if ok else 'SURVIVED/INVALID'}  {detail}")
         ok_all = ok_all and ok
-    killed = sum(1 for _, ok, _ in results if ok)
+    print("=== 文档侧变异对照（把**手抄的签字页**改错，复算器必须红）")
+    for _name, ok, detail in doc_results:
+        print(f"  {'KILLED' if ok else 'SURVIVED/INVALID'}  {detail}")
+        ok_all = ok_all and ok
+    killed = sum(1 for _, ok, _ in results if ok) + sum(1 for _, ok, _ in doc_results if ok)
+    n = len(results) + len(doc_results)
     (EVIDENCE / "b-probe-claim-check-mutants.json").write_text(
         json.dumps(
-            {"mutants": len(results), "killed": killed, "detail": [r[2] for r in results]},
+            {
+                "mutants": n,
+                "killed": killed,
+                "checker_side": len(results),
+                "doc_side": len(doc_results),
+                "detail": [r[2] for r in results] + [r[2] for r in doc_results],
+            },
             ensure_ascii=False,
             indent=2,
             sort_keys=True,
@@ -159,7 +253,7 @@ def main() -> int:
         encoding="utf-8",
         newline="\n",
     )
-    print(f"\n合计 {killed}/{len(results)} 只变异被杀掉")
+    print(f"\n合计 {killed}/{n} 只变异被杀掉")
     if not ok_all:
         print("MUTATION FAIL: 有主张杀不掉，或有变异没真的施加（不算覆盖）")
         return 1
