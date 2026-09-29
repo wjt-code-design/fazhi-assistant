@@ -363,6 +363,8 @@ A-3（开发/构建工具那 5 条逐条给触发前提/平台条件/修复版�
 | Q12 部署那批现量怎么处置 | **只登记**，本窗口一处文档不改 | 已落 §8.7 |
 | Q13 那段含明文的历史推不推 | **A：推无父孤儿快照** | §8.6；连带后果：**PR 路按构造关闭**，push 触发是唯一路，"触发配置略异"这条限制**必然**进 D2 |
 | Q14 合并之后第一票开什么 | **凭据与外发面**（O-1＋O-3＋历史明文处置） | 部署票第二；⚠️ 若将来要把仓库转 public，唯一能消除历史明文的是重写历史 ⇒ 会作废 19 处 `fbc29e8`，是本轮**唯一会推翻已裁事项**的情形 |
+| Q15 「为什么要转 private」（Owner 回头审我给的前提） | **不转，仓库保持 public** | 我那条前置的立足点（只靠形状普查）已被按值普查取代；且 private 吃 Actions 分钟配额而我读不到余额 ⇒ 反向代价实测存在。详见 §8.8① |
+| Q16 外发的内容轴怎么处理 | **剔掉 `diag/frozen-index-004` 与 `-005` 两个目录（74 文件/296.7MB）再推** | 依据：两树 `--collect-only` 差分 `1678==1678`、错误行 `0==0`；`frozen-index` 在 backend 代码里 0 引用。⚠️ 连带后果两条：① 这次 CI **不会整体绿**（`pip-audit` 那步没有 `continue-on-error`，见 §8.8⑤）；② 在册文档里 6 处"13 位/字母数字"式旁路描述会首次进公开仓（见 §8.8⑥） |
 
 另外两条一并定了：**O-2 按值反查**第一轮说"排在合并前"，第二轮（Q8）收窄为**签字前**，并且**已由助手在 Owner 机器上代跑完**（§8.5/§8.6，值全程未打印）；`2026-10-05` 复审日期**不延长**。
 
@@ -504,6 +506,56 @@ Owner 裁 A（推无父孤儿快照）。我把"要推的东西"做成了一个*
   `git push ssh://git@ssh.github.com:443/wjt-code-design/fazhi-assistant.git snapshot/ci-fbc29e8-20260930:refs/heads/snapshot/ci-fbc29e8-20260930`
   回退（删掉远端那条分支）：同 URL、源写空：`git push ssh://… :refs/heads/snapshot/ci-fbc29e8-20260930`
 - **仍未推**：仓库仍是 `private=false`。本地多了一个分支引用 `snapshot/ci-fbc29e8-20260930`，不进 `master`、不参与合并。
+
+### 8.8 补记 8：Owner 一句"为什么要转 private"掀掉我给的前置， consequently 外发集合被重做
+
+**① 那条前置的立足点没了，而且有反向代价。** 我当初建议转 private，是因为那时"对象集合干净"只靠**形状**普查；
+现在按值普查已经背书（见下），保险的技术理由空了。反向代价是实测的：public 仓库 Actions 分钟不限量，
+private 吃套餐配额，而我**读不到余额**（`/actions/permissions` ⇒ 401）⇒ 为了拿 CI 证据，转 private 可能反把 CI 卡住。
+Owner 裁定：**不转 private，仓库保持 public。**
+
+**② 真问题在内容轴，不在凭据轴。** 现量（`git ls-tree -r -l`）：未剔的快照 **350.0 MB / 2640 文件**，其中
+`diag/frozen-index-004|005` = **74 文件 / 296.7 MB** 的向量索引二进制（⚠️ 更正：`894 文件 / 306.6 MB` 是**整个 `diag/`** 的数，我先前混了一档）；
+另有 **42 份 `gate2-run-*-sessions.json`（0.7 MB）**——对它跑了形状普查（邮箱／IPv4／手机号／`sk-`／身份证）：**全 0**。
+`frozen-index` 在 `backend/tests` 与 `backend/scripts` 里 **0 引用**；`diag/` 的引用只在注释/文档字符串
+（`gen_phase1_audit.py:18` 与 `gen_route_mask_grayscale.py:15` 读的是**其它** diag 子目录）。
+CI 那个 guard 步骤只跑 `dispatch-output/agent-quality-20260911` ⇒ 剔这两个目录不碰 CI 的任何一步。
+
+**③ 剔完的外发集合（当前推送对象＝读现量 `git rev-parse --short=8 snapshot/ci-fbc29e8-20260930`）**：
+无父、**1 笔提交**、**2566 文件 / 53.3 MB**、`git rev-list --objects` = **2507**。两处刻意偏离在册树：`ci.yml` 多本分支名、删那两个目录。
+验证三件：
+- **差分**（`b_snapshot_trim_diff.py`，读数 `b-snapdiff-20260930-024044.json`）：未剔树与剔过的树同一解释器同一命令各跑一次
+  `pytest --collect-only -q` ⇒ `collected` **1678 == 1678**、错误行 **0 == 0**、体积差 **296.6 MB**。
+  ⚠️ 这个 1678 还与在册全量读数自洽（`1650 passed + 10 skipped + 18 deselected == 1678`）。
+  顺带修了仪器一处：副本树那套 venv 是 **3.11.0**，没有 `extractall(filter=)`，我第一版直接 TypeError ⇒ 改成在册建树器那套"手工校验成员再解压"。
+- **按值普查带活体正对照**（每条都打印被测命令的 rc）：`ADMIN_PASSWORD` 快照 **rc=1（无）**、同一值打在 `817e7d3` **rc=0（有）**；
+  `JWT_SECRET`／`RERANK_API_KEY` 两处都 rc=1 ⇒ 诚实措辞是"查不到命中"，不是"曾能命中"；负对照 rc=1。
+- **树号随 `master` 一动就重算**：`.gitignore` 那笔位移之后重建了一次，差分对象只剩 `.gitignore` 与本报告两个文件。
+
+**④ 我自己的两次记账。** 第十二次：`.gitignore` 规则**插在中段**把后面所有行号顶移 +3，而本仓多处按号引用它
+（`backend/tests/conftest.py:133` 引 `:31`＝`backend/chroma_db/`、`test_harness_fact_reveal.py` 与 `hidden_runner.py` 引 `:77`＝`dispatch-output/task1/`）
+⇒ 已把规则挪到文件**末尾**（`8d4bda7`），逐号复验 `26=.env 31=backend/chroma_db/ 45=*.log 54=backups/ 77=dispatch-output/task1/ 85=.workbuddy/` 全部复原。
+第十三次更要紧：我**手抄了一个不存在的 SHA**（`53b259e`）去跑 `git grep`，git 报 `fatal: unknown revision`，
+而我用 `grep -c .` 数命中 ⇒ 把"命令失败"读成了"三个键全部 0 命中"。**假阴性就是这么产生的**：普查的计数必须同时打印被测命令的 rc。
+
+**⑤ 推之前必须先说清的一条：这次 CI 不会"整体绿"。** `ci.yml:45-46` 的 `pip-audit -r requirements.txt`
+**没有 `continue-on-error`、也没有 `--ignore-vuln`** ⇒ 在册那 26 条运行轴通报会把它打成 **rc=1**，整个 backend job 判红；
+这既不是新问题、也不是我们靠 CI 要否证的东西（远端 `master` 那三场 failure 至少有一部分同源）。
+所以 Q4 那句"CI 之后签"里的"CI 绿"要按此收窄成：**ruff／format／mypy／pytest／guard 逐步绿 ＋ pip-audit 红＝已知在册风险的表现**，
+读的时候逐步读、不看整体徽章。⚠️ 我**不会**为了绿去加 `continue-on-error` 或 `--ignore-vuln`（计划 §授权边界明令禁止用放宽 CI 代替处置）。
+
+**⑥ 还有一条内容轴要 Owner 知情**：即将公开的文档里带着对那把**仍有效**口令的旁路描述（"13 位、字母数字混合、在哪些文件的哪一行"）。
+现量：这类描述**不是我这次写的**——`docs/pending-owner-actions-20260926.md:80`、`docs/progress-handoff-report-20260925.md:443/707`、
+`dispatch-output/a-docs-t7-report-20260927.md:58` 等在册文档里已有 **6 处**；值本身不在快照（③ 已按值证）。
+⇒ 推快照＝这些描述**首次**进公开仓。归 Q14 那张凭据票处置；D2 的限制栏要落一条。我不建议为推送去改窄文档（那等于做假账）。
+
+**待你按回车的那条命令**（SSH over 443、内联 URL、不动 `git config`、永不 force）：
+
+```
+git push ssh://git@ssh.github.com:443/wjt-code-design/fazhi-assistant.git \
+  snapshot/ci-fbc29e8-20260930:refs/heads/snapshot/ci-fbc29e8-20260930
+```
+回退（删远端那条分支）：同 URL、源为空 `git push ssh://… :refs/heads/snapshot/ci-fbc29e8-20260930`。
 
 ### 8.7 补记 7：部署票的现量输入（Q6 裁定＝只登记，本窗口一处文档都没改）
 
