@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import secrets
 import subprocess
 import sys
 from pathlib import Path
@@ -161,6 +162,16 @@ def main() -> int:
     print("[5] 按值普查（值不打印；rc=1 才是'没有'，命令失败不是 0 命中）")
     bad = 0
     control_dead = 0
+    # 负对照必须**运行时生成**：写死在源码里的对照串，一旦这个脚本被提交，
+    # 它就出现在待验树里 ⇒ 对照自己失效（本轮实测：负对照 rc=0，因为我刚把本脚本提交进了 master）。
+    nonce = "zz-absent-" + secrets.token_hex(8)
+    print(f"[5a] 动态负对照 nonce={nonce}（这个串不该出现在任何树里）")
+    ctrl = git("-C", str(REPO), "grep", "-l", "-F", nonce, commit, "--")
+    if ctrl.returncode != 1:
+        print(
+            f"FATAL: 动态负对照 rc={ctrl.returncode}（应为 1=查不到）⇒ 要么它命中了，要么命令本身在报错，两种都不许推"
+        )
+        return 10
     for k in CENSUS_KEYS:
         v = vals.get(k, "")
         if not v:
@@ -172,13 +183,10 @@ def main() -> int:
         hits1 = len([x for x in g1.stdout.splitlines() if x])
         g2 = git("-C", str(REPO), "grep", "-l", "-F", v, POSITIVE_REF, "--")
         hits2 = len([x for x in g2.stdout.splitlines() if x])
-        ctrl = git(
-            "-C", str(REPO), "grep", "-l", "-F", "ZZ-absent-control-9x7", commit, "--"
-        )
         note = "（活体正对照：尺子在这个值上能红）" if hits2 else ""
         print(
             f"    {k:<15} len={len(v):<4} 快照命中={hits1}(rc={g1.returncode}) "
-            f"正对照@{POSITIVE_REF}={hits2}(rc={g2.returncode}) 负对照 rc={ctrl.returncode}{note}"
+            f"正对照@{POSITIVE_REF}={hits2}(rc={g2.returncode}){note}"
         )
         if g1.returncode not in (0, 1) or g2.returncode not in (0, 1) or hits1:
             bad += 1
