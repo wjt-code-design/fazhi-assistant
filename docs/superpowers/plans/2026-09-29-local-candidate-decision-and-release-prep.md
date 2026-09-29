@@ -334,7 +334,10 @@ PyTorch 官方通报的逐条比对**本轮未完成** ⇒ 该轴记 **未核实
 | **H** | 挂账 | `postcommit-gates.log` 为何缺 [6R]–[8R]（是当时没跑还是没落盘）已不可追证；§9.1”谁删了嵌套引用”真凶仍未定（空壳钩子已排除） | 不改写历史，只在被引用时带”不可追证”标注 |
 
 **最终核对（本会话实跑）**
-`git diff --check` rc=**0**；两棵树 `status --short -uno` 除下列我改的文件外均干净；
+`git diff --check` **第一次跑是 rc=2** —— 我自己往计划文件尾部多写了一个空行（`new blank line at EOF`），
+裁掉后复跑 **rc=0**；这条不是工具的错，是我没在提交前跑这条本文自己要求的检查。
+两棵树 `status --short -uno` 除下列我改的文件外均干净；我这笔提交 `git diff --name-only HEAD~1 HEAD -- backend/` = **0 个文件**
+（改动全在 `docs/` 与 `dispatch-output/`；`apply_case_domain_gate.py` 是一次性补丁脚本，不是生产码）；
 `verify-protected.py dispatch-output/local-candidate-closeout-20260928/protected-takeover-20260929.log` → **41/41 未变 rc=0**，
 第二读数 `find backend/chroma_db -type f -newermt “2026-09-29 00:00”` → **0**（共 38 文件）；
 `b_probe_claim_check.py` → **67/67 通过 rc=0**（改文档后复跑）；`b_scope_recount.py --write` → **闭合 PASS rc=0**，负向自证 **rc=1**；
@@ -343,4 +346,3 @@ PyTorch 官方通报的逐条比对**本轮未完成** ⇒ 该轴记 **未核实
 **三个状态分开说**：**候选 = 受阻（③）**；**发布准备 = 已备妥**（远端/CI/真实数据/服务器四节都有可决策材料与实测命令）；
 **主线合入 = 未发生**（`master` 仍 `14a04ca`，候选 `fbc29e8` 独立；零重叠只是”能安全合”的前置证据，不是”已合”）。
 **未 push、未建远端分支/PR、未部署、未写真实库、未调用生成模型与真实 rerank、未动共享 `backend/venv`、未 `git add -A`、未动其余 9 棵 worktree、未接受任何剩余风险、未加 `--ignore-vuln`、未放宽 CI。**
-
