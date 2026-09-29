@@ -1,0 +1,15 @@
+{
+  "archive_bytes": 356751360,
+  "backend_py": 267,
+  "candidate_head": "fbc29e87c14e8e6a2c0744e98d86d426f6146ade",
+  "extras_added": [
+    "dispatch-output/task1/hidden-cases-v1.json",
+    "dispatch-output/task1/hidden-round-protocol-v1.json"
+  ],
+  "files": 2563,
+  "forbidden_present": [],
+  "requirements_has_fastapi_pin": true,
+  "requirements_has_pypdf_pin": true,
+  "tree": "C:\\Users\\33393\\AppData\\Local\\Temp\\b-probe-tree-20260929-020956",
+  "tree_requirements_sha256": "79a5191fc32622499a49dfd2155548fde5d8699da26e9b5cc31567bcb338bd3f"
+}

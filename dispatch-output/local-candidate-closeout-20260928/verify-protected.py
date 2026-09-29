@@ -1,5 +1,5 @@
-# -*- coding: utf-8 -*-
 """Re-verify the A-baseline protected-file fingerprint (size/mtime/sha256)."""
+
 import hashlib
 import json
 import sys
@@ -24,6 +24,8 @@ def sha256(path: Path) -> str:
 
 
 def main() -> int:
+    # 可选 argv[1]：把复验结果写到新文件，避免覆盖上一轮已被报告引用的证据日志
+    out_path = Path(sys.argv[1]) if len(sys.argv) > 1 else OUT
     entries = json.loads(BASELINE.read_text(encoding="utf-8"))
     lines = [f"baseline: {BASELINE.name} entries={len(entries)}"]
     same = 0
@@ -62,7 +64,7 @@ def main() -> int:
     for d in diffs:
         lines.append("  CHANGED " + json.dumps(d, ensure_ascii=False))
     text = "\n".join(lines) + "\n"
-    OUT.write_text(text, encoding="utf-8", newline="")
+    out_path.write_text(text, encoding="utf-8", newline="")
     print(text)
     return 0 if (not diffs and not missing) else 1
 

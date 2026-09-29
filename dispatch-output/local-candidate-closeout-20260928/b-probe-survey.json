@@ -1,0 +1,948 @@
+{
+  "candidate_tree": "C:\\Users\\33393\\.codex\\worktrees\\local-candidate-closeout\\ai-legal-helper",
+  "candidate_head": "fbc29e87c14e8e6a2c0744e98d86d426f6146ade",
+  "interpreter": "C:\\Users\\33393\\AppData\\Local\\Temp\\legal-closeout-20260928\\venv\\Scripts\\python.exe",
+  "python": "3.11.0",
+  "packages": [
+    {
+      "package": "langchain",
+      "version": "0.1.20"
+    },
+    {
+      "package": "langchain-core",
+      "version": "0.1.53"
+    },
+    {
+      "package": "langchain-community",
+      "version": "0.0.38"
+    },
+    {
+      "package": "langchain-openai",
+      "version": "0.1.7"
+    },
+    {
+      "package": "langchain-chroma",
+      "version": "0.1.4"
+    },
+    {
+      "package": "langchain-huggingface",
+      "version": "0.0.3"
+    },
+    {
+      "package": "langsmith",
+      "version": "0.1.147"
+    },
+    {
+      "package": "transformers",
+      "version": "4.57.6"
+    },
+    {
+      "package": "sentence-transformers",
+      "version": "2.7.0"
+    },
+    {
+      "package": "torch",
+      "version": "2.6.0+cpu"
+    },
+    {
+      "package": "chromadb",
+      "version": "0.4.24"
+    },
+    {
+      "package": "fastapi",
+      "version": "0.141.1"
+    },
+    {
+      "package": "starlette",
+      "version": "1.7.0"
+    },
+    {
+      "package": "pypdf",
+      "version": "6.16.1"
+    },
+    {
+      "package": "pydantic",
+      "version": "2.13.5"
+    }
+  ],
+  "modules_to_watch": [
+    "langchain_community.document_loaders.sitemap",
+    "langchain_community.document_loaders.evernote",
+    "langchain_community.document_loaders.docusaurus",
+    "langchain_community.vectorstores.faiss",
+    "langchain_community.chat_models.utils",
+    "langchain.chains.graph_qa.cypher",
+    "langchain.chains.graph_qa.graphql",
+    "langchain_community.tools.azure_cognitive_search",
+    "langchain_community.agent_toolkits.file_management",
+    "langchain_core.load",
+    "langchain_core.load.dump",
+    "langchain_core.load.load",
+    "langchain_core.prompts.loading",
+    "langchain_openai.chat_models.tokenization",
+    "langsmith.middleware",
+    "langsmith.run_logs",
+    "transformers.dynamic_module_utils",
+    "sentence_transformers.SentenceTransformer",
+    "pickle"
+  ],
+  "symbols": [
+    {
+      "symbol": "langchain_core.load.load",
+      "status": "EXISTS",
+      "resolved_via": "langchain_core.load",
+      "defining_module": "langchain_core.load.load",
+      "kind": "function",
+      "attempts": "",
+      "group": "G1_Core 反序列化与 prompt 模板注入"
+    },
+    {
+      "symbol": "langchain_core.load.loads",
+      "status": "EXISTS",
+      "resolved_via": "langchain_core.load",
+      "defining_module": "langchain_core.load.load",
+      "kind": "function",
+      "attempts": "",
+      "group": "G1_Core 反序列化与 prompt 模板注入"
+    },
+    {
+      "symbol": "langchain_core.load.dumps",
+      "status": "EXISTS",
+      "resolved_via": "langchain_core.load",
+      "defining_module": "langchain_core.load.dump",
+      "kind": "function",
+      "attempts": "",
+      "group": "G1_Core 反序列化与 prompt 模板注入"
+    },
+    {
+      "symbol": "langchain_core.load.dump",
+      "status": "EXISTS",
+      "resolved_via": "langchain_core.load",
+      "defining_module": "langchain_core.load",
+      "kind": "module",
+      "attempts": "",
+      "group": "G1_Core 反序列化与 prompt 模板注入"
+    },
+    {
+      "symbol": "langchain_core.prompts.load_prompt",
+      "status": "EXISTS",
+      "resolved_via": "langchain_core.prompts",
+      "defining_module": "langchain_core.prompts.loading",
+      "kind": "function",
+      "attempts": "",
+      "group": "G1_Core 反序列化与 prompt 模板注入"
+    },
+    {
+      "symbol": "langchain_core.prompts.PromptTemplate.from_template",
+      "status": "EXISTS",
+      "resolved_via": "langchain_core.prompts",
+      "defining_module": "langchain_core.prompts.prompt",
+      "kind": "method",
+      "attempts": "cut=3 import langchain_core.prompts.PromptTemplate -> ModuleNotFoundError: No module named 'langchain_core.prompts.PromptTemplate'",
+      "group": "G1_Core 反序列化与 prompt 模板注入"
+    },
+    {
+      "symbol": "langchain_core.prompts.ChatPromptTemplate.from_messages",
+      "status": "EXISTS",
+      "resolved_via": "langchain_core.prompts",
+      "defining_module": "langchain_core.prompts.chat",
+      "kind": "method",
+      "attempts": "cut=3 import langchain_core.prompts.ChatPromptTemplate -> ModuleNotFoundError: No module named 'langchain_core.prompts.ChatPromptTemplate'",
+      "group": "G1_Core 反序列化与 prompt 模板注入"
+    },
+    {
+      "symbol": "langchain_core.messages.base.message_to_dict",
+      "status": "EXISTS",
+      "resolved_via": "langchain_core.messages.base",
+      "defining_module": "langchain_core.messages.base",
+      "kind": "function",
+      "attempts": "",
+      "group": "G1_Core 反序列化与 prompt 模板注入"
+    },
+    {
+      "symbol": "langchain.serializers.Serializable.loads",
+      "status": "ABSENT",
+      "resolved_via": "",
+      "defining_module": "",
+      "kind": "ATTRIBUTE_ABSENT",
+      "attempts": "cut=3 import langchain.serializers.Serializable -> ModuleNotFoundError: No module named 'langchain.serializers'; cut=2 import langchain.serializers -> ModuleNotFoundError: No module named 'langchain.serializers'; cut=1 getattr langchain.serializers -> AttributeError: Could not find: serializers",
+      "group": "G1_Core 反序列化与 prompt 模板注入"
+    },
+    {
+      "symbol": "langchain_openai.chat_models.base.get_num_tokens_from_messages",
+      "status": "ABSENT",
+      "resolved_via": "",
+      "defining_module": "",
+      "kind": "ATTRIBUTE_ABSENT",
+      "attempts": "cut=3 getattr langchain_openai.chat_models.base.get_num_tokens_from_messages -> AttributeError: module 'langchain_openai.chat_models.base' has no attribute 'get_num_tokens_from_messages'; cut=2 getattr langchain_openai.chat_models.get_num_tokens_from_messages -> AttributeError: module 'langchain_openai.chat_models.base' has no attribute 'get_num_tokens_from_messages'; cut=1 getattr langchain_openai.get_num_tokens_from_messages -> AttributeError: module 'langchain_openai.chat_models.base' has no attribute 'get_num_tokens_from_messages'",
+      "group": "G2_图片 token 计数（SSRF / DNS 重绑定）"
+    },
+    {
+      "symbol": "langchain_openai.chat_models.base.ChatOpenAI.get_num_tokens_from_messages",
+      "status": "EXISTS",
+      "resolved_via": "langchain_openai.chat_models.base",
+      "defining_module": "langchain_openai.chat_models.base",
+      "kind": "function",
+      "attempts": "cut=4 import langchain_openai.chat_models.base.ChatOpenAI -> ModuleNotFoundError: No module named 'langchain_openai.chat_models.base.ChatOpenAI'; 'langchain_openai.chat_models.base' is not a package",
+      "group": "G2_图片 token 计数（SSRF / DNS 重绑定）"
+    },
+    {
+      "symbol": "langchain_openai.chat_models.base.ChatOpenAI.get_num_tokens",
+      "status": "EXISTS",
+      "resolved_via": "langchain_openai.chat_models.base",
+      "defining_module": "langchain_core.language_models.base",
+      "kind": "function",
+      "attempts": "cut=4 import langchain_openai.chat_models.base.ChatOpenAI -> ModuleNotFoundError: No module named 'langchain_openai.chat_models.base.ChatOpenAI'; 'langchain_openai.chat_models.base' is not a package",
+      "group": "G2_图片 token 计数（SSRF / DNS 重绑定）"
+    },
+    {
+      "symbol": "langchain_core.language_models.chat_models.BaseChatModel.get_num_tokens_from_messages",
+      "status": "EXISTS",
+      "resolved_via": "langchain_core.language_models.chat_models",
+      "defining_module": "langchain_core.language_models.base",
+      "kind": "function",
+      "attempts": "cut=4 import langchain_core.language_models.chat_models.BaseChatModel -> ModuleNotFoundError: No module named 'langchain_core.language_models.chat_models.BaseChatModel'; 'langchain_core.language_models.chat_models'",
+      "group": "G2_图片 token 计数（SSRF / DNS 重绑定）"
+    },
+    {
+      "symbol": "langchain_core.language_models.base.BaseLanguageModel.get_num_tokens_from_messages",
+      "status": "EXISTS",
+      "resolved_via": "langchain_core.language_models.base",
+      "defining_module": "langchain_core.language_models.base",
+      "kind": "function",
+      "attempts": "cut=4 import langchain_core.language_models.base.BaseLanguageModel -> ModuleNotFoundError: No module named 'langchain_core.language_models.base.BaseLanguageModel'; 'langchain_core.language_models.base' is not a ",
+      "group": "G2_图片 token 计数（SSRF / DNS 重绑定）"
+    },
+    {
+      "symbol": "langchain_core.language_models.base.LanguageModelLike.get_num_tokens_from_messages",
+      "status": "ABSENT",
+      "resolved_via": "",
+      "defining_module": "",
+      "kind": "ATTRIBUTE_ABSENT",
+      "attempts": "cut=4 import langchain_core.language_models.base.LanguageModelLike -> ModuleNotFoundError: No module named 'langchain_core.language_models.base.LanguageModelLike'; 'langchain_core.language_models.base' is not a ; cut=3 getattr langchain_core.language_models.base.get_num_tokens_from_messages -> AttributeError: type object 'Runnable' has no attribute 'get_num_tokens_from_messages'; cut=2 getattr langchain_core.language_models.get_num_tokens_from_messages -> AttributeError: type object 'Runnable' has no attribute 'get_num_tokens_from_messages'; cut=1 getattr langchain_core.get_num_tokens_from_messages -> AttributeError: type object 'Runnable' has no attribute 'get_num_tokens_from_messages'",
+      "group": "G2_图片 token 计数（SSRF / DNS 重绑定）"
+    },
+    {
+      "symbol": "langchain_community.chat_models.utils.get_num_tokens_from_messages",
+      "status": "ABSENT",
+      "resolved_via": "",
+      "defining_module": "",
+      "kind": "ATTRIBUTE_ABSENT",
+      "attempts": "cut=3 import langchain_community.chat_models.utils -> ModuleNotFoundError: No module named 'langchain_community.chat_models.utils'; cut=2 getattr langchain_community.chat_models.utils -> AttributeError: module langchain_community.chat_models has no attribute utils; cut=1 getattr langchain_community.utils -> AttributeError: module langchain_community.chat_models has no attribute utils",
+      "group": "G2_图片 token 计数（SSRF / DNS 重绑定）"
+    },
+    {
+      "symbol": "langchain_community.chat_models.openai.get_num_tokens_from_messages",
+      "status": "ABSENT",
+      "resolved_via": "",
+      "defining_module": "",
+      "kind": "ATTRIBUTE_ABSENT",
+      "attempts": "cut=3 getattr langchain_community.chat_models.openai.get_num_tokens_from_messages -> AttributeError: module 'langchain_community.chat_models.openai' has no attribute 'get_num_tokens_from_messages'; cut=2 getattr langchain_community.chat_models.get_num_tokens_from_messages -> AttributeError: module 'langchain_community.chat_models.openai' has no attribute 'get_num_tokens_from_messages'; cut=1 getattr langchain_community.get_num_tokens_from_messages -> AttributeError: module 'langchain_community.chat_models.openai' has no attribute 'get_num_tokens_from_messages'",
+      "group": "G2_图片 token 计数（SSRF / DNS 重绑定）"
+    },
+    {
+      "symbol": "transformers.PreTrainedModel.from_pretrained",
+      "status": "EXISTS",
+      "resolved_via": "transformers",
+      "defining_module": "transformers.modeling_utils",
+      "kind": "method",
+      "attempts": "cut=2 import transformers.PreTrainedModel -> ModuleNotFoundError: No module named 'transformers.PreTrainedModel'",
+      "group": "G3_Transformers 模型 config（代码执行）"
+    },
+    {
+      "symbol": "transformers.AutoModel.from_pretrained",
+      "status": "EXISTS",
+      "resolved_via": "transformers",
+      "defining_module": "transformers.models.auto.auto_factory",
+      "kind": "method",
+      "attempts": "cut=2 import transformers.AutoModel -> ModuleNotFoundError: No module named 'transformers.AutoModel'",
+      "group": "G3_Transformers 模型 config（代码执行）"
+    },
+    {
+      "symbol": "transformers.AutoConfig.from_pretrained",
+      "status": "EXISTS",
+      "resolved_via": "transformers",
+      "defining_module": "transformers.models.auto.configuration_auto",
+      "kind": "method",
+      "attempts": "cut=2 import transformers.AutoConfig -> ModuleNotFoundError: No module named 'transformers.AutoConfig'",
+      "group": "G3_Transformers 模型 config（代码执行）"
+    },
+    {
+      "symbol": "transformers.PreTrainedTokenizerFast.from_pretrained",
+      "status": "EXISTS",
+      "resolved_via": "transformers",
+      "defining_module": "transformers.tokenization_utils_base",
+      "kind": "method",
+      "attempts": "cut=2 import transformers.PreTrainedTokenizerFast -> ModuleNotFoundError: No module named 'transformers.PreTrainedTokenizerFast'",
+      "group": "G3_Transformers 模型 config（代码执行）"
+    },
+    {
+      "symbol": "transformers.modeling_utils.PreTrainedModel.from_pretrained",
+      "status": "EXISTS",
+      "resolved_via": "transformers.modeling_utils",
+      "defining_module": "transformers.modeling_utils",
+      "kind": "method",
+      "attempts": "cut=3 import transformers.modeling_utils.PreTrainedModel -> ModuleNotFoundError: No module named 'transformers.modeling_utils.PreTrainedModel'; 'transformers.modeling_utils' is not a package",
+      "group": "G3_Transformers 模型 config（代码执行）"
+    },
+    {
+      "symbol": "transformers.configuration_utils.PretrainedConfig.from_pretrained",
+      "status": "EXISTS",
+      "resolved_via": "transformers.configuration_utils",
+      "defining_module": "transformers.configuration_utils",
+      "kind": "method",
+      "attempts": "cut=3 import transformers.configuration_utils.PretrainedConfig -> ModuleNotFoundError: No module named 'transformers.configuration_utils.PretrainedConfig'; 'transformers.configuration_utils' is not a package",
+      "group": "G3_Transformers 模型 config（代码执行）"
+    },
+    {
+      "symbol": "sentence_transformers.SentenceTransformer",
+      "status": "EXISTS",
+      "resolved_via": "sentence_transformers",
+      "defining_module": "sentence_transformers.SentenceTransformer",
+      "kind": "type",
+      "attempts": "",
+      "group": "G3_Transformers 模型 config（代码执行）"
+    },
+    {
+      "symbol": "sentence_transformers.SentenceTransformer._load_sbert_model",
+      "status": "EXISTS",
+      "resolved_via": "sentence_transformers",
+      "defining_module": "sentence_transformers.SentenceTransformer",
+      "kind": "function",
+      "attempts": "cut=2 getattr sentence_transformers.SentenceTransformer._load_sbert_model -> AttributeError: module 'sentence_transformers.SentenceTransformer' has no attribute '_load_sbert_model'",
+      "group": "G3_Transformers 模型 config（代码执行）"
+    },
+    {
+      "symbol": "langsmith.middleware.TracingMiddleware",
+      "status": "EXISTS",
+      "resolved_via": "langsmith.middleware",
+      "defining_module": "langsmith.middleware",
+      "kind": "type",
+      "attempts": "",
+      "group": "G4_LangSmith 追踪与外部 prompt 源"
+    },
+    {
+      "symbol": "langsmith.client.Client",
+      "status": "EXISTS",
+      "resolved_via": "langsmith.client",
+      "defining_module": "langsmith.client",
+      "kind": "type",
+      "attempts": "",
+      "group": "G4_LangSmith 追踪与外部 prompt 源"
+    },
+    {
+      "symbol": "langsmith.run_logs",
+      "status": "ABSENT",
+      "resolved_via": "",
+      "defining_module": "",
+      "kind": "ATTRIBUTE_ABSENT",
+      "attempts": "cut=1 getattr langsmith.run_logs -> AttributeError: module 'langsmith' has no attribute 'run_logs'",
+      "group": "G4_LangSmith 追踪与外部 prompt 源"
+    },
+    {
+      "symbol": "langchain_core.prompts.load_prompt",
+      "status": "EXISTS",
+      "resolved_via": "langchain_core.prompts",
+      "defining_module": "langchain_core.prompts.loading",
+      "kind": "function",
+      "attempts": "",
+      "group": "G4_LangSmith 追踪与外部 prompt 源"
+    },
+    {
+      "symbol": "langchain.chains.loading.load_chain",
+      "status": "EXISTS",
+      "resolved_via": "langchain.chains.loading",
+      "defining_module": "langchain.chains.loading",
+      "kind": "function",
+      "attempts": "",
+      "group": "G4_LangSmith 追踪与外部 prompt 源"
+    }
+  ],
+  "imports": [
+    {
+      "file": "agent/runtime.py",
+      "lineno": 19,
+      "module": "langchain_core.messages.HumanMessage",
+      "kind": "from-import"
+    },
+    {
+      "file": "agent/runtime.py",
+      "lineno": 19,
+      "module": "langchain_core.messages.SystemMessage",
+      "kind": "from-import"
+    },
+    {
+      "file": "knowledge_base.py",
+      "lineno": 8,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "knowledge_service.py",
+      "lineno": 17,
+      "module": "langchain_chroma.Chroma",
+      "kind": "from-import"
+    },
+    {
+      "file": "knowledge_service.py",
+      "lineno": 18,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "llm_registry.py",
+      "lineno": 20,
+      "module": "langchain_openai.ChatOpenAI",
+      "kind": "from-import"
+    },
+    {
+      "file": "main.py",
+      "lineno": 6,
+      "module": "socket",
+      "kind": "import"
+    },
+    {
+      "file": "main.py",
+      "lineno": 13,
+      "module": "urllib.parse.urlparse",
+      "kind": "from-import"
+    },
+    {
+      "file": "main.py",
+      "lineno": 24,
+      "module": "langchain_core.messages.AIMessage",
+      "kind": "from-import"
+    },
+    {
+      "file": "main.py",
+      "lineno": 24,
+      "module": "langchain_core.messages.HumanMessage",
+      "kind": "from-import"
+    },
+    {
+      "file": "main.py",
+      "lineno": 24,
+      "module": "langchain_core.messages.SystemMessage",
+      "kind": "from-import"
+    },
+    {
+      "file": "manage.py",
+      "lineno": 16,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "manage.py",
+      "lineno": 19,
+      "module": "urllib.request",
+      "kind": "import"
+    },
+    {
+      "file": "memory.py",
+      "lineno": 10,
+      "module": "langchain_core.messages.HumanMessage",
+      "kind": "from-import"
+    },
+    {
+      "file": "memory.py",
+      "lineno": 10,
+      "module": "langchain_core.messages.SystemMessage",
+      "kind": "from-import"
+    },
+    {
+      "file": "multimodal.py",
+      "lineno": 13,
+      "module": "langchain_core.messages.HumanMessage",
+      "kind": "from-import"
+    },
+    {
+      "file": "rag_chain.py",
+      "lineno": 18,
+      "module": "langchain_chroma.Chroma",
+      "kind": "from-import"
+    },
+    {
+      "file": "rag_chain.py",
+      "lineno": 19,
+      "module": "langchain_core.embeddings.Embeddings",
+      "kind": "from-import"
+    },
+    {
+      "file": "rag_chain.py",
+      "lineno": 20,
+      "module": "langchain_core.output_parsers.StrOutputParser",
+      "kind": "from-import"
+    },
+    {
+      "file": "rag_chain.py",
+      "lineno": 21,
+      "module": "langchain_huggingface.HuggingFaceEmbeddings",
+      "kind": "from-import"
+    },
+    {
+      "file": "rag_chain.py",
+      "lineno": 43,
+      "module": "langchain_openai.OpenAIEmbeddings",
+      "kind": "from-import"
+    },
+    {
+      "file": "retrieval.py",
+      "lineno": 20,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "retrieval_core.py",
+      "lineno": 15,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "scripts/_client.py",
+      "lineno": 14,
+      "module": "urllib.error",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/_client.py",
+      "lineno": 15,
+      "module": "urllib.request",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/_judge.py",
+      "lineno": 11,
+      "module": "langchain_core.messages.HumanMessage",
+      "kind": "from-import"
+    },
+    {
+      "file": "scripts/_judge.py",
+      "lineno": 11,
+      "module": "langchain_core.messages.SystemMessage",
+      "kind": "from-import"
+    },
+    {
+      "file": "scripts/_judge.py",
+      "lineno": 12,
+      "module": "langchain_openai.ChatOpenAI",
+      "kind": "from-import"
+    },
+    {
+      "file": "scripts/acceptance.py",
+      "lineno": 10,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/backup_data.py",
+      "lineno": 28,
+      "module": "shutil",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/backup_data.py",
+      "lineno": 109,
+      "module": "chromadb",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/capture_eval.py",
+      "lineno": 21,
+      "module": "http.client",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/capture_eval.py",
+      "lineno": 27,
+      "module": "urllib.error",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/capture_eval.py",
+      "lineno": 28,
+      "module": "urllib.request",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/capture_eval.py",
+      "lineno": 228,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/eval_agent.py",
+      "lineno": 17,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/eval_chunking.py",
+      "lineno": 19,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "scripts/gate2_probe.py",
+      "lineno": 33,
+      "module": "urllib.parse",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/gate2_runner.py",
+      "lineno": 31,
+      "module": "urllib.error",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/gate2_runner.py",
+      "lineno": 32,
+      "module": "urllib.request",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/gen_freeze_manifest.py",
+      "lineno": 10,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/gen_freeze_manifest.py",
+      "lineno": 17,
+      "module": "shutil",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/gen_gate1_law_check.py",
+      "lineno": 82,
+      "module": "chromadb",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/gen_gate_exit_registry.py",
+      "lineno": 14,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/gen_phase0_snapshot.py",
+      "lineno": 19,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/gen_phase0_snapshot.py",
+      "lineno": 27,
+      "module": "shutil",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/gen_qa_corpus.py",
+      "lineno": 21,
+      "module": "langchain_openai.ChatOpenAI",
+      "kind": "from-import"
+    },
+    {
+      "file": "scripts/gen_readiness_manifest.py",
+      "lineno": 19,
+      "module": "shutil",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/mock_llm_500.py",
+      "lineno": 11,
+      "module": "http.server.BaseHTTPRequestHandler",
+      "kind": "from-import"
+    },
+    {
+      "file": "scripts/mock_llm_500.py",
+      "lineno": 11,
+      "module": "http.server.ThreadingHTTPServer",
+      "kind": "from-import"
+    },
+    {
+      "file": "scripts/net_health.py",
+      "lineno": 21,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/rebuild_embeddings.py",
+      "lineno": 95,
+      "module": "chromadb",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/rebuild_embeddings.py",
+      "lineno": 130,
+      "module": "chromadb",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/rebuild_embeddings.py",
+      "lineno": 193,
+      "module": "chromadb",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/recompute_boundary_manifests.py",
+      "lineno": 19,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/recompute_boundary_manifests.py",
+      "lineno": 214,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/restore_drill.py",
+      "lineno": 34,
+      "module": "chromadb",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/smoke_citation_full.py",
+      "lineno": 25,
+      "module": "urllib.request",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/switch_embedding.py",
+      "lineno": 16,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/switch_embedding.py",
+      "lineno": 82,
+      "module": "chromadb",
+      "kind": "import"
+    },
+    {
+      "file": "scripts/test_mcp_models.py",
+      "lineno": 13,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "tests/_sse_harness.py",
+      "lineno": 24,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/conftest.py",
+      "lineno": 61,
+      "module": "chromadb",
+      "kind": "import"
+    },
+    {
+      "file": "tests/conftest.py",
+      "lineno": 143,
+      "module": "langchain_chroma.Chroma",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_agent_release_check.py",
+      "lineno": 7,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_chroma_isolation.py",
+      "lineno": 105,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_citation.py",
+      "lineno": 199,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_citation.py",
+      "lineno": 213,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_contract_file.py",
+      "lineno": 78,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_exact_article_lookup_sourcekey.py",
+      "lineno": 22,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_gate2_runner.py",
+      "lineno": 10,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_gate2_runner.py",
+      "lineno": 13,
+      "module": "http.server.BaseHTTPRequestHandler",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_gate2_runner.py",
+      "lineno": 13,
+      "module": "http.server.ThreadingHTTPServer",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_import_docs.py",
+      "lineno": 50,
+      "module": "chromadb",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_import_docs.py",
+      "lineno": 53,
+      "module": "langchain_chroma.Chroma",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_import_docs.py",
+      "lineno": 76,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_import_laws_preflight.py",
+      "lineno": 69,
+      "module": "chromadb",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_import_laws_preflight.py",
+      "lineno": 77,
+      "module": "langchain_chroma.Chroma",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_import_laws_preflight.py",
+      "lineno": 85,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_import_laws_validation.py",
+      "lineno": 5,
+      "module": "subprocess",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_law_snapshot_review.py",
+      "lineno": 16,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_law_snapshot_review.py",
+      "lineno": 50,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_light_exit_gates.py",
+      "lineno": 103,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_phase2.py",
+      "lineno": 5,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_phase5.py",
+      "lineno": 8,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_query_rewrite.py",
+      "lineno": 26,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_query_rewrite.py",
+      "lineno": 258,
+      "module": "langchain_core.messages.AIMessage",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_rerank_siliconflow.py",
+      "lineno": 15,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_retrieval_pool_k.py",
+      "lineno": 19,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_smoke_citation_assertions.py",
+      "lineno": 34,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_status_default_unverified.py",
+      "lineno": 67,
+      "module": "chromadb",
+      "kind": "import"
+    },
+    {
+      "file": "tests/test_status_default_unverified.py",
+      "lineno": 69,
+      "module": "langchain_chroma.Chroma",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_stream_exit_law_version_gate.py",
+      "lineno": 311,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    },
+    {
+      "file": "tests/test_time_unverified_note.py",
+      "lineno": 36,
+      "module": "langchain_core.documents.Document",
+      "kind": "from-import"
+    }
+  ],
+  "static_hits_app": [],
+  "static_hits_tests_scripts": [
+    {
+      "file": "scripts/gen_r8_disposition.py",
+      "lineno": 28,
+      "pattern": "SitemapLoader",
+      "text": "\"文档加载/外部 URL 拉取组件；本项目 RAG 走 Chroma/本地，SitemapLoader 等未使用\","
+    },
+    {
+      "file": "scripts/gen_r8_disposition.py",
+      "lineno": 80,
+      "pattern": "SitemapLoader",
+      "text": "\"langchain_*_partial\": \"组件引用存在但漏洞相关能力（SitemapLoader/GraphCypherQAChain 等）未启用；LLM 适配层走 API\","
+    },
+    {
+      "file": "scripts/gen_r8_disposition.py",
+      "lineno": 80,
+      "pattern": "GraphCypher",
+      "text": "\"langchain_*_partial\": \"组件引用存在但漏洞相关能力（SitemapLoader/GraphCypherQAChain 等）未启用；LLM 适配层走 API\","
+    }
+  ]
+}

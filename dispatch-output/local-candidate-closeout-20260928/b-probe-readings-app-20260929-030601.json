@@ -1,0 +1,740 @@
+{
+  "alias_repointed": {
+    "G1a": [
+      "langchain_core.load.load.load",
+      "langchain_core.tracers.log_stream.load"
+    ],
+    "G1b": [
+      "langchain_core.load.load.loads"
+    ],
+    "G1c": [
+      "langchain_core.prompts.loading.load_prompt"
+    ],
+    "G1g": [
+      "langchain_core.language_models.chat_models.dumps",
+      "langchain_core.load.dump.dumps",
+      "langchain_core.tracers.log_stream.dumps"
+    ]
+  },
+  "apply_errors": [],
+  "candidate_tree": "C:\\Users\\33393\\AppData\\Local\\Temp\\b-probe-tree-20260929-020956",
+  "compile_event_total": 7860,
+  "env_isolation": {
+    "CHROMA_DIR": "C:\\Users\\33393\\AppData\\Local\\Temp\\b-probe-app-20260929-030601\\iso\\chroma",
+    "DATABASE_URL": "sqlite:///C:/Users/33393/AppData/Local/Temp/b-probe-app-20260929-030601/iso/app.db",
+    "EMBEDDING_PROVIDER": "local",
+    "LLM_BASE_URL": "https://test.invalid/v1",
+    "QUOTA_DB": "C:\\Users\\33393\\AppData\\Local\\Temp\\b-probe-app-20260929-030601\\iso\\quota.db",
+    "RERANK_ENABLED": "false"
+  },
+  "failures": [],
+  "imports_watched": {
+    "httpx": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "langchain_core": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:1128",
+      "via": "audit"
+    },
+    "langchain_core.language_models": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "langchain_core.language_models.base": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "langchain_core.language_models.chat_models": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "langchain_core.load": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:1128",
+      "via": "audit"
+    },
+    "langchain_core.load.dump": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "langchain_core.load.load": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "langchain_core.prompts": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "langchain_core.prompts.chat": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "langchain_core.prompts.loading": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "langchain_core.prompts.prompt": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "langsmith": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:1128",
+      "via": "audit"
+    },
+    "langsmith.client": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:1234",
+      "via": "audit"
+    },
+    "pickle": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "requests": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "sentence_transformers": {
+      "count": 2,
+      "first_caller": "backend/rag_chain.py:39",
+      "via": "audit"
+    },
+    "sentence_transformers.SentenceTransformer": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:1234",
+      "via": "audit"
+    },
+    "transformers": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:1128",
+      "via": "audit"
+    },
+    "transformers.configuration_utils": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "transformers.dynamic_module_utils": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "transformers.modeling_utils": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "transformers.models.auto.configuration_auto": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "transformers.tokenization_utils_fast": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    },
+    "urllib3": {
+      "count": 2,
+      "first_caller": "<frozen importlib._bootstrap>:241",
+      "via": "audit"
+    }
+  },
+  "installed_at": "2026-09-29T03:06:01",
+  "interpreter": "C:\\Users\\33393\\AppData\\Local\\Temp\\legal-closeout-20260928\\venv\\Scripts\\python.exe",
+  "mode": "app-paths",
+  "net_event_kinds": 11,
+  "net_event_total": 15,
+  "net_events": {
+    "ctypes.dlopen :: C:\\Users\\33393\\AppData\\Local\\Temp\\legal-closeout-20260928\\venv\\Lib\\site-packages\\sklearn\\.": 2,
+    "ctypes.dlopen :: kernel32": 4,
+    "ctypes.dlopen :: kernel32.dll": 1,
+    "ctypes.dlopen :: msvcp140.dll": 1,
+    "ctypes.dlopen :: msvcrt": 1,
+    "ctypes.dlopen :: ntdll": 1,
+    "ctypes.dlopen :: shell32": 1,
+    "ctypes.dlopen :: vcruntime140.dll": 1,
+    "ctypes.dlopen :: vcruntime140_1.dll": 1,
+    "subprocess.Popen :: NoneType|C:\\WINDOWS\\system32\\cmd.exe /c \"ver\"|NoneType": 1,
+    "subprocess.Popen :: NoneType|lscpu|NoneType": 1
+  },
+  "preloaded_app_at_install": [],
+  "probe": "b_runtime_probe",
+  "python": "3.11.0",
+  "results": {
+    "qa": {
+      "chroma_dir": "C:\\Users\\33393\\AppData\\Local\\Temp\\b-probe-app-20260929-030601\\iso\\chroma",
+      "collection": "legal_provisions_cos",
+      "embedding_class": "langchain_huggingface.embeddings.huggingface.HuggingFaceEmbeddings",
+      "retrieved": 0,
+      "top_source": null
+    },
+    "qa_delta": {
+      "G1a": 0,
+      "G1b": 0,
+      "G1c": 0,
+      "G1d": 0,
+      "G1e": 0,
+      "G1f": 0,
+      "G1g": 0,
+      "G2a": 0,
+      "G2b": 0,
+      "G2c": 0,
+      "G3a": 1,
+      "G3b": 1,
+      "G3c": 0,
+      "G3d": 1,
+      "G3e": 1,
+      "G4a": 0,
+      "G4b": 0,
+      "G4c": 0,
+      "G4d": 0,
+      "G4e": 0,
+      "G4f": 0,
+      "G4g": 0
+    },
+    "upload": {
+      "chroma_dir": "C:\\Users\\33393\\AppData\\Local\\Temp\\b-probe-app-20260929-030601\\iso\\chroma",
+      "chunks_written": 2,
+      "kind": ".txt",
+      "parsed_chars": 45
+    },
+    "upload_delta": {
+      "G1a": 0,
+      "G1b": 0,
+      "G1c": 0,
+      "G1d": 0,
+      "G1e": 0,
+      "G1f": 0,
+      "G1g": 0,
+      "G2a": 0,
+      "G2b": 0,
+      "G2c": 0,
+      "G3a": 0,
+      "G3b": 0,
+      "G3c": 0,
+      "G3d": 0,
+      "G3e": 0,
+      "G4a": 0,
+      "G4b": 0,
+      "G4c": 0,
+      "G4d": 0,
+      "G4e": 0,
+      "G4f": 0,
+      "G4g": 0
+    }
+  },
+  "sweeps": 2,
+  "targets": [
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2025-68664 / CVE-2026-44843",
+      "dotted": "langchain_core.load.load",
+      "dry_runs": 0,
+      "group": "G1_Core 反序列化",
+      "id": "G1a",
+      "install": "INSTALLED",
+      "owner_hint": "langchain_core.load.load",
+      "owner_module": "langchain_core.load",
+      "patch_shape": "func/method-counter",
+      "patched_at": "module:langchain_core.load.load",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "ZERO-CALL"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2025-68664 / CVE-2026-44843",
+      "dotted": "langchain_core.load.loads",
+      "dry_runs": 0,
+      "group": "G1_Core 反序列化",
+      "id": "G1b",
+      "install": "INSTALLED",
+      "owner_hint": "langchain_core.load.load",
+      "owner_module": "langchain_core.load",
+      "patch_shape": "func/method-counter",
+      "patched_at": "module:langchain_core.load.loads",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "ZERO-CALL"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2025-65106 / CVE-2026-40087",
+      "dotted": "langchain_core.prompts.load_prompt",
+      "dry_runs": 0,
+      "group": "G1_Core 反序列化",
+      "id": "G1c",
+      "install": "INSTALLED",
+      "owner_hint": "langchain_core.prompts.loading",
+      "owner_module": "langchain_core.prompts",
+      "patch_shape": "func/method-counter",
+      "patched_at": "module:langchain_core.prompts.load_prompt",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "ZERO-CALL"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2026-34070",
+      "dotted": "langchain_core.prompts.loading.load_prompt_from_config",
+      "dry_runs": 0,
+      "group": "G1_Core 反序列化",
+      "id": "G1d",
+      "install": "INSTALLED",
+      "owner_hint": "langchain_core.prompts.loading",
+      "owner_module": "langchain_core.prompts.loading",
+      "patch_shape": "func/method-counter",
+      "patched_at": "module:langchain_core.prompts.loading.load_prompt_from_config",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "ZERO-CALL"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2025-65106（模板暴露面，非漏洞本身）",
+      "dotted": "langchain_core.prompts.PromptTemplate.from_template",
+      "dry_runs": 0,
+      "group": "G1_Core 反序列化",
+      "id": "G1e",
+      "install": "INSTALLED",
+      "owner_hint": "langchain_core.prompts.prompt",
+      "owner_module": "langchain_core.prompts",
+      "patch_shape": "classmethod-counter",
+      "patched_at": "class:langchain_core.prompts.prompt.PromptTemplate.from_template",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "ZERO-CALL"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2025-65106（模板暴露面，非漏洞本身）",
+      "dotted": "langchain_core.prompts.ChatPromptTemplate.from_messages",
+      "dry_runs": 0,
+      "group": "G1_Core 反序列化",
+      "id": "G1f",
+      "install": "INSTALLED",
+      "owner_hint": "langchain_core.prompts.chat",
+      "owner_module": "langchain_core.prompts",
+      "patch_shape": "classmethod-counter",
+      "patched_at": "class:langchain_core.prompts.chat.ChatPromptTemplate.from_messages",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "ZERO-CALL"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2026-44843（序列化写出面）",
+      "dotted": "langchain_core.load.dumps",
+      "dry_runs": 0,
+      "group": "G1_Core 反序列化",
+      "id": "G1g",
+      "install": "INSTALLED",
+      "owner_hint": "langchain_core.load.dump",
+      "owner_module": "langchain_core.load",
+      "patch_shape": "func/method-counter",
+      "patched_at": "module:langchain_core.load.dumps",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "ZERO-CALL"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2026-26013 / CVE-2026-41488",
+      "dotted": "langchain_openai.chat_models.base.ChatOpenAI.get_num_tokens_from_messages",
+      "dry_runs": 0,
+      "group": "G2_图片 token 计数",
+      "id": "G2a",
+      "install": "PENDING-UNRESOLVED :: langchain_openai.chat_models.base.ChatOpenAI 不在 sys.modules | langchain_openai.chat_models.base 不在 sys.modules | langchain_openai.chat_models 不在 sys.modules | l",
+      "owner_hint": "langchain_openai.chat_models.base",
+      "owner_module": "",
+      "patch_shape": "",
+      "patched_at": "",
+      "present_at_install": false,
+      "trust_remote_code_values": [],
+      "verdict": "NEVER-IMPORTED"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2026-26013 / CVE-2026-41488（基类）",
+      "dotted": "langchain_core.language_models.chat_models.BaseChatModel.get_num_tokens_from_messages",
+      "dry_runs": 0,
+      "group": "G2_图片 token 计数",
+      "id": "G2b",
+      "install": "INSTALLED",
+      "owner_hint": "langchain_core.language_models.base",
+      "owner_module": "langchain_core.language_models.chat_models",
+      "patch_shape": "func/method-counter",
+      "patched_at": "class:langchain_core.language_models.base.BaseLanguageModel.get_num_tokens_from_messages",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "ZERO-CALL"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2026-26013（相邻纯文本计数面）",
+      "dotted": "langchain_core.language_models.base.BaseLanguageModel.get_num_tokens",
+      "dry_runs": 0,
+      "group": "G2_图片 token 计数",
+      "id": "G2c",
+      "install": "INSTALLED",
+      "owner_hint": "langchain_core.language_models.base",
+      "owner_module": "langchain_core.language_models.base",
+      "patch_shape": "func/method-counter",
+      "patched_at": "class:langchain_core.language_models.base.BaseLanguageModel.get_num_tokens",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "ZERO-CALL"
+    },
+    {
+      "arg_samples": [
+        "type|BAAI/bge-base-zh-v1.5 kw=_from_auto,adapter_kwargs,cache_dir,config,revision,trust_remote_code"
+      ],
+      "callers": {
+        "backend/rag_chain.py:39": 1
+      },
+      "control": "",
+      "count": 1,
+      "cves": "CVE-2026-4372 / CVE-2026-5241",
+      "dotted": "transformers.PreTrainedModel.from_pretrained",
+      "dry_runs": 0,
+      "group": "G3_Transformers 模型加载",
+      "id": "G3a",
+      "install": "INSTALLED",
+      "owner_hint": "transformers.modeling_utils",
+      "owner_module": "transformers",
+      "patch_shape": "classmethod-counter",
+      "patched_at": "class:transformers.modeling_utils.PreTrainedModel.from_pretrained",
+      "present_at_install": true,
+      "trust_remote_code_values": [
+        "False"
+      ],
+      "verdict": "1-CALLS"
+    },
+    {
+      "arg_samples": [
+        "type|BAAI/bge-base-zh-v1.5 kw=cache_dir,revision,token,trust_remote_code"
+      ],
+      "callers": {
+        "backend/rag_chain.py:39": 1
+      },
+      "control": "",
+      "count": 1,
+      "cves": "CVE-2026-4372",
+      "dotted": "transformers.AutoConfig.from_pretrained",
+      "dry_runs": 0,
+      "group": "G3_Transformers 模型加载",
+      "id": "G3b",
+      "install": "INSTALLED",
+      "owner_hint": "transformers.models.auto.configuration_auto",
+      "owner_module": "transformers",
+      "patch_shape": "classmethod-counter",
+      "patched_at": "class:transformers.models.auto.configuration_auto.AutoConfig.from_pretrained",
+      "present_at_install": true,
+      "trust_remote_code_values": [
+        "False"
+      ],
+      "verdict": "1-CALLS"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2026-4372（config 基类实现）",
+      "dotted": "transformers.configuration_utils.PretrainedConfig.from_pretrained",
+      "dry_runs": 0,
+      "group": "G3_Transformers 模型加载",
+      "id": "G3c",
+      "install": "INSTALLED",
+      "owner_hint": "transformers.configuration_utils",
+      "owner_module": "transformers.configuration_utils",
+      "patch_shape": "classmethod-counter",
+      "patched_at": "class:transformers.configuration_utils.PretrainedConfig.from_pretrained",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "ZERO-CALL"
+    },
+    {
+      "arg_samples": [
+        "type|BAAI/bge-base-zh-v1.5 kw=_commit_hash,_from_auto,cache_dir,revision,token"
+      ],
+      "callers": {
+        "backend/rag_chain.py:39": 1
+      },
+      "control": "",
+      "count": 1,
+      "cves": "CVE-2025-14929（相邻 tokenizer 面）",
+      "dotted": "transformers.PreTrainedTokenizerFast.from_pretrained",
+      "dry_runs": 0,
+      "group": "G3_Transformers 模型加载",
+      "id": "G3d",
+      "install": "INSTALLED",
+      "owner_hint": "transformers.tokenization_utils_fast",
+      "owner_module": "transformers",
+      "patch_shape": "classmethod-counter",
+      "patched_at": "class:transformers.tokenization_utils_base.PreTrainedTokenizerBase.from_pretrained",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "1-CALLS"
+    },
+    {
+      "arg_samples": [
+        "SentenceTransformer|BAAI/bge-base-zh-v1.5 kw=cache_folder,device"
+      ],
+      "callers": {
+        "backend/rag_chain.py:39": 1
+      },
+      "control": "",
+      "count": 1,
+      "cves": "CVE-2026-4372（本项目实际调用者）",
+      "dotted": "sentence_transformers.SentenceTransformer",
+      "dry_runs": 0,
+      "group": "G3_Transformers 模型加载",
+      "id": "G3e",
+      "install": "INSTALLED",
+      "owner_hint": "sentence_transformers.SentenceTransformer",
+      "owner_module": "sentence_transformers.SentenceTransformer",
+      "patch_shape": "class-init-counter",
+      "patched_at": "class:sentence_transformers.SentenceTransformer.SentenceTransformer.__init__",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "1-CALLS"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2026-59152",
+      "dotted": "langsmith.middleware.TracingMiddleware",
+      "dry_runs": 0,
+      "group": "G4_LangSmith/外部 prompt/loader",
+      "id": "G4a",
+      "install": "PENDING-UNRESOLVED :: langsmith.middleware 不在 sys.modules | langsmith.middleware -> AttributeError: module 'langsmith' has no attribute 'middleware' | langsmith+['middleware'] 上无属性 T",
+      "owner_hint": "langsmith.middleware",
+      "owner_module": "",
+      "patch_shape": "",
+      "patched_at": "",
+      "present_at_install": false,
+      "trust_remote_code_values": [],
+      "verdict": "NEVER-IMPORTED"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2026-41182 / CVE-2026-45134",
+      "dotted": "langsmith.client.Client",
+      "dry_runs": 0,
+      "group": "G4_LangSmith/外部 prompt/loader",
+      "id": "G4b",
+      "install": "INSTALLED",
+      "owner_hint": "langsmith.client",
+      "owner_module": "langsmith.client",
+      "patch_shape": "class-init-counter",
+      "patched_at": "class:langsmith.client.Client.__init__",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "ZERO-CALL"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2026-45134",
+      "dotted": "langsmith.client.Client.pull_prompt",
+      "dry_runs": 0,
+      "group": "G4_LangSmith/外部 prompt/loader",
+      "id": "G4c",
+      "install": "INSTALLED",
+      "owner_hint": "langsmith.client",
+      "owner_module": "langsmith.client",
+      "patch_shape": "func/method-counter",
+      "patched_at": "class:langsmith.client.Client.pull_prompt",
+      "present_at_install": true,
+      "trust_remote_code_values": [],
+      "verdict": "ZERO-CALL"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2024-2965",
+      "dotted": "langchain_community.document_loaders.sitemap.SitemapLoader",
+      "dry_runs": 0,
+      "group": "G4_LangSmith/外部 prompt/loader",
+      "id": "G4d",
+      "install": "PENDING-UNRESOLVED :: langchain_community.document_loaders.sitemap 不在 sys.modules | langchain_community.document_loaders 不在 sys.modules | langchain_community 不在 sys.modules",
+      "owner_hint": "langchain_community.document_loaders.sitemap",
+      "owner_module": "",
+      "patch_shape": "",
+      "patched_at": "",
+      "present_at_install": false,
+      "trust_remote_code_values": [],
+      "verdict": "NEVER-IMPORTED"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2025-6984",
+      "dotted": "langchain_community.document_loaders.evernote.EverNoteLoader",
+      "dry_runs": 0,
+      "group": "G4_LangSmith/外部 prompt/loader",
+      "id": "G4e",
+      "install": "PENDING-UNRESOLVED :: langchain_community.document_loaders.evernote 不在 sys.modules | langchain_community.document_loaders 不在 sys.modules | langchain_community 不在 sys.modules",
+      "owner_hint": "langchain_community.document_loaders.evernote",
+      "owner_module": "",
+      "patch_shape": "",
+      "patched_at": "",
+      "present_at_install": false,
+      "trust_remote_code_values": [],
+      "verdict": "NEVER-IMPORTED"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2024-5998",
+      "dotted": "langchain_community.vectorstores.faiss.FAISS",
+      "dry_runs": 0,
+      "group": "G4_LangSmith/外部 prompt/loader",
+      "id": "G4f",
+      "install": "PENDING-UNRESOLVED :: langchain_community.vectorstores.faiss 不在 sys.modules | langchain_community.vectorstores 不在 sys.modules | langchain_community 不在 sys.modules",
+      "owner_hint": "langchain_community.vectorstores.faiss",
+      "owner_module": "",
+      "patch_shape": "",
+      "patched_at": "",
+      "present_at_install": false,
+      "trust_remote_code_values": [],
+      "verdict": "NEVER-IMPORTED"
+    },
+    {
+      "arg_samples": [],
+      "callers": {},
+      "control": "",
+      "count": 0,
+      "cves": "CVE-2024-8309",
+      "dotted": "langchain.chains.graph_qa.cypher.GraphCypherQAChain",
+      "dry_runs": 0,
+      "group": "G4_LangSmith/外部 prompt/loader",
+      "id": "G4g",
+      "install": "PENDING-UNRESOLVED :: langchain.chains.graph_qa.cypher 不在 sys.modules | langchain.chains.graph_qa 不在 sys.modules | langchain.chains 不在 sys.modules | langchain 不在 sys.modules",
+      "owner_hint": "langchain.chains.graph_qa.cypher",
+      "owner_module": "",
+      "patch_shape": "",
+      "patched_at": "",
+      "present_at_install": false,
+      "trust_remote_code_values": [],
+      "verdict": "NEVER-IMPORTED"
+    }
+  ],
+  "watch_modules": [
+    "httpx",
+    "pickle",
+    "urllib3",
+    "requests",
+    "langchain",
+    "langsmith",
+    "transformers",
+    "langchain_core",
+    "langsmith.client",
+    "langchain.chains",
+    "langchain_openai",
+    "langsmith.run_logs",
+    "langchain_core.load",
+    "langchain_community",
+    "langsmith.middleware",
+    "sentence_transformers",
+    "langchain_core.prompts",
+    "transformers.AutoConfig",
+    "langsmith.client.Client",
+    "langchain_core.load.load",
+    "langchain_core.load.dump",
+    "langchain.chains.loading",
+    "langchain.chains.graph_qa",
+    "transformers.modeling_utils",
+    "langchain_core.prompts.chat",
+    "langchain_openai.chat_models",
+    "transformers.PreTrainedModel",
+    "langchain_core.prompts.prompt",
+    "langchain_core.language_models",
+    "langchain_core.prompts.loading",
+    "transformers.configuration_utils",
+    "langchain_community.vectorstores",
+    "langchain.chains.graph_qa.cypher",
+    "langchain_openai.chat_models.base",
+    "transformers.dynamic_module_utils",
+    "langchain_core.language_models.base",
+    "langchain_community.document_loaders",
+    "transformers.tokenization_utils_fast",
+    "transformers.PreTrainedTokenizerFast",
+    "langchain_core.prompts.PromptTemplate",
+    "langchain_community.chat_models.utils",
+    "langchain_community.vectorstores.faiss",
+    "sentence_transformers.SentenceTransformer",
+    "langchain_core.prompts.ChatPromptTemplate",
+    "langchain_core.language_models.chat_models",
+    "transformers.models.auto.configuration_auto",
+    "langchain_community.document_loaders.sitemap",
+    "langchain_openai.chat_models.base.ChatOpenAI",
+    "langchain_community.document_loaders.evernote",
+    "langchain_community.document_loaders.docusaurus",
+    "transformers.configuration_utils.PretrainedConfig",
+    "langchain_core.language_models.base.BaseLanguageModel",
+    "langchain_core.language_models.chat_models.BaseChatModel"
+  ],
+  "which": "both",
+  "workdir": "C:\\Users\\33393\\AppData\\Local\\Temp\\b-probe-app-20260929-030601"
+}

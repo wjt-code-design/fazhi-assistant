@@ -1,0 +1,18 @@
+{
+  "detail": [
+    "环回次数期望改 1: 如期红 -> [FAIL] 测试场 环回连接读数=312   [实得 {'127.0.0.1': 312, 'test.invalid': 1}] | 合计 60/61 条通过",
+    "外部目的次数期望改成 2 次: 如期红 -> [FAIL] 测试场 外部目的只有 test.invalid=1（故意的不可用假端点）   [实得 {'127.0.0.1': 312, 'test.invalid': 1}] | 合计 60/61 条通过",
+    "urllib 键形要求 method=GET（实测全是 POST）: 如期红 -> [FAIL] urllib.Request 键形状只含 URL/方法/头键名   [越形 104 条 ['b-probe-readings-pytest-20260929-033015.jso | 合计 60/61 条通过",
+    "urllib 键形要求头键名为空（实测带 Content-type/Authorization）: 如期红 -> [FAIL] urllib.Request 键形状只含 URL/方法/头键名   [越形 104 条 ['b-probe-readings-pytest-20260929-033015.jso | 合计 60/61 条通过",
+    "两腿零差异期望「必须有差异」: 如期红 -> [FAIL] 两腿复跑逐桩五轴零差异（b-probe-readings-pytest-20260929-103147.json vs b-probe-readings-pytest-20260 | 合计 60/61 条通过",
+    "两腿完整性字段期望改比 4 个（只有 3 个字段名对不上）: 如期红 -> [FAIL] 两腿完整性三字段一致（collected/exitstatus/compile）   [一致 ['collected', 'pytest_exitstatus', 'compil | 合计 60/61 条通过",
+    "net 自洽期望 kinds 多 1: 如期红 -> [FAIL] 测试场 net 自洽：键数==kinds 且 求和==total   [实得 键206/声明206，和348/声明348] | 合计 59/61 条通过",
+    "出处代次期望读数早于代码编辑（实际更晚）: 如期红 -> [FAIL] pytest 读数晚于仪器与驱动的最后编辑   [读数 b-probe-readings-pytest-20260929-103511.json vs 代码 mtime 1790 | 合计 59/61 条通过",
+    "组内桩数 G1 期望改 6（实际 7）: 如期红 -> [FAIL] G1 组桩数=6   [实得 7] | 合计 59/61 条通过",
+    "trust_remote_code 期望改成放行 True: 如期红 -> [FAIL] G3 应用场 trust_remote_code 取值 = ['False']（只覆盖传该实参的 G3a/G3b；G3d/G3e 实参里没这个键）   [实得 ['False'] | 合计 60/61 条通过",
+    "装桩前已加载期望变成非空清单: 如期红 -> [FAIL] 测试场 装桩前应用未加载   [实得 []] | 合计 60/61 条通过",
+    "自检装桩数期望改 20（实际 19）: 如期红 -> [FAIL] 自检 桩装上 19/22   [实得 19] | 合计 60/61 条通过"
+  ],
+  "killed": 12,
+  "mutants": 12
+}

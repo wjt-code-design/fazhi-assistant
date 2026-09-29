@@ -1,0 +1,23 @@
+{
+  "all_net_events": 313,
+  "exitstatus": 0,
+  "nonloopback_attempts": [
+    {
+      "argv_tail": [
+        "test.invalid",
+        "443"
+      ],
+      "event": "socket.getaddrinfo",
+      "frames": [
+        "socket.py:826:create_connection",
+        "main.py:340:healthz",
+        "threading.py:1038:_bootstrap_inner",
+        "threading.py:995:_bootstrap"
+      ],
+      "host": "test.invalid",
+      "port": "443",
+      "test": "tests/test_phase3.py::test_healthz_components"
+    }
+  ],
+  "nonloopback_total": 1
+}

@@ -1,0 +1,311 @@
+{
+  "passed": 61,
+  "results": [
+    {
+      "claim": "测试场 collected(selected)=1660",
+      "detail": "实得 1660",
+      "ok": true
+    },
+    {
+      "claim": "测试场 pytest exitstatus=0（无失败）",
+      "detail": "实得 0",
+      "ok": true
+    },
+    {
+      "claim": "测试场 装桩前应用未加载",
+      "detail": "实得 []",
+      "ok": true
+    },
+    {
+      "claim": "应用路径场 装桩前应用未加载",
+      "detail": "实得 []",
+      "ok": true
+    },
+    {
+      "claim": "自检 桩装上 19/22",
+      "detail": "实得 19",
+      "ok": true
+    },
+    {
+      "claim": "自检 failures 为空",
+      "detail": "实得 []",
+      "ok": true
+    },
+    {
+      "claim": "打桩异常 apply_errors 两场均空",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "claim": "G1 组桩数=7",
+      "detail": "实得 7",
+      "ok": true
+    },
+    {
+      "claim": "G2 组桩数=3",
+      "detail": "实得 3",
+      "ok": true
+    },
+    {
+      "claim": "G3 组桩数=5",
+      "detail": "实得 5",
+      "ok": true
+    },
+    {
+      "claim": "G4 组桩数=7",
+      "detail": "实得 7",
+      "ok": true
+    },
+    {
+      "claim": "闭合：总桩数 22 == 四组之和",
+      "detail": "实得 22",
+      "ok": true
+    },
+    {
+      "claim": "G1 测试场 全 ZERO-CALL",
+      "detail": "实得 {'ZERO-CALL'}",
+      "ok": true
+    },
+    {
+      "claim": "G1 测试场 模块在场且已桩住（排除缺席假绿）",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "claim": "G1 应用路径场 全 ZERO-CALL",
+      "detail": "实得 {'ZERO-CALL'}",
+      "ok": true
+    },
+    {
+      "claim": "G1 应用路径场 模块在场且已桩住（排除缺席假绿）",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "claim": "G2 测试场 全 ZERO-CALL",
+      "detail": "实得 ['ZERO-CALL', 'ZERO-CALL', 'ZERO-CALL']",
+      "ok": true
+    },
+    {
+      "claim": "G2 应用场 只含 NEVER-IMPORTED / ZERO-CALL",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "claim": "G3 测试场 G3a 真实调用=1",
+      "detail": "实得 1",
+      "ok": true
+    },
+    {
+      "claim": "G3 测试场 G3b 真实调用=1",
+      "detail": "实得 1",
+      "ok": true
+    },
+    {
+      "claim": "G3 测试场 G3c 真实调用=0",
+      "detail": "实得 0",
+      "ok": true
+    },
+    {
+      "claim": "G3 测试场 G3d 真实调用=1",
+      "detail": "实得 1",
+      "ok": true
+    },
+    {
+      "claim": "G3 测试场 G3e 真实调用=1",
+      "detail": "实得 1",
+      "ok": true
+    },
+    {
+      "claim": "G3 测试场 调用方唯一归到 rag_chain.py:39",
+      "detail": "实得 ['backend/rag_chain.py:39']",
+      "ok": true
+    },
+    {
+      "claim": "G3 测试场 模型名只有 BAAI/bge-base-zh-v1.5",
+      "detail": "实得 ['BAAI/bge-base-zh-v1.5']",
+      "ok": true
+    },
+    {
+      "claim": "G3 应用路径场 G3a 真实调用=1",
+      "detail": "实得 1",
+      "ok": true
+    },
+    {
+      "claim": "G3 应用路径场 G3b 真实调用=1",
+      "detail": "实得 1",
+      "ok": true
+    },
+    {
+      "claim": "G3 应用路径场 G3c 真实调用=0",
+      "detail": "实得 0",
+      "ok": true
+    },
+    {
+      "claim": "G3 应用路径场 G3d 真实调用=1",
+      "detail": "实得 1",
+      "ok": true
+    },
+    {
+      "claim": "G3 应用路径场 G3e 真实调用=1",
+      "detail": "实得 1",
+      "ok": true
+    },
+    {
+      "claim": "G3 应用路径场 调用方唯一归到 rag_chain.py:39",
+      "detail": "实得 ['backend/rag_chain.py:39']",
+      "ok": true
+    },
+    {
+      "claim": "G3 应用路径场 模型名只有 BAAI/bge-base-zh-v1.5",
+      "detail": "实得 ['BAAI/bge-base-zh-v1.5']",
+      "ok": true
+    },
+    {
+      "claim": "G3 应用场 trust_remote_code 取值 = ['False']（只覆盖传该实参的 G3a/G3b；G3d/G3e 实参里没这个键）",
+      "detail": "实得 ['False']",
+      "ok": true
+    },
+    {
+      "claim": "G4 测试场 5 只 NEVER-IMPORTED + 2 只 ZERO-CALL",
+      "detail": "实得 ['G4a', 'G4d', 'G4e', 'G4f', 'G4g'] / ['G4b', 'G4c']",
+      "ok": true
+    },
+    {
+      "claim": "langchain_community 两场均从未被导入",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "claim": "langchain.chains 两场均从未被导入",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "claim": "langsmith.middleware 两场均从未被导入",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "claim": "测试场 环回连接读数=312",
+      "detail": "实得 {'127.0.0.1': 312, 'test.invalid': 1}",
+      "ok": true
+    },
+    {
+      "claim": "测试场 外部目的只有 test.invalid=1（故意的不可用假端点）",
+      "detail": "实得 {'127.0.0.1': 312, 'test.invalid': 1}",
+      "ok": true
+    },
+    {
+      "claim": "应用路径场 连接类事件=0",
+      "detail": "实得 0",
+      "ok": true
+    },
+    {
+      "claim": "compile 单独计数（测试场 9826，未混进外联）",
+      "detail": "实得 9826",
+      "ok": true
+    },
+    {
+      "claim": "upload 步骤写入 2 个切片",
+      "detail": "实得 {'chroma_dir': 'C:\\\\Users\\\\33393\\\\AppData\\\\Local\\\\Temp\\\\b-probe-app-20260929-103841\\\\iso\\\\chroma', 'chunks_written': 2, 'kind': '.txt', 'parsed_chars': 45}",
+      "ok": true
+    },
+    {
+      "claim": "qa 步骤真的跑通（failures 空 + retrieved 字段可读）",
+      "detail": "实得 failures=[] qa=0",
+      "ok": true
+    },
+    {
+      "claim": "qa 步骤 retrieved==0（空副本集合使然，不是检索质量结论）",
+      "detail": "实得 0",
+      "ok": true
+    },
+    {
+      "claim": "应用路径场未构造 LLM 客户端 ⇒ G2 在该场是「未测」不是「阴性」（langchain_openai.chat_models.base 不在该场在场模块里，却在测试场在场）",
+      "detail": "实得 app=False suite=True",
+      "ok": true
+    },
+    {
+      "claim": "复算器要扫的 5 份文档全部在位",
+      "detail": "缺 []",
+      "ok": true
+    },
+    {
+      "claim": "文档中不应残留「G1 Core 反序列化与模板构造 8 只桩」",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "claim": "文档中不应残留「8 只桩」",
+      "detail": "",
+      "ok": true
+    },
+    {
+      "claim": "最新测试场日志：passed+skipped == collected",
+      "detail": "实得 1650+10 vs 1660",
+      "ok": true
+    },
+    {
+      "claim": "最新测试场日志：deselected=18（-m 'not slow'）",
+      "detail": "实得 18",
+      "ok": true
+    },
+    {
+      "claim": "两腿复跑逐桩五轴零差异（b-probe-readings-pytest-20260929-103147.json vs b-probe-readings-pytest-20260929-103511.json）",
+      "detail": "差异 []",
+      "ok": true
+    },
+    {
+      "claim": "两腿完整性三字段一致（collected/exitstatus/compile）",
+      "detail": "一致 ['collected', 'pytest_exitstatus', 'compile_event_total']",
+      "ok": true
+    },
+    {
+      "claim": "测试场 net 自洽：键数==kinds 且 求和==total",
+      "detail": "实得 键206/声明206，和348/声明348",
+      "ok": true
+    },
+    {
+      "claim": "应用路径场 net 自洽：键数==kinds 且 求和==total",
+      "detail": "实得 键11/声明11，和15/声明15",
+      "ok": true
+    },
+    {
+      "claim": "urllib.Request 键形状只含 URL/方法/头键名",
+      "detail": "越形 0 条 []",
+      "ok": true
+    },
+    {
+      "claim": "任何入库读数都不含请求体（口令/JSON 体 0 命中）",
+      "detail": "命中 []",
+      "ok": true
+    },
+    {
+      "claim": "归因件：非环回事件恰 1 次且目的是假端点 test.invalid",
+      "detail": "实得 1 次 ['test.invalid']",
+      "ok": true
+    },
+    {
+      "claim": "归因件：该次来自 /healthz 的模型主机连通探测（用例可指名）",
+      "detail": "实得 {'argv_tail': ['test.invalid', '443'], 'event': 'socket.getaddrinfo', 'frames': ['socket.py:826:create_connection', 'main.py:340:healthz', 'threading.py:1038:_bootstrap_inner', 'threading.py:995:_bootstrap'], 'host': 'test.invalid', 'port': '443', 'test': 'tests/test_phase3.py::test_healthz_components'}",
+      "ok": true
+    },
+    {
+      "claim": "pytest 读数晚于仪器与驱动的最后编辑",
+      "detail": "读数 b-probe-readings-pytest-20260929-103511.json vs 代码 mtime 1790648816",
+      "ok": true
+    },
+    {
+      "claim": "app 读数晚于仪器与驱动的最后编辑",
+      "detail": "读数 b-probe-readings-app-20260929-103841.json vs 代码 mtime 1790648816",
+      "ok": true
+    },
+    {
+      "claim": "自检读数同样出自现行仪器",
+      "detail": "实得 1790649662",
+      "ok": true
+    }
+  ],
+  "total": 61
+}
