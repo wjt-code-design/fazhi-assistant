@@ -1601,6 +1601,9 @@ pydantic 2.13.5 / SQLAlchemy 2.1.1 / mypy 2.3.1 / pytest 8.4.2 / ruff 0.16.9 / c
 
 **（3）提交后门禁复验（对无未提交修改的 `fbc29e8` 候选树；日志 `postcommit-gates.log`）**
 
+⚠️ **第 6–8 行不属于这份日志**：`postcommit-gates.log` 里这三步是 **rc=1/2/4 的路径形态假红**，
+下面写的 rc=0 出自 **2026-09-29 用候选解释器的复跑**（原因与复现见交接书 §4.1）。第 9 步在该日志内的首跑同理，是扫描器网络失败。
+
 | 步 | 命令 | 读数 | rc |
 |---|---|---|---|
 | 1 | `pip check` | No broken requirements found | 0 |
@@ -1618,7 +1621,11 @@ pydantic 2.13.5 / SQLAlchemy 2.1.1 / mypy 2.3.1 / pytest 8.4.2 / ruff 0.16.9 / c
   按纪律**不与"漏洞非零"混算**；先分析再重试（默认 15s 超时被网络拖死），**只重试一次**并加大到 `--timeout 60`，才得到上表那行 47/8。
 - 第 6–8 步第一次跑红（`ruff E902 系统找不到指定的文件`、`pytest file or directory not found`），
   原因是本机把 `/c/Users/...` 形态的路径按相对路径解析成 `C:\c\Users\...`（本仓已多次踩到）；
-  **换 `C:/Users/...` 原生形态重跑后三步全 rc=0**，日志里以 `[6R]/[7R]/[8R]` 标出。
+  **按 `C:/Users/...` 原生形态复跑后三步为 rc=0 / rc=0 / 9 passed**，读数以候选解释器现量为准。
+  ⚠️ **出处更正（2026-09-29）**：此前这里写"日志里以 `[6R]/[7R]/[8R]` 标出"——
+  `postcommit-gates.log` 内 `grep -E '\[6R\]|\[7R\]|\[8R\]'` → **0 命中**，那份日志保留的正是路径假红本身（rc=1/2/4），**未被改写**。
+  所以这三步的 rc=0 是**本会话补取的当前现量**（2026-09-29，候选解释器 Python 3.11.0 / ruff 0.16.9），
+  不是 09-28 那份日志里的历史三段；两棵树 `dispatch-output/agent-quality-20260911` 已跟踪内容逐字节相同（tree 哈希同为 `7fbfe959…`），故可归到候选树 `fbc29e8`。
 - 前端本轮未改，沿用此前读数（`npm ci` rc=0；`npm run check` 7 files / 54 tests passed；`npm run build` rc=0）。
 - 保护对象复验：41 个（`backend/app.db`、`backend/data/app.db`、两处配额库、`backend/chroma_db` 全量文件等）
   在提交与测试后重算 size + SHA-256，**41/41 与 A 基线逐项一致**（`protected-postcommit-check.log`）。

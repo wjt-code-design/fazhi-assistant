@@ -30,7 +30,9 @@ git worktree list                            # 确认候选 worktree 仍显示 f
 
 ## 1. 一句话现状
 
-隔离环境里的两项依赖升级（pypdf、FastAPI）**代码与测试都做完并已提交**，提交后九步门禁在该提交树上**全绿**（唯一红是依赖审计，且是"漏洞非零"的红，不是失败）；
+隔离环境里的两项依赖升级（pypdf、FastAPI）**代码与测试都做完并已提交**，九步门禁的**结论**是可复现的（[1]–[5] 真绿、[6]–[8] 的路径假红已用候选解释器复跑为 rc0/rc0/9 passed、47 条 / 8 包是重试后的漏洞读数）；
+**但**这句话的证据出处此前挂错了一份日志 —— `postcommit-gates.log` 里 [6]–[8] 仍是红的、第 9 步那次 rc=1 也**不是**"漏洞非零"而是扫描器 `ReadTimeout`，
+逐条更正见 §4.1（这里不写"九步在同一份日志里全绿"）；
 隔离语料在副本上跑完导入/幂等/恢复；**但**剩余依赖风险尚未获得 Owner 接受，**真实 rerank 因凭据待轮换而未复验** ⇒ 按规划书 F 节判据只能给「阶段仍未完成 / 候选受阻」。
 
 **2026-09-29 接续会话后追加（Owner 已裁三题，见 §8 台账）**：凭据**尚未轮换**⇒ 本轮不调用真实 rerank；
@@ -105,6 +107,36 @@ AQ="C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/agent-quality-2026091
 "$PY" -m pytest -q -p no:cacheprovider "$AQ/test_budget_guard.py"   # 9 passed      rc=0
 ```
 
+### 4.1 门禁日志的出处更正（2026-09-29 本会话现量）
+
+**此前四份文档都写"`postcommit-gates.log` 里有 `[6R]/[7R]/[8R]` 三段路径修正后的重跑" —— 那句话不成立。**
+现量（`grep -E '\[6R\]|\[7R\]|\[8R\]' postcommit-gates.log` → **rc=1，0 命中**；全仓只有文档里提到过这三个标记）：
+
+| 步 | `postcommit-gates.log` 里实际是什么 | rc |
+|---|---|---|
+| [1]–[5] `pip check` / `ruff check` / `format` / `mypy` / 全量 `pytest` | 真绿，读数照旧 | 0 |
+| [6] `ruff check agent-quality` | `E902 系统找不到指定的文件`，路径被解析成 `C:\c\Users\...` | **1** |
+| [7] `ruff format --check agent-quality` | 同一条路径假红 | **2** |
+| [8] `test_budget_guard.py` | `file or directory not found`，no tests ran | **4** |
+| [9] `pip_audit -r requirements.txt` | ⚠️ `requests.exceptions.ReadTimeout … pypi.org … (read timeout=15)` —— **扫描器自身失败，不是"漏洞非零"** | **1** |
+
+所以：**"九步全绿在同一份日志里"这句话此前是错的**，且第 9 步那行的红**从来不是**漏洞读数 —— 47 条 / 8 包出自
+`postcommit-pip-audit-retry.log`（`--timeout 60`）与入库件 `candidate-requirements-pip-audit.json`，两者要分开引。
+
+**[6]–[8] 的当前现量**（2026-09-29 由本会话用**候选解释器**重跑，命令即上面那三条）：
+`ruff check` → All checks passed **rc=0**；`ruff format --check` → 4 files already formatted **rc=0**；
+`test_budget_guard.py` → **9 passed** rc=0。解释器 `C:\Users\33393\AppData\Local\Temp\legal-closeout-20260928\venv\Scripts\python.exe`
+（Python 3.11.0，ruff 0.16.9）。
+
+两点限定，别把这条读成"补上了旧证据"：
+1. 这补的是**今天**的读数，**不能追溯证明 09-28 那份日志里有过三段重跑**。另有一份 `agent-quality-test.log`（内容就是 `9 passed`）
+   mtime 为 **09-28 21:38:35，早于** `postcommit-gates.log` 的 09-29 00:19:14，且只覆盖 [8] 一步 ⇒ 它不是那次修正路径后的三步重跑件。
+2. 重跑在主工作区 `14a04ca` 做的，但 `dispatch-output/agent-quality-20260911` 的**已跟踪内容在两棵树逐字节相同**
+   （目录 tree 哈希两侧同为 `7fbfe95971302b1e2268bb8708ba05feb3f6349a`；差异只是 `.mypy_cache`/`.ruff_cache`/`__pycache__`/运行产物等未跟踪件），
+   对候选树 `fbc29e8` 的同一份已跟踪副本复跑，结果同样 rc=0/rc=0/9 passed。
+
+**原日志一字未改**（更正的是引用它的那四句话，不是日志本身）。
+
 依赖审计（**这条的 rc=1 是"有漏洞"不是"命令失败"**）：
 
 ```bash
@@ -138,7 +170,7 @@ AQ="C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/agent-quality-2026091
 
 | 项 | 读数 | 证据 |
 |---|---|---|
-| 提交后九步门禁（候选树 `fbc29e8`） | 见 §4，唯一红 = 依赖审计 47/8 | `postcommit-gates.log`（`[6R]/[7R]/[8R]` 是路径修正后的重跑） |
+| 提交后九步门禁（候选树 `fbc29e8`） | [1]–[5] rc=0；[6]–[8] 在该日志内是路径形态假红（rc 1/2/4）、[9] 是扫描器 ReadTimeout —— **两者都不是"绿"**，逐条见 §4.1 | `postcommit-gates.log`；⚠️ 该日志内**没有** `[6R]/[7R]/[8R]` 三段重跑（此前引用有误，已在 §4.1 更正）。[6]–[8] 用候选解释器于 2026-09-29 复跑为 rc0/rc0/9 passed；47/8 另出自 `postcommit-pip-audit-retry.log` |
 | 依赖审计（重试读数） | 47 条 / 8 包 / 扫 132 包 | `postcommit-pip-audit-retry.log`、`candidate-requirements-pip-audit.json` |
 | 依赖审计（实装环境口径） | 57 条 / 10 包 / 扫 167 包（多出 setuptools/pytest，**与 47 不可相加**） | `candidate-installed-pip-audit.json` |
 | 保护对象 | 41/41 未变 | `protected-before.json`、`protected-postcommit-check.log` |
@@ -186,7 +218,7 @@ AQ="C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/agent-quality-2026091
 |---|---|---|
 | Core 反序列化 / 模板构造 | 7 只桩**两场均 0 调用**，且相关模块都在场（不是缺席导致的空读数）；另有一条静态事实：候选工作树 `backend/` 里 `PromptTemplate` **0 个文件命中**（tests 与 scripts 全扫），问答链是 `rag_chain.py:137` 的 `llm \| StrOutputParser()` | 支撑"应用不把外部内容当序列化对象或模板配置重建"，仍不是不可达证明 |
 | 图片 token 计数（SSRF 族） | **只有测试场是阴性证据**：3 只桩 0 调用，且 `langchain_openai` 在该场在场。应用路径场是**未测**——该场驱动从不 import `main`/`llm_registry`（`llm_registry.py:20` 是模块级 `from langchain_openai import ChatOpenAI`，真实 `/api/chat` 必加载），所以"该场 `chat_models.base` NEVER-IMPORTED"只说明驱动没建聊天客户端。外联另有直接读数（见下） | 支撑"本场没有走到计数抓 URL 的路径"；`CVE-2024-7774` 的**包映射疑点这把尺子管不着**，仍是待办 |
-| Transformers 模型 config | 模型/config/tokenizer 加载**各 1 次**，调用方唯一归到 `backend/rag_chain.py:39`，模型名只有源码常量 `BAAI/bge-base-zh-v1.5`，**`trust_remote_code` 取值 `False`**（键在场不算证据，值才算）。⚠️ 这条只覆盖**把它当实参传的** `G3a PreTrainedModel` 与 `G3b AutoConfig`；`G3d` tokenizer 与 `G3e SentenceTransformer.__init__` 的实参里**没有这个键**（读数为 `[]`），不能替它们背书 | 支撑"加载面只有一个钉死常量、未放行远程代码"；模型文件本身的完整性仍未验（属 A 档之外的另一件事） |
+| Transformers 模型 config | 模型/config/tokenizer 加载**各 1 次**，调用方唯一归到 `backend/rag_chain.py:39`，模型名只有源码常量 `BAAI/bge-base-zh-v1.5`，**`trust_remote_code` 取值 `False`**（键在场不算证据，值才算）。⚠️ 这条只覆盖**把它当实参传的** `G3a PreTrainedModel` 与 `G3b AutoConfig`；`G3d` tokenizer（实参键 `_commit_hash,_from_auto,cache_dir,revision,token`）与 `G3e SentenceTransformer.__init__`（实参键 `cache_folder,device`）的实参里**没有这个键** —— 不是"实参为空"，是"这个键根本没传"，所以不能替它们背书 | 支撑"加载面只有一个钉死常量、未主动放行远程代码"；⚠️ **不支撑**"`CVE-2026-4372` 已缓解"：候选实装 transformers **4.57.6** 落在该通报 `< 5.3.0` 区间内，公告明写该缺陷绕过 `trust_remote_code`。模型文件本身的完整性也仍未验（属 A 档之外的另一件事） |
 | 未被引用的 loader / 追踪 | `langsmith.middleware`、`SitemapLoader`、`EverNoteLoader`、`FAISS`、`GraphCypherQAChain` 两场均**从未被导入**；`langsmith.client.Client` 在场但 0 次实例化、`pull_prompt` 0 次。结构性的那条：`langchain_community` 与 `langchain.chains` 两场均从未被导入 | 支撑"这些能力不在运行路径上"；将来若新增入口，本读数即失效，须重跑 |
 
 **外联是直接读数，不是推断，而且是"全部键"读出来的不是打印窗口读出来的**：测试场 348 次事件 / 206 个键逐条机器归类
@@ -214,8 +246,9 @@ AQ="C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/agent-quality-2026091
 **D2 可签文本（草案）** —— Owner 直接改字或划掉即可；本草案**不是**签字，落笔前 `residual-risk-review.md` 的共同状态仍是
 "未接受、未忽略、未解除"。写它的唯一目的：把"接受面 == 证据面"钉成一段可划改的文字，别让签字时顺手签进没测过的东西。
 
-> **签字对象只有一件事**：在**本地候选形态**下，这批依赖通报**本阶段不做版本升级、不做代码改动**。
-> 它**不等于**发布/部署/将来服务化也可以，**不等于**"不可达证明"，**也不清零**下面第六条列的那几条在册阻塞。
+> **签字对象只有一件事**：在**本地候选形态**下，这批**应用运行时**依赖通报（`requirements.txt` 解析集那一根轴，26 条）**本阶段不做版本升级、不做代码改动**。
+> 它**不等于**发布/部署/将来服务化也可以，**不等于**"不可达证明"，**也不清零**下面第六条列的那几条在册阻塞；
+> ⚠️ **并且它的射程不含「二·补」那两根轴**（开发/构建工具通报、以及根本没被审计的 `torch`）—— 那两件不因本笔签字而有了结论。
 
 **一、接受范围**（档位沿用上面 §6② 的三档口径，逐档绑各自的证据等级；**签的是"读数说的那件事"，不是档位标签**）
 
@@ -223,26 +256,59 @@ AQ="C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/agent-quality-2026091
 - **B 档**（有运行期入口可桩、两场上留下三种读数之一的）。⚠️ **别把这一档统一读成"0 调用"**——矩阵里三种形态都有：
   ① **ZERO-CALL**（Core 反序列化族、模板构造、`pull_prompt` 等）；
   ② **1-CALLS 但可唯一归因**（模型/config/tokenizer 加载各 1 次：调用方唯一到 `rag_chain.py:39`、
-  模型名只有源码常量 `BAAI/bge-base-zh-v1.5`、`trust_remote_code` 取值 `False`）——这**不是**"没跑到"，
-  而是"跑到了、但跑的是钉死的受信常量"，接受的依据因此与 ① 不同；
+  模型名只有源码常量 `BAAI/bge-base-zh-v1.5`）——这**不是**"没跑到"，
+  而是"跑到了、但跑的是钉死的受信常量"，接受的依据因此与 ① 不同。
+  ⚠️ **`trust_remote_code=False` 只覆盖 `G3a`（`PreTrainedModel.from_pretrained`）与 `G3b`（`AutoConfig.from_pretrained`）**
+  ——这两只桩的实参里确实带了该键且值为 `False`；`G3d`（tokenizer `from_pretrained`，实参键
+  `_commit_hash,_from_auto,cache_dir,revision,token`）与 `G3e`（`SentenceTransformer.__init__`，实参键 `cache_folder,device`）
+  **实参里没有这个键**，不能由它背书（读数见 `b-probe-verdict-matrix.md` 的 G3 行）。
+  ⚠️ **并且这条对 `CVE-2026-4372` 本身不构成安全证明**：候选实装的 transformers 是 **4.57.6**（由 `sentence-transformers>=2.5,<3.0` 传递解析得来，
+  `requirements.txt` 未直接钉它），落在该通报的受影响区间 `< 5.3.0` 内，而公告原文写明该缺陷
+  **"bypasses the `trust_remote_code` security mechanism"** —— ⇒ 签"`trust_remote_code=False`"签的是**我们没有主动放行远程代码**这件事，
+  **不等于**这条通报在该版本上已被缓解；模型**文件**的来源与完整性也仍未验（第二栏 ⑤）。
   ③ **某场未测**（`G2a` 在应用路径场是 NEVER-IMPORTED，因为该场驱动从不构造聊天客户端，**不是**"证明它不导入"）。
   证据 = `b-probe-verdict-matrix.md` 的两场读数（1660 条非 slow 测试 + 两条直调应用路径），
   由 `python b_probe_matrix.py` 现生，**逐条对应关系不手抄**。
 - **C 档**（大版本迁移）：**不在本阶段任何接受范围内**，维持单独立票。
 
+> ⚠️ **这一栏签完，第二栏那 5 件一件都没消**：其中 ① 是 **9 条探针答不上的公告，目前没有任何处置结论**
+> （既未判定适用、也未判定不适用），本草案的六栏**不能**被读成对它们表态。
+> 只要那 9 条与 ② `CVE-2024-7774` 映射疑点仍无处置，共同状态就得保持"**未接受、未忽略、未解除**"，
+> 阶段判定也仍是「候选受阻」，不能因为一/三/四/五栏落了笔就改写成"有条件就绪"。
+
 **二、不写进"已接受"的 5 件**（保持在册待办；签了 D2 也不代表它们有结论）
 
   ① 探针答不上的 9 条公告（与 `b_probe_matrix.py` 的 uncovered 同源，改一处需两处同步）：CVE-2024-3095、CVE-2024-7774、CVE-2025-6985、CVE-2026-1839、CVE-2026-41481、CVE-2026-45830、CVE-2026-45833、CVE-2026-55443、CVE-2026-9856；
-  ② **D6** `CVE-2024-7774` 的包映射疑点（是公告↔包名映射的核对问题，不是调用点问题，这把尺子管不着）；
+  ② **D6** `CVE-2024-7774` 的包映射疑点 —— **2026-09-29 已判定**：是上游 PyPA/OSV 把 **langchainjs（npm）** 的缺陷挂到了 PyPI `langchain` 名下，
+  对本项目的 Python 依赖**不适用**（证据与边界见 `residual-risk-review.md` 的「D6 结论」节）。
+  ⇒ 它从"未决疑点"变成"有结论的一条处置"，但**原始告警仍在、未加 `--ignore-vuln`**，所以这一件**仍列在本栏**：签字时它算"证实不适用"，不算"没查"。
   ③ **带凭据的真实外呼路一次都没进过样本**：rerank / 云端嵌入 / LLM 调用本身 / MCP 侧 / `/api/chat/transcribe`
   （驱动把 `RERANK_ENABLED` 关成 false，而本机 `.env` 实为 true）；
   ④ `backend/scripts/*` 与**子进程 / 第二解释器**不在这两场窗口内（仪器只桩本进程）；
   ⑤ 模型**文件**完整性未验（探针只证"没放行远程代码"，不证那份权重没被动过）。
 
+**二·补、另一根轴：本笔签字**覆盖不到**的环境范围（不是"探针射程"那条轴，是"包范围"那条轴）**
+
+  上面的五件说的是"应用运行时那 26 条里探针答不上的部分"。复扫后另有一批**根本不在那 26 行里**的东西，
+  逐条与判定见 `scope-recount-20260929.md`（重跑：`python b_scope_recount.py --write`，**本页不抄它的条数**）：
+
+  ⑥ **开发/构建工具通报**（`pytest`、`setuptools` 两包，只在实装集命中、`requirements.txt` 解析集里没有）：
+  这些是本机与 CI 的**构建期面**，与应用运行时暴露面不同轴。本笔 D2 签的是"应用运行时依赖本阶段不升级不改码"，
+  **签了也不覆盖这一轴** —— 它既未判适用、也未判不适用，**保持待处置**。
+  ⑦ **一个包根本没被审计**：实装 `torch 2.6.0+cpu` 在扫描读数里带 `skip_reason`（PyPI 无该分发），
+  ⇒ 扫描器**没给出任何漏洞读数**。这是**盲区，不是零风险**；且**不得**拿解析集里解析出的那个 torch 版本替代它说话。
+  ⑧ **两条"待核"不是"待处置"的同义词**：`CVE-2026-1839` 的跨包前提（公告要求的 torch 版本）与
+  `CVE-2026-45833` 对嵌入式 chromadb 0.4.24 的适用性，**一手证据未取到**，签字时这两条只能记"未决"。
+  ⇒ 另有一条已定：`CVE-2024-7774`（上面②）本轮已判定为上游映射缺陷、对本项目 Python 依赖不适用。
+
 **三、随接受一起生效的限制**（**任一被突破 ⇒ 本接受自动失效，回到"未接受"**）
 
 仅限本地单机使用；不对外暴露服务；不新增外部 sitemap / 网页抓取入口；不加载外部序列化对象或模板配置；
 不启用公共 prompt Hub；不暴露 Chroma HTTP、不做服务化与多租户；不放开 `trust_remote_code`；不把用户内容当模板定义。
+
+> ⚠️ 这条限制清单是**使用面约束**，不是**缓解证明**。特别是"不放开 `trust_remote_code`"这一条**挡不住 `CVE-2026-4372`**：
+> 候选实装 transformers **4.57.6** 在该通报的 `< 5.3.0` 受影响区间内，公告原文写明缺陷**绕过 `trust_remote_code` 机制**
+> （GHSA-29pf-2h5f-8g72，High / CVSS 7.8，修复版本 5.3.0）。 ⇒ 接受这条限制，不等于接受了一条已被缓解的通报。
 
 **四、必须一起算进暴露面的两条应用事实**（不是缺陷，但签字时不能不知道）
 
@@ -267,6 +333,12 @@ AQ="C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/agent-quality-2026091
    注释在替 Owner 断言一件没发生的事 ⇒ 将来有人据它认为旧口令无害。**这条注释需要 Owner 定措辞**（助手不代改凭据状态结论）。
    注：`Q5`（把 `:104` 从"字面值"改成"形状匹配"）**已于 09-26 执行完毕**（现量该行是 `r"'[A-Za-z0-9]{13}'"`），
    它**不再是**推送前置——别再照旧口径把它列成待走。
+
+6. ⚠️ **2026-09-29 复扫新置的两条在册待办**（不属于"签字即消"的那批）：
+   6a. **开发/构建工具那一轴**（`pytest` / `setuptools` 的通报，只在实装集命中）—— 本笔签字**不覆盖**，仍是待处置。
+   6b. **实装 `torch 2.6.0+cpu` 未被审计**（扫描读数带 `skip_reason`）—— 盲区不是零风险，需按 PyTorch 官方通报单独核查。
+   ⇒ 逐条读数与三轴归属见 `dispatch-output/local-candidate-closeout-20260928/scope-recount-20260929.md`
+   （重跑：`python b_scope_recount.py --write`；该件自带闭合检查，对不上就 rc=1）。
 
 ⇒ **D3 口径不变**：Owner 裁"等 D2 有结论再合"，这段落笔后即可谈合并窗口。
 但推送的硬顺序是：**Q4（两条凭据轮换）→ 复扫 → Q6（一次性快照分支，永不 force，真推由 Owner 按回车）**。
@@ -294,7 +366,7 @@ AQ="C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/agent-quality-2026091
 | **D3** 候选与 master | 隔离期多长、合入门槛是什么 | ✅ **Owner 2026-09-29 裁：等 D2 有结论再合** —— 不合入、不推送、不建远端分支；引用与 bundle 双保险照旧 |
 | **D4** 凭据与 rerank | 轮换范围（是否含旧备用 key）、复验范围与次数 | ⏳ **Owner 2026-09-29 答：还没轮换，本轮先不跑** —— 因此本阶段**没有 24/24 现量**；轮换并告知后按既有授权只跑一次 |
 | **D5** 下一阶段目标 | 回功能线 vs 先做发布准备 | ⏳ 未定（当前立场：先做发布准备，因为真正卡发布的是服务器选型与真实库写入策略，不是代码） |
-| **D6** `CVE-2024-7774` 包映射疑点 | 公告与包名映射核对，判是否误报 | ⏳ **未解，且 B 档探针管不到它**（那是映射问题不是调用点问题）—— 需要独立核对公告原文与 PyPI 包映射 |
+| **D6** `CVE-2024-7774` 包映射疑点 | 公告与包名映射核对，判是否误报 | ✅ **2026-09-29 已判定：上游 OSV 映射缺陷，对本项目 Python 依赖不适用** —— `GHSA-hc5w-c9f8-9cc4` 生态是 **npm**；`PYSEC-2024-111` 虽登记在 PyPI `langchain` 名下，正文与两条 reference 全指 **langchainjs**（commit `a0fad77d`）；公告点名的汇 `getFullPath` 及 `setFileContent`/`getParsedFile` 在实装 `langchain==0.1.20` 包体 1326 个 `.py` 中 **0 命中**。**边界**：`mdelete` 同名存在于 Python base-store ⇒ 依据是"汇不存在＋生态归属 JS"，不是"点名符号全无"；应用侧对 `langchain.storage` 零引用（含动态引用）是静态结论、非不可达证明。**原始告警保留、未加 `--ignore-vuln`**，下一轮仍会报。证据与命令见 `residual-risk-review.md`「D6 结论」节 |
 
 ---
 
@@ -530,6 +602,9 @@ D4（凭据轮换）完成并告知后，才按既有授权只跑一次隔离 re
    属"未测"）。⇒ 一栏改成"三种读数形态分列"，并写明**签的是读数说的那件事，不是档位标签**：
    ① ZERO-CALL；② 1-CALLS 但调用方与参数可唯一归因（`rag_chain.py:39`、模型名钉死、`trust_remote_code=False`）；
    ③ 某场未测。**这条若没被抓出来，就是我把"跑到了"说成"没跑到"让 Owner 签字。**
+   > ⚠️ **本补记自己也留了同一处含糊**：上面那句把 `trust_remote_code=False` 与"模型/config/tokenizer 各 1 次"并排写，
+   > 读起来像四个调用都带该实参，而实测只有 `G3a/G3b` 带。**签字页以 §6② 当前措辞为准**（该栏已限缩，并补了
+   > transformers 4.57.6 落在 `CVE-2026-4372` 的 `< 5.3.0` 区间、公告写明绕过该机制这条事实）；本段保留作当日记录，别再从这里转抄。
 3. **同源核对覆盖选反**：机器只钉了 ①②栏的清单与日期，恰恰没钉出错的第六条。⇒ 已补上第 1 条那条主张。
 4. **"第五条那四条在册阻塞"指错栏**（四条在第六条）⇒ 已改成"第六条列的那几条"。
 5. **复审日期只比登记表第一个出现处**（`re.search`）⇒ 改成 `findall` 要求**登记表内所有出现处彼此一致且等于页面值**，

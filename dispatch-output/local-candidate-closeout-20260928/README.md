@@ -85,13 +85,18 @@
 | `ruff check .` / `ruff format --check .` | All checks passed / 全部已格式化 | 0 / 0 |
 | `mypy .` | Success: no issues found in 74 source files | 0 |
 | `pytest -m 'not slow' --cov=. --cov-fail-under=70` | **1650 passed, 10 skipped, 18 deselected**，coverage **85.25%**（211.38s） | 0 |
-| agent-quality `ruff check` / `format --check` / `test_budget_guard.py` | All checks passed / 4 files already formatted / **9 passed** | 0 / 0 / 0 |
+| agent-quality `ruff check` / `format --check` / `test_budget_guard.py` | All checks passed / 4 files already formatted / **9 passed** —— ⚠️ 这**不是** `postcommit-gates.log` 里的读数（那里三步是 rc=1/2/4 的路径假红），出自 2026-09-29 用候选解释器的复跑，见下方出处更正 | 0 / 0 / 0 |
 | `pip_audit -r requirements.txt --format json` | **47 条 / 8 包 / 扫 132 包**（重试日志 `postcommit-pip-audit-retry.log`） | 1（漏洞非零） |
 
 - **第 9 步首跑是扫描器自身失败，不是漏洞读数**：`postcommit-gates.log` 抛 `pypi.org` `ReadTimeout (read timeout=15)`，rc=1。
   按纪律不与"漏洞非零"混算；分析后重试一次并加大到 `--timeout 60`，得上面那行 47/8。
 - 第 6–8 步首次跑红（`ruff E902 系统找不到指定的文件`、`pytest file or directory not found`）**是路径形态假红**：
-  本机把 `/c/Users/...` 当相对路径解析成 `C:\c\Users\...`。换 `C:/Users/...` 重跑，日志中以 `[6R]/[7R]/[8R]` 记录，三步全 rc=0。
+  本机把 `/c/Users/...` 当相对路径解析成 `C:\c\Users\...`。
+  ⚠️ **出处更正（2026-09-29）**：此前这里写"换 `C:/Users/...` 重跑，日志中以 `[6R]/[7R]/[8R]` 记录，三步全 rc=0"——
+  `postcommit-gates.log` 里**没有**这三段（`grep -E '\[6R\]|\[7R\]|\[8R\]' postcommit-gates.log` → **0 命中**，该文件第 6/7/8 步就是 rc=1/2/4 的路径假红，日志本身未改）。
+  现在能给的只有**当前现量**：2026-09-29 用候选解释器（Python 3.11.0 / ruff 0.16.9）按"改前质量守卫"那三条命令复跑 ⇒ rc=0 / rc=0 / **9 passed**；
+  两棵树的 `dispatch-output/agent-quality-20260911` **已跟踪内容逐字节相同**（目录 tree 哈希同为 `7fbfe95971302b1e2268bb8708ba05feb3f6349a`），故该读数对候选树 `fbc29e8` 同样成立。
+  这**不能追溯证明** 09-28 那次跑过并留了日志；同目录 `agent-quality-test.log`（`9 passed`）mtime 09-28 21:38:35 **早于** `postcommit-gates.log` 的 09-29 00:19:14，且只覆盖第 8 步，不是那三段重跑件。
 - 前端本轮未改，沿用既有读数（`npm ci` rc=0；`npm run check` 7 files / 54 passed；`npm run build` rc=0）。
 - 保护对象复验：41 个对象在提交与测试后重算 size+SHA-256，**41/41 与 A 基线一致**（`protected-postcommit-check.log`）。
 - 候选树 `backend/chroma_db` 为 144KB 空桩（测试自建），**不是**主树 349MB 真实库 ⇒ 候选测试不污染真实 KB。
