@@ -71,6 +71,11 @@ def tree_size(commit: str) -> tuple[int, float]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="只构造对象，不移动分支引用")
+    ap.add_argument(
+        "--no-trim",
+        action="store_true",
+        help="不剔 diag 那两个目录——用来产出差分对照的那一侧树（证明剔除不改变收集面）",
+    )
     args = ap.parse_args()
 
     idx_file = (
@@ -110,18 +115,23 @@ def main() -> int:
         git("update-index", "--cacheinfo", f"100644,{blob},{CI_PATH}")
 
         # 3) 偏离二：只剔那两个目录，并核对"剔的就是这些"
-        listed = git("ls-tree", "-r", "--name-only", merged)
-        doomed = [
-            f
-            for f in listed.stdout.splitlines()
-            if any(f.startswith(d + "/") for d in TRIM_DIRS)
-        ]
-        if not doomed:
-            print(f"FATAL: 没找到 {TRIM_DIRS}，说明目录结构变了，剔除范围必须重判")
-            return 4
-        for f in doomed:
-            git("update-index", "--force-remove", f)
-        print(f"[3] 剔除 {len(doomed)} 个文件（限 {TRIM_DIRS}）")
+        if args.no_trim:
+            print(
+                "[3] --no-trim：跳过剔除，这一侧只作差分对照用（拿它去推就把 296.7MB 一起推上去了）"
+            )
+        else:
+            listed = git("ls-tree", "-r", "--name-only", merged)
+            doomed = [
+                f
+                for f in listed.stdout.splitlines()
+                if any(f.startswith(d + "/") for d in TRIM_DIRS)
+            ]
+            if not doomed:
+                print(f"FATAL: 没找到 {TRIM_DIRS}，说明目录结构变了，剔除范围必须重判")
+                return 4
+            for f in doomed:
+                git("update-index", "--force-remove", f)
+            print(f"[3] 剔除 {len(doomed)} 个文件（限 {TRIM_DIRS}）")
 
         wt = git("write-tree")
         tree = wt.stdout.strip()
@@ -202,6 +212,11 @@ def main() -> int:
         print(f"FATAL: {bad} 个键在快照里有命中或普查命令本身失败 —— 不许推")
         return 7
 
+    if args.no_trim and not args.dry_run:
+        print(
+            "FATAL: --no-trim 出来的对象只作对照，绝不允许移动在册分支引用（那会把 296.7MB 推上去）"
+        )
+        return 11
     if args.dry_run:
         print(
             f"[6] --dry-run：不移动引用。要推的话：git update-ref refs/heads/{BRANCH} {commit}"
