@@ -1,0 +1,8 @@
+[0] 参与反查的键 8 个，读到非空值 8 个（值未打印）
+[1] 未跟踪口径：折叠条目(-unormal)=533 展开文件(-uall)=34099
+[2] 展开后：文件=34099 目录条目=0
+    命中 dispatch-output/ta5-arms-20260917/_cfg1.txt  LLM_API_KEYx1
+    命中 dispatch-output/ta5-arms-20260917/_cfg_noproxy.txt  LLM_API_KEYx1
+[3] 扫描完成：读到的文件=34099 打不开=143 含值文件=2
+[4] 按键命中次数：ADMIN_PASSWORD=0 DASHSCOPE_API_KEY=0 EMBEDDING_API_KEY=0 JWT_SECRET=0 LLM_API_KEY=2 RERANK_API_KEY=0 SILICONFLOW_API_KEY=0 ZHIPUAI_API_KEY=0
+VERDICT: 尺子活着（正对照=工作树本身含值处）；这些路径是否外发，另按对象集合判

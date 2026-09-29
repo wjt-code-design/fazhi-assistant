@@ -1,0 +1,29 @@
+[0] 参与反查的键 8 个，读到非空值 8 个（值未打印）
+[1] 未跟踪口径：折叠条目(-unormal)=534 展开文件(-uall)=34100
+[2] 展开后：文件=34100 目录条目=0
+[A] 面＝未跟踪**且未被忽略**（`git add -A` 会带走的那一面）
+    命中 dispatch-output/ta5-arms-20260917/_cfg1.txt  LLM_API_KEYx1
+    命中 dispatch-output/ta5-arms-20260917/_cfg_noproxy.txt  LLM_API_KEYx1
+[A] 读到=34100 打不开=143 含值文件=2 �    [A] 进度 30000/34103 用时 209s
+    命中 dispatch-output/ta5-arms-20260917/_cfg1.txt  LLM_API_KEYx1
+    命中 dispatch-output/ta5-arms-20260917/_cfg_noproxy.txt  LLM_API_KEYx1
+[A] 读到=34103 打不开=143 含值文件=2 命中总数=2
+     按键：ADMIN_PASSWORD=0 DASHSCOPE_API_KEY=0 EMBEDDING_API_KEY=0 JWT_SECRET=0 LLM_API_KEY=2 RERANK_API_KEY=0 SILICONFLOW_API_KEY=0 ZHIPUAI_API_KEY=0
+[B] 面＝盘上全部文件（含被忽略；`.env` 族在此面内）
+    [B] 进度 5000/205545 用时 36s
+    [B] 进度 10000/205545 用时 70s
+    [B] 进度 15000/205545 用时 101s
+    [B] 进度 20000/205545 用时 133s
+EYx2 SILICONFLOW_API_KEYx2 ZHIPUAI_API_KEYx1
+    命中 backend/.env.bak-20260910-pre-qwen38  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 ZHIPUAI_API_KEYx1
+    命中 dispatch-output/config-backups-20260915/env.before-b-desensitize.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 RERANK_API_KEYx2 SILICONFLOW_API_KEYx2 ZHIPUAI_API_KEYx1
+    命中 dispatch-output/config-backups-20260915/env.before-partial-delivery.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 RERANK_API_KEYx2 SILICONFLOW_API_KEYx2 ZHIPUAI_API_KEYx1
+    命中 dispatch-output/config-backups-20260915/env.before-q38f-removal.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 RERANK_API_KEYx2 SILICONFLOW_API_KEYx2 ZHIPUAI_API_KEYx1
+    命中 dispatch-output/quality-retrieval-20260914/env.backend.before-rerank-restore-20260914.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 ZHIPUAI_API_KEYx1
+    命中 dispatch-output/quality-retrieval-20260914/env.before-model-fallback-20260914.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 ZHIPUAI_API_KEYx1
+    命中 dispatch-output/ta5-arms-20260917/_cfg1.txt  LLM_API_KEYx1
+    命中 dispatch-output/ta5-arms-20260917/_cfg_noproxy.txt  LLM_API_KEYx1
+[B] 读到=205542 打不开=0 含值文件=11 命中总数=123
+     按键：ADMIN_PASSWORD=8 DASHSCOPE_API_KEY=30 EMBEDDING_API_KEY=30 JWT_SECRET=8 LLM_API_KEY=10 RERANK_API_KEY=15 SILICONFLOW_API_KEY=15 ZHIPUAI_API_KEY=7
+VERDICT: 尺子活着（面 B 命中 11 份文件）；面 A=2 份属'会被 add -A 带走'
+        是否外发另按对象集合判：走 b_build_snapshot.py 的 [5]/[5b] 段

@@ -33,6 +33,17 @@
 > ⚠️ **这不叫解除**：Linux 那条腿本机没跑过（全在 Windows），决定性证据在 CI ⇒ 归 O-5；且这笔**动了 `backend/` 一个文件**
 > （`requirements-dev.txt`），"本会话 backend 零改动"那句从这一刻起**不再成立**（生产码 `backend/*.py` 仍一个没动）。
 
+> 🚨 **09-30 更晚：Owner 要的两轴独立复核已回，状态又往前挪了两格，请连 §9／§10 一起转。**
+> **① 判定仍是 ③**，但"只差你按回车"这句**已撤回**：回车之前压着一件**收不回来**的事（**O-7 留出集/冻结题集就在这棵要公开的树里**，§9.2②），
+> 和一件决定"合完 master 算不算发布"的事（**O-8 本地主线与公开仓无共同祖先 ⇒ 发布没有已裁的走法**，§9.2③）。
+> **② 复核带来的三处更正**：形状普查那个"0"里有一部分是**我的模式窄了**（严格 `sk-` 式在这棵树命中 18 处，逐条归因后才是 0，§9.1⑤）；
+> `Q9 --no-ff` 的**结论不动但理由换掉**（公开快照里根本没有 `fbc29e8`，19/79 处 SHA 引用**一律点不开**，§9.2④）；
+> "CI 会红在 `pip-audit`"**改成**"步骤 fail-fast、`pip-audit` 排最后且**远端 18 场从未跑到它**"（§9.2①）。
+> **③ 两条变好**：推送树第 6–8 步（ruff check／ruff format --check／mypy）在**同一棵树**上本机预跑**三关 rc=0**（`ci-precheck-lint.txt`），
+> 且"剔完之后树自不自足"由**第三方运行期读数**背书（collect 1678、全量 1650/10/18、guard 9 passed，§9.2⑦）。
+> **④ 复核自己的账也要记**：两轴共 4 条被我用本机命令**证伪**（含"CI 永不触发""frontend 必红""测试文件缺失""JWT 用默认密钥"），
+> 甲轴还**违约写了文件**、并因**沙盒无网络**报出两条我这里不重现的红 ⇒ **采信单位是那条命令在我机器上跑出什么**（§9.1⑤⑥、§9.2⑥）。
+
 ## 1. 我做了什么（按顺序，每条给落点）
 
 1. **接续收口并复跑门禁**：按 `docs/superpowers/plans/2026-09-28-local-candidate-closeout-plan.md` 继续。
@@ -142,13 +153,16 @@ git status --porcelain -uno | wc -l                          # tracked 脏数
 | T2 ＝ O-1/O-3 | **凭据**：① 已暴露的那把 rerank key 撤销/轮换；② `ADMIN_PASSWORD` 轮换 | 真实 rerank 一次性验收；以及整条推送线 | **两件都未轮换**（Q2 已裁定：本窗口**暂时放一边**，见 §8）。⚠️ **复现点＝合并进 `master` 之前**；若最终不轮换，要转成在册的显式接受 + 失效条件。**真要轮换时新值别发到聊天里** |
 | ~~T3~~ | `apply_case_domain_gate.py:104` 自称"值已轮换，旧值失效"与台账 D25 矛盾 | 别让人据注释认为旧口令无害 | ✅ **同日已改**：注释现在写"凭据是否已轮换由 Owner 掌握，本注释不作断言"，并把原句作为**被删记录**留在括号里（`git grep -c 值已轮换` = 1，命中的正是那句"原写…未经证实，2026-09-29 删"，不是断言） |
 | ~~T4~~ ＝ 计划 A-1 邻近 | **D6**：`CVE-2024-7774` 公告↔包名映射疑点核对 | 该条能不能申报误报 | ✅ **同日判结**：上游 PyPA/OSV 映射缺陷（langchainjs 挂到 PyPI `langchain`）。⚠️ 但**不是"零风险"**：`mdelete` 同名存在 ⇒ 依据只能是"汇不存在 + 生态归属"，原始告警保留、未加 `--ignore-vuln` |
-| T5 ＝ O-5 | **推送**是否要我准备 `--dry-run` / 开 PR 取 CI 证据 | 远端 CI 真实运行证据 | **已定（Q1＋Q3）**：转 private → 推一次性快照分支（**永不 force**，你按回车）→ 匿名 compare 判形 → PR 或 push 触发取 CI 绿。⚠️ 本轮实测三件事，都影响这条路：**仓库仍是 public**（⇒ 前置未满足，我没推）、远端只有 `master`=`985d53e4` 且**最近三场 CI 全 failure**、`ci.yml` **没有 `workflow_dispatch`** ⇒ 详见 §8 |
+| T5 ＝ O-5 | **推送**是否要我准备 `--dry-run` / 开 PR 取 CI 证据 | 远端 CI 真实运行证据 | **已定（Q1＋Q3）**：~~转 private~~（**该前置由 Q15 撤销**，仓库保持 public，见 §8.8①）→ 推一次性快照分支（**永不 force**，你按回车）→ 匿名 compare 判形 → PR 或 push 触发取 CI 绿。⚠️ 本轮实测三件事仍成立：**远端只有 `master` 一条**、它**最近三场 CI 全 failure**、`ci.yml` **没有 `workflow_dispatch`** ⇒ 详见 §8。可见性现量：`curl -sS https://api.github.com/repos/wjt-code-design/fazhi-assistant`（别抄我抄过的号） |
 | T6 ＝ O-5 | **D5**：下一阶段回功能线还是先做发布准备 | 下一轮开什么票 | **未定**。我的立场不变：先发布准备（真正卡发布的是服务器选型与真实库写入策略） |
 | **O-2** | 本机按**值**反查口令出现点（结果不落盘）——形状普查覆盖不到的那部分 | 推送前置 | ✅ **同日已做完**（09-30 第二轮）：**在我这边办不了**、得在 Owner 机器上跑的那条按值反查，**已经在 Owner 这台机器上跑完了**（值只进变量、全程未打印）。结果两条：当前 tracked 工作区命中 **0**；全历史命中只有 `ADMIN_PASSWORD`（2 笔＝`817e7d3` 引入、`7eda4bb` 删除）⇒ 细节与普查表见 §8.5／§8.6。形状普查（`secret_shape_scan.py`，结构上不输出值，`--selftest` 能红）仍在，但**它的 0 不能读成"没有明文"**——这条教训也写在 §8.5 |
 | **O-6** | **新出现的一条（A-3 反查出来的）**：`requirements-dev.txt` 钉 `pytest>=7.4,<9`，而 `CVE-2025-71176` 的修复在 **9.0.3** ⇒ **在册上限正好挡住修复** | 开发工具轴那 5 条里的 1 条能否清零 | ✅ **同日已按你的授权执行**：先在"候选依赖 + 只换 pytest 9.1.1"的**隔离环境**上跑全量（1650 passed / 10 skipped / 18 deselected / 137 warnings / cov 85.25% / rc=0，两场逐字相同），再改 pin 为 `pytest>=9.0.3,<10`，并用 `pip-audit --no-deps` 钉住新范围复算 ⇒ 旧范围 **rc=1**、新范围 **rc=0**。⚠️ **Linux 那条腿没跑过**（本机 Windows），CI 才是决定性证据 ⇒ 见 O-5 |
 | **T7** ＝ O-5 后半 | **真实语料写进真实库**要不要在本窗口做 | D2 所签的检索现量会不会当场过期 | **已定（Q5）：本窗口不动**，另开一票。三条理由：你要的 CI 证据链不依赖它（CI 跑 `pytest --cov` 与 `pip-audit -r requirements.txt`，都不连真实 Chroma）；它一动在册那批绿灯读数（`67/67`、`1650 passed/cov 85.25%`）就不是你签的了；默认 Chroma 落点被 `docker-compose.yml:47` bind-mount 进容器 ⇒ 验收前必须先建副本 |
 
 **B. 助手侧：已做完的与还欠的（接手会话逐条核过，别再当"待办"引用）**
+
+> ⚠️ **本表已不是最新的待办面**：两轴复核之后新增三格（**O-7 留出集要不要跟着公开**、**O-8 发布路径没有已裁的走法**、
+> **机器身份进公开仓**）连同"谁来做／复验什么"一起落在 **§10.3 第 9–11 格**。本表只保留 09-29 那批的编号连续性，**不重编、不重复填**。
 
 ✅ **同日做完（都不花凭据、零远程调用）**
 - **A-1**：登记表里两条"待核"证结——`1839` 判不适用（**带失效条件**）、Chroma `45830/45833` 判**版本适用而形态不暴露**。
@@ -351,7 +365,7 @@ A-3（开发/构建工具那 5 条逐条给触发前提/平台条件/修复版�
 |---|---|---|
 | Q1 要不要远端 CI 证据 | **要** | 已排进下面的顺序 |
 | Q2 那把已暴露的 rerank key | **暂时放一边**（本窗口不轮换） | **合入 `master` 之前必须回到你手上**；若最终不轮换 ⇒ 转成在册的显式接受 + 失效条件，不能只留"放一边"。**（此行的"合并前"由 Q7＋§8.5 更正：真正要防的是本地历史里的明文，属 Q14 那张票）** |
-| Q3 推送前置 | **先把仓库转 private**，再推**一次性快照分支**（永不 force，**推这一下由你按回车**），再取 CI 证据 | 形状普查已做完且干净（193 个提交的树 0 命中 / 193 条提交信息 0 命中，栽桩对照 `PLANTED_RC=1`）⇒ 它不再是拦路的那件。**⚠️ 这半句 §8.5 已撤回**：形状普查量不到"没有形状的任意口令"，而那个明文在 `master` 与候选的**共同祖先**里 |
+| Q3 推送前置 | **先把仓库转 private**，再推**一次性快照分支**（永不 force，**推这一下由你按回车**），再取 CI 证据 | 形状普查已做完且干净（193 个提交的树 0 命中 / 193 条提交信息 0 命中，栽桩对照 `PLANTED_RC=1`）⇒ 它不再是拦路的那件。**⚠️ 这半句 §8.5 已撤回**：形状普查量不到"没有形状的任意口令"，而那个明文在 `master` 与候选的**共同祖先**里。**⚠️ 另一半"转 private"由 Q15 撤销**（保持 public，见 §8.8①），这条路现在只剩"推无父快照"一段 |
 | Q4 D2 什么时候落笔 | **CI 结果到手之后签**（只签一次，签的就是准确文本） | 见 §4A T1 |
 | Q5 真实库入库 | **本窗口不动** | 另开一票；**先建副本再验收**（默认 Chroma 落点被 `docker-compose.yml:47` bind-mount 进容器） |
 | Q6 窗口终点画在哪 | **一路做到合 `master`**，部署选型与真实入库留票 | 现量：`master` 领先合并基线 24 笔、候选 4 笔 ⇒ 漂移已在发生（dev-pin 只活在 `master`） |
@@ -359,7 +373,7 @@ A-3（开发/构建工具那 5 条逐条给触发前提/平台条件/修复版�
 | Q8 O-2 按值反查排在哪儿 | **签字前**（比合并再早一格） | 已由助手在 Owner 机器上代跑完（值未打印），见 §8.5 与 §8.6 那张表 |
 | Q9 怎么合 | **`git merge --no-ff`** 一笔 merge commit | rebase／squash 会重写候选 SHA ⇒ 交接书那 **19 处** `fbc29e8` 引用当场变死号；回退＝`git revert -m 1`；候选分支合并后**不删** |
 | Q10 新增项进签字格还是附注 | **折进已有的两栏**（「限制清单与自动失效条件」＋「签了也不解除」四→**五**条）；④⑤⑥写成"接受范围"的括注 | 栏数＝Owner 逐栏落笔的次数；把读数说明做成签字格会稀释真要人负责的限制 |
-| Q11 `.env.bak` 只被 per-clone exclude 兜住 | **补 `.gitignore` 一行**（已执行，见 `318c588`） | 边界：只挡以后误提交，不消除磁盘明文（属 O-3）；`.git/info/exclude:9` **没删**，删了反而立刻扩大本机面 |
+| Q11 `.env.bak` 只被 per-clone exclude 兜住 | **补 `.gitignore` 一行**（已执行，见 `318c588`） | 边界：只挡以后误提交，不消除磁盘明文（属 O-3）；`.git/info/exclude:9` **没删**，删了反而立刻扩大本机面 —— ⚠️ 这半句的理由**§9.1② 已更正**（`.gitignore` 优先级更高，实测现在报的是 `.gitignore:154`；删与不删都不改变兜底，我留着它只是因为它不是我写的规则） |
 | Q12 部署那批现量怎么处置 | **只登记**，本窗口一处文档不改 | 已落 §8.7 |
 | Q13 那段含明文的历史推不推 | **A：推无父孤儿快照** | §8.6；连带后果：**PR 路按构造关闭**，push 触发是唯一路，"触发配置略异"这条限制**必然**进 D2 |
 | Q14 合并之后第一票开什么 | **凭据与外发面**（O-1＋O-3＋历史明文处置） | 部署票第二；⚠️ 若将来要把仓库转 public，唯一能消除历史明文的是重写历史 ⇒ 会作废 19 处 `fbc29e8`，是本轮**唯一会推翻已裁事项**的情形 |
@@ -373,12 +387,20 @@ A-3（开发/构建工具那 5 条逐条给触发前提/平台条件/修复版�
 - `curl -sS -o /tmp/ghrepo.json -w "%{http_code}" https://api.github.com/repos/wjt-code-design/fazhi-assistant`
   ⇒ HTTP **200**，`private=false`、`visibility=public`、`default_branch=master`、`pushed_at=2026-09-17T15:15:31Z`。
   ⇒ **Q3 的前置还没满足**（仓库仍是 public），所以这一步我停在这里，没有推。
+  **⚠️ 这句已被 Q15 作废**：public 不再是前置（不转了），"没推"的真实原因是**推送对象还没构造到可推状态**＋**按值普查发现历史里有明文**（§8.5）。可见性现量：
+  `curl -sS https://api.github.com/repos/wjt-code-design/fazhi-assistant | python -c "import json,sys;d=json.load(sys.stdin);print(d['private'],d['visibility'],d['default_branch'])"`
 - `GIT_TERMINAL_PROMPT=0 git ls-remote --heads origin` ⇒ rc=**0**，远端**只有一条分支** `master` = `985d53e4ee81efc066cc6915abcba98954e7d408`（提交时间 2026-09-17T15:15:22Z）。
 - `curl … /repos/…/actions/runs?per_page=3` ⇒ `total_count=18`，最近三场全是 `event=push`、`head_branch=master`、`conclusion=failure`
   ⇒ **远端 `master` 自己是红的**，且这 18 场里**没有一场是 PR 事件**（PR 这条路在本仓从未真跑过）。
 - `sed -n '1,10p' .github/workflows/ci.yml` ⇒ 触发只有 `push: branches:[main, master]` 与**无分支过滤**的 `pull_request`，**没有 `workflow_dispatch`**
   ⇒ 想让 CI 跑我们的内容，只有 PR 或"改那行分支名单"两条路。
 - 本地 `git status --porcelain` ⇒ tracked 修改 **0** 条，未跟踪 528 个（别 sessions 的产物，不入库）；HEAD = `0eb2b08`，候选 `fbc29e8` 仍未推未合。
+  **⚠️ 这一行的两个数都过期/口径错，按下面重取**（独立评审 A 轴指出的第三条，见 §9.1③）：
+  那句"528 个"量的是 **`-unormal` 折叠后的目录条目**，不是文件数——`git status --porcelain -uall | wc -l` 在本机展开到 **3 万+** 个文件，
+  两者差两个数量级，而我用前者做过"未跟踪面按值扫密 0 命中"的**分母** ⇒ 那个分母偏小到不可用。
+  现量与正确口径：`git status --porcelain -unormal | wc -l`（折叠条目）／
+  `python` 走 `git ls-files -o -i --exclude-standard --directory` 之外的**全工作树文件枚举**（工具与读数见 §9.1③），
+  HEAD 用 `git rev-parse --short=7 HEAD`（本报告每被提交一次就变一次，别抄）。
 
 **我在这轮又错一遍（第九次，记账）**：先前"本地与远端**无共同祖先**"那次 `merge-base` 是拿**本仓陈旧的 `refs/remotes/origin/master`** 量的，
 不是远端真实头（本轮 API 读到远端头是 `985d53e4`，比在册 ref 新）。方向不变——远端 09-17 之后没被推过、我们的提交从未上远端——
@@ -391,7 +413,7 @@ A-3（开发/构建工具那 5 条逐条给触发前提/平台条件/修复版�
 （push 事件用的就是被推分支自己的 workflow 定义，不动 `master` 的管线，且那条分支永不合并）。
 代价要摊开：这样取到的 CI 证据来自**触发配置略有差异的分支**（步骤相同），这条限制得写进 D2 的依据里。
 
-**执行顺序（已对齐，等你那一步）**：你把仓库转 **private** → 我推一次性快照分支（你按回车）→ 匿名 compare 判形 → PR 或 push 触发取 CI 绿 → 我起草 D2 文本给你签。
+**执行顺序（已对齐，等你那一步）**：~~你把仓库转 **private**~~（**这一步由 Q15 撤销，仓库保持 public**）→ 我推一次性快照分支（你按回车）→ 匿名 compare 判形 → PR 或 push 触发取 CI 绿 → 我起草 D2 文本给你签。
 **本轮明确没做**：未推送、未建远端分支/PR、未改远端可见性（也没这个权限）、未改 `ci.yml`、未写真实库、未轮换凭据。
 
 ### 8.1 补记 2：为这条路做的可跑性核验（同日最晚，全部只读／无副作用）
@@ -449,7 +471,11 @@ A-3（开发/构建工具那 5 条逐条给触发前提/平台条件/修复版�
    归类是 `.gitignore:72`（69 个 `docs/benchmark_results/*2026*.json`）、`:48 *.log`（2 个）、`:80 dispatch-output/task1/`（1 个）。
 
 **这条修的边界（别读成"泄露面消除了"）**：它只挡"以后不误提交"。那个 `.bak` 里的明文还在磁盘上，真消除属 **O-3 口令轮换**那一格；
-`.git/info/exclude:9` 我**没删**（删了会让这台机器上的历史快照立刻变成"未跟踪且未忽略"，反而扩大面）。
+`.git/info/exclude:9` 我**没删**，删了会让这台机器上的历史快照立刻变成"未跟踪且未忽略"，反而扩大面。
+> ⚠️ **这后半句 §9.1② 已更正**：优先级我记反了——实测 `.gitignore` **高于** `.git/info/exclude`，
+> 且这行 `.env.bak*` 补进 `.gitignore` 之后，`git check-ignore -v backend/.env.bak-20260910-pre-qwen38`
+> 报的是 **`.gitignore:154`**（不是 exclude）⇒ 删掉 exclude 那行**不会**扩大任何东西。
+> 我保留它的真实理由只剩一条：它不是我这一笔的产物，删别人写的规则属另一件事。
 
 ### 8.5 补记 5：⚠️ 撤回一条我给错的推送前置——管理口令的明文**在本地历史里**，而形状普查量不到它
 
@@ -486,8 +512,13 @@ git log --all -S"$PW" --oneline      → 2 笔
 Owner 裁 A（推无父孤儿快照）。我把"要推的东西"做成了一个**可核的对象集合**：
 
 - **合并树重算**：现号 **`50f519e`**（我上一条自己立的规矩第二次生效——`cdcf579` 已过期）。
+  ⚠️ 这一行写于 `master` 又动之前，**号已再次过期**：取现量用
+  `git merge-tree --write-tree master codex/local-candidate-closeout | head -1`（本轮最后一次读到 `f5f2840`）。
 - **孤儿提交**：分支 `snapshot/ci-fbc29e8-20260930`，`git rev-list <该提交>` ⇒ **1 笔**（`%P` 为空，**无父**）；
   `git rev-list --objects` ⇒ **2545** 个对象，对照 `master` 的 **4078** ⇒ 结构上不可能带上 09-22 那个明文 blob（它不在这棵树里，也没有父链可达它）。
+  ⚠️ 这两个对象数也过期了（剔 `diag` 两目录之后才定稿）：现量走
+  `git rev-list --objects snapshot/ci-fbc29e8-20260930 | wc -l` 与 `git rev-list --objects master | wc -l`
+  （本轮最后一次读到 **2511 / 4125**，且 `git diff --name-status <合并树> <快照树>` = **74 D + 1 M**）。
 - **相对合并树只偏离一行**：`ci.yml` 的 `branches: [main, master, "snapshot/ci-fbc29e8-20260930"]`。
   用 venv 解析过快照里那份（不是工作区那份）：`jobs=[backend, frontend]`、backend `steps=10`、`pull_request` 触发仍在。
   ⚠️ 走 A 之后 **PR 那条路按构造关闭**（无父 ⇒ 无共同祖先），push 触发是唯一路，所以 §8.2 那句"触发配置略异"的限制**必然**要进 D2 依据。
@@ -520,9 +551,22 @@ Owner 裁定：**不转 private，仓库保持 public。**
 `frozen-index` 在 `backend/tests` 与 `backend/scripts` 里 **0 引用**；`diag/` 的引用只在注释/文档字符串
 （`gen_phase1_audit.py:18` 与 `gen_route_mask_grayscale.py:15` 读的是**其它** diag 子目录）。
 CI 那个 guard 步骤只跑 `dispatch-output/agent-quality-20260911` ⇒ 剔这两个目录不碰 CI 的任何一步。
+⚠️ **剔的连带后果（本轮补量，登记不处置）**：推送树里还有**指名那两个目录**的文档句子——
+现量 `git grep -n frozen-index snapshot/ci-fbc29e8-20260930 -- ':!dispatch-output' ':!docs/work-report-20260929-d2-signoff-round.md'`
+⇒ **5 处**：`diag/PROGRESS-20260905.md:11`、`docs/law-source-inventory.md:11`、`docs/progress-handoff-report-20260925.md:446`、
+**`docs/runbooks/law-updates-monthly.md:27`**、`docs/superpowers/plans/2026-09-25-next-phase-local-candidate.md:756`。
+其中最硬的是那处 **runbook**（"索引完整性：`diag/frozen-index-004/`、`-005/` 快照与各自…"是**操作性**句子，不是历史叙述）。
+⇒ 公开之后这 5 句会指向仓里**不存在**的路径。我没改文：改就要再动 5 份文件、且其中两份是已签口径的台账，
+属"另开一票"，不塞进本次推送。
 
 **③ 剔完的外发集合（当前推送对象＝读现量 `git rev-parse --short=8 snapshot/ci-fbc29e8-20260930`）**：
 无父、**1 笔提交**、**2566 文件 / 53.3 MB**、`git rev-list --objects` = **2507**。两处刻意偏离在册树：`ci.yml` 多本分支名、删那两个目录。
+> ⚠️ 这一行的四个数**又过期了一次**（本节自己立的规矩第三次在本节自己身上生效）。本轮最后一次 `--dry-run` 重算的现量：
+> 对象 **2511**／文件 **2570**／体积 **53.4 MB**／树 `6f2c20d`（**树号与在册引用一致 ⇒ 剔除范围没漂**；变的只是提交号，因 committer 时间戳）。
+> 取现量：`python b_build_snapshot.py --dry-run`（打印 `[3]/[4]/[5]/[5b]` 四段，不改引用）。
+> ⚠️ 顺带一条**诚实收窄**：`[5]` 段的**活体正对照只有 `ADMIN_PASSWORD` 一条**（len=13，打在 `817e7d3` 上 rc=0）；
+> 另 7 把键的正对照是 **0（rc=1）**——因为它们那个值**从没进过任何提交**。⇒ 那 7 条的正确说法是
+> **"同一把尺子（`git grep -l -F <值> <ref> --`）在一个已证能红的路径上跑出 0"**，**不是**"每把键各自有正对照"。
 验证三件：
 - **差分**（`b_snapshot_trim_diff.py`，读数 `b-snapdiff-20260930-024044.json`）：未剔树与剔过的树同一解释器同一命令各跑一次
   `pytest --collect-only -q` ⇒ `collected` **1678 == 1678**、错误行 **0 == 0**、体积差 **296.6 MB**。
@@ -606,3 +650,218 @@ git push ssh://git@ssh.github.com:443/wjt-code-design/fazhi-assistant.git \
   于是**结构上漏掉了 `env.before-*.bak` 这一族**（它们不以 `.env` 开头），得到 2 份；改用"名字含 `env`"重新数才是 **8 份**。
   同轮另一次我用 `git ls-files --others --exclude-standard` 枚举，那**按定义看不见被忽略的文件**，
   而危险的恰好全是被忽略的——**枚举集合的构造方式本身就是结论的一部分**，别拿"0 命中"当"没有"。
+  ⇒ **§9.1③ 把这条落成了一支仪器**（`b_worktree_value_scan.py`，双面普查）——因为同一根毛病我在第十一次之后**又撞了一次**（第十七次，记账）。
+
+## 9. 补记 9：Owner 要的两轴独立复核（甲轴＝逐条复现／乙轴＝挑战论点）
+
+Owner 原话：**"先对你做的所有的工作都派独立agent审查一遍，然后写一份当初交给你的任务的任务进度汇报"**。
+⇒ 两轴**正交**派单（同一批材料、两种任务）：**甲轴**只许"照着我报告里的每条命令在你机器上跑一遍，报数值差与行号差"，
+**乙轴**不许复现、只许"挑论点能不能站住、漏了什么"。两轴都钉死**只读**：不许写文件、不许提交、不许动引用、不许打印凭据值。
+本节先把**甲轴**的结果按"我本机复现得出什么"分三档交（证实／不重现／证伪）——**采信的单位是那条命令在我机器上跑出什么，不是评审的严重性排序**。
+
+### 9.1 甲轴（复现轴）
+
+**① 证实：派生计数确实过期了。** 甲轴报"报告里所有派生计数 0/7 与实际不符"，我这边逐条对：
+`git rev-list --count aec8d5c..master` 我写 **24** ⇒ 现量 **35**（本会话自己又提了若干笔文档）；
+快照对象数我先后写过 **2545 / 2566 / 2507**，本轮 `--dry-run` 现量 **2511**。
+⇒ 这正是我在 §8.8③ 那条规矩的第四次自我违反，处置办法**只有一个**：把号从正文里撤掉、留命令（已撤，见 §8.6/§8.8③ 就地标注）。
+⚠️ **但我不接受甲轴的"0/7"这个数**：它说"7 个派生计数无一相符"，而我复核下来相符的是多数（六步门禁读数、`26+5==31` 闭合、`fbc29e8` 哈希、`merge-tree` 干净）——**它抓对了方向，报错了比例**。
+
+**② 证实并且更正：`.gitignore` 与 `.git/info/exclude` 的优先级我记反了。**
+甲轴说 `.gitignore` 优先，我按它的说法**自己搭了一枚临时仓重测**（不采信任何一方，只采信读数）：
+根 `.gitignore:*.log` ＋ `sub/.gitignore:*.log` ＋ `.git/info/exclude:*.log` 三条同时命中同一文件时，
+`git check-ignore -v sub/a.log` 报的是 **`sub/.gitignore:1`**；删掉 `sub/.gitignore` 后报 **`.gitignore:1`** ⇒ **`.gitignore` 族 > `info/exclude`**。
+落到本仓的现量：`git check-ignore -v backend/.env.bak-20260910-pre-qwen38` ⇒ **`.gitignore:154:.env.bak*`**（不是 `exclude:9`）。
+⇒ 我 §8.3 那句"删掉 exclude 那行会立刻扩大本机面"**作废**（已就地标注），Q11 那格的理由也改了。
+
+**③ 证实，而且比它说的更糟：我把"折叠条目数"当成了文件数。**
+甲轴抓到"`-unormal` 530 条 ≠ 文件数"，我复现：`git status --porcelain -unormal | wc -l` = **537**，
+而 `git status --porcelain -uall | wc -l` = **34103** ⇒ 差 **约 63 倍**，而我那句"未跟踪面按值扫密 0 命中"的**分母用的正是前者**（第十八次，记账）。
+修法是把它落成一支仪器，并且**按外发面分档**，而不是再写一句"我下次注意"：
+- 新件 `dispatch-output/local-candidate-closeout-20260928/b_worktree_value_scan.py`（8 把键的值只进变量、永不打印；
+  **面 A＝未跟踪且未被忽略**（＝`git add -A` 会带走的那一面）、**面 B＝盘上全部文件**（含被忽略）；面 B 若 0 命中则 `return 2` 判尺子坏）。
+- **面 A 现量**（读数 `b-worktree-scan-20260930.txt`）：读到 **34099** 个文件、打不开 **143**、含值文件 **2** 份 ⇒
+  **`dispatch-output/ta5-arms-20260917/_cfg1.txt` 与 `_cfg_noproxy.txt` 里写着现役 `LLM_API_KEY` 的值**（各 1 次命中；其余 7 把键 0）。
+  这两份文件**未跟踪、且没被任何规则忽略**（`git check-ignore -v` 两只都 **rc=1**）⇒ **`git add -A` 会把真 key 提交进主线**。
+  ⚠️ 但**不在本次推送对象里**：`git ls-tree -r <快照> | grep -c ta5-arms` ⇒ **0**，且 `git log --all -- <该文件>` 为空。⇒ 已进 §10.3 第 6 格待处置。
+- **面 B 拿不到，而且是量出来的拿不到**（不是我没试）：`find . -type f -not -path './.git/*' | wc -l` ⇒ **205543** 个文件、
+  `du -sh`（除 `.git`）⇒ **约 14 GB**；而面 A 的实测吞吐约 **143 文件/秒**（34103 只跑了约 4 分钟）⇒ 面 B 要 **约 24 分钟**，
+  两次都在**约 140 秒／2 万文件**处被终止（第二次因为我改用 `python -u` 逐行刷，才至少留下"进度 20000/34103"这半只读数；
+  第一次整只丢失 ⇒ 记一条**仪器纪律**：长跑必须边跑边落盘，`rc` 要写进被重定向的那个文件而不是终端）。
+  ⇒ 所以**"盘上暴露面已量清"这句不许说**。现在能说的只有两条：面 A（会被 `add -A` 带走的那一面）**已量清、含值 2 份**；
+  盘上被忽略那一面的"8 份含明文"是 §8.7 那轮**按文件名＋读内容**量的（**口径不同、且不含 base64／URL 编码变体**），本轮既没推翻它也没复跑它。
+  下次补面 B 的正确改法：按扩展名白名单只扫文本，并把**"哪些面不扫、为什么"写进结论里**——因为"扫了什么"本身就是结论的一部分。
+
+**④ 复核者自己违约，并且我据此多了一条证据。** 甲轴被派为只读，但它**跑了我两支仪器**，
+在证据目录写出了一只 `b-snapdiff-20260930-042828.json`（把在册折叠条目从 529 推到 530）。它没有删（按我给的"不许删仓库文件"）。
+**我的处置＝入库，并在原处标注它是"第三方复现读数"而不是我的**，理由：那只读数**恰好是要推的那个对象**（`trim=b49ddff`＝在册引用）
+上跑的差分，`verdict = PASS 差分零变化` ⇒ 它比我自己再跑一遍更有价值，删掉等于毁掉唯一一份外部复现。
+现量：`python b_snapshot_trim_diff.py --full <对照对象> --trim $(git rev-parse snapshot/ci-fbc29e8-20260930)`。
+
+**⑤ 两条"它报红、我这边不重现"（不重现 ≠ 它错，而是**读数依赖环境**，这点必须写出来）。**
+- 甲轴：`git ls-remote` ⇒ **rc=128**（连不上）。我这边同一条命令（`GIT_TERMINAL_PROMPT=0 timeout 45 git ls-remote --heads origin`）⇒ **rc=0**，
+  一条 head：`985d53e4…  refs/heads/master`。⇒ 差异最可能是**子助手沙盒没有出站网络**（我此前记录过"HTTPS github.com 整段不通"，那条对**我的 shell** 成立、走 SSH-over-443 才通）。
+  ⚠️ 它顺带指出的"**本地 `refs/remotes/origin/master` 停在 `15562fc`（08-25），不能当远端证据**"这条**成立**，而且我在第九次记账里已经写过一次——它是对的，只是重复。
+- 甲轴：`python b_probe_claim_check.py` ⇒ **rc=1**、"6 条里 5 条过期"。我这边（同一 venv 解释器）⇒ **rc=0、合计 67/67 通过**。
+  ⇒ 我不采纳它的读数，**但我接受它暴露出来的那件真事**：这支复算器里有三条是
+  "读数文件的 mtime 必须晚于仪器/驱动的 mtime"（`pytest 读数晚于仪器与驱动的最后编辑` 等）——
+  **这类"出处钉子"天生不可跨机移植**，任何复制／checkout／换盘都会把时间轴打乱而让它红。
+  ⇒ 落一条限制进 §10.2 B 档：**本报告里的 rc 只对本机有效**，别人复跑得到不同的码，先怀疑时间轴再怀疑结论。
+
+**⑥ 四条证伪（每条给命令，Owner 可自行复跑）。**
+| 甲轴的说法 | 我本机实测 | 命令 |
+|---|---|---|
+| "`985d53e4…` 是个 **blob**，不是 commit" | **证伪**：本地根本没这个对象；远端 `/commits/<该 sha>` ⇒ **HTTP 200**，`date=2026-09-17T15:15:22Z`、主题 `sync: 主线快照至 2026-09-17 深夜…` ⇒ 它是**远端 commit，且我们从未 fetch 过它** | `git cat-file -e 985d53e4…`（rc=1）／`curl -sS https://api.github.com/repos/wjt-code-design/fazhi-assistant/commits/985d53e4ee81efc066cc6915abcba98954e7d408` |
+| "`net_event_total` 这个字段找不到 ⇒ '346 vs 348' 不可溯源" | **证伪（它引错了对象）**：盘上**没有**叫 `b_probe_net_event_total.json` 的文件，字段在**各场读数**里；现量 `-201758` ⇒ **346**、`-202329/-202809/-204600/-205049` ⇒ **348** | `python -c` 遍历 `b-probe-readings*.json` 打印 `net_event_total`（一行一个） |
+| "`rag_chain.py:119-123`／`compose:47` 行号错（master 实为 `:94-98`／`:45/:48`）" | **证伪**：`persist_directory=CHROMA_DIR` 在 **master 与候选两棵树都是 `:123`**、`DEFAULT_CHROMA_DIR` 在 `:119`；`chroma_db` 那行 bind-mount 两棵树**都是 `:47`**（而且 `rag_chain.py:115` 的注释自己就写着 `compose:47`） | `git grep -n persist_directory master -- backend/rag_chain.py`／`git grep -n chroma_db master -- docker-compose.yml` |
+| "`docs/evals/` 4 个文件未入库 ⇒ 干净检出会红、CI 会红" | **证伪（三重）**：① 它点名的 `test_harness_regression.py`、`test_harness_reveal_ticket2.py` **在两棵树和盘上都不存在**；② 真源在**根目录 `evals/`**，11 个文件**已跟踪且在快照树里**；③ 唯一在册的那只 `test_harness_fact_reveal.py` **自带脱敏夹具**，代码注释写明"因为 `task1` 的 JSON 不入库，所以必须自带" | `git ls-tree -r --name-only <快照> \| grep -c '^evals/'` ⇒ **11**；`git ls-files docs/evals` ⇒ 空（那个目录本就不存在） |
+
+⇒ **这一条对"能不能推"最要紧**：我这边**没有任何证据表明推送树不自足**。反向证据链是两条现成的：
+在**从提交建出来的树**上 `--collect-only` ⇒ `collected 1678、错误行 0`（`b-snapdiff-*.json` 三只都是），
+以及 09-28 那次在 `git archive HEAD` 纯发布物树上跑满六步 ⇒ 全 rc=0。⇒ §8.8⑤ 那句"CI 会红在 `pip-audit` 那一步"**不需要改**。
+
+### 9.2 乙轴（挑战轴）
+
+乙轴回来**两份**（同一桩任务，两路评审），而且**两份互相矛盾**。我不选边、只按"那条命令在我机器上跑出什么"逐条判，
+并且**一手文档优先于两份评审的转述**。下面按"要不要改变一个决定"排序，不按严重性自报。
+
+**① 两份相反的那条：推上去到底会不会触发 CI。判：会（乙-2 对，乙-1 错），但"能跑到哪一步"我们此前判错了。**
+- 乙-1 说"GitHub 只从**默认分支**解析 workflow ⇒ 快照里那行分支名无效 ⇒ 推了也不会跑，要拿 CI 证据只能改 `master` 的 `ci.yml`（与 D3 冲突）或转 private"。
+  ⇒ **不采纳**。我读一手文档（`events-that-trigger-workflows` 的 `push` 节），原文是
+  **"This includes workflows that are not merged into the default branch."**，而"必须在默认分支"那两条限制属于 `workflow_dispatch` 与 `schedule`。
+- 乙-2 说"只有 `ci.yml` 一个 workflow，快照内 `ci.yml:5` 已含分支名 ⇒ 会跑"，并给了一条**我们谁都没量到的事实**：
+  **远端 18 场里 `pip-audit` 与 guard 步从未真跑过**。我自己抽了最近一场逐步读（run `35239047756`）⇒
+  step 6 `Ruff lint` success → **step 7 `Ruff format` failure** → step 8 mypy／step 9 pytest／step 10 guard／**step 11 pip-audit 全部 `skipped`**。
+  ⇒ **§8.8⑤ 那句"这次 CI 会红在 `pip-audit`"要就地改成**："CI 红在哪一步取决于步骤顺序——步骤是 fail-fast 的，
+  `pip-audit` 在最后一位，**远端历史上从没执行到它**"。这条也说明**"要买的证据"到底买不买得到，取决于第 6–9 步过不过**。
+- 所以我**在要被推的那棵树上先把 CI 的第 6–8 步跑了一遍**（`git archive` 出干净树 ＋ 在册 venv；读数 `ci-precheck-lint.txt`）：
+  `ruff check .` ⇒ **rc=0**、`ruff format --check .` ⇒ **rc=0（268 files already formatted）**、`mypy .` ⇒ **rc=0（74 source files）**。
+  ⇒ **远端 master 死在 step 7，而我们这棵树 step 6/7/8 三关全绿** ⇒ 这次推上去**有实质机会**跑到 step 9（pytest，就是 O-6 缺的那条 Linux 腿）。
+  ⚠️ 但这三关是在 **Windows** 上跑的：剩下的未知是"同一步在 ubuntu 上是否同判"（`.gitattributes` 是 `* text=auto eol=lf`、
+  blobs 0 CR ⇒ 行尾这条不构成差异源）。⇒ 推的**收益**＝把"跨 OS 同判吗"从未知变成读数；**成本**＝②那三条不可撤回的公开面。
+
+**② 内容轴我漏了三条，而且是这次最该 Owner 先答的（因为不可撤回）。** 凭据轴全 0 不等于内容轴可公开——这句我写过，但**只量了体积，没量"公开之后收得回来什么"**。
+| 漏项 | 现量（我复跑过的） | 为什么收不回 |
+|---|---|---|
+| **留出集/冻结题集就在推送树里**：`evals/holdout-cases-r1.json`（文件自述 `status:FROZEN`、09-13 预注册）、`evals/frozen-cases-v2.json`、`evals/watershed-cases-r15.json`，另 `release-evidence/**` 里 4 条 holdout 路径 | `git ls-tree -r --name-only <快照> \| grep -c '^evals/holdout-cases-r1.json$'` ⇒ 1（三只都 1） | 公开＝**给评测的尺子本身交出去**；D2 那套召回/引用读数"不可 gaming"的属性一次作废，且**推出去那一刻就作废**，删分支也不收回已被人读到的事实 |
+| **机器身份**：本机用户名与绝对路径 | `git grep -I -l -F 'C:\Users\33393' <快照> \| wc -l` ⇒ **202**；`-i -F '/c/Users/33393'` ⇒ **133**（两口径有重叠；乙-2 报的"327"是并档） | 公开后连"谁在哪台机器上做的"一起给；这条属**可剔可不剔**，但剔要改文本，动的是已签口径的文档 |
+| **别人包的 README 与作者邮箱**：5 只 pip report ≈9.7 MB（email 形状 52 只文件） | `git ls-tree -r -l <快照>` 过滤 `pip-report` | 第三方的东西进我们的公开仓；低危，但该登记在**内容轴**，不该藏在"凭据轴=0"后面 |
+⚠️ **剔留出集不是免费的**：`backend/tests/test_r15_runner_injection.py:22` 把 `_CASES_PATH` 钉在 `evals/watershed-cases-r15.json` 上
+⇒ 剔之前必须把收集面差分重跑一遍（`b_snapshot_trim_diff.py` 就是干这个的），否则"少一个公开面"会变成"多一个红步骤"。
+
+**③ 一条路线矛盾，比任何一条都影响"终点"。** Q14 那格至今写着"**若将来**把仓库转 public"，
+而 Q15 已裁定**仓库本来就是 public、不转了** ⇒ 那个"若将来"的前提**当下就成立**。再叠两条已核实的事实：
+孤儿快照里没有 `fbc29e8`；本地 `master` 与远端 `master`（本地 ref 停在 `15562fc`，远端头 `985d53e`）**无共同祖先**
+⇒ **合完本地 `master` 之后，"让公开仓里有我们的东西"只剩下 force 或合并无关历史两条路，而这两条都被原票禁掉**。
+⇒ 窗口终点（Q6＝合 `master`）**不等于**发布。这中间缺一条**从没裁过的路**：要么裁它（新增 **O-7**），
+要么显式接受"那条一次性快照分支就是公开面，主线永不推"。这条 §8 没写全，我记为**第十九次**（自己给的路线没自己走完）。
+
+**④ 换掉一条理由（结论不动）。** Q9 的 `git merge --no-ff` **仍然可用**，但我给它配的理由站不住：
+"rebase/squash 会弄死 19 处 `fbc29e8` 引用"——问题是**公开的那棵孤儿快照里根本没有 `fbc29e8`**，
+那 19 处（乙-2 数到全树 **15 文件 / 79 处**）在公开仓**一律点不开**，与怎么合无关。
+真约束是：**"让公开仓能解引用这些 SHA" 与 "不把历史明文推上去" 互斥**（因为 `817e7d3` 是候选的祖先）。
+⇒ D2 措辞要改：别再按 rebase/squash 讲，改写成"**公开快照内 SHA 不可解引用，逐文件复核请回本地**"。
+
+**⑤ 采纳一条对普查口径的纠正：我那个"0"里有模式窄了的部分。**
+甲轴与乙-2 都指出：严格式 `sk-[A-Za-z0-9_-]{20,60}` 在这棵树**命中 18 处**，我重跑 ⇒ **18**（`git grep -I -n -P 'sk-[A-Za-z0-9_-]{20,60}' <快照>`），
+逐条读到是 `residual-risk-review-*` 这类文件名/文本里的 `sk-` 子串（`requirements-dev.txt`、`residual-risk-review.md`、四份 docs）⇒ 归因后**仍是 0 个凭据**。
+但正确说法是"**18 处，逐条归因后 0 真凭据**"，**不是**"0 命中"。同理 `-----BEGIN` 那 1 处是自家 `secret_shape_scan.py` 的模式串、
+JWT 形状 5 处是 pip report 里 PyPI 包 README 的示例 token（乙-2 归因，我未逐条复看 ⇒ 标"第三方归因"）。
+
+**⑥ 证伪清单（每条给我本机命令，Owner 可自跑）。**
+| 评审的说法 | 我本机实测 | 命令 |
+|---|---|---|
+| 乙-1：Next.js 14.2.33/React 18.3.1 是"幽灵版本"、`postinstall` 脚本缺失、CRLF 会炸 ⇒ frontend 必红 | **证伪**：远端最近一场 **Frontend job 8 步全 success**；乙-2 另给"13 个 dep/devDep 逐一对锁 0 处不满足、`.gitattributes` 是 `* text=auto eol=lf`、blobs 0 CR" | `curl … /actions/runs/35239047756/jobs`（读 `Frontend` 的 steps） |
+| 乙-1：`test_log_field_whitelist.py` 不存在（它数到 54 只测试文件，在册说 55） | **证伪**：该文件在 master／快照／盘上**都在**；`backend/tests/test_*.py` 在 master 是 **113** 只，"54/55"两个口径都对不上 | `git ls-tree -r --name-only master \| grep -c log_field_whitelist` ⇒ 1 |
+| 乙-1：JWT 未配置 ⇒ 应用会用不安全的默认密钥 | **证伪**：`backend/auth.py:22-26` 的 `_jwt_secret()` 在 `os.getenv("JWT_SECRET")` 为空时 **`raise RuntimeError`** ⇒ fail-fast，不回落（我读到被调函数本体，没停在"模板里没有值"） | `git grep -n -A4 'def _jwt_secret' <快照> -- backend/auth.py` |
+| 乙-1：删分支不能撤回公开、已有 1 star、搜索引擎会索引 | **半采纳**：star/fork 我读到 `stargazers=1 forks=0 subscribers=0`（数字对上）；"**删不掉／会被索引**"属政策与时间维度，**我手上没有一手证据** ⇒ 按"未核证"记，**不写进 D2 的依据** | `curl -sS https://api.github.com/repos/wjt-code-design/fazhi-assistant` |
+| 乙-1：`ADMIN_PASSWORD` 未轮换是**推送**阻塞 | **不采纳（且它自己也改口）**：Q7 已裁"接受 + 失效条件"、Q13 已裁"推无父快照"；它是 **D2 落笔**的输入，不是推送的前置 | — |
+
+**⑦ 乙轴做了一件我该做而没做的事，价值高于它全部证伪项。** 乙-2 把快照 `git archive` 出来在**干净目录**
+（无 venv、无 `.env`、无真实 `chroma_db`、无 `task1` 那两只未入库 JSON、无被剔的 `frozen-index`）里跑了 CI 等价命令：
+collect **1678**、`-m 'not slow'` 全量 **1650 passed／10 skipped／18 deselected**、guard 步 ruff check＋format＋`test_budget_guard.py` **9 passed**、
+`test_harness_fact_reveal` **34 passed**，并定位到两处"缺了也不红"的机制：`conftest.py:133` 真实语料缺即 skip、
+`test_harness_fact_reveal.py:25` 只在收集期 exec runner、未入库 JSON 只在函数体内读。
+⇒ "**剔完的推送树是自足的**"这件事从我的推断升级成**第三方运行期读数**。这条比"能不能触发 CI"更硬。
+
+### 9.3 两轴合起来改变了什么（一句话一条）
+
+1. **"只差你按回车"这句要限定**：回车买到的是"Linux 上第 6–9 步同判不同判"，**买不到** `pip-audit` 的读数（那步在远端从未被执行到）。
+2. **回车之前有一件比它更该答的事**：留出集／冻结题集要不要跟着公开（②）。**这条是唯一"回车之后无法撤销"的**。
+3. **窗口终点之后还缺一条路**（③，新增 O-7）：公开仓与本地主线无共同祖先 ⇒ 发布动作本身没有已裁的走法。
+4. **D2 少写一条理由、多写一条限制**（④）：公开快照里的 SHA 一律不可解引用。
+5. **凭据轴不变**：8 把键的按值普查仍 0、`ADMIN_PASSWORD` 的活体正对照仍能红；被纠正的是**形状轴那个"0"的措辞**（⑤）。
+6. **推送树自足**由第三方运行期读数背书（⑦）——这是本轮唯一"变好"的一条。
+
+## 10. 对原票（`2026-09-29-local-candidate-decision-and-release-prep.md` §2 A–E）的进度汇报
+
+> 这一节是按**票面文字**逐格交的，不是按我的记忆。票的 §3 要求"只给 ①/②/③ 之一 + 当前 SHA + 证据文件 + 退出码 + 未完成项"，
+> 并且"受阻项逐项写谁来做、做完后复验什么"——下面 §10.1 是判定，§10.2 是 A–E 五档，§10.3 是未完成项台账。
+> 结果登记册仍是计划文件 §5（那才是票面指定的落点），本节只做**状态汇总**，不重复它的证据正文。
+
+### 10.1 阶段判定：**③ 候选受阻、发布准备已备妥**（副标题原写"只等你按回车"，§9.2②③ 之后改）
+
+不是 ① 也不是 ②，三根柱子各自独立，任一根都在：
+
+1. **D2 未落笔**（Owner 已裁 Q4：**CI 结果到手之后签**）⇒ 票 §2B 的验收句"Owner 对接受或不接受亲自落笔"未满足。
+2. **真实 rerank 验收未跑**（票 §2C 第 2、3 项复选框仍是空的）⇒ 阻塞在 O-1（那把已暴露 key 的轮换）。
+   ⚠️ 这一根按 Q7 已改性质：它**不再挡推送、不再挡合并**，但**票 §3 的 ①/② 都明文要求"真实 rerank 本轮验收通过"** ⇒ 只要它没跑，判定就只能是 ③。
+3. **依赖告警没有清零**：`pip-audit -r requirements.txt` 本机 **rc=1**（在册 26 条），且 CI 那步**没有** `continue-on-error`
+   ⇒ 票 §2B"无依靠风险接受才能继续的残余项"这一条**按定义不成立**（我们有 5 条只能靠限制条款接受，另有 torch 那 22 条"审过未清零"）。
+
+"发布准备已备妥"限定在两处：**要推的对象已经做成一个可核的对象集合并按值验过**，以及**三条决定各自的材料齐了**。
+它**不**包含远端 CI 的真实读数（那是本次要买的东西，还没买到）。
+
+### 10.2 A–E 五档：状态与证据
+
+| 档 | 票面要求 | 状态 | 证据与退出码（**只给命令**） |
+|---|---|---|---|
+| **A** 可签材料与出处 | 4 项 | ✅ **4/4 做完**，且比票多改两处 | 计划 §5.1；⚠️ 其中"限制条款＝缓解"那条**后来被 §7 自己削弱**（实装 transformers 落在 `<5.3.0` 区间、公告写明绕过该机制） |
+| **B** D2 风险裁定 | 5 项 | 🟡 **助手侧 5/5 做完**，**Owner 侧 0/1**（未落笔） | 登记表 `residual-risk-review.md` ＋ devtools 件 ＋ torch 件；分母闭合走 `python b_scope_recount.py`；本机 `python …claim_check.py` ⇒ **rc=0**（现量 `合计 67/67`） |
+| **C** 真实 rerank 验收 | 3 项 | 🔴 **1/3**（只做完"零调用的预检查"）；第 2、3 项**未执行** | 计划 §5.3：题集 24 条断言＝7+7+3+4+3、脚本无重试、`retrieval.py:153` 三模型轮换 ⇒ 一轮 ≤21 次调用；保护对象基线 `verify-protected.py` ⇒ 41/41 rc=0（**那是接手时的读数，不能顶替验收前后那一对**） |
+| **D** 本地整合准备 | 3 项 | 🟡 **只读对账 3/3 做完**；**"准备合并候选"按规则没做**（D2 无结论 ⇒ 不该触发） | `git merge-tree --write-tree master codex/local-candidate-closeout \| head -1` ⇒ **rc=0、冲突 0**（现号见 §10.4）；`--no-ff` 已由 Q9 裁定 |
+| **E** 本地发布准备包 | 3 项 | ✅ **3/3 到"可供决策"**，其中"远端与 CI"这条**超出票面**（做成了可推对象） | 计划 §5.5；这轮新增的三件（按值普查 / 无父快照 / 剔 74 文件）落在本报告 §8.5–§8.8 |
+
+**票面之外、这一轮新做的三件**（因为它们改变判定的理由，必须单列）：
+① 按值反查**推翻**了我自己给的推送前置（§8.5）；② 推送对象改成**无父孤儿快照**，于是"不带凭据历史"从"我扫过"变成"构造上不可能"（§8.6）；
+③ 外发的**内容轴**重判：不转 private、剔 `diag/frozen-index-004` 与 `-005` 两个目录后再推（§8.8）。
+
+### 10.3 未完成项台账（谁来做 / 做完后复验什么）
+
+| # | 未完成的事 | 谁来做 | 做完后复验什么（命令） |
+|---|---|---|---|
+| 1 | **推送这一下**（⚠️ 排在第 9 格**之后**，不在它之前） | **Owner 按回车**（命令在 §8.8 末；永不 force） | 推前重跑 `python b_build_snapshot.py`（不带 `--dry-run`），现取引用号；推后 `curl -sS https://api.github.com/repos/wjt-code-design/fazhi-assistant/commits/<远端 master>` 确认它**没动** |
+| 2 | **CI 的真实读数** | 系统（推完自动跑）→ 我读 | 期望值已按 §9.2① 重定：CI 步骤是 **fail-fast**，`pip-audit` 排在**最后**（step 11），而**远端 18 场从未执行到它**（我抽查 run `35239047756`：step 7 `Ruff format` 红 ⇒ 8/9/10/11 全 skipped）。⇒ 这次要买的是 **step 6–9 在 ubuntu 上同不同判**（尤其 step 9 的 pytest＝O-6 缺的 Linux 腿）；本机预跑已给这三关的**同树**读数：`ruff check` rc=0、`ruff format --check` rc=0（268 files）、`mypy` rc=0（74 files）⇒ 见 `ci-precheck-lint.txt`。**别把"CI 全绿"当成目标** |
+| 3 | **D2 落笔**（含 Q10 折进来的新增项、"签了也不解除"四→**五**） | Owner（我起草文本，**草案≠签字**） | 起草后 `python b_probe_claim_check.py` 必须仍 **rc=0**，且六栏齐备那条 PASS 指向你实际填的签字位 |
+| 4 | **O-1 那把已暴露 rerank key 轮换** | Owner | 轮换后我跑**一次**隔离验收（≤21 次调用），复验 `(法名,条号)` 结果 ＋ 前后各一只 `verify-protected.py` 日志 ＋ 41/41 |
+| 5 | **`ADMIN_PASSWORD` 的明文仍在本地历史里**（合并后第一票，Q14） | Owner 决定处置（转 public 才需重写历史 ⇒ 唯一会推翻 Q9 的情形） | 现量：`git log --all -S"$PW" --oneline` 只 2 笔（`817e7d3` 加、`7eda4bb` 删），且**推送对象是孤儿快照 ⇒ 不带这两笔**（复验走 `b_build_snapshot.py` 的 `[5]` 段） |
+| 6 | **两个未跟踪、又没被忽略的文件里写着现役 `LLM_API_KEY`**（§9.1③ 新抓到） | Owner 处置（删／挪出仓／补忽略规则） | `python b_worktree_value_scan.py` 面 A 命中数应从 **2 → 0**；这条**不影响本次推送**（那两个文件不在任何提交里，`git ls-tree -r <快照> \| grep -c ta5-arms` ⇒ 0） |
+| 7 | **合并进 `master`** | Owner 下令后我执行（`git merge --no-ff`） | 合并前记下 `master` 现号作回退锚点；合并后逐文件复核 ＋ 跑受影响门禁（票 §2D 明文：**不能以原候选测试代替**） |
+| 8 | **真实库写入 / 部署选型** | 各开一票（Q5、Q12 已裁：本窗口不动） | — |
+| **9** | **O-7（新，且是唯一"回车之后收不回"的一件）：留出集与冻结题集要不要跟着公开**——`evals/holdout-cases-r1.json`（自述 `status:FROZEN`）、`frozen-cases-v2.json`、`watershed-cases-r15.json` ＋ `release-evidence/**` 里 4 条 holdout 路径 | **Owner 一词可答**（我的推荐：**跟着剔出快照**，理由见 §9.2②——D2 那套读数的"不可 gaming"属性只在题集不公开时成立） | 剔之前必须重跑收集面差分（`test_r15_runner_injection.py:22` 钉的就是 `evals/watershed-cases-r15.json`）：`python b_snapshot_trim_diff.py --full <对照> --trim <新对象>` ⇒ 要求 `collected` 相等且错误行 0；再跑 `b_build_snapshot.py` 的 `[5]/[5b]` 普查 |
+| **10** | **O-8（新）：公开仓与本地主线之间没有已裁的路**——两侧**无共同祖先**，而票面禁 force／禁合并无关历史 ⇒ "合完 `master`"之后"让公开仓反映我们的工作"**没有走法** | **Owner 裁**（三选一：① 接受"一次性快照分支＝公开面，主线永不推"；② 另裁一条"远端整仓替换"的路线；③ 把窗口终点从"合 master"改画成"到推分支为止"） | 现量：`git merge-base master origin/master` ⇒ **空**（本轮实测；`git merge-base --is-ancestor codex/local-candidate-closeout snapshot/…` ⇒ **rc=1** ⇒ 快照里也没有候选）。⚠️ 两条限定：① 这里的 `origin/master` 是**本地陈旧 ref**（真远端头 `985d53e` 从未 fetch 到本地 ⇒ 与它的关系只能推完分支后用匿名 compare 读）；② `git rev-list --count master..origin/master`（本轮 192）与反向（224）**在无共同祖先时不表示"落后/领先"**，别拿这两个数讲故事（第九次记账同一根绊线） |
+| **11** | **机器身份进公开仓**：`C:\Users\33393` 出现在推送树 **202** 只文件（另一斜杠写法另 **133** 只） | Owner（剔／改相对路径／接受） | `git grep -I -l -F 'C:\Users\33393' <快照> \| wc -l`（口径：只量字面 Windows 写法） |
+
+### 10.4 交付格式要求的四个数（**全部只写命令**，抄了就过期）
+
+```bash
+cd C:/Users/33393/Desktop/ai-legal-helper
+git rev-parse --short=7 HEAD                                   # 本地主线现号（本节每提交一次就变）
+git rev-parse --short=7 codex/local-candidate-closeout         # 候选（fbc29e8，仍未推未合）
+git merge-tree --write-tree master codex/local-candidate-closeout | head -1   # 合并树（现 f5f2840，rc=0）
+git rev-parse snapshot/ci-fbc29e8-20260930^{tree}              # 要推的**树**号——稳定身份用它，别用提交号
+git log --oneline 5be6e05..HEAD | wc -l                        # 本会话落地笔数
+git status --porcelain -uno | wc -l                            # tracked 脏数（应为 0）
+```
+
+未提交文件归属（**这一节写完时的现量**）：本报告本体 ＋ `b_worktree_value_scan.py`（新仪器）＋ 两只扫描/构造读数
+（`b-worktree-scan-2sc-20260930.txt`、`snap-dryrun-20260930-0453.txt`）＋ 复核者留下的那只
+`b-snapdiff-20260930-042828.json`（**它的来历与我的处置见 §9.1④**）——全部由我自己产生，**不夹带别人的活**，
+`git diff --cached --name-only` 在暂存后逐条核过。
+> ⚠️ **提交前我自己改了一次主意，理由要留痕**：`snap-dryrun-20260930-0453.txt` 那只**决定不入库**——它打印了
+> **8 把键各自的值长度**（这里连一个数字都不复述，理由就是下一句）。长度不是凭据，但"哪几把在用、各多长"是**攻击面元数据**，
+> 而 §8.8⑥ 已经登记过"口令长度/类别那类旁路描述会首次进公开仓"这条代价——**没必要自己再加八条**。
+> ⇒ 该读数**只在本机**（要复现：`python b_build_snapshot.py --dry-run`，输出不落盘）。入库的 6 只文件里
+> 只有路径、计数、SHA 与 lint/mypy 结论。
+> ⚠️ 另：暂存 diff 提交前跑了两把尺子——形状（`secret_shape_scan.py --selftest` 先证能红 ⇒ `--file <staged diff>` **0 命中**）
+> 与**按值**（8 把键逐个 `count`，全 0；值未打印）。

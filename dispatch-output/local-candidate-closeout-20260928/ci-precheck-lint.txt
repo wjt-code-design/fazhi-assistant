@@ -1,0 +1,9 @@
+### snapshot=b49ddff486da21ee01873312adc1b8f6241ac3df  tree=/tmp/ci-precheck-b49ddff486da21ee01873312adc1b8f6241ac3df
+All checks passed!
+ruff_check_rc=0
+268 files already formatted
+ruff_format_rc=0
+main.py:1993: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+main.py:2188: note: By default the bodies of untyped functions are not checked, consider using --check-untyped-defs  [annotation-unchecked]
+Success: no issues found in 74 source files
+mypy_rc=0
