@@ -30,6 +30,10 @@ python -m pip_audit -r /tmp/torch-pin.txt --no-deps --format json --timeout 90
    `lstm_cell`、`nan_to_num`、`rot90`、`nn.Fold`、`PairwiseDistance` 等**均不在本应用的构造路径上**。
 4. **`fix_versions` 为空的 4 条**（`CVE-2025-2148 / 2149 / 2998 / CVE-2026-4538`）**一律不得**读成"无补丁即永久有风险"，
    也不得读成"没有版本号所以不适用"。
+   ⚠️ 这个"4"的判据不是"某行 `fix` 为空"：同一通报在 JSON 里可能有两条来源行，`CVE-2025-2953` 就是一条给 `[]`、
+   一条给了修复版本 ⇒ **按单行判空会算成 5 条**。复算件（与运行时轴共用同一件）：
+   `python b_no_fix_union.py --scan C-torch-2.6.0-pinned-pip-audit.json --selftest`，
+   它同时打印"单行判空会多出 `2953`"这条能红的对照，并现算出本轴 **24 行 / 22 条唯一通报**。
 
 **唯一一条与本环境暴露面直接相关的：`CVE-2026-24747`**（GHSA-63cw-57p8-fm3p，修复 **2.10.0**）
 —— `weights_only` 反序列化器本身可被构造的 checkpoint 绕过。我做了**直接实测**（临时目录，不触网、不落仓）：
