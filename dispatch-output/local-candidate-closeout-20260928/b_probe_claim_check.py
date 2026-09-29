@@ -1,4 +1,4 @@
-"""主张复算器：把本轮五份文档里写下的每条数字主张，对着入库读数重算一遍。
+"""主张复算器：把本轮几份文档里写下的每条数字主张，对着入库读数重算一遍。
 
 为什么要这个文件：报告里的数字手抄一次就过期一次，而且没人能复算（本仓已多次踩过）。
 这里不做"读一遍觉得没问题"，而是**每条主张独立重算并逐条判 PASS/FAIL**；
@@ -22,6 +22,7 @@ DOCS = [
     REPO / "docs/progress-handoff-report-20260925.md",
     REPO / "docs/assistant-briefs/next-phase-E-integration-report-20260927.md",
     REPO / "docs/superpowers/plans/2026-09-28-local-candidate-closeout-plan.md",
+    REPO / "docs/work-report-20260929-d2-signoff-round.md",
     EVIDENCE / "README.md",
 ]
 

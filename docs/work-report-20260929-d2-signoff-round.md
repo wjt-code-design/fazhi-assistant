@@ -46,15 +46,17 @@
    要求复算器必须红，并在 `finally` 按**原字节**还原 + 复比 sha256；另加"窗口内被别人改过就判本只无效"的并发守卫。
    三侧分工：复算器侧证"不恒真"、数据侧证"谓词判得对"、**文档侧证"手抄会被抓"**。
 6. **独立评审轮 + 修复**：判决全文在交接书 §12.2、证据 README G.7 补、主报告 (11)。要点见下面 §3。
-7. **提交（别把两条线混了）**：本会话在 **`master`** 上落了 **4 笔**，内容只含文档、证据与分析脚本
-   （复现：`git rev-list --count 5be6e05..HEAD` → 4；
-   `git diff --name-only 5be6e05..HEAD | grep -cE '^backend/'` → **0**）。
-   本报告讲的是后两笔（签字页轮 + 评审轮）：`git log --oneline -2`。
+7. **提交（别把两条线混了）**：本会话在 **`master`** 上一笔笔落地，内容只含文档、证据与分析脚本
+   （复现：`git log --oneline 5be6e05..HEAD`；⚠️ **笔数不写死**——写死一次就被自己的下一笔追过，
+   本段初稿里的"4 笔"正是被"把这份汇报提进去"那一笔当场作废的，见下面那条自招）。
+   每条范围判据：`git diff --name-only 5be6e05..HEAD | grep -cE '^backend/'` → **0**（一行业务代码/测试都没碰）。
+   另有一笔只动本份汇报：`git show --stat --oneline` 看最新那笔的文件清单即可。
    ⚠️ **候选代码分支 `codex/local-candidate-closeout`（tip `fbc29e8`）没有合进 master，也没有一笔推上远端**——
    D3 的"等 D2 有结论再合"仍生效。⇒ "我没合 master"这句只对**候选代码**成立，别读成"本轮没提交任何东西"。
-   只 `git add -u`（tracked），未跟踪件一律没扫进提交（现量：`git status --porcelain --untracked-files=all | grep -c '^??'`）。
-   ⚠️ **本份汇报自己目前还是未跟踪件**（`?? docs/work-report-20260929-d2-signoff-round.md`）——"代码与文档都在本地"
-   这句包含"有一部分还没入库"，别读成全都在 git 里；要它进历史得再说一声，我不擅自提。
+   只 `git add -u` / 按名 `git add <文件>`，未跟踪件一律没扫进提交
+   （现量：`git status --porcelain --untracked-files=all | grep -c '^??'`）。
+   ⚠️ **自招一条**：本节原先写"本份汇报自己目前还是未跟踪件"，随后我把它提交了 ⇒ 那句话立刻过期。
+   留在这儿是因为它就是"抄了就过期"的活样本，也正是我给复算器加"段落里不许手抄条数"那条绊线的理由。
 
 ## 2. 现量（每条给命令，别信我抄的数）
 
@@ -66,7 +68,7 @@ python b_probe_matrix.py             # 重写 b-probe-verdict-matrix.md（生成
 python verify-protected.py protected-review-rerun.log   # rc=0；entries / unchanged / changed
 cd C:/Users/33393/Desktop/ai-legal-helper
 python -m ruff check --config backend/pyproject.toml dispatch-output/local-candidate-closeout-20260928/b_probe_claim_check.py dispatch-output/local-candidate-closeout-20260928/b_probe_claim_mutants.py
-git log --oneline -4 ; git rev-list --count 5be6e05..HEAD   # 本会话落地的笔数（=4）
+git log --oneline 5be6e05..HEAD ; git rev-list --count 5be6e05..HEAD   # 本会话落地的全部笔数（会随提交增加，别写死）
 git rev-list --count origin/master..HEAD                     # ⚠️ 这是"本地不可达自 origin/master 的提交数"，
                                                              # **不是**"未推送工作量"：两线**无共同祖先**
                                                              # （`git merge-base HEAD origin/master` 为空），
