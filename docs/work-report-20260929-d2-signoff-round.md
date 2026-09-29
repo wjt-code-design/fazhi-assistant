@@ -466,3 +466,29 @@ git log --all -S"$PW" --oneline      → 2 笔
 
 **同时要说清没发生的事**：远端 `master` 仍是 09-17 那份、**我们一段历史都没推上去过** ⇒ 泄露面**没有扩大**，
 现在改路线的成本是零。
+
+### 8.6 补记 6：路线 A 已构造完并**按值**验过（尚未推送）
+
+Owner 裁 A（推无父孤儿快照）。我把"要推的东西"做成了一个**可核的对象集合**：
+
+- **合并树重算**：现号 **`50f519e`**（我上一条自己立的规矩第二次生效——`cdcf579` 已过期）。
+- **孤儿提交**：分支 `snapshot/ci-fbc29e8-20260930`，`git rev-list <该提交>` ⇒ **1 笔**（`%P` 为空，**无父**）；
+  `git rev-list --objects` ⇒ **2545** 个对象，对照 `master` 的 **4078** ⇒ 结构上不可能带上 09-22 那个明文 blob（它不在这棵树里，也没有父链可达它）。
+- **相对合并树只偏离一行**：`ci.yml` 的 `branches: [main, master, "snapshot/ci-fbc29e8-20260930"]`。
+  用 venv 解析过快照里那份（不是工作区那份）：`jobs=[backend, frontend]`、backend `steps=10`、`pull_request` 触发仍在。
+  ⚠️ 走 A 之后 **PR 那条路按构造关闭**（无父 ⇒ 无共同祖先），push 触发是唯一路，所以 §8.2 那句"触发配置略异"的限制**必然**要进 D2 依据。
+- **按值普查**（值只进变量，全程未打印；命令形态同 §8.5）：
+
+  | 键（8 个密钥类） | 快照树命中 | 全历史命中 | 备注 |
+  |---|---|---|---|
+  | `ADMIN_PASSWORD` | 0 | **2** | 正对照用它：`git grep -l -F "$PW" 817e7d3` ⇒ **1** ⇒ 尺子能红 |
+  | `LLM_API_KEY`/`JWT_SECRET`/`EMBEDDING_API_KEY`/`RERANK_API_KEY`/`ZHIPUAI_API_KEY`/`DASHSCOPE_API_KEY`/`SILICONFLOW_API_KEY` | 0 | 0 | 全部无命中 |
+  | 负对照（不存在的串） | 0 | 0 | — |
+
+  另有 5 个键在快照里命中非零，**都是模型名字符串**（`LLM_MODEL`、`RERANK_MODEL`、`RERANK_MODELS`、`EMBEDDING_MODEL`、`LLM_MODELS_JSON`），属可公开内容，不是凭据。
+- ⚠️ 一条诚实限制：这轮普查里**只有 `ADMIN_PASSWORD` 有"活体正对照"**（它确实曾在历史里）。其余 7 个是"查不到命中"，
+  不是"证明过能命中"；要给它们加置信，靠的是此前那次栽桩（`PLANTED_RC=1`）与两个 0 的对照，读的时候别把两者混成一件事。
+- **待你按回车的那条命令**（走 SSH over 443，内联 URL，不动 `git config`；永不 force）：
+  `git push ssh://git@ssh.github.com:443/wjt-code-design/fazhi-assistant.git snapshot/ci-fbc29e8-20260930:refs/heads/snapshot/ci-fbc29e8-20260930`
+  回退（删掉远端那条分支）：同 URL、源写空：`git push ssh://… :refs/heads/snapshot/ci-fbc29e8-20260930`
+- **仍未推**：仓库仍是 `private=false`。本地多了一个分支引用 `snapshot/ci-fbc29e8-20260930`，不进 `master`、不参与合并。
