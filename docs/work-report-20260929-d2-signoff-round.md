@@ -382,3 +382,19 @@ A-3（开发/构建工具那 5 条逐条给触发前提/平台条件/修复版�
 
 **执行顺序（已对齐，等你那一步）**：你把仓库转 **private** → 我推一次性快照分支（你按回车）→ 匿名 compare 判形 → PR 或 push 触发取 CI 绿 → 我起草 D2 文本给你签。
 **本轮明确没做**：未推送、未建远端分支/PR、未改远端可见性（也没这个权限）、未改 `ci.yml`、未写真实库、未轮换凭据。
+
+### 8.1 补记 2：为这条路做的可跑性核验（同日最晚，全部只读／无副作用）
+
+- **"候选能不能干净合进当前 `master`"已证**：
+  `git merge-tree --write-tree --name-only master codex/local-candidate-closeout` ⇒ rc=**0**，结果树 `7e2a758`，**冲突文件 0 个**。
+  该树里 `backend/requirements-dev.txt:4` 是 `pytest>=9.0.3,<10` ⇒ **CI 会装 9.x**，那条没跑过的 Linux 腿拿到的才是有效证据；
+  该树 vs `master` 差 **7** 个文件（＝候选带进来的那批）、vs 候选差 **83** 个。
+  ⚠️ 这只证"能干净合并"，**不证"已合并"**——`master` 一个字没动（D2 未签，D3 在等它）。
+- **HTTPS 传输现在不可用**（这条影响"什么时候能推"）：`curl https://github.com/` 三次全 `HTTP=000`（连不上 `github.com:443`），
+  同一时刻 `api.github.com` ⇒ 200；`git push --dry-run` ⇒ rc=**128** "Failed to connect to github.com:443"；
+  `git ls-remote`（HTTPS）本轮先 rc=0、后 rc=128 ⇒ **时好时坏，不能当成已具备的能力**。
+- **可用的那条传输是 SSH over 443**：`ssh -o BatchMode=yes -p 443 -T git@ssh.github.com` ⇒ `Hi wjt-code-design!`（rc=1 是 GitHub 不给 shell，正常）；
+  `git ls-remote --heads ssh://git@ssh.github.com:443/wjt-code-design/fazhi-assistant.git` ⇒ rc=**0** 并读到远端 `master=985d53e4`。
+  ⇒ 真要推时**用命令行里内联的 ssh URL**，不动 `git config`（在册的 `credential.helper=manager` 是否可用**仍未证**——dry-run 从没跑到过鉴权那步）。
+- **一件只能在 GitHub 页面上确认的**：仓库转 private 之后，Actions 消耗的是套餐分钟数（Free 档每月 2000），而这条 job 要装 torch CPU 再跑 1650 条测试。
+  分钟数若已用尽，private 里的 CI 只会排队不出结果。匿名 API 读不到（`/repos/…/actions/permissions` ⇒ **401 Requires authentication**），所以我只能说"未见异常"，不能说"够用"。
