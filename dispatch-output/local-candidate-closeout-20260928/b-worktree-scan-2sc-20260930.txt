@@ -1,29 +1,69 @@
-[0] 参与反查的键 8 个，读到非空值 8 个（值未打印）
-[1] 未跟踪口径：折叠条目(-unormal)=534 展开文件(-uall)=34100
-[2] 展开后：文件=34100 目录条目=0
-[A] 面＝未跟踪**且未被忽略**（`git add -A` 会带走的那一面）
-    命中 dispatch-output/ta5-arms-20260917/_cfg1.txt  LLM_API_KEYx1
-    命中 dispatch-output/ta5-arms-20260917/_cfg_noproxy.txt  LLM_API_KEYx1
-[A] 读到=34100 打不开=143 含值文件=2 �    [A] 进度 30000/34103 用时 209s
-    命中 dispatch-output/ta5-arms-20260917/_cfg1.txt  LLM_API_KEYx1
-    命中 dispatch-output/ta5-arms-20260917/_cfg_noproxy.txt  LLM_API_KEYx1
-[A] 读到=34103 打不开=143 含值文件=2 命中总数=2
-     按键：ADMIN_PASSWORD=0 DASHSCOPE_API_KEY=0 EMBEDDING_API_KEY=0 JWT_SECRET=0 LLM_API_KEY=2 RERANK_API_KEY=0 SILICONFLOW_API_KEY=0 ZHIPUAI_API_KEY=0
-[B] 面＝盘上全部文件（含被忽略；`.env` 族在此面内）
-    [B] 进度 5000/205545 用时 36s
-    [B] 进度 10000/205545 用时 70s
-    [B] 进度 15000/205545 用时 101s
-    [B] 进度 20000/205545 用时 133s
-EYx2 SILICONFLOW_API_KEYx2 ZHIPUAI_API_KEYx1
-    命中 backend/.env.bak-20260910-pre-qwen38  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 ZHIPUAI_API_KEYx1
-    命中 dispatch-output/config-backups-20260915/env.before-b-desensitize.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 RERANK_API_KEYx2 SILICONFLOW_API_KEYx2 ZHIPUAI_API_KEYx1
-    命中 dispatch-output/config-backups-20260915/env.before-partial-delivery.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 RERANK_API_KEYx2 SILICONFLOW_API_KEYx2 ZHIPUAI_API_KEYx1
-    命中 dispatch-output/config-backups-20260915/env.before-q38f-removal.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 RERANK_API_KEYx2 SILICONFLOW_API_KEYx2 ZHIPUAI_API_KEYx1
-    命中 dispatch-output/quality-retrieval-20260914/env.backend.before-rerank-restore-20260914.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 ZHIPUAI_API_KEYx1
-    命中 dispatch-output/quality-retrieval-20260914/env.before-model-fallback-20260914.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 ZHIPUAI_API_KEYx1
-    命中 dispatch-output/ta5-arms-20260917/_cfg1.txt  LLM_API_KEYx1
-    命中 dispatch-output/ta5-arms-20260917/_cfg_noproxy.txt  LLM_API_KEYx1
-[B] 读到=205542 打不开=0 含值文件=11 命中总数=123
-     按键：ADMIN_PASSWORD=8 DASHSCOPE_API_KEY=30 EMBEDDING_API_KEY=30 JWT_SECRET=8 LLM_API_KEY=10 RERANK_API_KEY=15 SILICONFLOW_API_KEY=15 ZHIPUAI_API_KEY=7
-VERDICT: 尺子活着（面 B 命中 11 份文件）；面 A=2 份属'会被 add -A 带走'
-        是否外发另按对象集合判：走 b_build_snapshot.py 的 [5]/[5b] 段
+[0] 鍙備笌鍙嶆煡鐨勯敭 8 涓�锛岃�诲埌闈炵┖鍊� 8 涓�锛堝�兼湭鎵撳嵃锛�
+[1] 鏈�璺熻釜鍙ｅ緞锛氭姌鍙犳潯鐩�(-unormal)=534 灞曞紑鏂囦欢(-uall)=34100
+[2] 灞曞紑鍚庯細鏂囦欢=34100 鐩�褰曟潯鐩�=0
+[A] 闈�锛濇湭璺熻釜**涓旀湭琚�蹇界暐**锛坄git add -A` 浼氬甫璧扮殑閭ｄ竴闈�锛�
+    鍛戒腑 dispatch-output/ta5-arms-20260917/_cfg1.txt  LLM_API_KEYx1
+    鍛戒腑 dispatch-output/ta5-arms-20260917/_cfg_noproxy.txt  LLM_API_KEYx1
+[A] 璇诲埌=34100 鎵撲笉寮�=143 鍚�鍊兼枃浠�=2 鍛    [A] 杩涘害 30000/34103 鐢ㄦ椂 209s
+    鍛戒腑 dispatch-output/ta5-arms-20260917/_cfg1.txt  LLM_API_KEYx1
+    鍛戒腑 dispatch-output/ta5-arms-20260917/_cfg_noproxy.txt  LLM_API_KEYx1
+[A] 璇诲埌=34103 鎵撲笉寮�=143 鍚�鍊兼枃浠�=2 鍛戒腑鎬绘暟=2
+     鎸夐敭锛欰DMIN_PASSWORD=0 DASHSCOPE_API_KEY=0 EMBEDDING_API_KEY=0 JWT_SECRET=0 LLM_API_KEY=2 RERANK_API_KEY=0 SILICONFLOW_API_KEY=0 ZHIPUAI_API_KEY=0
+[B] 闈�锛濈洏涓婂叏閮ㄦ枃浠讹紙鍚�琚�蹇界暐锛沗.env` 鏃忓湪姝ら潰鍐咃級
+    [B] 杩涘害 5000/205545 鐢ㄦ椂 36s
+    [B] 杩涘害 10000/205545 鐢ㄦ椂 70s
+    [B] 杩涘害 15000/205545 鐢ㄦ椂 101s
+    [B] 杩涘害 20000/205545 鐢ㄦ椂 133s
+    [B] 杩涘害 25000/205545 鐢ㄦ椂 163s
+    [B] 杩涘害 30000/205545 鐢ㄦ椂 194s
+    [B] 杩涘害 35000/205545 鐢ㄦ椂 223s
+    [B] 杩涘害 40000/205545 鐢ㄦ椂 257s
+    [B] 杩涘害 45000/205545 鐢ㄦ椂 288s
+    [B] 杩涘害 50000/205545 鐢ㄦ椂 327s
+    [B] 杩涘害 55000/205545 鐢ㄦ椂 370s
+    [B] 杩涘害 60000/205545 鐢ㄦ椂 406s
+    [B] 杩涘害 65000/205545 鐢ㄦ椂 436s
+    [B] 杩涘害 70000/205545 鐢ㄦ椂 480s
+    [B] 杩涘害 75000/205545 鐢ㄦ椂 511s
+    [B] 杩涘害 80000/205545 鐢ㄦ椂 537s
+    [B] 杩涘害 85000/205545 鐢ㄦ椂 571s
+    [B] 杩涘害 90000/205545 鐢ㄦ椂 599s
+    [B] 杩涘害 95000/205545 鐢ㄦ椂 631s
+    [B] 杩涘害 100000/205545 鐢ㄦ椂 662s
+    [B] 杩涘害 105000/205545 鐢ㄦ椂 695s
+    [B] 杩涘害 110000/205545 鐢ㄦ椂 735s
+    [B] 杩涘害 115000/205545 鐢ㄦ椂 775s
+    [B] 杩涘害 120000/205545 鐢ㄦ椂 804s
+    [B] 杩涘害 125000/205545 鐢ㄦ椂 840s
+    [B] 杩涘害 130000/205545 鐢ㄦ椂 872s
+    [B] 杩涘害 135000/205545 鐢ㄦ椂 897s
+    [B] 杩涘害 140000/205545 鐢ㄦ椂 922s
+    [B] 杩涘害 145000/205545 鐢ㄦ椂 947s
+    [B] 杩涘害 150000/205545 鐢ㄦ椂 969s
+    [B] 杩涘害 155000/205545 鐢ㄦ椂 988s
+    [B] 杩涘害 160000/205545 鐢ㄦ椂 1015s
+    [B] 杩涘害 165000/205545 鐢ㄦ椂 1041s
+    [B] 杩涘害 170000/205545 鐢ㄦ椂 1069s
+    [B] 杩涘害 175000/205545 鐢ㄦ椂 1096s
+    [B] 杩涘害 180000/205545 鐢ㄦ椂 1120s
+    [B] 杩涘害 185000/205545 鐢ㄦ椂 1157s
+    [B] 杩涘害 190000/205545 鐢ㄦ椂 1203s
+    [B] 杩涘害 195000/205545 鐢ㄦ椂 1260s
+    [B] 杩涘害 200000/205545 鐢ㄦ椂 1327s
+    [B] 杩涘害 205000/205545 鐢ㄦ椂 1372s
+    鍛戒腑 .env  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 RERANK_API_KEYx1 SILICONFLOW_API_KEYx1
+    鍛戒腑 .workbuddy/evidence/r15-tripwire-t2-red.txt  DASHSCOPE_API_KEYx6 EMBEDDING_API_KEYx6 RERANK_API_KEYx6 SILICONFLOW_API_KEYx6
+    鍛戒腑 backend/.env  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 RERANK_API_KEYx2 SILICONFLOW_API_KEYx2 ZHIPUAI_API_KEYx1
+    鍛戒腑 backend/.env.bak-20260910-pre-qwen38  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 ZHIPUAI_API_KEYx1
+    鍛戒腑 dispatch-output/config-backups-20260915/env.before-b-desensitize.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 RERANK_API_KEYx2 SILICONFLOW_API_KEYx2 ZHIPUAI_API_KEYx1
+    鍛戒腑 dispatch-output/config-backups-20260915/env.before-partial-delivery.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 RERANK_API_KEYx2 SILICONFLOW_API_KEYx2 ZHIPUAI_API_KEYx1
+    鍛戒腑 dispatch-output/config-backups-20260915/env.before-q38f-removal.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 RERANK_API_KEYx2 SILICONFLOW_API_KEYx2 ZHIPUAI_API_KEYx1
+    鍛戒腑 dispatch-output/quality-retrieval-20260914/env.backend.before-rerank-restore-20260914.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 ZHIPUAI_API_KEYx1
+    鍛戒腑 dispatch-output/quality-retrieval-20260914/env.before-model-fallback-20260914.bak  ADMIN_PASSWORDx1 DASHSCOPE_API_KEYx3 EMBEDDING_API_KEYx3 JWT_SECRETx1 LLM_API_KEYx1 ZHIPUAI_API_KEYx1
+    鍛戒腑 dispatch-output/ta5-arms-20260917/_cfg1.txt  LLM_API_KEYx1
+    鍛戒腑 dispatch-output/ta5-arms-20260917/_cfg_noproxy.txt  LLM_API_KEYx1
+[B] 璇诲埌=205545 鎵撲笉寮�=0 鍚�鍊兼枃浠�=11 鍛戒腑鎬绘暟=123
+     鎸夐敭锛欰DMIN_PASSWORD=8 DASHSCOPE_API_KEY=30 EMBEDDING_API_KEY=30 JWT_SECRET=8 LLM_API_KEY=10 RERANK_API_KEY=15 SILICONFLOW_API_KEY=15 ZHIPUAI_API_KEY=7
+VERDICT: 灏哄瓙娲荤潃锛堥潰 B 鍛戒腑 11 浠芥枃浠讹級锛涢潰 A=2 浠藉睘'浼氳�� add -A 甯﹁蛋'
+        鏄�鍚﹀�栧彂鍙︽寜瀵硅薄闆嗗悎鍒わ細璧� b_build_snapshot.py 鐨� [5]/[5b] 娈�
+rc=0

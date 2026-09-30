@@ -26,6 +26,22 @@ MASTER = "master"
 CANDIDATE = "codex/local-candidate-closeout"
 CI_PATH = ".github/workflows/ci.yml"
 TRIM_DIRS = ("diag/frozen-index-004", "diag/frozen-index-005")
+# O-7（2026-09-30 Owner 裁定"剔零成本的那批，只留 watershed"）：留出集/冻结题集不跟着公开。
+# 入选条件（逐条量过，见报告 §9.4）：推送树里**没有一处运行期读取**——`limitation_calc.py:70`、
+# `domain_rules.py:121`、`gate2_runner.py:326`、`test_statute_supplement.py:8` 那几处都只是注释/help 文字。
+# ⚠️ `evals/watershed-cases-r15.json` **故意不在这里**：`test_r15_runner_injection.py:49/:85` 运行期真读它，
+# 剔它就要在本窗口改测试 ⇒ 等于把"要被 CI 验的那棵树"换掉。
+TRIM_FILES = (
+    "evals/holdout-cases-r1.json",
+    "evals/frozen-cases-v2.json",
+    "evals/probe-results.json",
+    "evals/probe-results-k4.json",
+    "evals/filter-simulation-r1.json",
+    "release-evidence/legal-agent-v1-complex-v1-20260907/holdout-cases-v1.json",
+    "release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-17-holdout-waxis-checkpoint.json",
+    "release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-17-holdout-waxis-sessions.json",
+    "release-evidence/legal-agent-v1-complex-v1-20260907/gate2-run-gate5-dev-run-17-holdout-waxis.claim.json",
+)
 SSH_URL = "ssh://git@ssh.github.com:443/wjt-code-design/fazhi-assistant.git"
 # 按值普查的键；值只进变量，永不打印
 # 覆盖面必须等于汇报里那句"8 个密钥类键全 0"——先前列了 4 个，是声明比仪器宽（自己抓到，记账）
@@ -88,10 +104,7 @@ def main() -> int:
     )
     args = ap.parse_args()
 
-    idx_file = (
-        Path(os.environ.get("TEMP", r"C:/Users/33393/AppData/Local/Temp"))
-        / f"snapidx-{os.getpid()}"
-    )
+    idx_file = Path(os.environ.get("TEMP", r"C:/Users/33393/AppData/Local/Temp")) / f"snapidx-{os.getpid()}"
     os.environ["GIT_INDEX_FILE"] = str(idx_file)
     try:
         # 1) 合并树从现量算，不接受任何手抄号
@@ -107,9 +120,7 @@ def main() -> int:
         old = "    branches: [main, master]\n"
         new = f'    branches: [main, master, "{BRANCH}"]\n'
         if ci.stdout.count(old) != 1:
-            print(
-                f"FATAL: ci.yml 触发锚点出现 {ci.stdout.count(old)} 次，形状变了，停手"
-            )
+            print(f"FATAL: ci.yml 触发锚点出现 {ci.stdout.count(old)} 次，形状变了，停手")
             return 3
         p = subprocess.run(
             ["git", "-C", str(REPO), "hash-object", "-w", "--no-filters", "--stdin"],
@@ -124,31 +135,34 @@ def main() -> int:
         git("read-tree", merged)
         git("update-index", "--cacheinfo", f"100644,{blob},{CI_PATH}")
 
-        # 3) 偏离二：只剔那两个目录，并核对"剔的就是这些"
+        # 3) 偏离二：剔那两类东西，并核对"剔的就是这些"（目录＝体积轴；文件＝O-7 内容轴）
         if args.no_trim:
-            print(
-                "[3] --no-trim：跳过剔除，这一侧只作差分对照用（拿它去推就把 296.7MB 一起推上去了）"
-            )
+            print("[3] --no-trim：跳过剔除，这一侧只作差分对照用（拿它去推就把 296.7MB 与留出集一起推上去了）")
         else:
             listed = git("ls-tree", "-r", "--name-only", merged)
-            doomed = [
-                f
-                for f in listed.stdout.splitlines()
-                if any(f.startswith(d + "/") for d in TRIM_DIRS)
-            ]
-            if not doomed:
+            names = listed.stdout.splitlines()
+            doomed_dirs = [f for f in names if any(f.startswith(d + "/") for d in TRIM_DIRS)]
+            missing = [f for f in TRIM_FILES if f not in names]
+            if missing:
+                print(f"FATAL: O-7 清单里有 {len(missing)} 个路径不在合并树里，剔除范围必须重判：")
+                for f in missing:
+                    print(f"        {f}")
+                return 4
+            if not doomed_dirs:
                 print(f"FATAL: 没找到 {TRIM_DIRS}，说明目录结构变了，剔除范围必须重判")
                 return 4
-            for f in doomed:
+            for f in doomed_dirs + list(TRIM_FILES):
                 git("update-index", "--force-remove", f)
-            print(f"[3] 剔除 {len(doomed)} 个文件（限 {TRIM_DIRS}）")
+            print(f"[3] 剔除 {len(doomed_dirs)} 个文件（限 {TRIM_DIRS}） ＋ {len(TRIM_FILES)} 个留出集/证据件（O-7）")
 
         wt = git("write-tree")
         tree = wt.stdout.strip()
         msg = (
             f"snapshot: {CANDIDATE} + {MASTER} 合并树的一次性发布快照（永不合并）\n\n"
             f"两处刻意偏离在册树：1) {CI_PATH} 的 on.push.branches 增本分支名（无共同祖先⇒PR 路按构造关闭）；"
-            f"2) 删 {', '.join(TRIM_DIRS)}（凭据轴按值普查为 0，内容轴体积过大）。无父提交⇒远端收不到任何历史 blob。"
+            f"2) 删 {', '.join(TRIM_DIRS)}（体积轴）与 {len(TRIM_FILES)} 只留出集/冻结题集"
+            f"（O-7 内容轴，Owner 2026-09-30 裁定；watershed-cases-r15.json 因被测试运行期读取而保留）。"
+            f"无父提交⇒远端收不到任何历史 blob。"
         )
         ct = subprocess.run(
             ["git", "-C", str(REPO), "commit-tree", tree, "-m", msg],
@@ -170,9 +184,7 @@ def main() -> int:
     objects = len(git("rev-list", "--objects", commit).stdout.splitlines())
     files, mb = tree_size(commit)
     print(f"[4] 快照提交={commit} 树={tree}")
-    print(
-        f"    父=[{parents}]（必须空） 提交数={ncommits}（必须 1） 对象={objects} 文件={files} 体积={mb}MB"
-    )
+    print(f"    父=[{parents}]（必须空） 提交数={ncommits}（必须 1） 对象={objects} 文件={files} 体积={mb}MB")
     if parents or ncommits != "1":
         print("FATAL: 这不是无父快照，推上去会带历史")
         return 6
@@ -216,9 +228,7 @@ def main() -> int:
             bad += 1
         if k == "ADMIN_PASSWORD" and hits2 == 0:
             control_dead += 1
-    print(
-        f"[5b] 闭合：声明要查 {len(CENSUS_KEYS)} 个 = 实查 {measured} + 空值跳过 {len(skipped)}"
-    )
+    print(f"[5b] 闭合：声明要查 {len(CENSUS_KEYS)} 个 = 实查 {measured} + 空值跳过 {len(skipped)}")
     if measured + len(skipped) != len(CENSUS_KEYS):
         print("FATAL: 普查覆盖面不闭合（有键既没查也没声明跳过）——不许推")
         return 12
@@ -233,14 +243,10 @@ def main() -> int:
         return 7
 
     if args.no_trim and not args.dry_run:
-        print(
-            "FATAL: --no-trim 出来的对象只作对照，绝不允许移动在册分支引用（那会把 296.7MB 推上去）"
-        )
+        print("FATAL: --no-trim 出来的对象只作对照，绝不允许移动在册分支引用（那会把 296.7MB 推上去）")
         return 11
     if args.dry_run:
-        print(
-            f"[6] --dry-run：不移动引用。要推的话：git update-ref refs/heads/{BRANCH} {commit}"
-        )
+        print(f"[6] --dry-run：不移动引用。要推的话：git update-ref refs/heads/{BRANCH} {commit}")
     else:
         ur = git("update-ref", f"refs/heads/{BRANCH}", commit)
         if ur.returncode != 0:

@@ -143,6 +143,9 @@ def all_worktree_files(root: Path) -> list[Path]:
 
 
 def main() -> int:
+    # Windows 下 `>` 重定向按控制台代码页(cp936)落盘 ⇒ 读数进仓就是乱码。钉死 UTF-8。
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8", line_buffering=True)
     ap = argparse.ArgumentParser(description="整工作树按值反查（不打印值）")
     ap.add_argument("--root", default=str(REPO), help="被扫的树根，默认主工作区")
     args = ap.parse_args()
