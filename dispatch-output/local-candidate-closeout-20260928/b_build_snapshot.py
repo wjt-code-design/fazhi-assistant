@@ -6,15 +6,14 @@
 2) 两处刻意偏离各自带断言（锚点必须恰好 1 次、剔掉的文件集合必须恰好那两个目录）；
 3) 普查必须打印被测命令自己的 rc —— 命令失败不等于"没命中"。
 
-用法：<venv python> b_build_snapshot.py            # 构造 + 自验 + 打印推送命令
-      <venv python> b_build_snapshot.py --dry-run   # 只算不写引用
+用法：先 --dry-run 构造，再验收输出的固定对象。
+      --expected-tree <验收过的完整树号> 才允许更新本地引用；不执行 push。
 """
 
 from __future__ import annotations
 
 import argparse
 import os
-import re
 import secrets
 import subprocess
 import sys
@@ -55,30 +54,41 @@ CENSUS_KEYS = (
     "DASHSCOPE_API_KEY",
     "SILICONFLOW_API_KEY",
 )
-# 活体正对照：这个值确实曾进过 tracked 文件，用它证明尺子能红
-POSITIVE_REF = "817e7d3"
 
 
-def git(*args: str, want_text: bool = True):
+def git(*args: str, want_text: bool = True, input_text: str | None = None):
     proc = subprocess.run(
         ["git", "-C", str(REPO), *args],
         capture_output=True,
         text=want_text,
+        encoding="utf-8" if want_text else None,
+        input=input_text,
         check=False,
     )
     return proc
 
 
+def checked_git(*args: str):
+    proc = git(*args)
+    if proc.returncode != 0:
+        # 不回显 argv/stderr，避免未来调用传入敏感内容时泄漏。
+        print(f"FATAL: Git {args[0]} 失败 rc={proc.returncode}")
+        raise SystemExit(2)
+    return proc
+
+
 def load_values() -> dict[str, str]:
     env = REPO / "backend" / ".env"
-    out: dict[str, str] = {}
     if not env.is_file():
-        return out
-    for line in env.read_bytes().decode("utf-8", "replace").splitlines():
-        m = re.match(r"^([A-Z0-9_]+)=(.*)$", line.strip())
-        if m:
-            out[m.group(1)] = m.group(2).strip().strip('"').strip("'")
-    return out
+        return {}
+    # 沿用项目已装的解析器，正确处理引号/转义/行尾注释，不修改 os.environ。
+    from dotenv import dotenv_values
+
+    return {
+        k: v
+        for k, v in dotenv_values(env, interpolate=False, encoding="utf-8").items()
+        if v is not None
+    }
 
 
 def tree_size(commit: str) -> tuple[int, float]:
@@ -97,14 +107,33 @@ def tree_size(commit: str) -> tuple[int, float]:
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--dry-run", action="store_true", help="只构造对象，不移动分支引用")
+    ap.add_argument("--expected-tree", help="已验收的完整树号；不一致则不更新引用")
     ap.add_argument(
         "--no-trim",
         action="store_true",
         help="不剔 diag 那两个目录——用来产出差分对照的那一侧树（证明剔除不改变收集面）",
     )
     args = ap.parse_args()
+    if not args.dry_run and not args.expected_tree:
+        print(
+            "FATAL: 先 --dry-run 并验收固定对象，再提供 --expected-tree；禁止盲目重建后推送"
+        )
+        return 13
+    vals = load_values()
+    missing_keys = [k for k in CENSUS_KEYS if not vals.get(k, "").strip()]
+    if missing_keys:
+        print("FATAL: 在册扫描输入缺失：" + ", ".join(missing_keys))
+        print("本轮要求在册 8 键完整；确不使用的键须先重审清单，不能静默跳过")
+        return 12
+    if any("${" in vals[k] or "\n" in vals[k] or "\r" in vals[k] for k in CENSUS_KEYS):
+        print("FATAL: 在册凭据含变量引用或换行，无法按单个确定值扫描；先核对有效配置")
+        return 12
 
-    idx_file = Path(os.environ.get("TEMP", r"C:/Users/33393/AppData/Local/Temp")) / f"snapidx-{os.getpid()}"
+    idx_file = (
+        Path(os.environ.get("TEMP", r"C:/Users/33393/AppData/Local/Temp"))
+        / f"snapidx-{secrets.token_hex(12)}"
+    )
+    previous_index = os.environ.get("GIT_INDEX_FILE")
     os.environ["GIT_INDEX_FILE"] = str(idx_file)
     try:
         # 1) 合并树从现量算，不接受任何手抄号
@@ -116,11 +145,13 @@ def main() -> int:
         print(f"[1] 合并树={merged}（rc=0，冲突 0）")
 
         # 2) 偏离一：给被推分支自己的 ci.yml 加触发名（锚点必须唯一）
-        ci = git("cat-file", "-p", f"{merged}:{CI_PATH}")
+        ci = checked_git("cat-file", "-p", f"{merged}:{CI_PATH}")
         old = "    branches: [main, master]\n"
         new = f'    branches: [main, master, "{BRANCH}"]\n'
         if ci.stdout.count(old) != 1:
-            print(f"FATAL: ci.yml 触发锚点出现 {ci.stdout.count(old)} 次，形状变了，停手")
+            print(
+                f"FATAL: ci.yml 触发锚点出现 {ci.stdout.count(old)} 次，形状变了，停手"
+            )
             return 3
         p = subprocess.run(
             ["git", "-C", str(REPO), "hash-object", "-w", "--no-filters", "--stdin"],
@@ -132,19 +163,25 @@ def main() -> int:
             print(f"FATAL: hash-object rc={p.returncode} {p.stderr[:200]}")
             return 3
         blob = p.stdout.decode().strip()
-        git("read-tree", merged)
-        git("update-index", "--cacheinfo", f"100644,{blob},{CI_PATH}")
+        checked_git("read-tree", merged)
+        checked_git("update-index", "--cacheinfo", f"100644,{blob},{CI_PATH}")
 
         # 3) 偏离二：剔那两类东西，并核对"剔的就是这些"（目录＝体积轴；文件＝O-7 内容轴）
         if args.no_trim:
-            print("[3] --no-trim：跳过剔除，这一侧只作差分对照用（拿它去推就把 296.7MB 与留出集一起推上去了）")
+            print(
+                "[3] --no-trim：跳过剔除，这一侧只作差分对照用（拿它去推就把 296.7MB 与留出集一起推上去了）"
+            )
         else:
-            listed = git("ls-tree", "-r", "--name-only", merged)
+            listed = checked_git("ls-tree", "-r", "--name-only", merged)
             names = listed.stdout.splitlines()
-            doomed_dirs = [f for f in names if any(f.startswith(d + "/") for d in TRIM_DIRS)]
+            doomed_dirs = [
+                f for f in names if any(f.startswith(d + "/") for d in TRIM_DIRS)
+            ]
             missing = [f for f in TRIM_FILES if f not in names]
             if missing:
-                print(f"FATAL: O-7 清单里有 {len(missing)} 个路径不在合并树里，剔除范围必须重判：")
+                print(
+                    f"FATAL: O-7 清单里有 {len(missing)} 个路径不在合并树里，剔除范围必须重判："
+                )
                 for f in missing:
                     print(f"        {f}")
                 return 4
@@ -152,17 +189,34 @@ def main() -> int:
                 print(f"FATAL: 没找到 {TRIM_DIRS}，说明目录结构变了，剔除范围必须重判")
                 return 4
             for f in doomed_dirs + list(TRIM_FILES):
-                git("update-index", "--force-remove", f)
-            print(f"[3] 剔除 {len(doomed_dirs)} 个文件（限 {TRIM_DIRS}） ＋ {len(TRIM_FILES)} 个留出集/证据件（O-7）")
+                checked_git("update-index", "--force-remove", f)
+            print(
+                f"[3] 剔除 {len(doomed_dirs)} 个文件（限 {TRIM_DIRS}） ＋ {len(TRIM_FILES)} 个留出集/证据件（O-7）"
+            )
 
-        wt = git("write-tree")
+        wt = checked_git("write-tree")
         tree = wt.stdout.strip()
+        expected_diff = {f"M\t{CI_PATH}"}
+        if not args.no_trim:
+            expected_diff.update(f"D\t{f}" for f in doomed_dirs + list(TRIM_FILES))
+        actual_diff = checked_git(
+            "diff", "--no-renames", "--name-status", merged, tree
+        ).stdout.splitlines()
+        actual_ci = checked_git("cat-file", "-p", f"{tree}:{CI_PATH}").stdout
+        if set(actual_diff) != expected_diff or actual_ci != ci.stdout.replace(
+            old, new
+        ):
+            print("FATAL: 最终树不符合批准的删除清单/CI 唯一修改，停止")
+            return 4
+        if args.expected_tree and tree != args.expected_tree:
+            print("FATAL: 树号与已验收对象不一致，必须重新核查受影响证据")
+            return 13
         msg = (
             f"snapshot: {CANDIDATE} + {MASTER} 合并树的一次性发布快照（永不合并）\n\n"
             f"两处刻意偏离在册树：1) {CI_PATH} 的 on.push.branches 增本分支名（无共同祖先⇒PR 路按构造关闭）；"
             f"2) 删 {', '.join(TRIM_DIRS)}（体积轴）与 {len(TRIM_FILES)} 只留出集/冻结题集"
             f"（O-7 内容轴，Owner 2026-09-30 裁定；watershed-cases-r15.json 因被测试运行期读取而保留）。"
-            f"无父提交⇒远端收不到任何历史 blob。"
+            f"无父提交不携带祖先提交；当前树内容仍须单独审查。"
         )
         ct = subprocess.run(
             ["git", "-C", str(REPO), "commit-tree", tree, "-m", msg],
@@ -177,25 +231,27 @@ def main() -> int:
     finally:
         if idx_file.exists():
             idx_file.unlink()
-        os.environ.pop("GIT_INDEX_FILE", None)
+        if previous_index is None:
+            os.environ.pop("GIT_INDEX_FILE", None)
+        else:
+            os.environ["GIT_INDEX_FILE"] = previous_index
 
     parents = git("log", "--format=%P", "-1", commit).stdout.strip()
     ncommits = git("rev-list", "--count", commit).stdout.strip()
     objects = len(git("rev-list", "--objects", commit).stdout.splitlines())
     files, mb = tree_size(commit)
     print(f"[4] 快照提交={commit} 树={tree}")
-    print(f"    父=[{parents}]（必须空） 提交数={ncommits}（必须 1） 对象={objects} 文件={files} 体积={mb}MB")
+    print(
+        f"    父=[{parents}]（必须空） 提交数={ncommits}（必须 1） 对象={objects} 文件={files} 体积={mb}MB"
+    )
     if parents or ncommits != "1":
         print("FATAL: 这不是无父快照，推上去会带历史")
         return 6
 
     # 4) 按值普查：打印被测命令自己的 rc
-    vals = load_values()
     print("[5] 按值普查（值不打印；rc=1 才是'没有'，命令失败不是 0 命中）")
     bad = 0
-    control_dead = 0
     measured = 0
-    skipped = []
     # 负对照必须**运行时生成**：写死在源码里的对照串，一旦这个脚本被提交，
     # 它就出现在待验树里 ⇒ 对照自己失效（本轮实测：负对照 rc=0，因为我刚把本脚本提交进了 master）。
     nonce = "zz-absent-" + secrets.token_hex(8)
@@ -206,47 +262,35 @@ def main() -> int:
             f"FATAL: 动态负对照 rc={ctrl.returncode}（应为 1=查不到）⇒ 要么它命中了，要么命令本身在报错，两种都不许推"
         )
         return 10
+    positive = git("grep", "-l", "-F", "-e", BRANCH, commit, "--", CI_PATH)
+    if positive.returncode != 0 or not positive.stdout.strip():
+        print("FATAL: 已知 CI 内容的正对照未命中，扫描不可用")
+        return 9
     for k in CENSUS_KEYS:
-        v = vals.get(k, "")
-        if not v:
-            print(f"    {k:<15} 跳过：本机 .env 里该键为空")
-            skipped.append(k)
-            continue
+        v = vals[k]
         measured += 1
         # ⚠️ 一律带 -C REPO：git grep 在子目录里跑会**隐式收窄到该子目录**（同一棵树同一个值，
         #    仓根命中 1、本子目录命中 0）。不写 -C 就会把"查错了地方"输出成"整棵树都没有"。
-        g1 = git("-C", str(REPO), "grep", "-l", "-F", v, commit, "--")
+        g1 = git("grep", "-l", "-F", "-f", "-", commit, "--", input_text=v + "\n")
         hits1 = len([x for x in g1.stdout.splitlines() if x])
-        g2 = git("-C", str(REPO), "grep", "-l", "-F", v, POSITIVE_REF, "--")
-        hits2 = len([x for x in g2.stdout.splitlines() if x])
-        note = "（活体正对照：尺子在这个值上能红）" if hits2 else ""
-        print(
-            f"    {k:<15} len={len(v):<4} 快照命中={hits1}(rc={g1.returncode}) "
-            f"正对照@{POSITIVE_REF}={hits2}(rc={g2.returncode}){note}"
-        )
-        if g1.returncode not in (0, 1) or g2.returncode not in (0, 1) or hits1:
+        print(f"    {k:<15} 快照命中={hits1}(rc={g1.returncode})")
+        if g1.returncode != 1 or hits1:
             bad += 1
-        if k == "ADMIN_PASSWORD" and hits2 == 0:
-            control_dead += 1
-    print(f"[5b] 闭合：声明要查 {len(CENSUS_KEYS)} 个 = 实查 {measured} + 空值跳过 {len(skipped)}")
-    if measured + len(skipped) != len(CENSUS_KEYS):
-        print("FATAL: 普查覆盖面不闭合（有键既没查也没声明跳过）——不许推")
-        return 12
-    if control_dead:
-        print(
-            "FATAL: 正对照打不红（ADMIN_PASSWORD 打在 817e7d3 上本应命中）⇒ 尺子失效，"
-            "这一轮所有 0 命中一律不可信，不许推"
-        )
-        return 9
+    print(f"[5b] 实查 {measured}/{len(CENSUS_KEYS)}；未跳过任何在册键")
     if bad:
         print(f"FATAL: {bad} 个键在快照里有命中或普查命令本身失败 —— 不许推")
         return 7
 
     if args.no_trim and not args.dry_run:
-        print("FATAL: --no-trim 出来的对象只作对照，绝不允许移动在册分支引用（那会把 296.7MB 推上去）")
+        print(
+            "FATAL: --no-trim 出来的对象只作对照，绝不允许移动在册分支引用（那会把 296.7MB 推上去）"
+        )
         return 11
     if args.dry_run:
-        print(f"[6] --dry-run：不移动引用。要推的话：git update-ref refs/heads/{BRANCH} {commit}")
+        print(
+            f"[6] --dry-run：不移动引用。验收上述固定对象后使用 --expected-tree {tree}"
+        )
+        return 0
     else:
         ur = git("update-ref", f"refs/heads/{BRANCH}", commit)
         if ur.returncode != 0:

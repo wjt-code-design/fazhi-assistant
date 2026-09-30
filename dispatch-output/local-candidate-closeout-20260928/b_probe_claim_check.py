@@ -11,11 +11,16 @@ from __future__ import annotations
 
 import glob
 import json
+import os
 import re
 from pathlib import Path
 from typing import Any
 
-EVIDENCE = Path(__file__).resolve().parent
+# 默认沿用「跟着脚本自己走」而不是硬编码旧目录：把这份脚本复制进本轮目录后，即使忘了设
+# B_PROBE_EVIDENCE_DIR，它也只会写进自己所在的目录，不会覆盖历史复算件。
+EVIDENCE = Path(
+    os.environ.get("B_PROBE_EVIDENCE_DIR") or str(Path(__file__).resolve().parent)
+)
 REPO = Path(r"C:/Users/33393/Desktop/ai-legal-helper")
 DOCS = [
     REPO / "docs/handoff-local-candidate-closeout-20260929.md",

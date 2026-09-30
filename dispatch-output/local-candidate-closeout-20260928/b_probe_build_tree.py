@@ -19,7 +19,11 @@ from pathlib import Path
 
 REPO = Path(r"C:/Users/33393/Desktop/ai-legal-helper")
 CAND = Path(r"C:/Users/33393/.codex/worktrees/local-candidate-closeout/ai-legal-helper")
-EVIDENCE = REPO / "dispatch-output/local-candidate-closeout-20260928"
+# B_PROBE_EVIDENCE_DIR 只改**读数落点**；REPO/CAND 仍指真实仓库，因为收集期依赖文件从那里读。
+EVIDENCE = Path(
+    os.environ.get("B_PROBE_EVIDENCE_DIR")
+    or "C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/local-candidate-closeout-20260928"
+)
 # 未入库但收集期被读的文件（历史实测：缺任一都会在 collection 期中断整场，读数退化成 1 条伪用例）
 EXTRA_UNTRACKED = [
     "dispatch-output/task1/hidden-cases-v1.json",

@@ -2,7 +2,7 @@
 
 为什么用差分而不是单跑：只看剔过的树"能收集"不能证明"没剔坏"。
 同一套解释器、同一份 env、同一个命令，在未剔树与剔过的树上各跑一次 --collect-only，
-比 collected 数与错误清单；两者相同才支持"这 74 个文件的删除不影响 CI 的收集期"。
+两侧都成功且完整 nodeid 集合一致，才支持删除不改变收集面；不代表运行通过。
 
 用法：
     <venv python> b_snapshot_trim_diff.py --full <sha> --trim <sha>
@@ -58,7 +58,7 @@ def expand(commit: str, dest: Path) -> None:
                 or not (member.isfile() or member.isdir())
             ):
                 print(f"FATAL: archive 里有越界成员 {name}，拒绝解压")
-                return
+                raise SystemExit(2)
         tf.extractall(str(dest))
 
 
@@ -90,7 +90,15 @@ def env_for(tree: Path, run_dir: Path) -> dict[str, str]:
 def collect(tree: Path, run_dir: Path) -> dict[str, object]:
     backend = tree / "backend"
     proc = subprocess.run(
-        [str(PY), "-m", "pytest", "--collect-only", "-q", "-p", "no:cacheprovider"],
+        [
+            str(PY),
+            "-m",
+            "pytest",
+            "--collect-only",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+        ],
         cwd=str(backend),
         env=env_for(tree, run_dir),
         capture_output=True,
@@ -106,6 +114,11 @@ def collect(tree: Path, run_dir: Path) -> dict[str, object]:
         "collected": int(m.group(1)) if m else None,
         "errors": errors[:40],
         "error_total": len(errors),
+        "nodeids": sorted(
+            line.strip()
+            for line in proc.stdout.splitlines()
+            if "::" in line and ".py::" in line and not line.startswith(" ")
+        ),
         "tail": text[-400:],
     }
 
@@ -153,10 +166,17 @@ def main() -> int:
         )
 
     same = (
-        runs["full"]["collected"] == runs["trim"]["collected"]
-        and runs["full"]["errors"] == runs["trim"]["errors"]
+        all(
+            r["rc"] == 0
+            and r["error_total"] == 0
+            and not r["errors"]
+            and r["collected"]
+            and len(r.get("nodeids", [])) == r["collected"]
+            for r in runs.values()
+        )
+        and runs["full"]["nodeids"] == runs["trim"]["nodeids"]
     )
-    verdict = "PASS 差分零变化" if same else "FAIL 差分非空——剔目录改变了收集面"
+    verdict = "PASS 差分零变化" if same else "FAIL 收集失败、标识不完整或用例集合不同"
     if runs["full"]["collected"] is None or runs["trim"]["collected"] is None:
         verdict = "FAIL 有一侧没读到 collected 数（别把'没报数'读成'没变化'）"
     out["runs"] = runs

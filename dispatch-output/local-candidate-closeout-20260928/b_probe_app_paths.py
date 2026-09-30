@@ -18,7 +18,11 @@ import time
 import traceback
 from pathlib import Path
 
-EVIDENCE = Path(r"C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/local-candidate-closeout-20260928")
+# B_PROBE_EVIDENCE_DIR 只搬读数落点（PROBE_OUT 由它派生）；默认仍写历史目录。
+EVIDENCE = Path(
+    os.environ.get("B_PROBE_EVIDENCE_DIR")
+    or "C:/Users/33393/Desktop/ai-legal-helper/dispatch-output/local-candidate-closeout-20260928"
+)
 
 which = (sys.argv[1] if len(sys.argv) > 1 else "both").lower()
 tree = Path(
