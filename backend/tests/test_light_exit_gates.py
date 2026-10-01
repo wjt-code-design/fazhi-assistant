@@ -89,7 +89,7 @@ def _focus_route(monkeypatch) -> None:
 
     answer_cache.clear()  # 与 `test_flagship_quality.py` 同款卫生：清掉进程级缓存再做判据
     monkeypatch.setattr(main, "is_contract_review", lambda t: False)
-    monkeypatch.setattr(main, "_similar_cache_hit", lambda pre: None)
+    monkeypatch.setattr(main, "_similar_cache_hit", lambda pre, scope=None: None)
 
 
 def _study_aid_route_with_one_hit(monkeypatch) -> None:

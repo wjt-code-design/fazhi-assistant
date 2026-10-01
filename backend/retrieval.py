@@ -512,12 +512,14 @@ def article_in_kb(source: str, article: str) -> bool:
 _src_set_cache: set[str] | None = None
 
 
-def _ensure_src_set() -> None:
+def _ensure_src_set() -> set[str]:
     """构建源名集合（首次全量扫描约 1-3s，之后 O(1) 查；知识增删后 invalidate 重建）。"""
     global _src_set_cache
-    if _src_set_cache is None:
-        data = vectorstore._collection.get(include=["metadatas"])
-        _src_set_cache = {_source_key(str((m or {}).get("source", "") or "")) for m in (data["metadatas"] or [])}
+    with _bm25_lock:
+        if _src_set_cache is None:
+            data = vectorstore._collection.get(include=["metadatas"])
+            _src_set_cache = {_source_key(str((m or {}).get("source", "") or "")) for m in (data["metadatas"] or [])}
+        return _src_set_cache
 
 
 def source_in_kb(source: str) -> bool:
@@ -529,13 +531,10 @@ def source_in_kb(source: str) -> bool:
     源名集合全量构建一次后 O(1) 查（10266 条 metadata 首查约 1-3s，知识增删后
     invalidate() 重建）。
     """
-    global _src_set_cache
     sk = _source_key(canon_source(source))  # 简称→全称（与 article_in_kb/exact_article_lookup 同口径）
     if not sk:
         return False
-    _ensure_src_set()
-    assert _src_set_cache is not None  # _ensure_src_set 副作用保证已构建
-    return sk in _src_set_cache
+    return sk in _ensure_src_set()
 
 
 def prewarm() -> None:
@@ -669,21 +668,21 @@ _bm25_docs: list[Document] = []
 def invalidate() -> None:
     """知识增删后调用：清空 BM25 索引、结果缓存与回答缓存。"""
     global _bm25, _bm25_docs, _src_set_cache
+    import answer_cache  # 延迟 import，知识增删时同清回答缓存
+
     with _bm25_lock:
         _bm25 = None
         _bm25_docs = []
-    _src_set_cache = None
-    _cache.clear()
-    import answer_cache  # 延迟 import，知识增删时同清回答缓存
-
-    answer_cache.clear()
+        _src_set_cache = None
+        _cache.clear()
+        answer_cache.clear()
 
 
-def _ensure_bm25() -> None:
+def _ensure_bm25() -> tuple[Any, list[Document]]:
     global _bm25, _bm25_docs
     with _bm25_lock:
         if _bm25 is not None:
-            return
+            return _bm25, _bm25_docs
         data = vectorstore._collection.get(include=["documents", "metadatas"])
         documents = data["documents"] or []
         metadatas = data["metadatas"] or []
@@ -696,6 +695,7 @@ def _ensure_bm25() -> None:
         ]
         _bm25 = rc.build_bm25(docs)
         _bm25_docs = docs
+        return _bm25, _bm25_docs
 
 
 _COLLECTION_IS_COSINE: bool | None = None
@@ -755,10 +755,10 @@ def bm25_top(
     valid: Callable | None = None,
 ) -> list[tuple[Document, float]]:
     """BM25 召回 Top-n（可带分类过滤与有效性回调）；本地索引未构建时返回空列表。"""
-    _ensure_bm25()
-    if _bm25 is None:
+    model, docs = _ensure_bm25()
+    if model is None:
         return []
-    return rc.bm25_top(_bm25, _bm25_docs, query, n, category, valid=valid)
+    return rc.bm25_top(model, docs, query, n, category, valid=valid)
 
 
 def _cosine_rank(query: str, docs: list[Document]) -> list[Document]:
@@ -842,6 +842,7 @@ def hybrid_retrieve(
     用于「预算不足就别开新远程调用」。仅 Agent 主链路的 retrieve_laws 传入；缺省 None
     时共享检索路径行为与历史完全一致（rerank 仍按 _RERANK_ATTEMPT_TIMEOUT_S 单次上限）。
     """
+    cache_generation = _cache.generation()
     cutoff = cutoff or date.today().isoformat()
     query = _bridge_query(query)  # 措辞桥接先于缓存 key，词表变更自动失效
     valid = lambda m: rc.is_valid_by_time(m, cutoff)  # noqa: E731
@@ -866,7 +867,7 @@ def hybrid_retrieve(
         return hit
     if not HYBRID:
         docs = [d for d, _ in vector_top(query, k, category, valid=valid)]
-        _cache.put(key, docs)
+        _cache.put(key, docs, generation=cache_generation)
         return docs
     # ---- 候选池深度与「返回条数 k」解耦（2026-09-14，报告 §2c）----
     # 原实现：保底切片 v_ids[:k]/b_ids[:k] 与 RRF 切片 fused[:2k] 全用 k
@@ -995,7 +996,7 @@ def hybrid_retrieve(
         # 嵌入/精排故障：回退到 RRF 序（与旧行为一致）；不写缓存，防一次瞬断长期缓存未精排结果
         docs = [pool[did] for did, _ in sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:k]]
         return docs
-    _cache.put(key, docs)
+    _cache.put(key, docs, generation=cache_generation)
     return docs
 
 

@@ -23,6 +23,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sqlalchemy import func, text
+from sqlalchemy.engine import Row
 from sqlalchemy.orm import Session
 
 import answer_cache
@@ -64,6 +65,7 @@ from database import SessionLocal, get_db, init_db
 from domain_rules import (
     CITATION_SELECTION_RULE,
     build_contract_data,
+    canon_source,
     cheating_docs,
     consumer_clause_docs,
     consumer_fraud_docs,
@@ -120,6 +122,7 @@ from request_bootstrap import (
 )
 from retrieval import (
     _normalize_article,
+    _source_key,
     citation_grounding,
     citation_verify,
     exact_article_lookup,
@@ -1126,9 +1129,21 @@ def _cacheable(pre: dict) -> bool:
     )
 
 
-def _cache_key(pre: dict) -> str:
-    ids = [f"{s.get('source', '')}|{s.get('article', '')}" for s in (pre.get("sources") or [])]
-    return answer_cache.make_key(pre.get("rewritten", ""), pre.get("intent", ""), _cutoff(), ids)
+def _cache_scope(pre: dict, cutoff: str | None = None) -> answer_cache.CacheScope:
+    ids = [
+        json.dumps(
+            [s.get(field) or "" for field in ("source", "article", "effective_from", "effective_to", "status")],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        for s in (pre.get("sources") or [])
+    ]
+    return answer_cache.make_scope(pre.get("intent", ""), cutoff or _cutoff(), ids)
+
+
+def _cache_key(pre: dict, cutoff: str | None = None) -> str:
+    intent, day, ids = _cache_scope(pre, cutoff)
+    return answer_cache.make_key(pre.get("rewritten", ""), intent, day, list(ids))
 
 
 def _cache_write_ok(pre: dict, answer: str) -> bool:
@@ -1136,15 +1151,21 @@ def _cache_write_ok(pre: dict, answer: str) -> bool:
 
     自检（quality.self_check）只是"无实体"门禁——查引用是否在库，不保证"引对题"
     （引在库但答非所问）。法考题答案与检索条文强绑定，故写缓存前追加确定性校验：
-    引用条号 ⊆ 检索 sources 的条号集合，防止"引对库内条但语义不对题"的坏答案被
+    引用（法名、条号）⊆ 检索 sources 的对应集合，防止跨法同条号的坏答案被
     TTL 6h 缓存放大给所有同 key 用户。legal_query 维持现状（自检已覆盖）。
     """
     if pre.get("intent") != "study_aid":
         return True
-    retrieved = {_normalize_article(s.get("article", "")) for s in (pre.get("sources") or []) if s.get("article")}
+    retrieved = {
+        (_source_key(canon_source(s["source"])), _normalize_article(s["article"]))
+        for s in (pre.get("sources") or [])
+        if s.get("source") and s.get("article")
+    }
     if not retrieved:
         return False
-    cited = {_normalize_article(a) for _, a, _ in extract_citations(answer or "")}
+    cited = {
+        (_source_key(canon_source(source)), _normalize_article(a)) for source, a, _ in extract_citations(answer or "")
+    }
     return bool(cited) and cited <= retrieved
 
 
@@ -1169,7 +1190,7 @@ def _embed_question(text: str) -> list[float] | None:
         return None
 
 
-def _similar_cache_hit(pre: dict) -> dict | None:
+def _similar_cache_hit(pre: dict, scope: answer_cache.CacheScope | None = None) -> dict | None:
     """近重复命中（feature_similar_cache，grilling 定稿）：嵌入输入 + 护栏 → get_similar。
 
     仅当精确 key miss 时调用；护栏不一致（极性/选项数/标号体系/指纹）→ miss，安全。
@@ -1179,7 +1200,14 @@ def _similar_cache_hit(pre: dict) -> dict | None:
         if not emb:
             return None
         pol, cnt, lab, fp = _cache_guards(pre.get("rewritten") or "")
-        return answer_cache.get_similar(emb, polarity=pol, option_count=cnt, label_system=lab, options_fingerprint=fp)
+        return answer_cache.get_similar(
+            emb,
+            polarity=pol,
+            option_count=cnt,
+            label_system=lab,
+            options_fingerprint=fp,
+            scope=scope if scope is not None else _cache_scope(pre),
+        )
     except Exception:
         return None
 
@@ -1657,6 +1685,9 @@ def serialize_clarification_event(*, run_id: str, state_version: int, prompt: st
 @app.post("/api/chat")
 @limiter.limit("60/minute")
 async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
+    # 在取证前捕获代次与日期；失效前启动的请求可以完成，但不得重新污染共享缓存。
+    cache_generation = answer_cache.generation()
+    cache_cutoff = _cutoff()
     client_law_as_of = _client_law_as_of(body)
     text = (body.content if body.content is not None else body.question) or ""
     text = text.strip()
@@ -1836,7 +1867,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 bool(pre["sources"]),
                 _clarified.get(pre["conv_id"], False),
             )
-    cache_key = None if body.no_cache else (_cache_key(pre) if (use_router and _cacheable(pre)) else None)
+    cache_key = None if body.no_cache else (_cache_key(pre, cache_cutoff) if (use_router and _cacheable(pre)) else None)
+    cache_scope = _cache_scope(pre, cache_cutoff) if cache_key else None
     cache_hit = answer_cache.get(cache_key) if cache_key else None
     flag_key = flag_llm = None
     if use_router and not use_light:
@@ -1858,7 +1890,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 分支0：缓存命中（精确 key 优先，近重复兜底 feature_similar_cache）→ 零 token 直返
             hit = cache_hit
             if not hit and cache_key and settings.feature_similar_cache:
-                hit = await run_in_threadpool(_similar_cache_hit, pre)
+                hit = await run_in_threadpool(_similar_cache_hit, pre, cache_scope)
             if hit:
                 ca = hit["answer"]
                 _f0 = time.perf_counter()  # 缓存命中：首帧≈总耗时（瞬时，用于首帧埋点分段标注）
@@ -2055,7 +2087,14 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         # 两道闸（票 H）：**引用未收录**（bad 非空）与**降级产出**的报告都不得进缓存 ——
                         # 写进去的是追加注记**之前**的那一份，被零 token 复播时告警/免责注会一起丢掉
                         # （同族形状：E10 的注记也在 `put` 之后 ⇒ 该处靠"命中不入缓存"那道闸兜住）。
-                        answer_cache.put(cache_key, answer, pre["sources"], model="contract_review")
+                        answer_cache.put(
+                            cache_key,
+                            answer,
+                            pre["sources"],
+                            model="contract_review",
+                            scope=cache_scope,
+                            generation=cache_generation,
+                        )
                     if bad:
                         note = "\n\n> 注：报告引用 " + "、".join(bad) + " 未在知识库中检索到，建议核对。"
                         answer += note
@@ -2151,7 +2190,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     and not multi_bad
                     and not res.law_version_hit
                 ):
-                    answer_cache.put(cache_key, answer, pre["sources"])
+                    answer_cache.put(cache_key, answer, pre["sources"], scope=cache_scope, generation=cache_generation)
                 if res.key:
                     # 对抗审计 v2 #20：SQLite 扣减同步阻塞事件循环 → 线程池
                     await run_in_threadpool(registry.deduct, res.key, res.usage)
@@ -2342,6 +2381,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                             label_system=lab,
                             options_fingerprint=fp,
                             model=registry.model_of(flag_key) if use_router else "",
+                            scope=cache_scope,
+                            generation=cache_generation,
                         )
                 else:
                     verdict_flag = sv.reason
@@ -2458,7 +2499,7 @@ def my_conversations(user: User = Depends(get_current_user), db: Session = Depen
         .limit(50)
         .all()
     )
-    out = []
+    out: list[ConversationListItem] = []
     for c in convs:
         first_user = (
             db.query(Message)
@@ -2639,7 +2680,7 @@ def admin_conversations(
     # 分页钳制（对抗审计 2026-08-07）：limit 负数被 SQLite 当作"不限"全表导出，offset 负数触发 500
     limit = max(1, min(limit, 500))
     offset = max(0, offset)
-    rows = (
+    rows: list[Row[Conversation, str]] = (
         db.query(Conversation, User.username)
         .join(User, Conversation.user_id == User.id)
         .order_by(Conversation.created_at.desc())
@@ -2850,7 +2891,7 @@ async def admin_llm_quota(request: Request, body: LlmQuotaIn, _admin: User = Dep
 # ==================== 管理员：操作审计 ====================
 @app.get("/api/admin/audit")
 def admin_audit(limit: int = 100, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
-    rows = (
+    rows: list[Row[AuditLog, str | None]] = (
         db.query(AuditLog, User.username)
         .outerjoin(User, AuditLog.admin_id == User.id)
         .order_by(AuditLog.created_at.desc())

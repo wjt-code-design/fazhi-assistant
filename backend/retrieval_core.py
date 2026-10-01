@@ -159,6 +159,7 @@ class LRU:
         self._d: OrderedDict[tuple, object] = OrderedDict()
         self._max = maxsize
         self._lock = threading.Lock()
+        self._generation = 0
 
     def get(self, key):
         with self._lock:
@@ -167,8 +168,14 @@ class LRU:
                 return self._d[key]
         return None
 
-    def put(self, key, value) -> None:
+    def generation(self) -> int:
         with self._lock:
+            return self._generation
+
+    def put(self, key, value, *, generation: int | None = None) -> None:
+        with self._lock:
+            if generation is not None and generation != self._generation:
+                return
             self._d[key] = value
             self._d.move_to_end(key)
             while len(self._d) > self._max:
@@ -176,6 +183,7 @@ class LRU:
 
     def clear(self) -> None:
         with self._lock:
+            self._generation += 1
             self._d.clear()
 
     def __len__(self) -> int:

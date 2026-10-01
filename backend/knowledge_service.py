@@ -161,8 +161,18 @@ def add_chunks(
     docs = [Document(page_content=c, metadata={**base, **m}) for c, m in pairs if (c or "").strip()]
     if not docs:
         return 0
-    vectorstore.add_documents(docs)
-    retrieval.invalidate()
+    try:
+        vectorstore.add_documents(docs)
+    except BaseException:
+        # 批量写入或中断可能已写部分；尝试失效，但清理故障不能替换原写入异常。
+        try:
+            retrieval.invalidate()
+        except Exception as exc:
+            logger.warning("知识写入失败后的缓存失效也失败 (error=%s)", type(exc).__name__)
+        raise
+    else:
+        # 写入成功时失效失败仍须向上抛出，不能报告为成功。
+        retrieval.invalidate()
     return len(docs)
 
 
@@ -250,13 +260,15 @@ def add_text(
                 for c in chunks
             ]
         n = add_chunks(pairs, source=source, origin=origin, extra_meta=extra_meta, file_hash_value=file_hash_value)
-        # 写入成功后再删旧（add_chunks 已失效检索缓存；同一 RLock 内紧凑执行）。
+        # 写入成功后再删旧；读取不持有写锁，删旧结束后还需再次失效。
         # 失败仅导致新旧短暂共存，下次重传仍会清理——可接受，优于删旧失败丢知识。
         if n and stale_ids:
             try:
                 _collection().delete(ids=stale_ids)
             except Exception:
                 pass
+            finally:
+                retrieval.invalidate()
         return n
 
 

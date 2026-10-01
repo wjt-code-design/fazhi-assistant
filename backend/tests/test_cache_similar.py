@@ -16,6 +16,8 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 import answer_cache
 from query_understand import _label_system, _options_fingerprint, _polarity, option_count
 
+_SCOPE = answer_cache.make_scope("study_aid", "2026-10-01", ["民法典|第一千一百六十五条"])
+
 
 def _v(*xs):
     """小向量（模拟嵌入）。"""
@@ -76,6 +78,7 @@ def _put(key, text_vec, pol="", cnt=0, lab="", fp="", answer="缓存答案"):
         label_system=lab,
         options_fingerprint=fp,
         model="qwen3.7-plus",
+        scope=_SCOPE,
     )
 
 
@@ -87,6 +90,7 @@ def test_get_similar_hits_when_guards_match():
         polarity="true",
         option_count=4,
         label_system="A-D",
+        scope=_SCOPE,
     )
     assert hit is not None and hit["answer"] == "缓存答案"
 
@@ -101,6 +105,7 @@ def test_get_similar_polarity_mismatch_misses():
             polarity="false",
             option_count=4,
             label_system="A-D",
+            scope=_SCOPE,
         )
         is None
     )
@@ -115,6 +120,7 @@ def test_get_similar_option_count_mismatch_misses():
             polarity="true",
             option_count=5,
             label_system="A-D",
+            scope=_SCOPE,
         )
         is None
     )
@@ -129,6 +135,7 @@ def test_get_similar_label_system_mismatch_misses():
             polarity="true",
             option_count=4,
             label_system="circ",
+            scope=_SCOPE,
         )
         is None
     )
@@ -145,6 +152,7 @@ def test_get_similar_option_content_mismatch_misses():
             option_count=4,
             label_system="A-D",
             options_fingerprint="甲\x1f乙\x1f是\x1f否",
+            scope=_SCOPE,
         )
         is None
     )
@@ -160,6 +168,7 @@ def test_get_similar_option_fingerprint_match_hits():
         option_count=4,
         label_system="A-D",
         options_fingerprint="甲\x1f乙\x1f丙\x1f丁",
+        scope=_SCOPE,
     )
     assert hit is not None and hit["answer"] == "缓存答案"
 
@@ -174,6 +183,7 @@ def test_get_similar_below_threshold_misses():
             polarity="true",
             option_count=4,
             label_system="A-D",
+            scope=_SCOPE,
         )
         is None
     )
@@ -188,6 +198,7 @@ def test_get_similar_no_embedding_entry_skipped():
             polarity="",
             option_count=0,
             label_system="none",
+            scope=_SCOPE,
         )
         is None
     )

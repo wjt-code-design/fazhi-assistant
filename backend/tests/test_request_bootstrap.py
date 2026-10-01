@@ -721,7 +721,7 @@ def test_fast_path_drops_qa_hit_whose_provenance_is_not_verifiable(store):
         assert result["qa_hit"] is None, label
 
 
-def test_refused_qa_hit_leaves_a_log_trace(store, caplog, monkeypatch):
+def test_refused_qa_hit_leaves_a_log_trace(store, monkeypatch):
     """拦截要留痕：这道门关掉的是零 token 直返，不留日志则"语料在衰减"在线上没有一点痕迹。
 
     三腿：① 拒一次 ⇒ 归因键 `qa_provenance_refused` 恰好出现一次；
@@ -738,22 +738,35 @@ def test_refused_qa_hit_leaves_a_log_trace(store, caplog, monkeypatch):
         "law_as_of_basis": "2026-01-01",
     }
 
-    with caplog.at_level(logging.WARNING, logger="legal.chat"):
+    chat_logger = logging.getLogger("legal.chat")
+    records: list[logging.LogRecord] = []
+
+    class _Handler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Handler(level=logging.WARNING)
+    previous_level = chat_logger.level
+    chat_logger.addHandler(handler)
+    chat_logger.setLevel(logging.WARNING)
+    try:
         dropped = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(refused)))
-    fired = [r for r in caplog.records if getattr(r, "qa_provenance_refused", False)]
-    assert dropped["qa_hit"] is None
-    assert len(fired) == 1, "拦截未留痕 ⇒ 直返率下降在线上不可归因"
-    from observability import _JsonFormatter  # 留痕要真的能出机器（白名单外的键会被 JSON formatter 静默丢弃）
+        fired = [r for r in records if getattr(r, "qa_provenance_refused", False)]
+        assert dropped["qa_hit"] is None
+        assert len(fired) == 1, "拦截未留痕 ⇒ 直返率下降在线上不可归因"
+        from observability import _JsonFormatter  # 留痕要真的能出机器（白名单外的键会被 JSON formatter 静默丢弃）
 
-    assert json.loads(_JsonFormatter().format(fired[0]))["qa_provenance_refused"] is True
-    assert raw_query not in " ".join([r.getMessage() for r in fired] + [repr(fired[0].__dict__)])
+        assert json.loads(_JsonFormatter().format(fired[0]))["qa_provenance_refused"] is True
+        assert raw_query not in " ".join([r.getMessage() for r in fired] + [repr(fired[0].__dict__)])
 
-    caplog.clear()
-    _patch_kb(monkeypatch, ["doc"])  # 票 W1：放行腿还要过时效判据，不桩就红在空库上（见 _patch_kb docstring）
-    with caplog.at_level(logging.WARNING, logger="legal.chat"):
+        records.clear()
+        _patch_kb(monkeypatch, ["doc"])  # 票 W1：放行腿还要过时效判据，不桩就红在空库上（见 _patch_kb docstring）
         kept = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(accepted)))
-    assert kept["qa_hit"] is not None
-    assert not [r for r in caplog.records if getattr(r, "qa_provenance_refused", False)], "放行也留痕 ⇒ 计数不可用"
+        assert kept["qa_hit"] is not None
+        assert not [r for r in records if getattr(r, "qa_provenance_refused", False)], "放行也留痕 ⇒ 计数不可用"
+    finally:
+        chat_logger.removeHandler(handler)
+        chat_logger.setLevel(previous_level)
 
 
 # ==================== 票 W1：时效判据上提到产生处（两出口对称收口） ====================
@@ -891,7 +904,7 @@ def test_shape_gate_runs_before_the_kb_and_skips_the_lookup(store, monkeypatch):
     assert calls == [], f"形状判据已拒仍去查库 ⇒ 每条无效记录都白付一次读库成本：{calls}"
 
 
-def test_citation_refused_qa_hit_leaves_a_log_trace(store, caplog, monkeypatch):
+def test_citation_refused_qa_hit_leaves_a_log_trace(store, monkeypatch):
     """拦截要留痕，且与形状判据**分键**：两个门是两个数，合成一个就没法归因是哪道在衰减。
 
     腿：① 失效引用 ⇒ `qa_citation_refused` 恰好一次，且不落 `qa_provenance_refused`（形状门没参与）；
@@ -903,24 +916,37 @@ def test_citation_refused_qa_hit_leaves_a_log_trace(store, caplog, monkeypatch):
     bootstrap = bootstrap_request(store.user_id, store.conv_id, raw_query, None, False, _deps=_bootstrap_deps(store))
     stale = dict(_CITABLE_QA, question=raw_query)
 
-    with caplog.at_level(logging.WARNING, logger="legal.chat"):
+    chat_logger = logging.getLogger("legal.chat")
+    records: list[logging.LogRecord] = []
+
+    class _Handler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Handler(level=logging.WARNING)
+    previous_level = chat_logger.level
+    chat_logger.addHandler(handler)
+    chat_logger.setLevel(logging.WARNING)
+    try:
         dropped = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(stale)))
-    fired = [r for r in caplog.records if getattr(r, "qa_citation_refused", False)]
-    assert dropped["qa_hit"] is None
-    assert len(fired) == 1, "失效引用被拦但无线上痕迹 ⇒ 直返率下降不可归因"
-    assert not [r for r in caplog.records if getattr(r, "qa_provenance_refused", False)], "两键串了 ⇒ 归因失真"
+        fired = [r for r in records if getattr(r, "qa_citation_refused", False)]
+        assert dropped["qa_hit"] is None
+        assert len(fired) == 1, "失效引用被拦但无线上痕迹 ⇒ 直返率下降不可归因"
+        assert not [r for r in records if getattr(r, "qa_provenance_refused", False)], "两键串了 ⇒ 归因失真"
 
-    from observability import _JsonFormatter
+        from observability import _JsonFormatter
 
-    assert json.loads(_JsonFormatter().format(fired[0]))["qa_citation_refused"] is True
-    assert raw_query not in " ".join([r.getMessage() for r in fired] + [repr(fired[0].__dict__)])
+        assert json.loads(_JsonFormatter().format(fired[0]))["qa_citation_refused"] is True
+        assert raw_query not in " ".join([r.getMessage() for r in fired] + [repr(fired[0].__dict__)])
 
-    caplog.clear()
-    _patch_kb(monkeypatch, ["doc"])
-    with caplog.at_level(logging.WARNING, logger="legal.chat"):
+        records.clear()
+        _patch_kb(monkeypatch, ["doc"])
         kept = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(stale)))
-    assert kept["qa_hit"] is not None
-    assert not [r for r in caplog.records if getattr(r, "qa_citation_refused", False)], "放行也留痕 ⇒ 计数不可用"
+        assert kept["qa_hit"] is not None
+        assert not [r for r in records if getattr(r, "qa_citation_refused", False)], "放行也留痕 ⇒ 计数不可用"
+    finally:
+        chat_logger.removeHandler(handler)
+        chat_logger.setLevel(previous_level)
 
 
 def test_historical_fast_path_uses_date_for_all_evidence_and_skips_current_qa(store):
