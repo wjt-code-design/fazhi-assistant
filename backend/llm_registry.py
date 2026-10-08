@@ -12,6 +12,7 @@
 探针结论沿用：langchain 流式无 stream_options 400；接受 extra_body 关思考（variant）。
 """
 
+import inspect
 import json
 import threading
 from dataclasses import dataclass, field
@@ -332,7 +333,11 @@ class ModelEntry:
         return self.depleted or self.below_threshold
 
 
-def _build(cfg: dict[str, Any]) -> ChatOpenAI:
+def _build(
+    cfg: dict[str, Any],
+    share_llm: "ChatOpenAI | None" = None,
+    share_cfg: dict[str, Any] | None = None,
+) -> ChatOpenAI:
     if not cfg.get("api_key") or not cfg.get("base_url"):
         raise RuntimeError("缺少 LLM_API_KEY / LLM_BASE_URL，请在 backend/.env 配置")
     extra_body: dict[str, Any] = {}
@@ -345,7 +350,7 @@ def _build(cfg: dict[str, Any]) -> ChatOpenAI:
     if cfg.get("translation_options"):
         extra_body["translation_options"] = cfg["translation_options"]
     model_kwargs: dict[str, Any] = {"extra_body": extra_body} if extra_body else {}
-    return ChatOpenAI(
+    kwargs: dict[str, Any] = dict(
         model=cfg["model"],
         api_key=cfg["api_key"],
         base_url=cfg["base_url"],
@@ -354,6 +359,19 @@ def _build(cfg: dict[str, Any]) -> ChatOpenAI:
         timeout=cfg.get("timeout", 120),
         max_retries=3,
     )
+    if share_llm is not None:
+        # 传输层复用（生命周期收尾）：仅改 model/思考参数时经已验证的 client/async_client
+        # 注入字段共用原 entry 的 SDK 根客户端，避免每次 variant/reload 新建连接池；
+        # 请求参数语义仍由新 ChatOpenAI 自身的 model/model_kwargs 决定。
+        # 传输参数（端点/凭据/超时）不同不得共用同一客户端——显式失败而不是静默新建池。
+        if share_cfg is None or any(share_cfg.get(k) != cfg.get(k) for k in ("base_url", "api_key", "timeout")):
+            raise RuntimeError(
+                "传输参数(base_url/api_key/timeout)变化时禁止共用 SDK 客户端；"
+                "如确需新建连接池，须同步扩展 LLMRegistry 的资源归属与 aclose 覆盖"
+            )
+        kwargs["client"] = share_llm.client
+        kwargs["async_client"] = share_llm.async_client
+    return ChatOpenAI(**kwargs)
 
 
 def estimate_tokens(text: str) -> int:
@@ -377,6 +395,7 @@ class LLMRegistry:
         self._lock = threading.RLock()
         self._entries: dict[str, ModelEntry] = {}
         self._admin_disabled: set[str] = set()  # 管理员禁用开关：只影响 pick 自动路由
+        self._aclose_done = False  # 应用退出收尾一次性标记（aclose 幂等）
         self._load()
 
     def _load(self) -> None:
@@ -446,7 +465,7 @@ class LLMRegistry:
             assert e is not None, "LLM 未初始化"
             cfg = dict(e.cfg)
             cfg["disable_thinking"] = disable_thinking
-            return _build(cfg)
+            return _build(cfg, share_llm=e.llm, share_cfg=e.cfg)
 
     def variant_of(self, key: str, disable_thinking: bool) -> ChatOpenAI:
         """按指定 entry 的 cfg 临时构建关/开思考实例（旗舰流式重试用）。"""
@@ -455,7 +474,7 @@ class LLMRegistry:
             assert e is not None, "LLM 未初始化"
             cfg = dict(e.cfg)
             cfg["disable_thinking"] = disable_thinking
-            return _build(cfg)
+            return _build(cfg, share_llm=e.llm, share_cfg=e.cfg)
 
     def config(self) -> dict[str, Any]:
         with self._lock:
@@ -470,14 +489,54 @@ class LLMRegistry:
             return any(e.modality == modality and e.llm is not None for e in self._entries.values())
 
     def reload(self, model: str | None = None) -> dict[str, Any]:
-        """兼容：仅重建默认 entry（旧单模型热切换语义）。多模型整体重载用 _load。"""
+        """兼容：仅重建默认 entry（旧单模型热切换语义）。多模型整体重载用 _load。
+
+        仅改 model（传输参数不变）→ 新实例复用原 entry 的 SDK 根客户端，
+        旧连接池不再被丢弃成孤儿。
+        """
         with self._lock:
             e = self._entries.get(DEFAULT_KEY)
             if e and model:
+                previous = e.llm
                 e.cfg["model"] = model
                 e.model = model
-                e.llm = _build(e.cfg)
+                e.llm = _build(e.cfg, share_llm=previous, share_cfg=e.cfg)
             return self.config()
+
+    # ---------- 应用退出收尾 ----------
+    async def aclose(self) -> None:
+        """关闭 registry 实际拥有的 SDK 根客户端（同步+异步），由 main.lifespan 在
+        事件循环仍运行时调用。
+
+        - 幂等：重复调用不再重复关闭（一次性标记）。
+        - 锁只保护快照与标记，不跨 await 持有。
+        - 失败隔离：单个根关闭失败记录"资源类别:模型key + 异常类型"（不含
+          URL/凭据/异常消息），继续尝试其余，最终显式 raise 供上层判定门禁失败。
+        - 覆盖范围：当前 entries 可达的唯一根（variant/reload 复用同一对根）。
+        """
+        with self._lock:
+            if self._aclose_done:
+                return
+            self._aclose_done = True
+            roots: dict[int, tuple[str, Any]] = {}
+            for e in self._entries.values():
+                llm = e.llm
+                if llm is None:
+                    continue
+                for attr, kind in (("client", "sync"), ("async_client", "async")):
+                    root = getattr(getattr(llm, attr, None), "_client", None)
+                    if root is not None and id(root) not in roots:
+                        roots[id(root)] = (f"{kind}:{e.key}", root)
+        failures: list[dict[str, str]] = []
+        for label, root in roots.values():
+            try:
+                outcome = root.close()
+                if inspect.isawaitable(outcome):
+                    await outcome
+            except Exception as error:  # noqa: BLE001 - 失败隔离后统一显式上抛
+                failures.append({"resource": label, "error_type": type(error).__name__})
+        if failures:
+            raise RuntimeError("LLMRegistry.aclose 存在未关闭的 SDK 资源: " + json.dumps(failures, ensure_ascii=False))
 
     # ---------- 路由接口（主回答用） ----------
     def pick_by_key(self, key: str) -> ChatOpenAI:

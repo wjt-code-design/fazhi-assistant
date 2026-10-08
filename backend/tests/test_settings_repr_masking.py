@@ -26,6 +26,16 @@ import settings as settings_mod  # noqa: E402
 MARKERS = ("api_key", "password", "secret", "token")
 
 
+def test_repr_masks_nested_model_credentials_without_parsing_json():
+    secret = "test-only-nested-model-credential"
+    config = '[{"model": "safe-model", "api_key": "' + secret + '"}]'
+    instance = settings_mod.Settings(llm_models_json=config)
+    text = repr(instance)
+    assert secret not in text
+    assert config not in text
+    assert "llm_models_json='<masked:" in text
+
+
 def test_repr_masks_every_secret_value():
     """① 安全：repr 里不得出现任何敏感字段的实际值。"""
     s = settings_mod.settings

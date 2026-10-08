@@ -171,6 +171,11 @@ class KnowledgeAddIn(BaseModel):
     def _date_or_empty(cls, v: str | None) -> str | None:
         if v and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
             raise ValueError("日期格式必须为 YYYY-MM-DD")
+        if v:
+            try:
+                date.fromisoformat(v)
+            except ValueError as exc:
+                raise ValueError("日期必须是有效的 YYYY-MM-DD 日历日期") from exc
         return v
 
     @field_validator("status")

@@ -17,6 +17,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import os
@@ -122,6 +123,9 @@ class FakeLLM:
     def invoke(self, messages):
         return SimpleNamespace(content=self._content, usage_metadata={"total_tokens": self._tokens})
 
+    async def ainvoke(self, messages):
+        return self.invoke(messages)
+
 
 def make_pre(fact_texts, context=None, sources=None):
     """事实只经**生产 `pre` 真有的键**流入：`user_text` / `rewritten` / `recent` 里的用户消息。
@@ -175,8 +179,8 @@ def install_fakes(monkeypatch, light_content, flag_content=None, shape="ok-light
 def run_light(monkeypatch, pre, answer, law_as_of=NO_AS_OF, shape="ok-light", verdicts=None, flag_content=None):
     install_fakes(monkeypatch, answer, flag_content=flag_content, shape=shape, verdicts=verdicts)
     if isinstance(law_as_of, _NoAsOf):
-        return main._light_buffered(pre, [])  # 现网调用形状（§4-Q2 之所以要带默认值尾参）
-    return main._light_buffered(pre, [], law_as_of)
+        return asyncio.run(main._light_buffered(pre, []))  # 不传基准日，保留默认参数覆盖
+    return asyncio.run(main._light_buffered(pre, [], law_as_of))
 
 
 # ---------------- ① 先红：两参数调用，未实现时红在断言本身而不是签名报错 ----------------

@@ -1,33 +1,89 @@
 "use client";
 // T2.3 状态收敛：流式会话核心态（messages/streaming/conversationId/agent 续跑/澄清计数）。
-// doSend 为 chat 页原函数逐行搬移，零逻辑改动；跨切片副作用经 opts 回调注入
-// （activeId 同步 / 流结束后刷新历史），调用时序与原实现一致。
-import { useState } from "react";
-import { streamChat, ChatMeta } from "@/lib/api";
+// doSend 复用原 streamChat 回调；当前请求身份隔离主动取消后的迟到回调；副作用经 opts 注入
+// 正常结束/失败在收尾刷新历史；主动停止立即刷新，旧请求不重复收尾。
+import { useEffect, useRef, useState, type SetStateAction } from "react";
+import { convApi, streamChat, ChatMeta } from "@/lib/api";
 import { parseScopeCandidates, ScopeCandidate } from "@/lib/scope";
 import type { Msg, PendingAgentRun } from "@/lib/types";
 
 export function useChatStream(opts: {
   /** SSE meta 帧带回 conversation_id 时同步侧栏高亮（原 setActiveId） */
   onConversationId: (id: number) => void;
-  /** 一轮流式（成功/失败）结束后刷新历史列表（原 loadHistory） */
+  /** 一轮流式（成功/失败/主动停止）结束后刷新历史列表 */
   onStreamEnd: () => void;
 }) {
   const [messages, setMessages] = useState<Msg[]>([]);
-  const [conversationId, setConversationId] = useState<number | null>(null);
+  const [conversationId, setConversationIdState] = useState<number | null>(null);
   const [pendingAgentRun, setPendingAgentRun] = useState<PendingAgentRun | null>(null);
   // 本轮 Agent 澄清计数（B4：无分母，后端未暴露总轮数；newChat/selectConv 重置）
   const [clarifyRounds, setClarifyRounds] = useState(0);
   const [streaming, setStreaming] = useState(false);
+  const activeRequest = useRef<AbortController | null>(null);
+  const conversationIdRef = useRef<number | null>(null);
+  const viewVersion = useRef(0);
+  const pendingCreation = useRef<Promise<number> | null>(null);
 
-  // 核心发送：普通 send 与空状态快捷提问共用（streamChat 回调原样，零逻辑改动）
+  useEffect(
+    () => () => {
+      viewVersion.current += 1;
+      pendingCreation.current = null;
+      activeRequest.current?.abort();
+      activeRequest.current = null;
+    },
+    []
+  );
+
+  // 外部 setter 表示切换/新建视图；内部建号和 meta 同步不经过此失效入口。
+  function setConversationId(value: SetStateAction<number | null>) {
+    viewVersion.current += 1;
+    pendingCreation.current = null;
+    activeRequest.current?.abort();
+    activeRequest.current = null;
+    setStreaming(false);
+    conversationIdRef.current =
+      typeof value === "function" ? value(conversationIdRef.current) : value;
+    setConversationIdState(conversationIdRef.current);
+  }
+
+  function stop() {
+    const controller = activeRequest.current;
+    if (!controller) return;
+    controller.abort();
+    activeRequest.current = null;
+    setStreaming(false);
+    setPendingAgentRun(null);
+    setClarifyRounds(0);
+    setMessages((m) => {
+      const last = m[m.length - 1];
+      if (last?.role !== "assistant") return m;
+      return [
+        ...m.slice(0, -1),
+        {
+          ...last,
+          content: last.content.trim()
+            ? `${last.content}\n\n（已停止生成，以上为未完成回答。）`
+            : "已停止生成。",
+          coverage: undefined,
+          agentNote: undefined,
+          scopeCandidates: undefined,
+        },
+      ];
+    });
+    opts.onStreamEnd();
+  }
+
+  // ref 同步挡住重复发送；state 仅负责输入栏的可用状态。
   async function doSend(
     contentText: string,
     image?: string | null,
     display?: string,
     truncated?: boolean
   ) {
-    if ((!contentText && !image) || streaming) return;
+    if ((!contentText && !image) || activeRequest.current) return;
+    const controller = new AbortController();
+    activeRequest.current = controller;
+    const isCurrent = () => activeRequest.current === controller && !controller.signal.aborted;
     const userMsg: Msg = {
       role: "user",
       content: display || contentText || "[图片]",
@@ -40,9 +96,35 @@ export function useChatStream(opts: {
 
     let acc = "";
     try {
+      let targetConversationId = conversationIdRef.current;
+      if (targetConversationId === null) {
+        if (!pendingCreation.current) {
+          const version = viewVersion.current;
+          // 停止只取消本轮回答；同视图重问共享创建，原生超时防止创建永久挂起。
+          const creation = convApi
+            .create(AbortSignal.timeout(180_000))
+            .then(({ id }) => {
+              if (!Number.isSafeInteger(id) || id <= 0) {
+                throw new Error("创建对话失败：无效的对话编号");
+              }
+              if (viewVersion.current === version) {
+                conversationIdRef.current = id;
+                setConversationIdState(id);
+                opts.onConversationId(id);
+              }
+              return id;
+            })
+            .finally(() => {
+              if (pendingCreation.current === creation) pendingCreation.current = null;
+            });
+          pendingCreation.current = creation;
+        }
+        targetConversationId = await pendingCreation.current;
+      }
+      if (!isCurrent()) return;
       await streamChat(
         {
-          conversationId,
+          conversationId: targetConversationId,
           content: contentText,
           image: image || undefined,
           truncated,
@@ -50,14 +132,17 @@ export function useChatStream(opts: {
           agentStateVersion: resumeAgent?.stateVersion,
         },
         (chunk) => {
+          if (!isCurrent()) return;
           acc += chunk;
           setMessages((m) => {
+            if (controller.signal.aborted) return m;
             const copy = [...m];
             copy[copy.length - 1] = { ...copy[copy.length - 1], content: acc };
             return copy;
           });
         },
         (meta: ChatMeta) => {
+          if (!isCurrent()) return;
           // B2/B4/B3 标注计算放 updater 外（避免 updater 内 setState，审查偏差修正）；
           // 每轮 doSend 最多一条澄清事件 → clarifyRounds 闭包语义 = 当前已确认轮次
           let patchNote: Msg["agentNote"] | undefined;
@@ -82,6 +167,7 @@ export function useChatStream(opts: {
             }
           }
           setMessages((m) => {
+            if (controller.signal.aborted) return m;
             const copy = [...m];
             const last = copy[copy.length - 1];
             if (!last) return copy;
@@ -95,7 +181,8 @@ export function useChatStream(opts: {
             return copy;
           });
           if (meta.conversation_id != null) {
-            setConversationId(meta.conversation_id);
+            conversationIdRef.current = meta.conversation_id;
+            setConversationIdState(meta.conversation_id);
             opts.onConversationId(meta.conversation_id);
           }
           if (
@@ -112,17 +199,21 @@ export function useChatStream(opts: {
           }
         },
         (err) => {
+          if (!isCurrent()) return;
           // 失败标注：保留已有 agentNote（error code 在其中；普通 RAG 路径 undefined）
           setClarifyRounds(0);
           setMessages((m) => {
+            if (controller.signal.aborted) return m;
             const copy = [...m];
             copy[copy.length - 1] = { ...copy[copy.length - 1], content: `出错了：${err}` };
             return copy;
           });
         },
         (steps) => {
+          if (!isCurrent()) return;
           // 合同评估分析进度（SSE step 事件）：更新最后一条 AI 消息的步骤区
           setMessages((m) => {
+            if (controller.signal.aborted) return m;
             const copy = [...m];
             const last = copy[copy.length - 1];
             if (last && last.role === "assistant") {
@@ -132,18 +223,23 @@ export function useChatStream(opts: {
           });
         },
         () => {
+          if (!isCurrent()) return;
           // 后端重试将零重答：清空已发的半截内容重新累积，防拼接乱码（对抗审计 2026-08-07）
           acc = "";
           setMessages((m) => {
+            if (controller.signal.aborted) return m;
             const copy = [...m];
             copy[copy.length - 1] = { ...copy[copy.length - 1], content: "" };
             return copy;
           });
-        }
+        },
+        controller.signal
       );
+      if (!isCurrent()) return;
       // G-5 降级兜底：流正常结束但回答为空（技术故障 fail-closed 空响应）→ 明确提示而非空白。
       // clarification 必有 content 写入，不受影响；此处仅覆盖"零内容完成"。
       setMessages((m) => {
+        if (controller.signal.aborted) return m;
         const copy = [...m];
         const last = copy[copy.length - 1];
         if (last?.role === "assistant" && last.content.trim() === "") {
@@ -155,9 +251,11 @@ export function useChatStream(opts: {
         return copy;
       });
     } catch (e) {
+      if (!isCurrent()) return;
       // 网络错误/流中断会让 streamChat reject——必须恢复 streaming 状态并提示，
       // 否则 UI 永久卡在"正在生成"（对抗审计 2026-08-07）
       setMessages((m) => {
+        if (controller.signal.aborted) return m;
         const copy = [...m];
         copy[copy.length - 1] = {
           ...copy[copy.length - 1],
@@ -166,9 +264,12 @@ export function useChatStream(opts: {
         return copy;
       });
     } finally {
-      setStreaming(false);
+      if (activeRequest.current === controller) {
+        activeRequest.current = null;
+        setStreaming(false);
+        opts.onStreamEnd();
+      }
     }
-    opts.onStreamEnd();
   }
 
   return {
@@ -183,5 +284,6 @@ export function useChatStream(opts: {
     clarifyRounds,
     setClarifyRounds,
     doSend,
+    stop,
   };
 }

@@ -1,5 +1,5 @@
 "use client";
-// T2.2 自 chat/page.tsx 原样搬移（输入区区块提取为组件），零行为变更。
+// 输入区沿用原样式；生成期间同一位置提供主动停止入口。
 // hidden file input 与触发它的按钮同属本组件，refs 随迁（点击自身隐藏 input 的行为不变）。
 import { useRef, type FormEvent, type ClipboardEvent } from "react";
 import { Spinner } from "@/components/ui";
@@ -22,6 +22,7 @@ export function InputBar({
   onPickFile,
   onPaste,
   onSubmit,
+  onStop,
 }: {
   input: string;
   onInputChange: (v: string) => void;
@@ -39,6 +40,7 @@ export function InputBar({
   onPickFile: (f: File) => void;
   onPaste: (e: ClipboardEvent) => void;
   onSubmit: (e?: FormEvent) => void;
+  onStop: () => void;
 }) {
   const imageInputRef = useRef<HTMLInputElement>(null); // 图片选择
   const fileInputRef = useRef<HTMLInputElement>(null); // 文件（txt/pdf/docx）选择
@@ -202,14 +204,15 @@ export function InputBar({
             disabled={streaming}
           />
           <button
-            type="submit"
-            disabled={streaming || (!input.trim() && !pendingImage && !fileContent)}
+            type={streaming ? "button" : "submit"}
+            onClick={streaming ? onStop : undefined}
+            disabled={!streaming && !input.trim() && !pendingImage && !fileContent}
             className="btn btn-primary h-11 w-11 shrink-0 !rounded-[6px] !p-0 shadow-md shadow-accent/25"
-            aria-label="发送"
-            title="发送（Enter）"
+            aria-label={streaming ? "停止生成" : "发送"}
+            title={streaming ? "停止生成" : "发送（Enter）"}
           >
             {streaming ? (
-              <Spinner />
+              <span aria-hidden="true" className="h-3.5 w-3.5 rounded-sm bg-current" />
             ) : (
               <svg
                 className="h-4 w-4 md:h-[17px] md:w-[17px]"

@@ -56,7 +56,7 @@ class _FakeResp:
 
 
 class _FakeInvokableLLM:
-    """`llm.invoke(messages)` 一次拿整答的模型替身。
+    """`llm.ainvoke(messages)` 一次拿整答的模型替身。
 
     两个消费者：`_light_buffered_locked`（轻量缓冲整答）与 `main._invoke_llm`（旗舰流式空答后的
     非流式兜底，票 C §5-3 点名的**第二个答案来源**）。形状相同 ⇒ 不另立一份。
@@ -67,6 +67,9 @@ class _FakeInvokableLLM:
 
     def invoke(self, messages):  # noqa: ARG002 - 形参由真实 llm 决定
         return _FakeResp(self._text)
+
+    async def ainvoke(self, messages):
+        return self.invoke(messages)
 
 
 def _one_hit_retrieval(q: str, k: int = 4, cutoff: str | None = None) -> list[Document]:  # noqa: ARG002

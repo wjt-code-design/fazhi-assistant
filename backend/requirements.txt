@@ -1,15 +1,14 @@
 # CPU 版 torch 请单独安装，避免误装数 GB 的 CUDA 版：
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
-fastapi>=0.110,<0.111
+fastapi==0.141.1
 uvicorn[standard]>=0.27,<0.28
-langchain>=0.1,<0.2
 langchain-core>=0.1,<0.2
-langchain-community>=0.0.38,<0.1
 langchain-openai>=0.1,<0.2
 langchain-chroma>=0.1,<0.2
 langchain-huggingface>=0.0.3,<0.1
+langchain-text-splitters>=0.0.2,<0.1
 chromadb>=0.4,<0.5
-sentence-transformers>=2.5,<3.0
+sentence-transformers>=6.0,<7.0
 pydantic>=2.6,<3.0
 python-dotenv>=1.0,<2.0
 slowapi>=0.1.9,<0.2
@@ -21,4 +20,9 @@ pyjwt>=2.8,<3.0
 bcrypt>=4.0,<6.0
 sqlalchemy>=2.0,<3.0
 python-multipart>=0.0.9
-pypdf>=4.0,<6.0
+pypdf==6.19.0
+# pillow：multimodal.py:14 `from PIL import Image` 直接导入，但从未在此声明；
+# 联合基线里它靠 sentence-transformers 2.7.0 的无条件 Requires-Dist: Pillow 传递带上，
+# ST 6.0.0 起 Pillow 只在 extra 里 ⇒ 升级后收集期 ModuleNotFoundError: No module named 'PIL'。
+# 版本窗口对齐 transformers 5.17.0 的声明（>=10.0.1,<=15.0），与联合在册实装 12.3.0 一致。
+pillow>=10.0.1,<15.1

@@ -11,12 +11,14 @@ from datetime import date, datetime
 from threading import Event
 from typing import Any
 from urllib.parse import urlparse
+from weakref import WeakValueDictionary
 
 from dotenv import load_dotenv
 
 # 必须在导入会读取环境变量的本地模块之前加载 .env
 load_dotenv()
 
+from anyio import CancelScope
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
@@ -108,7 +110,7 @@ from prompts import (
     SYSTEM_STUDY,
 )
 from quota_utils import UtilityQuotaExhausted
-from rag_chain import clean_answer, embeddings, format_docs, make_chain, stream_with_retry, vectorstore
+from rag_chain import ClosingStream, clean_answer, embeddings, format_docs, make_chain, stream_with_retry, vectorstore
 from request_bootstrap import (
     DEFAULT_CONTRACT_STATE,
     BootstrapDependencies,
@@ -248,13 +250,18 @@ class MaxContentLengthMiddleware:
 @asynccontextmanager
 async def lifespan(_app):
     setup_logging(settings.log_level)
-    # 预热：BM25 索引 + 源名集合（重启后首问冷启动 3s+ → 0），不阻塞事件循环。
-    # 失败仅降级（首问走惰性构建），不让应用拒绝启动（code-review：chroma 损坏时原惰性路径可恢复）
     try:
-        await run_in_threadpool(prewarm)
-    except Exception as e:
-        logging.warning("[prewarm] 预热失败，降级惰性构建（重启后首问稍慢）：%s", e)
-    yield
+        # 预热：BM25 索引 + 源名集合（重启后首问冷启动 3s+ → 0），不阻塞事件循环。
+        # 失败仅降级（首问走惰性构建），不让应用拒绝启动（code-review：chroma 损坏时原惰性路径可恢复）
+        try:
+            await run_in_threadpool(prewarm)
+        except Exception as e:
+            logging.warning("[prewarm] 预热失败，降级惰性构建（重启后首问稍慢）：%s", e)
+        yield
+    finally:
+        # 应用级收尾：事件循环仍在运行时由 registry 关闭其拥有的 SDK 连接池（幂等）；
+        # 业务异常先完成收尾再原样上抛，不吞异常。
+        await registry.aclose()
 
 
 app = FastAPI(title="AI 法律咨询小助手", lifespan=lifespan)
@@ -707,25 +714,30 @@ def _bootstrap_only(
 
 def _prepare_fast_path_only(bootstrap: RequestBootstrap):
     """Run legacy retrieval from an already committed bootstrap exactly once."""
-    return prepare_fast_path(
-        bootstrap,
-        _deps=FastPathDependencies(
-            feature_study_retrieval=settings.feature_study_retrieval,
-            is_meta_study=query_understand.is_meta_study,
-            rewrite_for_retrieval=_rewrite_for_retrieval,
-            scenario_supplement_docs=scenario_supplement_docs,
-            retrieve_exam=retrieve_exam,
-            cheating_docs=cheating_docs,
-            build_contract_data=build_contract_data,
-            retrieve=retrieve,
-            search_qa=ks.search_qa,
-            is_consumer_clause_scenario=is_consumer_clause_scenario,
-            consumer_clause_docs=consumer_clause_docs,
-            is_consumer_fraud_scenario=is_consumer_fraud_scenario,
-            consumer_fraud_docs=consumer_fraud_docs,
-            format_docs=format_docs,
-        ),
-    )
+    try:
+        return prepare_fast_path(
+            bootstrap,
+            _deps=FastPathDependencies(
+                feature_study_retrieval=settings.feature_study_retrieval,
+                is_meta_study=query_understand.is_meta_study,
+                rewrite_for_retrieval=_rewrite_for_retrieval,
+                scenario_supplement_docs=scenario_supplement_docs,
+                retrieve_exam=retrieve_exam,
+                cheating_docs=cheating_docs,
+                build_contract_data=build_contract_data,
+                retrieve=retrieve,
+                search_qa=ks.search_qa,
+                is_consumer_clause_scenario=is_consumer_clause_scenario,
+                consumer_clause_docs=consumer_clause_docs,
+                is_consumer_fraud_scenario=is_consumer_fraud_scenario,
+                consumer_fraud_docs=consumer_fraud_docs,
+                format_docs=format_docs,
+            ),
+        )
+    except Exception:
+        # bootstrap 已提交 user，而响应尚未构造；先完成该轮再把原异常交给入口。
+        _post_placeholder({"conv_id": bootstrap.conv_id})
+        raise
 
 
 def _pre(
@@ -984,11 +996,11 @@ def _post(pre: dict, answer: str, curate: bool = True):
             text("UPDATE conversations SET message_count = COALESCE(message_count, 0) + 1 WHERE id = :id"),
             {"id": pre["conv_id"]},
         )
-        conv.message_count = (conv.message_count or 0) + 1
         conv.last_active_at = datetime.utcnow()
         if not conv.answer:
             conv.answer = (answer or "")[:2000]
         db.commit()
+        pre["assistant_committed"] = True
 
         # 受控沉淀：高有据 + 含引用 + 非空答 → 入待审
         # 沉淀闸（决策 7）：只收真实法律咨询——study_aid 法考题错答（多选漏答）可被采纳污染
@@ -1018,6 +1030,8 @@ def _post_placeholder(pre: dict) -> None:
     _pre 已落库用户消息；若流式生成失败/空答时 _post 从未执行，会留下无答复的用户消息、
     计数永久错位（对抗审计 2026-08-07）。占位不沉淀、不压缩。
     """
+    if pre.get("assistant_committed"):
+        return
     db = SessionLocal()
     try:
         db.add(Message(conversation_id=pre["conv_id"], role="assistant", content="服务暂时无响应，请稍后重试。"))
@@ -1027,9 +1041,9 @@ def _post_placeholder(pre: dict) -> None:
             text("UPDATE conversations SET message_count = COALESCE(message_count, 0) + 1 WHERE id = :id"),
             {"id": pre["conv_id"]},
         )
-        conv.message_count = (conv.message_count or 0) + 1
         conv.last_active_at = datetime.utcnow()
         db.commit()
+        pre["assistant_committed"] = True
     finally:
         db.close()
 
@@ -1388,16 +1402,35 @@ def _law_version_gate(
     return ((answer + NOTE_LAW_VERSION) if answer else ""), True
 
 
-def _light_buffered(pre: dict, messages: list, law_as_of: date | None = None) -> _LightResult:
-    """轻量路径：缓冲生成 → 自检 → 至多一次升级旗舰重答。同步，线程池内跑。"""
+async def _ainvoke_cancel_safe(llm, messages):
+    """Own one model task so repeated ASGI cancellation cannot interrupt SDK cleanup."""
+    task = asyncio.create_task(llm.ainvoke(messages))
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        # AnyIO uses level cancellation; gather inside LangChain would otherwise
+        # forward repeated task.cancel() calls into the HTTP transport's teardown.
+        with CancelScope(shield=True):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:
+                print(f"[llm-cancel-cleanup] failed: {type(exc).__name__}", flush=True)
+        raise
+
+
+async def _light_buffered(pre: dict, messages: list, law_as_of: date | None = None) -> _LightResult:
+    """轻量路径：可取消缓冲生成 → 自检 → 至多一次升级旗舰重答。"""
     modality = "vision" if pre.get("image") else "text"
     ctx_present = bool(pre.get("sources"))
     lkey, llm, _ = _safe_pick(modality, "light")  # 轻量回退降级由下方升级 except 兜底
-    with llm_guard:  # 轻量+升级重答共占一个并发位（同一请求串行持有，突增时降级）
-        return _light_buffered_locked(pre, messages, modality, ctx_present, lkey, llm, law_as_of)
+    async with llm_guard:  # 轻量+升级重答共占一个并发位，取消归还同一计数源
+        return await _light_buffered_locked(pre, messages, modality, ctx_present, lkey, llm, law_as_of)
 
 
-def _light_buffered_locked(
+async def _light_buffered_locked(
     pre: dict, messages: list, modality: str, ctx_present: bool, lkey, llm, law_as_of: date | None = None
 ) -> _LightResult:
     """轻量路径主体（已持有并发位）：缓冲生成 → 自检 → 至多一次升级旗舰重答。"""
@@ -1413,7 +1446,7 @@ def _light_buffered_locked(
         answer, hit = _law_version_gate(res.answer, fact_texts, law_as_of, exit_label=EXIT_LIGHT)
         return replace(res, answer=answer, law_version_hit=hit)
 
-    resp = llm.invoke(messages)
+    resp = await _ainvoke_cancel_safe(llm, messages)
     raw = clean_answer(resp.content or "") if resp else ""
     usage = _token_charge(resp, raw)
     v = quality.self_check(raw, ctx_present)
@@ -1441,7 +1474,7 @@ def _light_buffered_locked(
         return _with_gate(
             _LightResult((raw + NOTE_COMPLEX) if raw else "", lkey, modality, "light", usage, False, v.reason)
         )
-    fresp = fllm.invoke(messages)
+    fresp = await _ainvoke_cancel_safe(fllm, messages)
     fraw = clean_answer(fresp.content or "") if fresp else ""
     fusage = _token_charge(fresp, fraw)
     fv = quality.self_check(fraw, ctx_present)
@@ -1452,11 +1485,11 @@ def _light_buffered_locked(
     )
 
 
-def _invoke_llm(messages, llm=None) -> str:
-    """非流式兜底：流式不兼容/空答时，用给定（或默认）模型 invoke 一次拿完整答案。"""
+async def _invoke_llm(messages, llm=None) -> str:
+    """非流式兜底：可取消地用给定（或默认）模型拿完整答案。"""
     llm = llm or registry.get()
-    with llm_guard:  # 同步兜底同样占一个并发位
-        resp = llm.invoke(messages)
+    async with llm_guard:
+        resp = await _ainvoke_cancel_safe(llm, messages)
     return resp.content if resp else ""
 
 
@@ -1659,16 +1692,33 @@ async def law_search(request: Request, q: str, user: User = Depends(get_current_
     return await run_in_threadpool(_do)
 
 
-async def _stream_with_status_preframe(gen):
-    """P0 即时首帧：先发一个占位状态帧，再委托原 stream() 生成器。
+class _ChatStreamingResponse(StreamingResponse):
+    """请求返回前关闭聊天 body，包括断开发生在阻塞的 send() 中。
 
-    浏览器首字符从"模型 prefill + RAG 检索"的秒级等待，降到 <50ms（助手气泡+提示瞬出）；
-    原 stream() 内的 _pre / RAG / 模型调用逻辑零改动，错误语义不变。前端对未知 type 帧自动忽略。
-    注：本帧只改善"首个可见字符"的体感延迟；真实首内容 token 延迟（日志 first_ms）由后续 P1/P2 优化。
+    `on_response_close` 只在 response/route 所有权边界上运行一次：断开若卡在
+    `http.response.start` 的 send 里，body 生成器从未进入，`aclose()` 不会执行它的
+    finally —— 那一段补偿只能由本响应负责，否则会留下没有答复的用户消息。
     """
-    yield f"data: {json.dumps({'type': 'status', 'msg': '正在思考…'}, ensure_ascii=False)}\n\n"
-    async for frame in gen:
-        yield frame
+
+    def __init__(self, *args, on_response_close=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._on_response_close = on_response_close
+
+    async def __call__(self, scope, receive, send):
+        try:
+            async with ClosingStream(self.body_iterator):
+                await super().__call__(scope, receive, send)
+        finally:
+            if self._on_response_close is not None:
+                with CancelScope(shield=True):
+                    await self._on_response_close()
+
+
+async def _stream_with_status_preframe(gen):
+    """显式托管原 stream；即时 status 由它在 try/finally 内发送，断开仍留失败占位。"""
+    async with ClosingStream(gen) as stream:
+        async for frame in stream:
+            yield frame
 
 
 def serialize_clarification_event(*, run_id: str, state_version: int, prompt: str, issue_id: str) -> dict[str, object]:
@@ -1682,8 +1732,109 @@ def serialize_clarification_event(*, run_id: str, state_version: int, prompt: st
     }
 
 
-@app.post("/api/chat")
+_CHAT_TURN_WAIT_SECONDS = 180.0  # 与前端既有无帧超时预算一致，排队不永久悬挂。
+# ponytail: 进程内串行边界，仅支持现有单 worker；多 worker 需持久化的轮次所有权。
+_chat_turn_locks: WeakValueDictionary[tuple[int, int], asyncio.Lock] = WeakValueDictionary()
+
+
+def _resolve_chat_conversation(
+    user: User, conversation_id: int | None, *, create_if_missing: bool = True
+) -> tuple[int, datetime | None]:
+    """确定本人会话身份；聊天保留失效编号新建语义，删除只读确认。"""
+    with SessionLocal() as db:
+        conv = db.get(Conversation, conversation_id) if conversation_id else None
+        if conv is None or conv.user_id != user.id:
+            if not create_if_missing:
+                raise HTTPException(status_code=404, detail="会话不存在")
+            conversation_id = create_conversation(user, db)["id"]
+            conv = db.get(Conversation, conversation_id)
+        if conv is None:
+            raise HTTPException(status_code=404, detail="会话不存在")
+        return conv.id, conv.created_at
+
+
+def _require_chat_conversation(user_id: int, conversation_id: int, created_at: datetime | None) -> None:
+    """排队后核对同一会话；删除及 SQLite 编号复用均不得静默换到新会话。"""
+    with SessionLocal() as db:
+        conv = db.get(Conversation, conversation_id)
+        if conv is None or conv.user_id != user_id or conv.created_at != created_at:
+            raise HTTPException(status_code=404, detail="会话不存在")
+
+
+async def _acquire_chat_turn(request: Request, user_id: int, conversation_id: int) -> asyncio.Lock:
+    lock = _chat_turn_locks.setdefault((user_id, conversation_id), asyncio.Lock())
+    deadline = time.monotonic() + _CHAT_TURN_WAIT_SECONDS
+    while True:
+        if await request.is_disconnected():
+            raise HTTPException(status_code=499, detail="请求已取消")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise HTTPException(status_code=503, detail="上一轮请求仍在处理，请稍后重试")
+        try:
+            # 直接等待，不创建 acquire 子任务：wait_for 在授予/父取消同拍时可能吞取消。
+            async with asyncio.timeout(min(0.1, remaining)):
+                await lock.acquire()
+        except TimeoutError:
+            continue
+        try:
+            if await request.is_disconnected():
+                raise HTTPException(status_code=499, detail="请求已取消")
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                raise asyncio.CancelledError
+            return lock
+        except BaseException:
+            lock.release()
+            raise
+
+
+@app.post("/api/chat", name="chat")
 @limiter.limit("60/minute")
+async def _serialized_chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
+    """同会话从 bootstrap 前持有到响应持久化结束；不同会话保持并行。"""
+    lock = None
+    response = None
+    try:
+        if body.agent_run_id is None:
+            _client_law_as_of(body)  # 拒绝门须在新会话提交前执行。
+            text = ((body.content if body.content is not None else body.question) or "").strip()
+            if (not text and not body.image) or (body.image and not registry.has_modality("vision")):
+                return await chat(request, body, user)  # 原入口负责拒绝，无需先创建空会话。
+            if body.image:
+                try:
+                    await run_in_threadpool(validate_image, body.image)
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+            conv_id, created_at = await run_in_threadpool(_resolve_chat_conversation, user, body.conversation_id)
+            body = body.model_copy(update={"conversation_id": conv_id})
+        if body.conversation_id is not None:
+            lock = await _acquire_chat_turn(request, user.id, body.conversation_id)
+            if body.agent_run_id is None:
+                await run_in_threadpool(_require_chat_conversation, user.id, body.conversation_id, created_at)
+        response = await chat(request, body, user)
+        if isinstance(response, _ChatStreamingResponse):
+            owned_lock = lock
+            cleanup = response._on_response_close
+
+            async def finish_turn():
+                try:
+                    await cleanup()
+                finally:
+                    owned_lock.release()
+
+            response._on_response_close = finish_turn
+            lock = None  # 响应接管；不能在路由返回时释放。
+        return response
+    except BaseException:
+        if isinstance(response, _ChatStreamingResponse):
+            with CancelScope(shield=True):
+                await response._on_response_close()
+        raise
+    finally:
+        if lock is not None:
+            lock.release()
+
+
 async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
     # 在取证前捕获代次与日期；失效前启动的请求可以完成，但不得重新污染共享缓存。
     cache_generation = answer_cache.generation()
@@ -1874,9 +2025,15 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
     if use_router and not use_light:
         flag_key, flag_llm, flag_degraded = _safe_pick(modality, tier or "flag")
 
+    # 请求局部的所有权标记：正文生成器**是否真的进入过**。用可变对象而非 `nonlocal`
+    # 赋值，`stream()` 里的下标写入不需要声明，既有按 AST 提取 `stream` 的测试门也不受影响。
+    stream_state = {"entered": False}
+
     async def stream():
+        stream_state["entered"] = True
         _posted = False  # 本轮 assistant 消息是否已落库（对抗审计 v2 #5/#8：客户端断开时 finally 兜底占位）
         try:
+            yield f"data: {json.dumps({'type': 'status', 'msg': '正在思考…'}, ensure_ascii=False)}\n\n"
             if pre.get("agent_fallback_reason"):
                 yield f"data: {json.dumps({'type': 'restart', 'reason_code': pre['agent_fallback_reason']}, ensure_ascii=False)}\n\n"
             # ── 分支决策总览图（零 token 优先，LLM 兜底）─────────────────────────
@@ -2043,21 +2200,24 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                             registry.mark_depleted(_ccur["key"], "model_failure")
                     _rstart = True
 
-                async for piece in stream_with_retry(
-                    _cmake_chain,
-                    cm,
-                    [(False, 0.0), (True, 0.5), (False, 0.5)],
-                    on_model_failure=_cfail if use_router else None,
-                ):
-                    if _rstart:
-                        _rstart = False
-                        chunks = []
-                        _f0 = None
-                        yield f"data: {json.dumps({'type': 'restart'}, ensure_ascii=False)}\n\n"
-                    if _f0 is None:
-                        _f0 = time.perf_counter()
-                    chunks.append(piece)
-                    yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E5
+                async with ClosingStream(
+                    stream_with_retry(
+                        _cmake_chain,
+                        cm,
+                        [(False, 0.0), (True, 0.5), (False, 0.5)],
+                        on_model_failure=_cfail if use_router else None,
+                    )
+                ) as pieces:
+                    async for piece in pieces:
+                        if _rstart:
+                            _rstart = False
+                            chunks = []
+                            _f0 = None
+                            yield f"data: {json.dumps({'type': 'restart'}, ensure_ascii=False)}\n\n"
+                        if _f0 is None:
+                            _f0 = time.perf_counter()
+                        chunks.append(piece)
+                        yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E5
                 answer = "".join(chunks)
                 if answer:
                     _contract_reviewed_convs.add(pre["conv_id"])  # 完整报告已产出：之后续聊才算追问
@@ -2146,7 +2306,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
 
             # 分支1：轻量缓冲 + 自检 + 至多一次升级旗舰
             if use_light:
-                res = await run_in_threadpool(_light_buffered, pre, messages, _exit_law_as_of(pre, body))
+                res = await _light_buffered(pre, messages, _exit_law_as_of(pre, body))
                 answer = res.answer
                 if answer and _time_unverified_hit(pre):
                     # 缓冲整答还没吐出 ⇒ 注记并进 E7 那一帧（`_light_buffered_locked` 里的
@@ -2258,22 +2418,25 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 只含用户自述、**不含** context/sources 里的法条文本 —— 票 C §2d）。
             # 开关关 ⇒ 不做无谓扫描（与 `_light_buffered_locked` 同一省法）。
             fact_texts = _fast_path_fact_texts(pre) if settings.fast_path_law_version_check else []
-            async for piece in stream_with_retry(
-                make_chain_fn,
-                messages,
-                [(False, 0.0), (True, 0.5), (False, 0.5)],
-                on_model_failure=_on_model_failure,
-            ):
-                if _restart_pending:
-                    # 上一个模型失败、即将从零重答：先清空已发半截并通知前端（防拼接乱码）
-                    _restart_pending = False
-                    chunks = []
-                    _f0 = None
-                    yield f"data: {json.dumps({'type': 'restart'}, ensure_ascii=False)}\n\n"
-                if _f0 is None:
-                    _f0 = time.perf_counter()  # 真流式：首个 token 时刻（首帧埋点）
-                chunks.append(piece)
-                yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E8
+            async with ClosingStream(
+                stream_with_retry(
+                    make_chain_fn,
+                    messages,
+                    [(False, 0.0), (True, 0.5), (False, 0.5)],
+                    on_model_failure=_on_model_failure,
+                )
+            ) as pieces:
+                async for piece in pieces:
+                    if _restart_pending:
+                        # 上一个模型失败、即将从零重答：先清空已发半截并通知前端（防拼接乱码）
+                        _restart_pending = False
+                        chunks = []
+                        _f0 = None
+                        yield f"data: {json.dumps({'type': 'restart'}, ensure_ascii=False)}\n\n"
+                    if _f0 is None:
+                        _f0 = time.perf_counter()  # 真流式：首个 token 时刻（首帧埋点）
+                    chunks.append(piece)
+                    yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E8
             answer = "".join(chunks)
             # 票 C/S6：把 S5 那道版本绊线门接到本条**唯一承流量**的生成出口上。三个口径照票面：
             #   §5-4 基准日未指定时由服务端落当日；取数口径走 `_exit_law_as_of(pre, body)`
@@ -2283,7 +2446,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             law_version_hit = False
             if not answer:
                 try:
-                    fb = await run_in_threadpool(_invoke_llm, messages, flag_llm)
+                    fb = await _invoke_llm(messages, flag_llm)
                     answer = clean_answer(fb)
                     if answer:
                         if _f0 is None:
@@ -2455,22 +2618,36 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 print(f"[chat-placeholder] {e}", flush=True)
         finally:
             # 对抗审计 v2 #5/#8：客户端断开（GeneratorExit 不属 Exception）或未走任何落库分支时，
-            # 生成器在此被 close → 独立后台任务派占位 assistant，保持 user/assistant 成对与计数平衡。
-            # 不 await/yield（GeneratorExit 下不可再产出数据帧）；失败静默，下次会话自然成对。
-            if not _posted:
-                try:
-                    import asyncio
+            # close 可以 await 清理但不能 yield；等唯一占位 commit 后才结束响应所有权。
+            # _post 已 commit 后即使沉淀/压缩失败，也不能补第二条 assistant。
+            if not _posted and not pre.get("assistant_committed"):
+                with CancelScope(shield=True):
+                    try:
+                        await run_in_threadpool(_post_placeholder, pre)
+                    except Exception as exc:
+                        print(f"[chat-cancel-compensate] failed: {type(exc).__name__}", flush=True)
 
-                    asyncio.get_running_loop().run_in_executor(None, _post_placeholder, pre)
-                except Exception:
-                    pass
+    async def compensate_unstarted():
+        """未进入正文生成器的请求在此补一条 assistant 占位；已进入的由 stream 的 finally 负责。
+
+        两处互斥由 `stream_state` 决定：已进入 ⇒ 这里直接返回，不会重复落库。
+        """
+        if stream_state["entered"]:
+            return
+        try:
+            await run_in_threadpool(_post_placeholder, pre)
+        except Exception as exc:
+            # 不吞：占位是这一轮唯一保持 user/assistant 成对的动作，静默失败正是 R1 要消除的。
+            # 只落异常类型，不落 str(exc)（可能含路径/内部标识）。门禁看这条标记判失败。
+            print(f"[chat-cancel-compensate] failed: {type(exc).__name__}", flush=True)
 
     # 反缓冲响应头：SSE 经 Cloudflare Tunnel / Nginx 等代理中转时，若上游未显式声明，
     # 代理会攒批到连接关闭才一次性下发（手机端表现为“一次性输出”）。以下头禁用代理缓冲、
     # 禁止 CDN 改写，确保逐帧流式。
-    return StreamingResponse(
+    return _ChatStreamingResponse(
         _stream_with_status_preframe(stream()),
         media_type="text/event-stream",
+        on_response_close=compensate_unstarted,
         headers={
             "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
@@ -2581,7 +2758,19 @@ def rename_conversation(
     return {"id": conv.id, "title": conv.title}
 
 
-@app.delete("/api/conversations/{conv_id}")
+@app.delete("/api/conversations/{conv_id}", name="delete_conversation")
+async def _serialized_delete_conversation(
+    request: Request, conv_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    _, created_at = await run_in_threadpool(_resolve_chat_conversation, user, conv_id, create_if_missing=False)
+    lock = await _acquire_chat_turn(request, user.id, conv_id)
+    try:
+        await run_in_threadpool(_require_chat_conversation, user.id, conv_id, created_at)
+        return await run_in_threadpool(delete_conversation, conv_id, user, db)
+    finally:
+        lock.release()
+
+
 def delete_conversation(conv_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     conv = db.get(Conversation, conv_id)
     if not conv or conv.user_id != user.id:

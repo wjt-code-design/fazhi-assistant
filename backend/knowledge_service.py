@@ -109,9 +109,13 @@ def parse_uploaded(filename: str, raw: bytes) -> str:
     ext = os.path.splitext(filename)[1].lower()
     if ext == ".pdf":
         from pypdf import PdfReader
+        from pypdf.errors import PyPdfError
 
-        reader = PdfReader(io.BytesIO(raw))
-        text = "\n".join((page.extract_text() or "") for page in reader.pages)
+        try:
+            reader = PdfReader(io.BytesIO(raw))
+            text = "\n".join((page.extract_text() or "") for page in reader.pages)
+        except PyPdfError:
+            raise ValueError("PDF 文件损坏或无法解析") from None
     elif ext == ".docx":
         from docx_utils import extract
 

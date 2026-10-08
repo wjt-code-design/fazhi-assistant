@@ -1,6 +1,6 @@
 "use client";
 // T2.2 拆分（区块渲染在 @/components/chat/*）+ T2.3 状态收敛（流式/会话/反馈/语音在 lib/hooks/*）。
-// page 仅保留：页面级 UI 态、数据编排回调、effects 与组装 JSX。行为零变更。
+// page 仅保留：页面级 UI 态、数据编排回调、effects 与组装 JSX；主动停止交由 stream hook。
 import { useEffect, useRef, useState, FormEvent, ClipboardEvent, DragEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/lib/auth";
@@ -370,6 +370,7 @@ export default function ChatPage() {
           onPickFile={(f) => void handleFileUpload(f)}
           onPaste={onPaste}
           onSubmit={send}
+          onStop={stream.stop}
         />
 
         <LawPanel open={lawPanel} onClose={() => setLawPanel(false)} />

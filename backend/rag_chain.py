@@ -6,9 +6,13 @@
 """
 
 import asyncio
+import logging
 import os
 import re
 import threading
+from contextlib import aclosing
+
+from anyio import CancelScope
 
 # 运行期默认离线用本地缓存，避免对 huggingface.co 的在线校验（部分环境 SSL 校验失败）。
 # 缓存缺失需回退在线时走 HF_ENDPOINT 镜像；建库/种子脚本会显式置 HF_HUB_OFFLINE=0 覆盖此默认。
@@ -26,6 +30,7 @@ from llm_guard import llm_guard  # noqa: E402
 from settings import settings  # noqa: E402
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+logger = logging.getLogger(__name__)
 
 
 # 1. Embeddings — 配置驱动（ADR-011，2026-08-04）：local=本地 BGE CPU（默认，零配置回退）；
@@ -132,9 +137,65 @@ def format_docs(docs) -> str:
     )
 
 
+class ClosingStream(aclosing):
+    """只 shield owned 流的关闭；生成仍接受客户端取消。"""
+
+    async def __aexit__(self, exc_type, exc, tb):
+        with CancelScope(shield=True):
+            try:
+                await super().__aexit__(exc_type, exc, tb)
+            except Exception:
+                if exc_type is None:
+                    raise
+                logger.exception("Owned stream close failed while propagating %s", exc_type.__name__)
+
+
+class _OwnedStreamClient:
+    """按请求登记 SDK 返回的响应；不关闭共享客户端/连接池。"""
+
+    def __init__(self, client):
+        self.client = client
+        self.responses = []
+
+    async def create(self, *args, **kwargs):
+        response = await self.client.create(*args, **kwargs)
+        self.responses.append(response)
+        return response
+
+    async def aclose(self):
+        error = None
+        for response in self.responses:
+            try:
+                await response.close()
+            except Exception as exc:
+                if error is None:
+                    error = exc
+        if error is not None:
+            raise error
+
+
+class _OwnedChain:
+    def __init__(self, llm):
+        self.llm = llm
+
+    async def astream(self, messages, config=None):
+        client = _OwnedStreamClient(self.llm.async_client)
+        # 当前 RunnableSequence 的逐项任务边界可使响应已关闭但连接仍占用。
+        # 在消费任务内直接迭代公开 model.astream，取消才能到达正在等待的读取。
+        # async_client 是此版本可注入但标为 private 的字段：只替换请求内浅副本，
+        # 保留公开 astream 的配置/模型回调与原共享传输；版本升级须回归本适配点。
+        # dict(model) 保留 exclude=True 的 callbacks/client；copy 创建独立字段字典。
+        llm = self.llm.copy(update={**dict(self.llm), "async_client": client})
+        parser = StrOutputParser()
+        # 不再生成 Sequence 聚合追踪；公开 parser.invoke 对每个 chunk 发出解析事件。
+        async with ClosingStream(client), ClosingStream(llm.astream(messages, config=config)) as stream:
+            async for chunk in stream:
+                yield parser.invoke(chunk, config=config)
+
+
 def make_chain(llm):
-    """输入 = 已组装的 messages 列表；输出 = str 流（StrOutputParser 取 content）。"""
-    return llm | StrOutputParser()
+    """输入 = 已组装的 messages；输出 = str 流，显式拥有本次 SDK 响应。"""
+    return _OwnedChain(llm)
 
 
 class _ThinkStripper:
@@ -222,15 +283,16 @@ async def stream_with_retry(make_chain_fn, messages, configs, on_model_failure=N
             try:
                 chain = make_chain_fn(i, disabled)
                 chunks = []
-                async for piece in chain.astream(messages):
-                    if not piece:
-                        continue
-                    # B4（2026-08-07）：流式剥 <think>（有状态，跨 piece 安全）+ 币种 $/¥→元
-                    # （不再等流完 clean_answer——thinking 块曾漏进 SSE；_post 会再对整答幂等归一）
-                    piece = output_normalize.money_normalize(stripper.feed(piece))
-                    if piece:
-                        chunks.append(piece)
-                        yield piece
+                async with ClosingStream(chain.astream(messages)) as stream:
+                    async for piece in stream:
+                        if not piece:
+                            continue
+                        # B4（2026-08-07）：流式剥 <think>（有状态，跨 piece 安全）+ 币种 $/¥→元
+                        # （不再等流完 clean_answer——thinking 块曾漏进 SSE；_post 会再对整答幂等归一）
+                        piece = output_normalize.money_normalize(stripper.feed(piece))
+                        if piece:
+                            chunks.append(piece)
+                            yield piece
                 if "".join(chunks):
                     return
                 if wait:

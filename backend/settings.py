@@ -26,7 +26,9 @@ class Settings(BaseSettings):
         """
         parts: list[str] = []
         for name, value in self:
-            if any(marker in name.lower() for marker in self._SECRET_NAME_MARKERS) and value:
+            if (
+                name == "llm_models_json" or any(marker in name.lower() for marker in self._SECRET_NAME_MARKERS)
+            ) and value:
                 parts.append(f"{name}='<masked:len={len(str(value))}>'")
             else:
                 parts.append(f"{name}={value!r}")
