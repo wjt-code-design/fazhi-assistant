@@ -4,6 +4,12 @@ on:
   push:
     branches: [main, master]
   pull_request:
+  schedule:
+    # D-25 源探针：镜像源的 404/冻结是**时间**的函数，不是某个 PR 的函数，所以每天自己跑一次。
+    # 注：Actions 的 schedule 只在默认分支上生效 ⇒ 本仓默认分支是 master，合并进去之前这条不会自动触发，
+    # 期间用 workflow_dispatch 手动拉。
+    - cron: "17 3 * * *"
+  workflow_dispatch:
 
 jobs:
   backend:
@@ -89,3 +95,69 @@ jobs:
         # 断言脚本自带"对照必须为正"：找不到 CSS 或对照为 0 时退出码 2，不允许假装通过。
         # 复用已有的 build 步骤 ⇒ 不增加 CI 耗时（只多一次 grep 级读文件）。
         run: npm run build:check
+
+  source-probe:
+    name: Source probe · 出厂镜像源真取（D-25）
+    runs-on: ubuntu-latest
+    # 判据不是"索引页 200"，而是"这一版 wheels 文件真取得到"：2026-10-10 的 `[5/9]` 就是
+    # 索引页正常、文件 404。torch 单列一根轴——它由 Dockerfile 从 pytorch-wheels 的
+    # --find-links 单独装，`-r requirements.txt` 那一步只会看到"已满足"，所以逐包探针覆盖不到它。
+    # 两根源各测一遍：主源红 = 降级（构建会走 `||` 回落，仍绿），两源同红 = 出厂构建今天真的建不起来 ⇒ 红。
+    # 已知限制：① 逐包解析与整表联合解析可能选到不同版本，本探针量的是"源侧给不给得到"，
+    # 不是"依赖图能不能成立"；② 这不等于 `docker build` 通过（模型烘焙那一层不在这里）。
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: PyPI 逐包真取文件（阿里云主源 + 官方回落源）
+        run: |
+          set -uo pipefail
+          MIRROR=https://mirrors.aliyun.com/pypi/simple
+          OFFICIAL=https://pypi.org/simple
+          DEST="$RUNNER_TEMP/source-probe"
+          mkdir -p "$DEST"
+          logs="$(mktemp -d)"
+          mirror_bad=""; both_bad=""; probed=0
+          while IFS= read -r spec; do
+            [ -z "$spec" ] && continue
+            probed=$((probed + 1))
+            if pip download --no-deps --no-cache-dir -q -d "$DEST" -i "$MIRROR" "$spec" > "$logs/m.log" 2>&1; then
+              continue
+            fi
+            mirror_bad="$mirror_bad $spec"
+            echo "::warning title=镜像取不到::$spec（阿里云主源失败，日志尾：$(tail -1 "$logs/m.log")）"
+            if pip download --no-deps --no-cache-dir -q -d "$DEST" -i "$OFFICIAL" "$spec" > "$logs/o.log" 2>&1; then
+              continue
+            fi
+            both_bad="$both_bad $spec"
+            echo "::error title=两源都取不到::$spec（官方源日志尾：$(tail -1 "$logs/o.log")）"
+          done < <(grep -E '^[A-Za-z0-9]' backend/requirements.txt | grep -viE '^torch(==|[[:space:]]|$)')
+          echo "probed=$probed mirror_fail=$(echo "$mirror_bad" | wc -w) both_fail=$(echo "$both_bad" | wc -w)"
+          [ -n "$both_bad" ] && exit 1
+          exit 0
+      - name: torch CPU wheel 双目录核对（阿里云 + 官方页）
+        run: |
+          set -uo pipefail
+          ver="$(grep -oE '^torch==[0-9][0-9A-Za-z.]*' backend/requirements.txt | head -1 | cut -d= -f3)"
+          [ -n "$ver" ] || { echo "::error::requirements.txt 里没有可解析的 torch 钉版"; exit 1; }
+          want="torch-${ver}+cpu-cp311-cp311-manylinux_2_28_x86_64.whl"
+          probe_page() {
+            curl -fsS --max-time 90 "$1" 2>/dev/null \
+              | sed -e 's/&#43;/+/g' -e 's/%2B/+/g' > "$2" || return 1
+            grep -qF "$want" "$2"
+          }
+          A=https://mirrors.aliyun.com/pytorch-wheels/cpu/
+          O=https://download.pytorch.org/whl/cpu/torch/
+          rc_a=0; rc_o=0
+          probe_page "$A" "$RUNNER_TEMP/torch-aliyun.html" || rc_a=$?
+          probe_page "$O" "$RUNNER_TEMP/torch-official.html" || rc_o=$?
+          echo "want=$want aliyun_hit=$([ "$rc_a" -eq 0 ] && echo yes || echo no) official_hit=$([ "$rc_o" -eq 0 ] && echo yes || echo no)"
+          if [ "$rc_a" -ne 0 ] && [ "$rc_o" -ne 0 ]; then
+            echo "::error::两源都没有 $want ⇒ 出厂构建的 torch 层无路可走"
+            exit 1
+          fi
+          if [ "$rc_a" -ne 0 ]; then
+            echo "::warning title=阿里云 pytorch-wheels 缺件::回落源可用，构建会走官方 CPU 页"
+          fi
+          exit 0

@@ -185,7 +185,8 @@ class Settings(BaseSettings):
     agent_writer_corrective_retry_enabled: bool = False
 
     # ---- 多模型配置（可选整体覆盖默认代表表；JSON 数组，元素见 llm_registry.DEFAULT_ROLES 字段） ----
-    # 留空则用 llm_registry 内置的 8 代表模型默认表（base_url/api_key 复用上面的 LLM_*）
+    # 留空则用 llm_registry 内置的代表模型默认表（条数以 `DEFAULT_ROLES` 为准，这里不抄数＝DB-24；
+    # base_url/api_key 复用上面的 LLM_*）
     llm_models_json: str = ""
 
     # ---- 向量嵌入（local=本地 BGE CPU；aliyun=阿里云 text-embedding-v4，需配 key）----

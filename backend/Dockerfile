@@ -42,11 +42,25 @@ COPY requirements.txt .
 #     ⇒ 旧注释「镜像只同步到 2.6.0」已过期，这句是它的替代品。下方防呆断言原样保留，未放宽。
 #     非最新：2.14.1+cpu 也在列，但按「不追未经验证的 latest」留在有官方修复线且已过全量的 2.13.0。
 #     若日后需升级：先确认镜像已同步更高 +cpu 版本，再同步修改此处与下方防呆断言。
+# 2026-10-11 D-25 回落（下面两步各加了 `||` 第二发）：
+#   [动机] 2026-10-10 出厂构建 `[5/9]` 死于阿里云 PyPI 上 pydantic-2.14.0 **索引页 200、文件 404**；
+#     `[4/9]` 的阿里云 pytorch-wheels 另有一次冻结 30+ 分钟。两处都落在"镜像说自己有"与
+#     "文件真取得到"之间——单源的代价是到上线那天才发现。
+#   [为什么是 `||` 而不是 --extra-index-url] extra-index 会把两个索引的候选合并再挑版本，
+#     镜像与官方源同名不同步时选择权就不在我们手里；`||` 只在主源失败后整置换官方源，
+#     版本窗口仍由 requirements.txt 决定，主路径（镜像健康时）零额外成本。
+#   [诚实标注] 2026-10-11 本机复量：阿里云 pydantic-2.14.0 已可取（487 kB，rc=0）、
+#     官方 CPU 页 `torch-2.13.0%2Bcpu-cp311` 在列 ⇒ 本轮没有正在复现的缺陷，这里落的是
+#     **这一类**故障的兜底；配套可观测腿 = `.github/workflows/ci.yml` 的 `source-probe`。
 RUN pip install --no-cache-dir --retries 10 --timeout 60 \
       "torch==2.13.0+cpu" \
-      --find-links https://mirrors.aliyun.com/pytorch-wheels/cpu/
+      --find-links https://mirrors.aliyun.com/pytorch-wheels/cpu/ \
+  || pip install --no-cache-dir --retries 10 --timeout 60 \
+      "torch==2.13.0+cpu" \
+      --find-links https://download.pytorch.org/whl/cpu/torch/
 
-RUN pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt
+RUN pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt \
+  || pip install --no-cache-dir --retries 10 --timeout 60 -i https://pypi.org/simple -r requirements.txt
 
 # 防呆（与下方 .env 防呆同一策略）：requirements 阶段仍可能把 torch 升级成 CUDA 版，故在此断言
 # 宁可构建红，也不能带着 GPU 版 torch 静默出镜像（数 GB 体积 + 与 CPU-only 部署假设冲突）
