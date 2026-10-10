@@ -858,3 +858,24 @@ Docker Desktop 已在 02:40 被起回来（进程 6），compose 栈自动 Up：
 **现量（03:3x，HEAD `fbd9eb2`）**：`rev-list --objects refs/closing/remote-master..HEAD` = **4252**。
 **该 blob 的判据换成直接查集合**：含裸值那只 blob `d59a7b614514445d617d55bb9e7dd581e2636805`（`git rev-parse 817e7d3:dispatch-output/t12-frontend-sweep-20260920/apply_case_domain_gate.py`）——远端真实头可达对象里 `grep -c` = **0**，而在 `remote-master..HEAD` 差集里 = **1** ⇒ **直推必然上传它**。这比"引入笔不是远端祖先"那套推断强一档，且不需要读任何凭据值（全程只用 blob sha）。
 **规矩**：这个数与 §32 那条同源——**每提一笔都会过期**，所以 D-5 的执行卡里它只能是"推送前现跑"的前置，不能是在册值。本轮我在同一个数上错了两次机理（4301/4315→4252），下次报数以"当场命令 + 当场输出"为单位。
+
+## 35. 补记三十四（2026-10-11 04:1x：我执行了 D-22，结果**修好了 A、暴露了 B**——D-22 按我自己的尺子仍未闭合）
+
+**做了什么**（我自己实现，非派会话；理由与独立性交代在 J §7）：
+- `frontend/components/ui.tsx`：`badge badge-${kind}` 改为**显式静态映射表**（未知 kind 回落 neutral），配色一字未动。
+- 新增 `frontend/scripts/assert-badge-classes.mjs` + `npm run build:check`；`.github/workflows/ci.yml` 的既有 Build 步改跑 `build:check`（**零额外耗时**，复用已存在的构建步）。
+- 提交两笔（本地、未推）：`842ef0b`（组件 + 断言脚本 + npm 脚本）、`0d3d662`（CI 并入）。分支现 **11 笔**、`porcelain=0`。
+
+**尺子 1（产物层，三条读数）**：改前 `.next` 上四个类名 **0/0/0/0**（对照 `.badge{`=1、`.upload-zone`=3）⇒ `DEFECT_PRESENT rc=1`；改后 **1/1/1/1** ⇒ `VERDICT=OK rc=0`；**变异臂**只把 `neutral` 退回拼接再建 ⇒ **仅 `.badge-neutral` 变 0、其余三个仍 1、rc=1`（断言按类名分别成立，不是钝的）；还原后 `ui.tsx` 与备份 **sha256 逐字相同**，重建回 OK。日志 `evidence/d22-build-check.log`、`d22-build-MUTANT.log`、`d22-build-restored.log`（构建 76s / 31s / 27s）。
+**门禁**：`tsc` rc=0、`lint` rc=0、`vitest` 9 files / 83 tests rc=0、`npm run format:check` **仍 3 只**（`ui.tsx` 本在 `.prettierignore` 冻结清单内，我没对它跑 `--write`）。
+
+**尺子 2（真实浏览器量产物样式表）——这条把结论换了性质**
+- 仪器：`badge-20261011/drive-badge-css.js`（Edge headless + 裸 CDP，复用 D 会话的 `cdp-client.js`；起 `127.0.0.1:8411` 只读伺服 `.next/static/css/8d8873f14ebe4de6.css`，`127.0.0.1:9313` 调试口；跑完我的 Edge 进程数归 0、监听端口归 0）。
+- **诚实边界**：这一腿量的是"出厂样式表 × 五个徽章选择器"，**没走应用路由**（后台列表页要真后端，本轮未起）。
+- 先两次仪器自错、都已修并复跑：① `querySelector(".badge")` 抓到的是第一个徽章（把 success 的颜色当成了 bare 的颜色）⇒ 换成 `:not([class*=badge-])`；② 我那 `/[-\d.]+/` 在多层转义后**吃掉了 `\d`** ⇒ 所有比值 `null`、而 `below_aa` 读的还是旧字段名 ⇒ 报了个**假空**。改成不依赖反斜杠的分词后才有真数。
+- **真数（`evidence/badge-css-after.json`）**：四种类名**互不相同**（6 对里相同 0 对、纯 `.badge` 基类仍是墨色 `rgb(35,49,79)`）⇒ **H2 想表达的"未验证别再显示成现行"在生产形状里第一次真的成立**。
+  **但**按每个徽章**自己的背景**算对比度：`success 2.19`、`error 3.03`、`neutral 4.01`、`accent 1.42`，**4/5 低于 WCAG 2.2 AA 的 4.5**；只有墨色基类 11.88 过线。
+
+**为什么这不是"修坏了"，而是一起潜伏缺陷被揭示**：D 报告当年量到"六者 12.12:1 全同"，正是因为 `badge-*` 规则被 purge、所有徽章都退化成墨色 ⇒ **那四对配色从未在生产里被渲染过，也就从没人量过它们**。修好 purge 让配色上线，AA 失败才第一次可见。⇒ 按我在票里自写的"四条尺子都齐才算完"，**D-22 不能算闭合**（尺子 2 明写要求"对比度仍 ≥4.5"，现在不满足）。
+
+**⚠️ 部署含义（这条最该被 Owner 看见）**：在这笔修复之后、配色决策落地之前，**这条分支上的六个状态徽章里有四个比修复前更难读**（修复前是全员墨色 12:1，缺点是分不清；修复后分得清，缺点是 1.4–4.0 不达线）。两者都不是我要替他选的答案——**这正是 G11（色相/对比度）从"未裁"变成"必须裁"的那一刻**。
