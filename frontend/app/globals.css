@@ -596,10 +596,14 @@
     letter-spacing: 0.02em;
     white-space: nowrap;
   }
-  .badge-success { background: var(--jade-tint); color: var(--jade); }
-  .badge-error   { background: var(--error-tint); color: var(--error); }
-  .badge-neutral { background: var(--mist); color: var(--slate); }
-  .badge-accent  { background: var(--accent-tint); color: var(--accent-deep); }
+  /* 状态差异由「底色 + 环形描边」承载，文字一律保持 --ink（Owner 2026-10-11 裁 D-28 (b)）。
+     原因：四对前景色压在自己浅底上对比度只有 1.42–4.01，不达 WCAG 2.2 AA 4.5；
+     改墨色后同一把尺子复量。用 inset 环而非 border-left 是因为 .badge 是 9999px 胶囊，
+     左边框会弯成碎片且撑高 2px——环不改布局。 */
+  .badge-success { background: var(--jade-tint); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--jade); }
+  .badge-error   { background: var(--error-tint); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--error); }
+  .badge-neutral { background: var(--mist); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--slate); }
+  .badge-accent  { background: var(--accent-tint); color: var(--ink); box-shadow: inset 0 0 0 1.5px var(--accent-deep); }
 
   /* ===== 登录页深底品牌区（冷青微光 + 细线网格） ===== */
   .brand-panel {
