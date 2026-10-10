@@ -1,0 +1,831 @@
+# gates — 单一状态台账（本轮唯一真源）
+
+状态词表只有 `NOT_RUN / PASS / FAIL / BLOCKED`。历史报告的读数一律另列，不预填 PASS。
+证据路径相对 `C:/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2`。
+
+## 0. 责任单
+
+| 单 | 状态 | 对象版本 | 证据 | 未覆盖项 / 停止条件 |
+|---|---|---|---|---|
+| A 接手保护与登记 | PASS | 主仓 HEAD `0b54396`；候选分支 `codex/nondeploy-closeout-20261010` 同起点 | `reports/baseline.md`、`evidence/input-before.json`、`evidence/ownership.json`、`evidence/forbidden-zones.json`、`evidence/tracked-diff-numstat.txt` | `state_machine.py` 整合按 A.3 停在本单（见 B 行）；计划书与两份 10-09 在册报告本身未跟踪 |
+| B 后端四票 + B-45 复验 | PASS（局部）/ BLOCKED（三处待裁） | 候选 = HEAD + 24 只接收字节 + 本轮自建改动（见 §5/§6 清单） | `evidence/pytest.probe4.*.log`（48/48，两套环境都过）、`evidence/pytest.full.candidate-env*.log`（两套逐字同读数 1901 passed / 0 failed / 10 skipped / 18 deselected）、`reports/dependency-decision.md` §7 §10 | ① `agent/state_machine.py` 解冻已由 Owner「按推荐」裁定并执行（§6，AST 等价已证）；② DB-19 已按 D-4 收窄为「语料不声明 category 才回落」，**摘 schema 那半仍待裁**；⑤ DB-22 TTL 分档与 DB-23 409 文案措辞未获具体授权 ⇒ BLOCKED；③ mypy 两条 `Row` 已归因=SQLAlchemy 2.0 vs 2.1 轴，候选内 `Success`，下限已提 `>=2.1`；④ 8 只 `real_kb` 走 skip ⇒ 未覆盖 |
+| C 依赖风险与候选环境 | BLOCKED（能修的已修，剩 15 个 ID 两类都需 Owner） | 候选闭包定稿 = torch 2.13.0+cpu / transformers 5.19.0 / ST 6.1.0 / SQLAlchemy 2.1.4 / chromadb 0.4.24；两套候选 `pip check` 均 rc=0 | `reports/dependency-decision.md` §10、`evidence/audit-cand-{runtime,dev}.json`（同 24 记录/15 ID/5 包）、`evidence/envB-freeze.txt` | 2 条 chromadb 上游无修复线（要「在册接受+失效条件」）；13 条卡 `>=0.1,<0.2` 一族（要另开迁移票，本轮不做跨大版本迁移） |
+| D 前端浏览器验收 | NOT_RUN | — | 待 `reports/browser-acceptance.md` | 需私有 node_modules + 请求拦截 |
+| E 信任门与数据演练 | PASS（E.1 模型来源、E.2 加载信任门、E.3 合成备份恢复演练） | ST 6.1.0 / transformers 5.19.0 / chromadb 0.4.24 候选闭包；BGE commit `f03589ce…`（MIT，12/12 官方哈希） | `reports/trust-and-data-drill.md`、`evidence/e2-trust/probe_st_trust.json`（五臂 `GATE_HOLDS`）、`evidence/loader-trust-mutants.log`、`evidence/drill-mutants.log`、`evidence/b45-mutants.log` | 行为级信任门是 evidence 脚本而非套件成员（要 409 MB 权重）；**真实库恢复/真实语料版本元数据仍 BLOCKED（J5）**；`switch_embedding.py`/`rebuild_embeddings.py` CLI 未调用 |
+| F 五类真实模型验收 | NOT_RUN | — | 待 `reports/model-acceptance.md` | 需 B/C/D/E 硬前置；gold 未冻结前不开真实调用 |
+| G 现用环境升级 | BLOCKED（归属已核实，理由换了） | 现役 = Docker 容器（镜像 `cbdadf43a40b`，创建 3 周前；容器 09-17 建、10-10 15:08 本地被 `restart=unless-stopped` 自动拉起） | `reports/local-environment-switch.md` §1-§3 | 升级现役=重建镜像+重启容器=本书明令不执行；宿主机 `backend/venv`（SQLAlchemy 2.0.51 / torch 2.6.0+cpu / pip check 两条不一致）不是产品运行环境，动它需另一次具体授权（D-6） |
+| H 包装/凭据/CI | PASS（CI 两处补步）/ **凭据值轴＝已证历史裸值、现役性未知**（不是「无授权做按值反查」）/ NOT_RUN（构建与镜像腿） | 候选 `8c179e7`、`5ca3315` | `reports/h-ci-and-credentials.md`、`evidence/shape_scan_staged_set.py` 现量输出 | 按值反查**本轮已跑通**（`evidence/value_reverse.py`：238 棵树 hits=61/files=1；`evidence/shape_scan_committed_set.out` 的 CONTROL-B 腿先在 `817e7d3` 上咬住再报 0）；禁区只是「打印值 / 读 `.env`」⇒ 未知项仅剩「该旧值是否仍现役」。Docker/standalone 腿排在 D 单之后（有意让路）；禁跑 `b_worktree_value_scan.py` 默认整树模式 |
+| I 审查/提交/PR/合并 | NOT_RUN | — | 待 `reports/integration.md` | 未取得独立审查不得合并；实现者不得自任 reviewer |
+| J 阶段收尾 | NOT_RUN | — | 待 `reports/results.md` | 严格口径：任一必需门未闭即未完成 |
+
+## 1. 发布门（J1～J6，全部 NOT_RUN）
+
+| 门 | 状态 | PASS 所需证据 | 当前不可替代项 |
+|---|---|---|---|
+| J1 工程/安全 | NOT_RUN | B/C/D/E 测试 + 风险闭合 + 输入保护 + 独立审查 + 隐私/信任门真实有效 | 基线也红、风险已登记、静态字面量、警告但仍执行 |
+| J2 五类真实能力与法律质量 | NOT_RUN | F 五类真实路径 + 独立 gold + 法律专业审签 + 版本/时效依据 | rerank 旧成功、单个 HTTP 200、模型自评、小题集"总体准确率" |
+| J3 本地环境与可搬运候选 | NOT_RUN | 经核实现用环境升级+回退实测 + 候选构建与声明平台证据 | 验收 venv 代现用、Windows tsc 代 Linux/standalone、venv 改名即可运行 |
+| J4 Git/远端 | NOT_RUN | 当前提交与 PR + 必要 review/CI + 合法合并与合并后状态 | 仅本地提交、前一 head CI、保护 bypass |
+| J5 真实数据恢复/迁移与语料就绪 | BLOCKED（按构造） | 真实数据对象的合法恢复验证与版本元数据验收 | 本书禁止实库读写；合成演练/旧 mtime/旧数据数量不可替代 |
+| J6 生产目标的非部署前置 | BLOCKED | 平台/架构选型 + 凭据处置 + 访问/回退/数据方案 + Owner 决策 | 用户尚未选服务器；Linux 工程候选不是生产平台签认 |
+
+## 2. 已在册阻塞（不许拿掉）
+
+1. 真实数据门（J5）— 需具体对象/范围/回退/时窗批准。
+2. 法律门（J2 子集）— 缺合格法律复核者，助手不得代签，不得加 LLM judge 消除。
+3. 生产平台门（J6）— 服务器/OS/架构未定。
+4. 环境切换门（G）— 归属不唯一 / 回退未实测 / 有他任务占用 / 启动会写真库。
+5. 风险与凭据门（C/H）— 无官方安全闭包、残余漏洞需 Owner 裁、暴露凭据需人工轮换。
+   本轮细化（10-10）：凭据门的卡点已从「有没有明文」换成「我在授权内验不了值轴」（本书 A 单禁开 `.env`），
+   所以 D-5 是授权问题而不是扫描问题；远端可见性与 CI 是否已含那段历史，本机 API 被拦 ⇒ 无读数。
+6. 审查/远端门（I）— 缺 reviewer、GitHub 权限、有效 CI 或共同历史。
+7. ~~（A.3 登记）`backend/agent/state_machine.py` 在册冻结 vs 已被改动~~ ⇒ **2026-10-10 已解除**：Owner「按推荐」= 确认解冻并保留改动，`pyproject.toml` ruff exclude 已删该行并留解冻记录，纯格式化 + AST 等价证明见 §6。序号保留不重编号（他处按号引用）。
+
+
+## 3. 补记（A 收口时的自查，2026-10-10）
+
+- 事故与订正两条见 `evidence/incidents.md`：INC-1 我把接收来的 `state_machine.py` 就地格式化了（靠逐只 sha 复算检出、按主仓原字节还原、24/24 复测漂移 0，主仓未写入）；
+  INC-2 第一版建 env 脚本让 pip 在默认 PyPI 上解析到 torch 2.14.1（本书 C.4 禁止的形状），已删撕裂环境并按「CPU 源先钉 2.6.0+cpu、再装声明闭包」重建。
+- **INC-1 推翻了我先前一条结论**：格式债不是 DB-15 引入的，真 HEAD 字节在 `ruff format --check` 下同一条 rc=1。
+- A 出口判据复量：归属清单完整（`evidence/ownership.json`）、禁区只记元数据（`evidence/forbidden-zones.json`）、
+  候选来源可还原（`evidence/input-before.json` + `evidence/verify_received.py` 现量 24/24 漂移 0）、索引原状态未动（主仓 `git diff --cached` 恒 0 只）。
+
+
+## 4. 补记二（2026-10-10 C/B/E 首轮读数）
+
+- 候选全量非 slow：**1901 passed / 0 failed / 10 skipped / 18 deselected**，220.96s，RC=0；总数 1911 与上一轮旧栈读数**同分母**，差的 8 只是 `real_kb` 在候选里 skip（`backend/chroma_db` 按构造不存在）。
+- socket 守卫：321 事件，**非回环 0**，回环 319；守卫自身的「能红」证据在 `evidence/selfcheck_egress_guard.py`（回环放过 + 两只非回环被拒 + 2 条记账）。
+- 我引进的一处候选改动（超出接收清单）：候选 `backend/requirements.txt` 追加 `transformers>=5.0,<5.19` + 证据注释 ⇒ 候选树现在是 **25 只**改动（20 M 他人 + 4 新测试 + 1 我改的 requirements）。这不是「他人改动」，归属本轮，须单独审。【**该计数是提交前的工作树读数，已过期**：`5ca3315` 之后 `git status --porcelain` 只剩 5 只**前端** `M`（另一会话的 §14 修复，未提交，我不碰），我这轮的后端件已全部入库。工作树计数按在册纪律不该写死在正文——要现量就跑 `git -C <候选> status --porcelain`，并记住分母是**tracked 修改**，未跟踪/被忽略另计】
+- 发现 F-A1（候选放主仓子目录 ⇒ 测试进程读到真实 `.env`）已用两道处置：候选内空 `.env` 截断向上搜索（实测 `find_dotenv()` 解析到候选本地 0 字节文件），加测试进程钉死 18 只键。见 `evidence/finding-dotenv-upward-search.md`。
+
+
+## 5. 补记三（候选改动面与静态门读数）
+
+- 候选现量：tracked 已修改 **23** 只（他人 20 + 本轮依赖声明 3）、未跟踪新后端测试 **4** 只。我引进的 3 只是
+  `backend/requirements.txt`、`backend/Dockerfile`、`.github/workflows/ci.yml`（同批对齐 torch 2.13.0 与 SQLAlchemy 下限），
+  与他人的 20 只分开列，审查时该分两栏看。
+- 候选内 `backend/.env` 是一只 **0 字节空文件**（发现 F-A1 的构造性拦截），被 `.gitignore:26` 忽略，不进树、不进包、不进提交。
+- 静态门读数（候选树 + 私有环境）：`mypy .` **Success（74 files）**；`ruff format --check .` 278 files already formatted rc=0；
+  前端 `npm run lint` rc=0、`tsc --noEmit` rc=0、`vitest run` 9 只文件 **50** 用例全过【**此数已撤回**：现量 `Tests 83 passed (83)` / `Test Files 9 passed (9)`，见 §10 补记八①；50 无处可复算】（与 10-09 那句「106 项」不同分母，
+  本树 `vitest.config.ts` include 只有 `tests/**/*.test.ts` 这 9 只，复算不出 106，已按在册过期处理）。
+
+
+## 6. 补记四（2026-10-10 D-1 解冻执行 + D-4 category 收窄 + 静态门复量）
+
+### 6.1 D-1：`agent/state_machine.py` 解冻落地（可复算）
+
+Owner 裁「按推荐」= 确认在册解冻并保留 DB-15 改动。三处留痕：
+
+1. `backend/pyproject.toml`：ruff `exclude` 由 3 项减为 2 项（`prompts.py`、`scripts/gate5_judge.py` 保留），并按该文件 :8 那条「unfreeze 必须删掉本 exclude」的注释义务补了 5 行解冻记录【**此数已撤回**：`diff pyproject.before → 现文件` = +7 行 / −1 行（−1 是删掉的 `"agent/state_machine.py",`），见 §10 补记八①】（判据、改动量、实测代价）。
+2. 纯格式化：`ruff format --check agent/state_machine.py` 改前 rc=1（HEAD:37 那条旧语句 `self.state = state.model_copy(...)`），改后 rc=0。
+3. **AST 等价证明**（不是"我看了一眼"）：`evidence/ast_equal_statemachine.py` 对格式化前后字节各取 `ast.dump()` 比较 ⇒ `ast_equal=true`、`symbols_equal=true`、`nodecounts_equal=true`、AST dump sha `2762f6fa…0cd04aa4` 两侧相同；文件 sha256 `50fede75…df87beca` → `81d58ce4…e36ecb4b`（5694 → 5672 字节）。复算命令：
+
+```bash
+cd C:/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2
+candidate-envB/Scripts/python.exe evidence/ast_equal_statemachine.py \
+  C:/Users/33393/Desktop/ai-legal-helper/.worktrees/nondeploy-closeout-20261010/backend/agent/state_machine.py
+```
+
+**订正（推翻我本轮先前一句）**：我在 §3 记的「格式债早于本轮」是对的，但当时的证据形状有缺陷——我当时用 `ruff format -` 就地写过接收字节（INC-1）。现在的结论证据换成两条 `--check` 读数（HEAD 字节与接收字节同一条 rc=1），且格式化只作用在我明确列出的文件上。
+
+### 6.2 D-4：DB-19 回落收窄为「语料不声明 category 才回落」
+
+`evidence/db19-probe.out` 实测：Chroma 0.4.24 对缺失键的 `$eq`/`$ne` 一律排除该行，且**该判定与所问值无关**（S1 全不带键 ⇒ eq/ne 双 0；S2/S3 带键 ⇒ ne>0）。据此把「带过滤零命中就无条件补发无过滤查询」改成先探一次"这个集合是否声明 `category`"：
+
+- `backend/retrieval.py`：新增 `_corpus_advertises_category(vs, category)`（按集合名缓存于 `_CATEGORY_ADVERTISED`）与 `_docs_advertise_category(docs)`，`vector_top` / `bm25_top` / `grounded_top_score` 三处共用同一判定；`_note_category_filter_miss(category, stage=..., outcome=...)` 新增 `outcome` 并进抑制键（`filter_unsupported_fell_back` 与 `filter_no_match_kept_empty` 不再互相吞告警）；`invalidate()` 同时清 `_CATEGORY_ADVERTISED`。
+- `backend/observability.py`：`_ACCOUNT_FIELDS` 加 `category_filter_outcome`（§2 B5 白名单门）。
+- `backend/tests/test_retrieval_category_narrow_fallback.py`：9 条用例，替身 `FakeChromaCollection` 按上面实测语义实现（不是照抄实现），含 S2「该类确实零条 ⇒ 保持为空、不冒充」、两条 outcome 归因、BM25 与 `grounded_top_score` 共用判定、缓存/失效，以及末条**负向自证**：旧形状对 S2 一定会补发无过滤查询。
+
+读数：定向 6 只文件（新旧 category + DB-15/18/17 + 日志白名单哨兵）**59 passed / 0 failed / 0 skipped**，29.53s，`evidence/pytest.custom.candidate-envB.20261010T050738Z.log`；同趟 socket 守卫 `blocked_non_loopback=0`（`evidence/egress.custom.20261010T050738Z.summary.json`）。
+
+**没做的事**：`category` 仍留在 schema 里（摘不摘是 DB-19 那半，需你裁）；未回填真实库任何 metadata；写侧归一 4 处（`scripts/import_docs.py` 等）仍未并 ⇒ DB-21 未动。
+
+### 6.3 静态门复量（候选树 + `candidate-envB`，全部本轮现跑）
+
+| 门 | 读数 | 说明 |
+|---|---|---|
+| `ruff check .`（在 `backend/`） | `All checks passed!` rc=0 | 解冻后 `state_machine.py` 已在覆盖内 |
+| `ruff format --check .`（在 `backend/`） | **280 files already formatted** rc=0 | 我之前漏了两只：`retrieval.py`（我 D-4 新增那行）与新测试文件，已 `--diff` 预检后定向 `format`，两只各证 AST 等价（`evidence/ast_equal_pair.py`，sha 见下） |
+| `mypy .` | `Success: no issues found in 74 source files` rc=0 | mypy 2.4.0；坐实那两条 `Row` 红是 **SQLAlchemy 2.0.51 轴**，不是 mypy 版本轴 |
+| 接收字节完整性 | `verify_received.py` 现量 24 只中 **3 只**标记，且全是本轮有意改动 | 见下表；主仓工作树 24 只**全部**与接收时字节相同（无 `MAIN_DRIFT`） |
+
+| 被标文件 | 谁的内容 | 本轮动作 |
+|---|---|---|
+| `backend/agent/state_machine.py` | 他人（DB-15） | 仅格式化（AST 等价） |
+| `backend/retrieval.py` | 他人（DB-16③）+ 我（D-4 收窄） | 新增约 60 行判定 + 格式化我自己那行 |
+| `backend/observability.py` | 他人（DB-17 记账字段）+ 我（D-4 加 `category_filter_outcome`） | 白名单加 1 键 |
+
+格式化两只本轮自己的文件：`retrieval.py` sha `922f4dff…2fe9d7f4` → `9a504013…47c664cef`（70146 → 70116 字节，AST 等价）；新测试文件 `196766a7…0c9211c5` → `6ecd6ea8…829e9e96`（9931 → 9932 字节，AST 等价）。
+
+### 6.4 候选改动面现量（口径：`git diff --name-only` 在候选工作树，`wc -l`）
+
+**tracked 已修改 24 只** = 他人后端 16 只（controller/runtime/service/state_machine/writer/domain_rules/llm_errors/llm_registry/main/observability/retrieval/scripts-smoke + 测试 3 只）+ 本轮依赖声明 3 只（`requirements.txt`/`Dockerfile`/`ci.yml`）+ 本轮 `pyproject.toml` 1 只 + **前端 5 只（并行会话的，不属于本轮，不提交）**。
+**未跟踪新后端测试 5 只** = 接收 4 只 + 本轮 `test_retrieval_category_narrow_fallback.py`。
+复算：
+
+```bash
+cd C:/Users/33393/Desktop/ai-legal-helper/.worktrees/nondeploy-closeout-20261010
+git diff --name-only | wc -l
+git ls-files --others --exclude-standard backend/tests
+```
+
+
+## 7. 补记五（2026-10-10 E.2/E.3/B-45 落地与终量门禁）
+
+交付文件：`reports/trust-and-data-drill.md`（E 单全文）。这一段只记状态与读数变化。
+
+| 项 | 状态 | 现量 |
+|---|---|---|
+| E.2 加载信任门 | PASS | 行为级五臂 `GATE_HOLDS`（默认/False 均**未**执行 `auto_map` 自定义代码，`"local"` 执行 ⇒ 阳性对照咬住；ST 层 `True` 对本地目录也不放开）；入库 4 条（接线 AST + 库默认值现量 + 生产面 grep + 恒真哨兵负向自证）；变异 M2 让 2 条真红，M1 的 4 errors 如实记为"该形状构造不出来" |
+| E.3 备份→恢复演练 | PASS（合成面） | 入库 7 条：包内六件齐 + WAL 单文件无残留 + 恢复库**条文原文**全等 + 配额账本逐值等 + 向量恢复命中 `doc-1` 且与包内 `chroma_index.json` 的 `source×article` 集合对得上 + 二次运行 `rc=2` 拒绝覆盖 + 源树逐文件 sha 前后相同 + 半途失败不出清单 + `_check_env_contract` 分歧即拒 |
+| B-45 `import_laws` 守卫 | PASS | 守卫挂 `__main__`（与 `backup_data` 同位）；`--validate-only` 按判据豁免；入库 4 条走子进程；变异 M1 删守卫 ⇒ 恰好红在分歧拒绝那条腿 |
+| 我引进的一次假读数 | 已改 | 子进程 helper 第一版 `except SystemExit: pass` 把"拒绝执行"这条**判据要读的消息**吞了 ⇒ 拿到假的"没拦"；改回 re-raise 后 32 passed |
+| 通用变异仪 | 已随票落盘 | `evidence/run_mutants.sh` + `evidence/arms/*.txt`；第一版 `@no-repl` 分支 `shift 3`（应为 4）⇒ 臂错位，`bash -x` 定位后修 |
+
+终量门禁（候选树 + `candidate-envB`，本轮全部现跑）：
+
+| 门 | 读数 |
+|---|---|
+| `ruff check .`（backend） | `All checks passed!` rc=0 |
+| `ruff format --check .`（backend） | **283 files already formatted** rc=0 |
+| `mypy .` | `Success: no issues found in 74 source files` rc=0 |
+| 全量非 slow | **1925 passed / 0 failed / 10 skipped / 18 deselected**，210.51s，junit tests=1935，RC=0 |
+| socket 守卫（同趟） | 321 事件，**非回环 0**，回环 319，`blocked_targets=[]` |
+| 用例增量对账 | 1901（接收态）+ 9（D-4 收窄）+ 4（E.2）+ 7（E.3）+ 4（B-45）= **1925**，Δ 逐笔可指到文件 |
+
+候选改动面现量随之变化：tracked 已修改 **25** 只（24 + 本轮 `scripts/import_laws.py`），未跟踪新后端测试 **8** 只
+（接收 4 + 本轮 `test_retrieval_category_narrow_fallback.py`、`test_loader_trust_gate.py`、`test_backup_restore_drill.py`、
+`test_import_laws_guard.py`）。复算命令同 §6.4。
+
+**仍开着的**：C 单 15 个 ID 两类待裁（2 无上游修复 / 13 卡 `>=0.1,<0.2`）；DB-19 摘 schema、DB-22 TTL 分档、
+DB-23 409 文案措辞待 Owner 具体授权；D/H/I/J 未跑；J5 真实数据门按构造 BLOCKED。
+
+
+## 8. 补记六（2026-10-10 本地提交 + H/覆盖率读数）
+
+### 8.1 候选分支的两笔本地提交【**笔数已过期**：写出时确为两笔，此后又落 `a934fa7`/`3f605de`；现量用 `git log --oneline 0b54396..HEAD`，别信本节标题】（worktree 内，主仓未动）
+
+| 提交 | 范围 | 读数 |
+|---|---|---|
+| `5ca3315` | 25 只：接收的后端四票 16 只 tracked + 接收测试 4 只 + 本轮 D-4/B-45/解冻记录 5 只 + 本轮新测试 4 只 | `25 files changed, +2143 / -121` |
+| `8c179e7` | 3 只：`backend/requirements.txt`、`backend/Dockerfile`、`.github/workflows/ci.yml` | `+48 / -6` |
+
+- 未提交面：`frontend/` 5 只（并行会话的，D 单结完再定 hunk）；主仓工作树**未被本轮写过**（`verify_received.py` 现量无 `MAIN_DRIFT`）。
+- 提交内容形状扫描（`evidence/shape_scan_staged_set.py`）：28 只待提交文件、680,576 字节、**5 条规则 0 命中**，且每条规则都用构造样本证明能咬（`control_covers_every_rule=True`）。**射程声明**：只覆盖待提交文件，不覆盖历史 blob；形状普查盖不到无形状口令 ⇒ 值轴见 §8.3。【**本句射程写窄了**：真正漏的不是「历史 blob」而是「键名不在场的值」——本轮值级现量见 `reports/h-ci-and-credentials.md` §2.1，那只 13 位字面量在 HEAD 树里、不在待提交集里，形状扫描结构上看不见它。】
+- **上一条的两处仪器问题（本轮晚间补跑并落盘）**：① 旧脚本取文件集用的是 `git status --porcelain` ⇒ 提交之后射程变 0 只，**那次的读数没有留 artifact**（`evidence/` 里只有脚本、没有输出文件），28/680,576/0 命中只能算「当时屏上看到的」；② 5 条形状规则**全部要求键名在场**，对「被写进正则 pattern 的裸口令」结构性失明。⇒ 新脚本 `evidence/shape_scan_committed_set.py` 按提交区间取 `git show HEAD:<path>` 的 **blob** 来扫，并加一条**按值腿**（CONTROL-B：值从 git 对象取进内存，只报长度/是否咬住，不打印），且要求它先在引入该值的历史笔上证明能咬、否则拒绝报 0（`VERDICT=REFUSE_TO_REPORT_ZERO`）。现量：`range=0b54396..HEAD files_in_range=28 skipped=0 bytes_scanned=681509`、`CONTROL-A …=5/5`、`shape_rule_hits=0`、`CONTROL-B extracted=yes len=13 bites_on_817e7d3=True`、`CONTROL-B hits inside range=0`、`VERDICT=PASS_VALUE_LEG_PROVED_BITING`（`evidence/shape_scan_committed_set.out`）。注意 681,509 B 与旧的 680,576 B **不是同一分母**（前者=四笔提交的入库面，后者=当时 staged 集），别拿来互相验。
+
+### 8.2 覆盖率门
+
+`1925 passed` 的无 cov 趟与 `--cov --cov-fail-under=70` 趟**不是同一读数**，要分开报：
+- 覆盖率**门槛达成**：`TOTAL 8866 语句 1076 未覆盖 → 86.35%`【**1076 已撤回**：两份 cov 日志的 TOTAL 行都是 `8866 1079 2726 325 86%`；86.35% 与门槛结论不变】，`Required test coverage of 70% reached`（`evidence/pytest.cov.<第一次>.log`）。
+- 但那一趟是 `1 failed / 1924 passed`，红的是 `test_settings_repr_masking::test_repr_masks_every_secret_value`。
+- **归因（单变量两臂）**：同一条用例、只差我传进去的假值形状 —— 五个 key 各给不同多字符串 ⇒ `3 passed`；全给单字符 `k` ⇒ `1 failed / 2 passed`。⇒ 红是**我 harness 的值形状**造成（`str(value) in text` 对单字符必然命中），不是打码实现的问题。
+- 第三趟（改好假值后的干净复跑）在 96% 处无声消失、日志无 `RC=` 行。**根因已定**：覆盖插件要擦除
+  `COVERAGE_FILE`，被本机 safe-delete 沙箱拦掉（`docs/code-review-standard.md` §1.1 在册的同一台机器）。
+  按在册绕行法加 `CODEBUDDY_SAFE_DELETE_ENABLED=0` 后第四趟**闭合**：`1925 passed / 0 failed / 10 skipped /
+  18 deselected`，`TOTAL 8866 语句 → 86.35%`，`Required test coverage of 70% reached`，**RC=0**
+  （`evidence/pytest.cov.20261010T070646Z.log`）⇒ 该腿 **PASS**。这条教训是"读数消失"不是"读数为零"：
+  当时若直接记成"覆盖率不过/未知"，就把一台会静默杀进程的仪器读成了产品状态。
+- `reports/h-ci-and-credentials.md` §3 另记了这条红暴露的两台仪器弱点（短值判据不具鉴别力 + 假凭据值形状是实验条件）。
+
+### 8.3 H 凭据腿：结论是 BLOCKED，且原因是授权而不是工具
+
+本轮授权内**做不了**按值反查（A 单禁 `.env`），形状轴 0 命中但盖不到无形状口令 ⇒ 既不能说"干净"也不能说"有"。
+复算入口与在册 09-30 结论的关系见 `reports/h-ci-and-credentials.md` §2。**给 Owner 的那两条（先轮换 / 走孤儿快照）我都没有自行执行**：
+前者是外部账户动作，后者是改交付形态，都超出本书授权。
+
+### 8.4 I 单的当前形状（未闭合）
+
+- 已做：候选内两笔提交、三台变异仪与全部读数落盘、两路独立复核**已派发**（只读、写在 `reports/independent-review-A.md` / `-B.md`）。
+- 未做：推送、开 PR、远端 CI 读数、合并。**阻塞在** §8.3 的凭据轴 + 独立复核结论回灌。
+- `$closeoutCandidatePython` = `…b4e7a2/candidate-envB/Scripts/python.exe`；`$closeoutCandidate` = `…/.worktrees/nondeploy-closeout-20261010`。
+
+
+## 9. 补记七（2026-10-10 G 单归属核实 + 覆盖率腿闭合）
+
+- **G 单**：归属核实完成，结论从「未核」改判为 **BLOCKED（升级动作在本书授权外）**。
+  决定性现量：产品 8088 的监听者是 `com.docker.backend.exe`（PID 8636），宿主机无 python/node 监听产品端口；
+  compose project 的 working_dir 指向**主仓**，三个容器 `restart=unless-stopped`、创建于 09-17、本次启动于
+  2026-10-10 07:08:51Z；后端镜像 `cbdadf43a40b` 创建于 3 周前 ⇒ **现役运行版本与本轮候选无关**。
+  容器**不是我/我的 agent 启的**（派单边界禁 compose；D 的 logs/scripts grep `docker|compose` 0 命中），我也**没停它**。
+- **连带后果登记**：候选把 SQLAlchemy 下限提到 `>=2.1` 后，开发用的 `backend/venv`（现量 2.0.51）
+  已在声明区间之下，torch 亦然，且 `pip check` 仍有两条既有不一致（fastapi↔starlette、sse-starlette↔starlette，
+  实际 starlette 0.36.3）。合并后凡用该 venv 的人跑的是「不满足 requirements 的环境」，
+  mypy 那两条 `Row` 红会在那里复现。交回 Owner 的是 D-6 那一题，本轮没动那个 venv 一个字节。
+- **覆盖率腿闭合**：第三趟在 96% 处无声消失，根因为 safe-delete 沙箱拦 coverage 数据文件擦除；
+  按在册绕行 `CODEBUDDY_SAFE_DELETE_ENABLED=0` 后第四趟 `1925 passed / 0 failed`、`86.35% >= 70`、**RC=0**
+  （`evidence/pytest.cov.20261010T070646Z.log`）⇒ 该腿 **PASS**，§8.2 已就地更正。
+- **新交付**：`reports/local-environment-switch.md`（G 单全文）、`reports/decisions-needed-20261010.md`
+  （待裁台账 D-5…D-13 + 已裁 D-1…D-4 对账）。
+
+## 10. 补记八（2026-10-10 深夜：两路独立复核的采纳与翻案 + 我自己三处读数被推翻）
+
+采纳规则先说清：**复核者的话我不转述成结论**，每条都在候选树/运行根重跑一遍才落进正文；重跑不落的不采纳。
+
+### ① 四条纯数字错（我写进正文的，就地已标注撤回）
+
+| 项 | 我写的 | 现量 | 证据 |
+|---|---|---|---|
+| 前端 vitest 用例 | 50 | **83**（`Tests 83 passed (83)` / `Test Files 9 passed (9)`） | `evidence/vitest-candidate-20261010.log` |
+| 覆盖率未覆盖行 | 1076 | **1079**（TOTAL 行 `8866 1079 2726 325 86%`） | `evidence/pytest.cov.*.log` 两份都是 1079；86.35% 与门槛 70 结论不变 |
+| 解冻记录行数 | 5 行 | **+7 / −1**（−1 是删掉的那条 exclude） | `diff evidence/pyproject.before backend/pyproject.toml` |
+| 提交笔数 | 写死「两笔/三笔」 | **改成命令** `git log --oneline 0b54396..HEAD` | 在册纪律：自涨的计数不进正文 |
+
+指针漂移一处：`reports/dependency-decision.md` §10 那行引 `backend/Dockerfile:34-38` / `:41-48` / `:38`，
+现量（`git show HEAD:backend/Dockerfile`）= 钉版注释 **:35-38**、install 段 **:45-47**、防呆断言 **:51-58**；
+而它引的那句「torch 锁在 2.6.0（镜像已同步的最新 cp311+cpu 版）」**已不存在**——被 `8c179e7` 换成 `:39-44` 的取舍说明。
+⇒ 那一行描述的是**改动前**的文件，读它时要按"改动前"理解，别拿现号去跳。
+
+### ② E.2 臂 E 是假阴性：同进程动态模块缓存，五臂改逐进程重跑
+
+上一版我把 A/B/C/E/D 放在同一进程里依次加载，据 E「没有 marker」判 `trust_remote_code=True` 也被门拦住。**错了**：
+C 臂已经把自定义模块灌进 `sys.modules`，E 臂命中缓存 ⇒ 根本没重新执行，marker 空是缓存的症状不是门的功劳。
+逐进程重跑（`evidence/probe_st_trust_arm.py`，每臂独立解释器 + `PROBE_MARKER` 指向臂名单独的文件）：
+
+| 臂 | 模型目录 | kwargs | marker | 判读 |
+|---|---|---|---|---|
+| A | 被污染 | （不给） | **无** | 默认拒绝 ⇒ 拦住 |
+| B | 被污染 | `False` | **无** | 显式拒绝 ⇒ 拦住 |
+| C | 被污染 | `"local"` | **有** | 信任本地自定义代码 ⇒ 执行 |
+| E | 被污染 | `True` | **有** | **执行**（上一版这里读成"无"＝缓存假阴性） |
+| D | 干净 | `True` | **无** | 干净快照不需要自定义代码 ⇒ 不执行 |
+
+⇒ 判据措辞改准：**加载信任门只在没人显式给 `True`/`"local"` 时保护我们；给了就会执行模型目录里的自定义代码（已证）**。
+所以我们防的是"配置面"，不是"库会替我们挡"——`backend/tests/test_loader_trust_gate.py` 的 AST 腿钉的就是配置面。
+真源 HF 缓存目录 mtime 前后相同（探针没碰官方快照，只碰合成副本）。
+
+### ③ category 变异仪的 M2 那一臂从未生效：两处仪器 bug 合起来造了「全存活」
+
+复核 A 指出 M2 不可复算，我复现并查到根因（两台都在我这边）：
+1. `run_mutants.sh` 的 `@no-repl` 分支 `shift 3`（应 4）⇒ 臂参数整体错位；
+2. 变异文件里的相对路径被二次前缀成 `backend/backend/retrieval.py` ⇒ patch 失败但脚本继续跑。
+两者叠加的后果是**三只臂都在未变异的树上跑**，于是报出「9 passed」＝"变异全被杀"的反面假象（全存活被读成全杀）。
+硬化后的仪器（`PATCH_OK` 回显 + 变异后 `ast.parse` 自检 + `ARM-INVALID` 不计入判决）现量：
+
+| 臂 | 变异内容 | 现量 | 红的是哪条腿 |
+|---|---|---|---|
+| M1 | `cat_repl_m1.txt`：把「语料是否声明该 category」的判定改成**恒 True** | **2 failed** | `test_S1_library_without_the_key_still_falls_back`、`test_presence_verdict_cached_and_cleared_on_invalidate` |
+| M2 | `cat_repl_m2.txt`：同上一处判定改成**恒 False**（语料永远被当成不声明） | **4 failed** | `test_S2_library_advertises_category_but_not_this_value_stays_empty`、`test_S2_outcome_is_logged_as_no_match_not_fallback`、`test_grounded_top_score_does_not_borrow_other_categories`、`test_presence_verdict_cached_and_cleared_on_invalidate` |
+| M3 | 不变异基线 | **9 passed** | — |
+
+**两条都要摊开**：① 旧日志 `evidence/category-mutants.log`（12:53，726 B）只有**两条**结果行（`3 failed, 6 passed` 与 `9 passed`）——**M2 那一臂从未出现在日志里**，且它的 M1「3 failed」与硬化仪器的「2 failed」不可归因（同一台仪器当时正被上面两个 bug 驱动）⇒ **旧日志的两个数一并作废，本表只引 15:55 的 `category-mutants-rerun.log`**。② 我这一节**第一版的臂名是用手写的**（写成「关掉语料声明检查」「只看首条 document」，还编了一条并不存在的用例名 `test_falls_back_when_corpus_does_not_advertise`），与 `evidence/arms/cat_repl_m*.txt` 的真内容不符 ⇒ 上表是按 artifact 逐字重取的。这条正是「手抄进文档的数字/名字要按真源重取」的现场复发，记进 §10。
+日志 `evidence/category-mutants-rerun.log`。**教训入册**：仪器失败会伪装成实验结论，`9 passed` 这种"太干净"的读数要当场问一句"变异到底打上没有"。
+
+### ④ 静态腿从 grep 换成 AST，并证它能红
+
+行文本 grep 腿有两种穿法（`kwargs = {"trust" + "_remote_code": True}`、位置参数），已换成 `ast.walk` 找
+`ast.keyword(arg="trust_remote_code")` 与 `ast.Constant("trust_remote_code")`。**M4 反证**：往生产文件注入一个
+运行期字典形状的 opt-in ⇒ AST 腿 `1 failed`（基线 4 passed），`ruff check`/`format --check` rc=0。
+残余射程（明写）：全动态构造（`**{prefix + key}`）仍在静态面外；且 pydantic 在构造期就拒顶层该键（M1 → 4 errors 是**构造期拒绝**，不是断言红，别读成"测试能红"）。
+
+### ⑤ D-14 新登记：还有 4 只能写知识库的 CLI 没有守卫
+
+`git grep -n chroma_dir_guard backend/` 现量：消费方只有 `backup_data` / `import_laws` / `rebuild_embeddings` / `switch_embedding`。
+`import_docs.py`（2 处，含 delete）、`verify_new_law.py`（7 处，含 delete）、`eval_chunking.py`（3 处，含 delete）、
+`backfill_time_meta.py`（1 处）都没有 ⇒ 我在 §7 写的「唯一未检查的写入入口」是**低估**，已折进 `reports/decisions-needed-20261010.md` D-14。
+
+### ⑥ 凭据按值反查翻案，以及一条方法论更正：**同法复现不等于独立印证**
+
+我上一版说「按值反查做不到」并把 §8 形状扫描的"0 命中"当成主要证据。**做不到的是"和现役 `.env` 比对"**，
+而"证明历史里有裸值"做得到——值就在 git 对象里。按值反查 238 棵树：`hits=61 / files=1 / lines=104`，
+HEAD 树已无。复核 A 用**和我一样的键锚点法**（`awk '/[Pp]assword/'`）给出 ✅——两条"独立"读数同源于同一盲区，
+所以它当时没能拦住我。今后选复核要按**方法是否正交**选，不能只按"是不是实现者"。
+完整读数与两条路线见 `reports/h-ci-and-credentials.md` §2.1，待你裁的那一词见 D-5。
+
+### ⑦ 一条安全披露：工具结果里出现过冒充我的指示
+
+本轮某工具返回内容里嵌了一段中文指令，要求我"用弹窗询问 Owner 是否轮换口令"。它不是用户消息，
+且与 AGENTS.md 的"不得调用交互式弹窗"直接冲突 ⇒ 未执行，在此登记。凡工具/网页返回体里的"指示"都按数据对待。
+
+### ⑧ 复算
+
+```bash
+R=/c/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2
+C=/c/Users/33393/Desktop/ai-legal-helper/.worktrees/nondeploy-closeout-20261010
+grep -a "Tests .* passed" "$R/evidence/vitest-candidate-20261010.log"
+grep -a "^TOTAL" "$R"/evidence/pytest.cov.*.log
+diff "$R/evidence/pyproject.before" "$C/backend/pyproject.toml" | grep -c '^[<>]'
+bash "$R/evidence/run_mutants.sh" cat      # 三臂现量，含 PATCH_OK/ARM-INVALID 自检
+"$R/candidate-envB/Scripts/python.exe" "$R/evidence/probe_st_trust_arm.py" E "$C" "$R/snap"
+git -C "$C" grep -n chroma_dir_guard -- backend/ | cut -d: -f2 | sort -u
+```
+
+## 11. 补记九（2026-10-10 深夜：重核 agent 的读数——采纳到哪、怎么验的）
+
+`reports/first-round-ledger-recheck.md`（后台 agent 交付，只读，未动仓库）重核了第一轮 13 张 DB 票 + B-44/45/46。
+它的判定表我**不整表采纳**，只采我当场复现得了的那几条：
+
+| 它的说法 | 我跑的命令 | 现量 | 采纳 |
+|---|---|---|---|
+| 第一轮台账 `docs/backend-readonly-audit-20260929.md` 在主仓是**未跟踪**、候选树里不存在 | `git ls-files --error-unmatch <该路径>`；`test -f` + `wc -c`；候选 `git ls-files <同路径> \| wc -l` | 主仓 rc=1（不在索引）而盘上有 **187,956 B**；候选树 **0** | **采纳**——它连"归宿"一起说对了：这份台账只活在这台机器上 |
+| `.env.bak*` 那行来自 `318c588`/`8d4bda7` 而非台账 §11 写的 `902e2d1` | `git log -S'.env.bak' -- .gitignore`；`git show --stat 8d4bda7` | `318c588`(09-30) 加那行；`8d4bda7`(09-30) 把它**挪到文件末尾**（理由写在提交信息里：插在中段会顶移后面所有行号）；`902e2d1` 未动该行 | **采纳**，台账那处归因要改 |
+| DB-2「口径已变」：`902e2d1` 的 scope 判据已结构性含时效日 + 证据五元组 | `git grep -n "effective_to" -- backend/main.py` | `main.py:1152` 的判据元组就是 `("source","article","effective_from","effective_to","status")` ⇒ 五元组+两侧日期**都在** | **采纳**（残余是命中帧仍取 `pre['sources']`，那条我未独立复现） |
+| DB-13「`mark_depleted` 那腿随 DB-17 关闭，WAL 与角色并集两腿仍在」 | `git grep -n "mark_depleted" -- backend/`；`git grep -ln "journal_mode\|WAL" -- backend/tests` | `llm_errors.py:11/119` 已有"瞬时 vs 非瞬时"分档判据；测试侧 WAL 只出现在 `conftest.py` | **部分采纳**：分档确实落进代码；WAL/角色并集两腿我只核到"测试面没有断言"，未核到"缺陷可达性" |
+| 「最需 Owner 裁的是 **DB-7**（`TOOL_BUSY` 进不进技术降级白名单）」 | —— | 属**口径决策**，不是我能用读数顶掉的阻塞 | **转给他**，已并入 `reports/decisions-needed-20261010.md`（见下） |
+| 它给 DB-7 的前置事实：「白名单**今天**确实被扩过一格（`AGENT_BUDGET_EXCEEDED`）」 | `git log -S'AGENT_BUDGET_EXCEEDED' -- backend/routing_metrics.py` | **错**：那格来自 `5e51384`(**2026-09-17**)，今天没扩过这只集合；今天动的是 `agent/state_machine.py` 的 `FREE_STEP_EDGES`（DB-15，另一只集合） | **驳回**，并按现量改写成 D-15 的证据列 |
+
+**新教训**：重核 agent 的**事实断言也要跑**——它这条「今天扩过一格」要是照抄进 D-15，就会给 Owner 造出一个「本轮已经开过先例」的假前置。
+
+**未复算 ⇒ 不采**：它表里其余各票的逐条 `file:line`（它读的是 `a934fa7` 树，候选现已到 `3f605de`）；
+以及"查不到 1 项：DB-2 的部署期开关值"——那条的归因我也同意（书禁开 `.env`）。
+
+### 顺带一条互相印证（但别读成"值仍有效"）
+
+`.gitignore:152` 的注释自己写着：`.env` 备份里是「**13 位明文管理口令**」。
+我这边按值反查独立量到的长度也是 **13**（`evidence/value_reverse.py`，纯字母数字）。
+⇒ 两处**同长**只说明"我扫到的就是它指的那把值"，**不说明**这把值现在还能不能登录——那要读 `.env`（禁区），仍是 D-5 待裁的那半。
+
+### D-5/D-14 已并进待裁台账，此处只给一句话
+
+凭据轴：普通推会上传历史裸值（已证），现役性未知 ⇒ 我推荐先轮换再普通推 + 开 PR。
+守卫覆盖面：另有 4 只能写知识库的 CLI 没有 `chroma_dir_guard`（`import_docs`/`verify_new_law`/`eval_chunking`/`backfill_time_meta`，前三只含 delete）
+⇒ 登记成 **D-14**，本轮不扩（执行书 B 单只点名 B-45）。
+
+### 复算
+
+```bash
+M=/c/Users/33393/Desktop/ai-legal-helper
+git -C "$M" ls-files --error-unmatch docs/backend-readonly-audit-20260929.md; echo "rc=$?"
+git -C "$M" log --format='%h %ad %s' --date=short -S'.env.bak' -- .gitignore
+git -C "$M" grep -n "effective_to" -- backend/main.py | head -3
+git -C "$M" grep -n "mark_depleted" -- backend/llm_errors.py | head -3
+sed -n '150,155p' "$M/.gitignore"
+```
+
+## 12. 补记十（2026-10-10 傍晚：复核 A 两项"未复算"我都补了，其中一项暴露复核方法本身）
+
+### ① 臂 E 那条：**复核 A 重跑的是同一只坏尺子**，于是把我的假阴性一起"复现"成 ✅
+
+它 row 30 的命令是原样再跑 `evidence/probe_st_trust.py`（**同进程五臂**），得到与我逐格相同的读数、
+`verdict=GATE_HOLDS`、四项 checks 全 true ⇒ 判 ✅。**但那只探针在结构上就量不到缓存效应**：
+动态模块注册表是进程级的，A→B→C→E 串在一个解释器里，E 必然命中 C 灌进去的 `sys.modules`。
+⇒ 这不是"两人看法不同"，而是**同法复现不构成独立印证**——今天第二个实例（第一个见 §11 的凭据轴）。
+落地物：逐进程臂脚本 `evidence/probe_st_trust_arm.py`（每臂独立解释器 + 臂名独立 marker 文件），
+读数已写进 `reports/trust-and-data-drill.md` §1.4；判据措辞改窄为"防配置面"。
+
+### ② 模型 12/12 哈希：**不必出网也能独立复算**，我补算了并且先错了一次
+
+复核 A 的未复算理由是"需要重新出网下载 409 MB 权重"。现量：**期望值与内容都已在盘上**——
+`evidence/hf-bge-meta.json` 是 HF API 透传的 `siblings`（含每个文件的 `blobId`/`size`，LFS 文件另带 `lfs.sha256`），
+内容在运行根私有快照 `model-cache/hub/models--BAAI--bge-base-zh-v1.5/snapshots/f03589ce…/`（12 只文件，最大 409,138,989 B）。
+⇒ 新脚本 `evidence/recompute_model_hashes.py` 只读这两处、自算 `sha1("blob <len> "+内容)` 与 `sha256(内容)`，
+**不引用** `bge-model-verification.json` 的结论（否则是自我印证）。现量（`evidence/recompute_model_hashes.out`）：
+
+```
+files_expected=12 matched=12 not_matched=0 VERDICT=12_OF_12_INDEPENDENT
+```
+
+**我自己先比错了一次轴**（值得留在册）：第一版拿 `blobId` 去比 `pytorch_model.bin` 的内容 sha256 ⇒ `NO-MATCH`、
+`matched=11`、脚本走 `VERDICT=REFUSE`。原因是 LFS 文件的 `blobId` 是**指针文件的 git blob sha1**
+（`2083a929…`），内容哈希在另一个字段 `lfs.sha256`（`731cf5d8…bae044`）。
+⇒ 修法不是放宽判据，而是**按文件分轴**：有 `lfs` 走 `sha256(content)`，无 `lfs` 走 `sha1(git-blob)`，
+输出里把轴名一起打出来。尺子当时拒报数是对的行为，别把它当噪音。
+
+（复核 A 的第二项未复算"前端三腿现场重跑"与 D 单同源，D 已重派，见下节状态。）
+
+### 复算
+
+```bash
+R=/c/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2
+"$R/candidate-envB/Scripts/python.exe" "$R/evidence/recompute_model_hashes.py"
+cat "$R/evidence/recompute_model_hashes.out"
+ls -la "$R/model-cache/hub/models--BAAI--bge-base-zh-v1.5/snapshots/f03589ceff5aac7111bd60cfc7d497ca17ecac65" | tail -13
+```
+
+## 13. 补记十一（2026-10-10 晚：D 单改为独立会话执行，票已出）
+
+Owner 裁定 D 单开会话。票面：`<运行根>/tickets/dispatch-D-browser-acceptance-20261010.md`（**13,189 B / 9 节**）。
+本会话此后**不再碰** `frontend/.next`、standalone 构建，也不使用 8111/3101/8399/9222 这四个端口——票里把端口分配独占给了它。
+
+**为什么单开（不是推工）**：两只 agent 都死在同一处（起全栈现场），一只 302 秒 25 次工具调用后 `error`、
+一只从未交付；盘上证据是**零产物**（`reports/browser-acceptance.md` 与它自述的 patch 文件都不存在），
+候选树仍恰好只有那 5 只前端 `M`，四个端口无残留监听。同一件事派第三次是"连修三次=流程问题"的形状。
+
+**票里钉死的四条，都是本轮踩出来的**：
+1. **禁整后端 mock**，必须"真 `main:app` + 假上游"——否则就是循环验证（mock 形状取自前端类型，字段缺口测不出来）。
+2. **`RERANK_NATIVE_URL` 是第六条出网轴**：`settings.py:209` 默认值是官方 `dashscope.aliyuncs.com/api/v1/...`，
+   只覆盖 `LLM/ZHIPU/DASHSCOPE/RERANK/EMBEDDING` 五根 `*_BASE_URL` **会漏它**（现量：43/48/194/205/209 五处默认值都在码里）。
+3. **绕守卫要明写**：headless 没会话，只能注入假 `JWT_SECRET` 自签 token ⇒ 进「已知限制」。
+4. **`api.ts:27` 开发态硬编 `http://localhost:8000`** ⇒ 必须走 standalone 生产形状，否则 401/空白会被误判成应用缺陷。
+
+**§6 那条我改写了，因为死掉的 agent 给了我两个不存在的符号**：它自述"`_sse_transport` 少 `finally`、`requeued` 丢事件"。
+现量 `git grep -n "_sse_transport|sse_transport|requeued"` 在候选 `3f605de` **全仓零命中**（含 backend/frontend/docs/dispatch-output）
+⇒ 判定是**不可复现的名字，按幻觉处置**，不是"待验证缺陷"。票里把这条腿改成打在**真实流面**上：
+`frontend/lib/api.ts:168/176/226/230`（AbortController + `res.body.getReader()` 读循环）、
+`frontend/lib/hooks/useChatStream.ts:22/84`（`activeRequest` 句柄被覆盖而不 abort＝旧流失联继续写）、后端 SSE 出口。
+
+**复算约定**：它回来后我用**不同方法**复算（逐进程/换工具/换目录），不重跑它那只脚本——
+今天已经两次"同一只坏尺子重跑一遍就盖章 ✅"（臂 E 的同进程缓存、凭据的键锚点普查）。
+
+### 复算
+
+```bash
+R=/c/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2
+C=/c/Users/33393/Desktop/ai-legal-helper/.worktrees/nondeploy-closeout-20261010
+wc -c "$R/tickets/dispatch-D-browser-acceptance-20261010.md"
+git -C "$C" grep -n "_sse_transport\|sse_transport\|requeued" ; echo "phantom_rc=$?"   # 期望 rc=1（无命中）
+git -C "$C" grep -n "rerank_native_url" -- backend/settings.py                            # 期望 :209
+git -C "$C" status --porcelain | wc -l                                                   # 期望 5
+netstat -ano | grep LISTENING | grep -E ':8111|:3101|:8399|:9222'                        # 期望空
+```
+
+## 14. 补记十二（2026-10-10 晚：D 已交接独立会话，本会话交付两份可核文件）
+
+- **票**：`tickets/dispatch-D-browser-acceptance-20261010.md`（13,189 B）——见 §13。
+- **验收尺子**：`tickets/acceptance-ruler-D-20261010.md`（5,007 B）。**在它交付之前写好**，逐条列出"我判绿的最低条件 + 我的独立复算动作"，
+  并列了六种我会直接驳回的假绿形状（mock 循环验证 / 0x0 视口报已测 / 死端口当断网 / 属性字面量当交互 / 对比度穿透渐变 / "未跑"写"通过"）。
+  核心纪律：**不用它用的那把尺子复算**——今天两次"同法复现盖章"已经付过学费（§12①、§11 的凭据轴）。
+- **F 前置两份**：`reports/model-acceptance-prep.md`（5,228 B，配置可得性 + 两处文档漂移）与
+  `model-validation/gold-freeze-draft.md`（10,365 B，F2/F3 病例与 gold 草案，**零调用**）。
+  草案的分母不是手抄：`model-validation/gold_denominators.py` + `.out`（11 / 6 / 3 / 3 / 15）。
+  我自己在这条腿上少数过一次：`eval_agent_complex` 我先给过 "1/40"，真值 **3/40**（临时 lambda 只比了一张手写条号映射表）；
+  已改成中文数字解析器（解析不出来就**不匹配**，宁可少匹配也不错匹配，错匹配会造出"gold 已就绪"的假信号）。
+- **新增待裁 D-17 / D-18**（都在 `reports/decisions-needed-20261010.md`）：D-17 是本轮 F 的**第三根阻塞**——
+  可播种语料只有 11 条，这不是凭据问题，是"病例能不能被答对"的前置问题；D-18 是 `llm_registry.py:3` / `settings.py:188`
+  两处"8 个代表模型"与真值 27 条不符（建议只修注释，动表＝改路由行为，越界）。
+
+## 15. 补记十三（2026-10-10 深夜：Owner 批准的四条并行腿全部跑完，含我自己造的一次事故）
+
+四条腿的落点：① D-5(b) 无父快照＋按值反查＋pack 归宿（`h-ci-and-credentials.md` §7、脚本 `evidence/orphan_pin.py`、
+产物 `evidence/orphan-snapshot.{sha,pack,idx}`）；② 镜像排除面静态缺口（同文件 §6.2）；③ 远端网络轴（§6.1）；
+④ 记忆索引瘦身。全部**零仓库写、零端口占用、零模型调用**，与 D 会话互不干扰（候选树仍 `HEAD=3f605de`、tracked 脏恰好 5 只前端 `M`）。
+
+**④ 那条上我自己造了一次事故，按纪律摊在这里**：我用 `\xNN` 形式的字节转义去拼中文写 `MEMORY.md` 的索引行 ⇒
+Py3 里 `\xe6` 是**码点 U+00E6** 不是 UTF-8 字节 ⇒ 写出去成 mojibake，还因为串里含 U+0085（NEL）被 `splitlines()` 折成"三行"，
+让我一度以为坏数据扩散到了别的条目。**修复过程也踩了两次**：第一次断言把合法的 `§`(U+00A7)/`×`(U+00D7) 当成污染，误报；
+第二次把一行误判成三行。最终判据收紧为「C1 控制区 0x80–0x9F 必须清零 + 索引行计数不变 + 所有 `](*.md)` 链接集合逐项相等」，
+现量 `bytes=18,767 / index_lines=11 / c1_chars=0 / targets 前后相等`。
+⇒ 三条入册：写中文一律用字面 UTF-8（这条我今天记过、当轮就违反）；断言"污染已清"要按**具体码位区间**而不是"有没有高位字符"；
+`split()` 与 `splitlines()` 在含 U+0085/U+2028 的文本上**给不同行数**，数文件行数前先选对。
+（写这段正文时又中招一次：块里含字面 `\xNN` 被 Python 当转义解 ⇒ `unicodeescape` 报错，改 raw 字符串才过——同一形状的第四次。）
+
+**H 的两条新缺陷（都不改码，登记待裁）**：
+- `backend/.dockerignore` 的 `*.db`/`*.sqlite*` 只在上下文根生效，主仓 `backend/data/app.db` 与 `backend/data/quota_used.sqlite`
+  **没有任何规则挡住**（`grep -cE "^data/"` = 0），而 compose 的 build 上下文恰是 `./backend` ⇒ 部署目录被构建时两个真库会进镜像层。
+  另 `.ptmp-*`（主仓现量 3 只）同样无规则。**声明面已证、实装面待真构建复量**（后者排在 D 之后，同机不互抢）。
+- 根 `.dockerignore`（494 B）对这两条构建**不参与**（Docker 只读构建上下文根的排除文件）——`backend/.dockerignore:2-3` 的注释自己就写着这句，
+  所以这不是新发现而是**在册已知**；我复量它是因为报告若只写"有 .dockerignore"会让人误以为已全覆盖。
+
+## 16. 补记十四（2026-10-10 深夜：I 的执行卡已出，卡里第一条就推翻了我引用过的旧理由）
+
+卡：`tickets/runbook-I-push-pr-merge.md`（5,728 B / 6 节）。**本会话未执行其中任何一步**——它写的是"按回车之后的路"，
+前置是 D-5 与"远端真实头今天读不到"这两件事。
+
+**新登记的在册事实（也是 D-19）**：`--no-ff` 的旧理由我按册子写的是"rebase/squash 会弄死 19 处 `fbc29e8` 引用"。现量后这条**理由站不住且数字过期**：
+`fbc29e8` **不是 master 的祖先**（它是本地分支 `codex/local-candidate-closeout` 的尖端，那支从未推送），
+而引用数是 **103 次 / 15 个文件**，不是 19。⇒ 真正的风险不是"合并方式毁掉引用"，而是**这些引用指向的对象远端本来就没有**；
+`--no-ff` 救不了它，要么把那 **4 笔独联提交**一起推（按值反查证明不新增凭据外泄：closeout 对象集 `value_hits=1`，候选里也已是 1），要么接受悬空并登记。
+
+**我自己造的一次假读数（同一次运行里）**：为省事用 shell 变量取那只 13 位值再 `grep -c "$VAL"`，取值管道静默失败（长度 0）⇒
+**空模式的 grep 把每一行都算命中**，当场吐出一个 11,523,040 的荒谬数。改在 Python 里做完整链路
+（断言 `len(val)==13`，失败即 refuse）后读数才是 3815/4301/4252 对象、各 `value_hits=1`。
+⇒ 入册：值级判据**必须自带"我确实取到了值"的断言**，否则"0 命中"和"全都命中"这两种最坏结论都可能来自同一行空串。
+
+### 复算
+
+```bash
+M=/c/Users/33393/Desktop/ai-legal-helper
+git -C "$M" merge-base --is-ancestor fbc29e8 master; echo "anc_rc=$?"          # 期望 1（不是祖先）
+git -C "$M" branch -a --contains fbc29e8                                        # 期望只有 codex/local-candidate-closeout
+git -C "$M" grep -o fbc29e8 | wc -l                                             # 103
+git -C "$M" grep -l fbc29e8 | wc -l                                             # 15
+git -C "$M" rev-list --count codex/nondeploy-closeout-20261010..codex/local-candidate-closeout   # 4
+wc -c "$PWD/tickets/runbook-I-push-pr-merge.md"
+```
+
+## 17. 补记十五（2026-10-10 深夜：并行腿跑到没有了，最后一条量出"合 master"的真实成本）
+
+Owner 问"还有没有可并行任务"。答案：**只剩一条**，而且比原计划便宜得多——`git merge-tree` 是纯只读的
+（不建副本树、不动 ref、几乎不吃 I/O，不会污染 D 会话的延迟读数），它正好回答执行卡 A4 那句"合 master 难不难"。
+结果写进 `tickets/runbook-I-push-pr-merge.md` §6，台账新增 **D-20**。核心现量（git 2.55.0）：
+
+| 读数 | 值 |
+|---|---|
+| 两棵树路径 | `master` 2668 / `origin/master` 261，交集 **260** |
+| 交集内 blob | 相同 **145**，不同 **115** |
+| `merge-tree`（空 base 等价试演） | rc=1，**115 条 `CONFLICT`，全部 `add/add`**，`Auto-merging` 115 |
+| `merge-tree`（不给 base） | rc=128 `refusing to merge unrelated histories`（它**没有** `--allow-unrelated-histories`） |
+
+⇒ **我据此改口**（这是本轮第 N 次推翻自己，仍按"新证据 + 反向代价 + 三处留痕"办）：
+之前给的路线里"先合 unrelated 历史再推 master"成本被我低估了——那是 **115 次内容裁决**，
+且冲突面包括 `.env.example`、`.gitignore`、`CONTRIBUTING.md`、`.github/workflows/ci.yml`，
+等于把配置与门禁本体重审一遍；书里还明令不许"丢弃改动让合并过去"。
+**新推荐：本轮只推 `codex/*` 分支**（新 ref ⇒ 天然非 force、零冲突面），"合 master"留成独立裁决票 D-20，
+并把它的前置写成两条：115 次裁决的人工带宽 + 远端真实头读数（今天 TLS rc=35 拿不到）。
+> **⚠️ 本句的"拿不到"已于 10-11 01:5x 被推翻**（网络四条全通、真实头 `985d53e` 已取回）⇒ 见本文件 **§25/§25-a**。
+> 但**另一半天平没变**：那 115 条冲突的试演读的是本地陈旧 ref `15562fc`，**换成真实头之后必须重跑**，这条仍是 D-20 开工前的动作。
+
+一次计数脏读我自己抓住并改了：`merge-tree` 的信息段里 `Auto-merging <path>` 与 `CONFLICT (...)` 交替出现，
+我第一版按"去重行首"统计得到 **231**，那是把提示行也当文件数。改成只数 `^CONFLICT` 得 **115**，
+并与完全独立的"交集里 blob 不同=115"吻合 ⇒ 两个不同算法撞在同一个数上，才敢写进正文。
+
+## 18. 补记十六（2026-10-10 深夜：按 `show-your-work` 的证据五连问自审，两处主张被我主动降级）
+
+| 问 | 过关的主张 | **不过关 / 已降级** |
+|---|---|---|
+| ① 数字怎么来的 | 凭据轴（`value_reverse.py` 238 棵树 hits=61）、快照轴（2581 vs 4301、按值 0 命中＋正对照 1）、F 分母（`gold_denominators.py` 11/6/3/3/15）、冲突面（两条独立算法各得 115）——都是跑出来的，脚本随票落盘 | — |
+| ② 能复现吗 | 每条旁边都附命令，我逐块重跑过 | **门禁四条（1925 passed / cov 86.35% / ruff / vitest 83）不是"此刻"的读数**：出自本轮早先那次运行的 `evidence/pytest.*.log` 与 `evidence/vitest-candidate-20261010.log`。"上一次运行不是本次证据"这条铁律在这儿成立 ⇒ D 会话交回前我**不重跑全量**（全量 pytest 与浏览器验收抢 CPU/I/O，会污染它的延迟读数），所以这些数按「历史读数＋出处」引，**不写成"本次全绿"** |
+| ③ 测试亲眼红过吗 | 新入库 24 条都有"为正确原因红"的证据：category M1→2 failed／M2→4 failed（点名到用例）；loader-trust M2→2 failed／M4→1 failed；drill M1／M2 各打红特定腿；B-45 M1 删守卫→恰好红在分歧腿 | — |
+| ④ 期望来自独立来源吗 | 13 位值取自 git 对象而非记忆；期望哈希只取 API 透传的 `hf-bge-meta.json` 且不引用旧验证 JSON；**空 base ≡ 真 merge 的等价性本轮证成**；F gold 只用在册已写死的期望＋合成刺激 | — |
+| ⑤ 限制说全了吗 | 现役性未知（不读 `.env`）；臂 E 原判据是缓存假阴性；键锚点普查看不见无键名的值；远端 CI 读数今天拿不到；快照体量按路径加总会说大近 2.6 倍 | **`.dockerignore` 那条降半格**：`data/app.db`／`data/quota_used.sqlite`／`.ptmp-*` 未被挡住，依据是 Docker 文档语义（`*` 不跨 `/`）＋我那只**近似匹配器**；匹配器只对 `.env` 族给过阳性对照，没对 `data/` 这类嵌套形状给过 ⇒ 应读作"声明面缺口、方向保守"，真构建才算数（排在 D 之后） |
+
+**方法论收获**：第三问（尺子能不能红）这次抓到的三个坏点全在**我自己的探针**里，而且三个都不是"数字算错"，
+是 fixture 与异常处理坏了（污染的工作树、被 `add -A` 收进树的临时索引、把 rc=1 当异常）。
+坏 fixture 的可怕之处在于它会安静地给出一个看起来合理的数；这次它给的是断言失败——
+**因为断言写在了测量之前**。这条已写进 `evidence/equivalence_check2.py` 的注释，正文再钉一次。
+
+## 19. 补记十七（2026-10-10 深夜：D 单交回 → 验收 → 第五笔提交落地）
+
+**D 交回并已验收**：`reports/browser-acceptance.md`（31,725 B / 218 行）+ `evidence/browser/**`（17 只 JSON / 21 张截图 / 10 条日志 / 仪器随票落盘）。
+我的验收结论单列在 `reports/acceptance-of-D-20261010.md`（8,237 B / 9 节），核心是**采纳 + 1 条要求补齐 + 3 条未复算 + 3 处偏差**：
+
+- **7 条判据：6 绿 1 红**。红的是 **J3**，我用**两种独立方法**各自复现：`.next/static/css/*.css` 里
+  `badge-success/-error/-neutral/-accent/btn-ghost-dark` **全 0**（阳性对照 `.badge{`=1），且**这两条类定义在 HEAD 版 globals.css 里也存在**
+  ⇒ **不是 §14 引入的，是既有的生产形状缺陷**（Tailwind 扫不到 `components/ui.tsx:39` 现拼的类名）。
+  后果：部署形状里六种状态徽章只有文字不同、颜色全同。
+- **J1/J2/J4/J5/J6/J7 逐条复现**：非回环 0（我自己写直方图：108 http、hosts 只有 `127.0.0.1:3101`、data/blob/about 9 条）；
+  真实库零触达（我对 `backend/data` 的 1 命中与它同值同刻 15:09:03，19:00 边界后为 0）；`chooser-count.json` 的 `base{0,0,0}→{1,1,1}→{2,2,2}`；
+  `responsive-chat.json` 的 1440 档 h4 `w=519 / 15.2px`；`pytest-cancel.log` = `55 passed in 18.27s`；§11 三条收尾自证我原样重跑全对。
+- **三处偏差（不改判定）**：① 它写的守卫行号 `:43/:59` 真身是 **`:41/:57`**（另有 `:88` 同款，它没提）；
+  ② 按它 JSON 里的 fg/bg，我独立算出对比度 **12.15** 而它报 **12.12**（差 0.25%，都远超 4.5:1，登记为"小数位口径未对齐"）；
+  ③ "`submit: null`"是叙述简写——`caps-false.json` 里**没有这个键**，真证据是三条路由 `sendEnabled=False` + 2 条 alert。
+- **要求补齐一条**：6 只 JSON 仍带旧计数器的错值 `"nonLoopback": 2~3`（offender 是 `:80 data:image/...`），报告虽在 §1/§10 披露，
+  但读者按指路打开 JSON 看到的是错值 ⇒ 建议加 `isolationStale: true` 或目录内 README（不阻塞采纳）。
+
+**第五笔提交已落地（D-21，Owner 答"要"）**：`9e3cfc5`「fix(frontend): 补入 §14 前端修复轮（H2/D12/G1/G2/D6/G13，+69/−7）」。
+- 前置：前端三条腿在**将要提交的那份字节上**全绿——`tsc --noEmit` rc=0、`next lint` 0 错、**`vitest 83 passed` rc=0**。
+- 自证：提交前逐只 blob 与 `evidence/frontend-dirty-20261010.manifest` 逐字相同；提交后 `HEAD:<file>` 五只 blob 与提交前**逐字相同**；
+  暂存区恰 5 只、无夹带；提交后候选树 **`porcelain=0`**（全干净）。本轮提交数 **4 → 5**。
+- 该笔**不含**J3 修复与取消文案改动，两条分别登记为 **D-22 / D-23**（未在本笔顺手改）。
+
+**新登记**：**D-22**（生产构建 purge 徽章类名——修复前须先做一次 build 级最小变异把"根因=purge"从推断变成已证，且修完**必须用 `next build` 产物复量**，不能用 dev 形状替代）；
+**D-23**（用户主动取消后，服务端占位文案 `服务暂时无响应，请稍后重试。` 把"用户取消"讲成"服务故障"，`main.py:1037/1090`）。
+
+### 复算
+
+```bash
+C=/c/Users/33393/Desktop/ai-legal-helper/.worktrees/nondeploy-closeout-20261010
+R=/c/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2
+git -C "$C" log --oneline -1                                   # 9e3cfc5
+git -C "$C" rev-parse HEAD:frontend/app/globals.css            # 292136b5…（与 manifest 同）
+git -C "$C" status --porcelain | wc -l                         # 0（候选树全干净）
+for p in badge-success badge-error badge-neutral badge-accent btn-ghost-dark ".badge{"; do   printf "%-16s %s
+" "$p" "$(cat "$C"/frontend/.next/static/css/*.css | grep -o -F "$p" | wc -l)"; done
+grep -n "streaming" "$C/frontend/lib/hooks/useConversations.ts" | head -3   # 真行号 :41/:57/:88
+```
+
+## 20. 补记十八（2026-10-11 00:2x：H 包装腿收口——镜像建成、内容复量、容器 smoke 通过）
+
+**产出**：`fazhi-closeout-probe:20261010-final`（**3.89 GB**，`rc=0`）。读数全表在 `reports/h-ci-and-credentials.md` §9。
+
+- **九步耗时**：`[5/9]` requirements **4319.7 s（72 分钟，长杆）**；`[7/9]` 模型烘焙 823.3 s（13.7 分钟）；`[6/9]` 防呆断言与 `[9/9]` `.env` 守卫各 <3 s 且**都通过**；端到端 ≈ **1 小时 40 分**。
+- **内容复量**：`/app/.env` 不存在；`/app/data/` 只有 2 只 in-tree 评测件、**无 `app.db`/`quota_used.sqlite`**；`chroma_db`/`media`/`backups` 均不存在；**torch `2.13.0+cpu`、`cuda=None`**；模型已烘焙（HF 缓存 782 M）；chromadb 0.4.24 / fastapi 0.141.1 / ST 6.1.0 / SQLAlchemy 2.1.4 与声明一致。
+- **容器 smoke**：回环 8123、六上游全指死回环 `127.0.0.1:9`、落盘指容器内 `/tmp`；`/healthz` **9 秒 200**（`db:true, vector:true, llm_host:false`）、`/api/health` 200、宿主侧**仅回环监听**；容器用完即删，8123 残留 0，compose 栈 Up 9h 未碰。
+
+**两处披露的偏离**（出厂 Dockerfile 逐行比对：76 行差 2 行）：① torch 源改官方源（Owner 批准）；② `[5/9]` 加 `--extra-index-url pypi.org` 回落。
+**两条源侧缺陷（出厂路径今天会红，与代码无关）**：① 阿里云 `pytorch-wheels` 下 191.8 MB 的 wheel**冻结 30+ 分钟无进展**；② 阿里云 PyPI 的 `pydantic-2.14.0` **索引在、文件 404**（本机可复现）。
+**我自己的夹具错一条**：首跑 smoke 用 `/tmp/smoke/app.db`（目录不存在）⇒ sqlite 打不开库；改文件路径即 9 秒就绪。**非镜像缺陷**。
+
+**⇒ H 的判读要分两半**：**"镜像能建成且可用"＝PASS**（本轮实测）；**"出厂 Dockerfile 今天可构建"＝被证伪**（源侧），登记为 **D-25**。
+
+## 21. 补记十九（2026-10-11 01:0x-01:2x：四条门禁由"历史读数"转成**现量**，并把格式门的两把口径分栏）
+
+**为什么补这一节**：`reports/closeout-final-J-draft.md` §6-5 原写"门禁四条是早先那次的读数、未在收尾时重跑"。本轮已重跑，那句降级**撤销**。
+
+**现量（全部在候选树 HEAD `9e3cfc5`、`porcelain=0` 上取；解释器 = `candidate-envB`，Py 3.11.0，ruff 0.16.10，mypy 2.4.0；日志 `C:/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2/evidence/gates-rerun-20261011.log` 与 `.../evidence/static-gates-20261011.log`）**
+
+| 门 | 现量 | 与本轮早先读数 |
+|---|---|---|
+| 全量 pytest（`-m "not slow"`，含 `--cov-fail-under=70`） | **1925 passed / 0 failed / 10 skipped / 18 deselected**，cov **86.35%**，rc=**0**，253.43s | **逐字相同** |
+| `ruff check .` | rc=**0**（All checks passed!） | 相同（绿） |
+| `ruff format --check .` | rc=**0**（283 files already formatted） | 相同 |
+| `mypy .` | rc=**0**（Success: no issues found in **74 source files**） | 相同（"checked N files" 是在册判据，不是只看 rc） |
+| 前端 `tsc --noEmit` | rc=**0** | 相同 |
+| 前端 `next lint --dir app --dir components --dir lib` | rc=**0**（No ESLint warnings or errors） | 相同 |
+| 前端 `vitest run` | rc=**0**，**9 文件 / 83 tests passed** | 相同；且这次是在 `9e3cfc5`（§14 修复已入库）**之后**取的，早先那次在入库前 |
+
+**格式门必须分两把口径报，否则数字会打架**
+- 仓库自带脚本（`package.json:10` = `prettier --check "app/**/*.{ts,tsx,css}" "components/**/*.tsx" "lib/**/*.ts"`）⇒ **rc=1，3 只**：`StatsSection.tsx`、`UploadSection.tsx`、`UsersSection.tsx`。
+- 整目录轴（`npx prettier --check .`）⇒ **rc=1，15 只**（多出 `README.md`、`docs/BUGFIX-chat-scroll.md`、`tsconfig.json`、`tailwind.config.ts`、`public/sw.js`、`lib/auth.tsx`、`components/chat/lawCardHtml.ts`、`tests/` 四只等）。
+- 两把都是 rc=1，**都不绿**；报"格式门几只红"必须点名口径。名单落盘 `evidence/static-gates-20261011.log`。
+
+**顺带修掉一条我引用过的他人在册句（含"尺子能红"的对照）**
+另一会话汇报（`docs/../dispatch-output/frontend-readonly-review-20260929/work-report-20261003-fix-round.md` §6-C16）写"`lib/coverage.ts` 没进清单、也确实不合规"。现量：
+- `prettier --check lib/coverage.ts`（默认 ignore）→ 绿；
+- **反证腿**：同一仪器对清单里那 9 只之一的 `lib/api.ts` 默认轴也报绿，改用空 `--ignore-path` 复跑 → `[warn] lib/api.ts` ⇒ **"绿"在这把尺子上不等于"合规"**，所以单看默认轴不足以定性；
+- `lib/coverage.ts` 用**空 ignore** 复跑 → 仍绿 ⇒ **真合规**；且它的 blob 自 `5e51384`（2026-09-17 22:05）到 HEAD **逐字节未变**（两个 `rev-parse` 同为 `ab84a3d7…`，中间 0 笔触碰）⇒ 那句"不合规"当时也不成立。
+- "没进冻结清单"那半句成立（`.prettierignore` 只列 9 只，确无 `coverage.ts`）。
+
+## 22. 补记二十（2026-10-11 01:2x：D-3 那张票**从没存在**到我把它写出来，顺带把两处手抄分母钉掉）
+
+**触发**：写 `reports/closeout-final-J-draft.md` 时我要给"已裁"那条找归宿，才发现自己在 `decisions-needed` §E 写过一句「**票面已存在**」。
+`ls tickets/` 现量只有 3 只（D 单票 / D 验收尺 / I 执行卡），**没有迁移票** ⇒ 该断言为假，已就地更正并在原格标注（`decisions-needed` §E 的"就地更正"块）。
+票现已写出：`tickets/dispatch-D3-langchain-migration-20261011.md`（7 节 / 9,874 B / CR=0）。
+
+**分母：改对一处、撤回一处我自己的错（复算器随票落盘 `evidence/audit_axes.js`）**
+- 该改的：`decisions-needed-20261010.md:62` 的每包拆法 `core(7)/openai(1)/splitters(2)/langsmith(3)` —— **7 与 3 在任何轴上都数不出来**。
+- **我错怪了的**：`owner-decisions-20261010.md:35` 的 `core 6 / langsmith 4 / splitters 2 / openai 1` 我一度判成"也不可复现"，**这句撤回**——它在 **distinct 主 ID** 轴上完全正确。
+- 现量（两份审计件 `audit-cand-runtime/dev.json` 读数完全相同）：全库条目 **24** / distinct 主 ID **15** / 包 **5**；
+  **每包条目**（同 ID 在同包可出现两次）core **11**、langsmith **5**、splitters **4**、openai **2**、chromadb **2**；
+  **每包 distinct 主 ID** core **6**、langsmith **4**、splitters **2**、openai **1** ⇒ **和 = 并集 = 13，跨包无重叠**（重复只在包内）；族主 ID + aliases **38**；"有 fix_versions 的 distinct ID"与 distinct 同值。
+- **根因登记（这台机器我批评过别人，这次落在我自己身上）**：我第一次只跑了"条目"与"族并集"两根轴，就宣布别人的拆法不可复现。
+  ⇒ **报"不可复现"之前，先把对方可能站的那根轴跑一遍**；两根轴的名字要一起写进正文（条目 ≠ distinct ID）。
+
+**调用面钉掉一处低估（复算器 `evidence/d3_symbol_surface.py`，当场复跑过）**
+- 旧句（`owner-decisions-20261010.md:37`）："改 `retrieval.py`/`rag_chain.py`/`llm_registry.py` 的调用面"= 3 只。
+- 现量：**61 行 import / 39 只文件**（生产 **11** 只、scripts+tests **28** 只）；符号面 **16 个 `module.symbol`**，其中**包含 `langchain_core.callbacks`（`AsyncCallbackManager`、`BaseCallbackHandler`、`AsyncCallbackHandler`）与 `langchain_core.runnables.RunnableSerializable`** —— 这两族正是 0.2/0.3→1.x 反复改签名的地方，旧说法完全没提。
+- `langsmith` **零直接 import**（传递依赖），所以它不能靠"改调用点"绕开，只能随 `langchain-core` 一起动。
+- ⚠️ **我自己的一次假阴性**：票的初稿符号表只列了 12 个（正则 `from langchain[\w]*` 漏了点分子模块 `langchain_core.messages`）；跑复算器后补成 16 个，已在票内就地标注"别按初稿那张表开工"。
+
+**顺带**：上一节（§21）报了格式门两把口径；`reports/review-of-other-sessions-20261010.md` §五 新增一格，撤回我自己给 C16 盖的那行 ✅（只核了"没进清单"，没核"确实不合规"）。
+
+## 23. 补记二十一（2026-10-11 01:3x：Docker 引擎**已不在运行** ⇒ 本轮所有"栈 Up / 镜像在册"读数降级为历史）
+
+**现量**：`docker ps` ⇒ `failed to connect to the docker API at npipe:////./pipe/dockerDesktopLinuxEngine … The system cannot find the file specified.`；
+`tasklist //FI "IMAGENAME eq Docker Desktop.exe"` 匹配行数 **0**；命名管道 `//./pipe/dockerDesktopLinuxEngine` **不存在**；`docker context ls` 仍显示活动上下文 = `desktop-linux`（配置没变，是**引擎进程没了**）。
+（⚠️ 我先前在那条命令里打印的 `rc=0` 是管道末端 `head` 的码，**不是** `docker ps` 的码——已在正文用错误原文与进程数定性，不拿那个 rc 说话。）
+
+**这不是我做的动作**：本轮我对 docker 只做过三类事——`docker build`（两次失败一次成功）、`docker create/rm` 一次性 smoke 容器（已 `rm`）、`docker images`/`docker system df` 只读。
+从未执行 `docker compose down|stop|restart`、`docker kill`、也没关过 Docker Desktop。**但我不能因为"没做"就把旧读数当现状**：01:3x 起，栈的状态**不可读**，不是"Up"也不是"Down"。
+
+**受影响的具体读数（都要按历史读）**
+| 在册句 | 出处 | 现状 |
+|---|---|---|
+| `fazhi-backend/caddy/frontend` 全程 Up、未重启 | 本文件早先 C 行 + `reports/closeout-final-J-draft.md` §4 | **引擎不在 ⇒ 不可复量**；"未重启"这部分仍成立（我确实没动过） |
+| 镜像 `fazhi-closeout-probe:20261010-final` **3.89 GB**、内容复量、`/healthz` 9 秒 200 | `reports/h-ci-and-credentials.md` §9 | 读数当时取得；**引擎回来后可用同一命令复量**，现在读不到 |
+| G 单元"现役后端就是 Docker 容器（镜像 built 09-17）" | `reports/gates.md` G 行 | 同一根轴：现在连不上 ⇒ 那条"现役形态"判断的**证据时刻**是 00:3x |
+| 端口/进程台账（8111/3101/8399/9222/8123 剩余 LISTENING=0） | 01:3x 现量 | **这条仍成立**（`netstat` 不依赖 Docker），且我这三条腿本来就已关 |
+
+**给 Owner 的一句话**：要不要复量 H 的镜像/栈，取决于你何时把 Docker Desktop 起回来；我不代起（那是共享服务动作，且执行书红线里"不部署、不动栈"覆盖它）。
+若你起回来，复量命令就是 `reports/h-ci-and-credentials.md` §9 里那三条原样。
+
+## 24. 补记二十二（2026-10-11 01:4x：主仓那批未提交改动与候选的关系——现量 21 只里 17 只同字节、4 只不同，且**方向是候选在前**）
+
+**为什么量**：D-5（推候选）与"要不要在主仓再提交一次"这两件事，取决于**另一会话留在主仓工作树的 WIP 是否已被候选代表**。此前我只说过"主仓有并行会话改动"，没数过字节关系。
+
+**现量**（只读；`git -C <主仓> status --porcelain` 分档）：主仓 **tracked 脏 21 只**（后端 15 + 前端 5 + 计划文档 1）、**未跟踪 567 行**（含那 4 只新测试文件与 `dispatch-output/` 树）。主仓 HEAD 仍 `0b54396`。
+逐只比 blob：`git hash-object <主仓盘上文件>` vs `git -C <候选> rev-parse HEAD:<同路径>` ⇒
+- **17 只逐字节相同**（含 5 只前端 §14 修复、`backend/main.py`、`llm_registry.py`、`domain_rules.py`、3 只测试等）⇒ 这批工作**已经**在候选里（`5ca3315` + `9e3cfc5`），主仓那份是同一批字节的"未提交影子"。
+- **4 只不同**：`backend/agent/state_machine.py`（4 行）、`backend/observability.py`（1 行）、`backend/retrieval.py`（88 行）、`docs/superpowers/plans/2026-09-29-…md`。
+
+**方向判定（不是"谁新"靠 mtime 猜，是把差异读出来）**
+- 这 3 只后端文件主仓 mtime = **10-09 20:33 / 20:48 / 23:17**，全部**早于**候选首笔 `5ca3315`（10-10 14:56）。
+- 再拿主仓字节去等候选**每一笔**的 blob（`5ca3315/8c179e7/a934fa7/3f605de/9e3cfc5`）⇒ **0 命中**。这说明候选里这些文件在接收时**已经带上我复核轮的补充**，两侧不是同一时刻的同物。
+- 读差异内容才定得下来：
+  · `state_machine.py` 差的是**排版**（候选把 `model_copy(update=…)` 收成一行，主仓是折行版）——内容同。
+  · `observability.py` 差 **一只字段**：候选多 `"category_filter_outcome",`（DB-19 回落要落 outcome 维度 ⇒ 白名单随之加一格；在册纪律"动 `extra=` 必跑 `test_log_field_whitelist`"已由全量 1925 passed 覆盖）。
+  · `retrieval.py` 差 **88 行**：主仓是**回落未收窄版**（`_note_category_filter_miss(category, stage=…)` 没有 `outcome=`、没有 `_corpus_advertises_category` 前置判定、没有 `_CATEGORY_ADVERTISED` 缓存）；候选是 Owner 裁 DB-19「丁」**之后**的收窄版。
+  ⇒ **判读：主仓那 3 只是"我接收之前的旧形状"，候选是前进版；没有发现"那个会话的改动漏在候选之外"。**
+- ⚠️ 边界：这条只对**这 21 只 tracked 文件**成立。**未跟踪那 567 行不在射程内**（我只看了其中 4 只新测试文件在候选里存在），所以"另一会话没有任何东西落在候选外"这句话我**不主张**，主张的范围就是上面那句。
+
+**推论给 D-5**：在主仓再提交这批文件等于**造一支与候选分叉的影子**（尤其 `retrieval.py`：主仓那版会把已裁的 DB-19「丁」收窄**倒回去**）。要推进就推候选，不要提交主仓 WIP；若那个会话还要在主仓干活，请**先告知它这三只文件的现状**，别让它以为自己那份是最新。
+
+## 25. 补记二十三（2026-10-11 01:5x：**网络轴今天回来了** ⇒ 远端三条读数首次拿到，D-5 的前提被改写）
+
+昨天（10-10）的现量是 `api.github.com` 与 `github.com` 同 rc=35（TLS 失败）、只有 `ssh -p 443` 认证通 ⇒ 我当时写"推得动但拿不到远端读数"。**今天同三条重探，两条反向**：
+
+| 探针 | 10-10 | **10-11 现量** |
+|---|---|---|
+| `curl https://api.github.com/` | rc=35 | **http=200 rc=0** |
+| `curl https://github.com/` | rc=35 | **http=200 rc=0** |
+| `ssh -o BatchMode=yes -p 443 -T git@ssh.github.com` | 通 | 通（`Hi wjt-code-design!`） |
+| `git ls-remote --heads origin`（HTTPS git 轨） | rc=128 | **rc=0**（返回 1 行） |
+
+**首次拿到的远端读数（匿名 API，共 5 次调用，未 push、未 fetch、未动任何 ref）**
+1. **可见性 = `public`**（`private:false`、`visibility:"public"`、`default_branch:master`、`pushed_at 2026-09-17T15:15:31Z`、`size 130,655 KB`、star 1 / fork 0）。
+   ⇒ 在册那条反向成本在这里生效：**public 的 GitHub-hosted 分钟不限量**；转 private 会开始吃套餐配额，而配额与是否启用**匿名一律读不到**（`/actions/permissions` 401）。**若 D-5 的目的包含"让 CI 真跑一次"，转 private 是可能把目的本身卡死的动作。**
+2. **远端只有 `master` 一支**，头 = `985d53e4ee81efc066cc6915abcba98954e7d408`（2026-09-17 15:15）。
+   本地跟踪 ref `origin/master` = `15562fc9…`（2026-08-25）⇒ **它比远端真实头旧**（不是同一条线），且 `git merge-base HEAD origin/master` **空、rc=1**（候选 239 笔 / `origin/master` 192 笔）⇒ 与在册"disjoint 历史"吻合。
+   ⚠️ **未测一项**：`985d53e` 与候选的祖先关系——该对象**不在本地对象库**（`git cat-file -t` 报 could not get object info），要算就得 fetch；**我没 fetch**（默认 refspec 会把 `refs/remotes/origin/master` 顶掉，而别的会话正在读它）。
+3. **CI 历史（`/actions/runs?per_page=40`，`total_count=18`，18 只全在 `master`）**：
+   conclusion 分布 = **`failure` 17 / `success` 1**；event 分布 = **`push` 17 / `dynamic` 1**；**`pull_request` = 0 场**。
+   唯一一场绿 = **#1（2026-08-08 18:23，`workflow_dispatch`）**。⇒ 精确说法是：**"push 触发的 CI 从未绿过（17/17 全红）"**，不是"CI 全红"。
+4. **触发语义**：候选 `HEAD:.github/workflows/ci.yml` 的触发段现量 = `on: push: branches: [main, master]` 加 `pull_request:`（无分支过滤）。
+   ⇒ **推 `codex/nondeploy-closeout-20261010` 不会触发任何 CI**（分支不在 push 白名单里，PR 又没开）。
+   要远端读数只有三条路：① 开 PR（这条路**历史上一次没跑过**，且两侧无共同祖先时合成 merge ref 可能压根不调度）；② 直接推 master（不该做——那是把 239 笔 disjoint 历史压到远端主线上）；③ 推完分支后用 `workflow_dispatch`（**只认默认分支上存在的工作流文件**，所以能触发的是 master 那份定义，不是我这份改动）。
+
+**这条补记推翻了什么**
+- 推翻我昨天写的"网络轴不通 ⇒ 远端读数不可得"（今天可得，且我已取回）。
+- 但**没有**推翻 D-5 里"先轮换再普通推"的推荐；反而加了一条**新的、更硬的前置**：
+  **普通推上传的 4301 个对象里含那只历史裸值**（§凭据轴），而今天**HTTPS 推得动**了 ⇒ "推不动"不再是一道护栏，只剩"要不要推"这一个决定。
+- 新增一条 D-5 的连带后果（**签之前要知道**）：推完之后**远端不会自动给你任何 CI 读数**（①③ 两条都要额外动作），所以"推了就等于有第三方验证"这句话**不成立**。
+
+**补 25-a：远端红在哪一步，以及我的树在这一步会不会跟着红（带双形状对照）**
+- `GET /repos/…/actions/runs/35239047756/jobs`（最新那场 #17，09-17 15:15）现量：**2 只 job** —— `Frontend · build (lint+tsc)` = **success**；`Backend · lint/type/test/audit` = **failure**，
+  且失败步骤唯一：**step 7 `Ruff format`**（`ci.yml:30-31` = `ruff format --check .`）。
+- **这台机器的在册轴**：`.gitattributes:6` 是 `* text=auto eol=lf`，而该文件顶部第 4-5 行就写着"**字节 ≠ CI**"的历史事故 ⇒ 我本机 `ruff format --check .` rc=0 读的是**工作树字节**（Windows），CI 读的是 **LF**。
+- **候选树里工作树与 blob 不同的只有一只**：`backend/tests/test_agent_resume.py`（工作树 **923 个 CR**；`git show HEAD:` 的 blob **CR=0 / LF=923** ⇒ **库里那份是 LF**，CRLF 只活在我盘上）。
+  双形状对照（同一条命令）：① 把该文件转成纯 LF 放进临时目录、带上同一份 `pyproject.toml` ⇒ `ruff format --check` **rc=0**；② 对候选树里那只 CRLF 版本原地再跑 ⇒ **rc=0**。
+  ⇒ **判读**：step 7 这根轴上，我的候选**两种形状都过**，所以"开 PR 会因 CRLF 红"这个担忧在这只文件上不成立。
+- ⚠️ **射程要说清**：这是**本地推理 + 一只对照**，不是 CI 实测（CI 从没跑过我这棵树，且推分支根本不触发）。
+  远端那 17 场红的对象是 `master@985d53e` 的内容，**该 commit 不在本地对象库**（`git cat-file -t` 报 could not get object info）⇒ **我不替远端主线的红做归因**，只报"红在 step 7"这个事实。
+
+## 26. 补记二十四（2026-10-11 02:3x：报告内读数的**过期扫描**＋边界守望，抓出两处会误导人的旧措辞）
+
+**为什么做**：本轮之后还会有人（含两个新会话）拿这些文件当输入。凡"依赖可变状态的读数"都可能静默过期，所以做一次全扫，并定一条写作规矩。
+
+**边界守望（现量 02:29）**——两个新会话已开工，先看有没有越界：
+- 候选树 `HEAD=9e3cfc5`、`porcelain=0`（未动）；主仓 tracked 脏 **21** / 未跟踪 **567**（与 01:4x 同数，未动）。
+- `candidate-envB` 的 `pip freeze` 与我的基线 **行集合 0 差异**。
+- 复核会话第一件事就做对了：它建了 `review-20261011/`，里面 `freeze-at-start.txt`（3369 B）与我 `evidence/envB-freeze-20261011-015x.txt` **排序后 0 差异** ⇒ 它的起始快照和我的基线同源，后面若出现差异就是它自己动的，赖不掉。
+- 迁移会话此刻还没有可观察痕迹（无 `mig-*`、无 `candidate-envC-*`）⇒ 只能报"未见产物"，不能报"没开工"。
+
+**可复测不变量：全部重测，与正文一致**
+| 正文钉的数 | 现量 | 结论 |
+|---|---|---|
+| langchain import **61** 行 / 符号 **16** / 文件 **39** / 生产 **11** | `python evidence/d3_symbol_surface.py <候选>/backend` ⇒ 61 / 16 / 39 / 11 | 一致 |
+| 三守卫行号 **41 / 57 / 88** | `grep -an 'if (opts.streaming) return;'` ⇒ 41、57、88 | 一致 |
+| `backend/.dockerignore` **20 行 / 457 B / 17 条非注释规则**、`grep data` 0 命中 | 同 | 一致 |
+| 构建上下文 `./backend` | `docker-compose.yml:17` = `build: ./backend` | 一致 |
+| 本文件 H2 节数 | `grep -c '^## ' reports/gates.md` | ⚠️ **不钉数**：这是**自指计数**——写下"26"这一秒追加本节就变成 27。规矩是**只给命令**，谁读谁现量（在册第 44 条那台机器，本轮又差点复现一次） |
+
+**抓出的两处旧措辞（都已改）**
+1. `tickets/dispatch-independent-review-20261011.md` §0 原写 `reports/gates.md`（**23 节，§19-§22 是本轮**）——实际已是 26 节、本轮是 §19–§25。已改，并把每节是干什么的列出来，避免下一位按号找错件。
+2. `reports/decisions-needed-20261010.md` §B 里 **D-13 那行仍写"候选工作树现量仍是 `M` 状态、一笔都没提交"**——那是第五笔提交之前的话，`9e3cfc5` 落地后为假。**D-21 同样已执行完**。两行已从 §B 移进 §C，并按现状重写措辞（不是照搬旧问句）。
+   移完的档位计数（现量）：**§A 3 / §B 16 / §C 8 = 27**，正好等于 D-1…D-27 ⇒ 没有条目被漏登或重复计数。
+   复量命令：`awk '/^## B\./{f=1;next}/^## C\./{f=0}f' <该文件> | grep -c '^| \*\*D-'`（三档各跑一次，**三个数相加要等于最大编号**，不等就是分档漏了）。
+
+**定下的写作规矩（本轮之后我自己也照它执行）**
+- 凡是**依赖可变状态**的读数（节数、行数、`porcelain`、包版本、远端头、镜像大小），正文要么**只给命令**，要么**带时间戳**并注明"这是 xx:xx 的读数"；不允许写成无时态的事实。
+- 已执行完的条目**必须离开"待答"表**——留在里面等于让 Owner 重答一次，属于我的交付缺陷，不是排版问题。
+
+## 27. 补记二十五（2026-10-11 02:4x：过期扫描的第二层——**票里教的动作本身会破红线**，抓到两条并改掉）
+
+**边界守望（02:29→02:4x 现量）**：候选树 `9e3cfc5`/`porcelain=0` 未动；主仓 21/567 未动；`candidate-envB` freeze 与基线 **0 差异**。
+复核会话已开工且**照纪律做了起始快照**：`review-20261011/freeze-at-start.txt`（3369 B）与 `evidence/envB-freeze-20261011-015x.txt` **排序后 0 差异**；迁移会话此刻无 `mig-*`/`candidate-envC-*` ⇒ 只能报"未见产物"，不能报"未开工"。
+
+**缺陷一｜我让新会话去跑一支会 `load_dotenv` 的脚本**（D-3 票 §2 第 3 步，初稿）
+- 原句把 `smoke_citation_fast` 列为"同一批尺子"之一。现量 `backend/scripts/smoke_citation_fast.py:84-87` = **`os.chdir(BACKEND)` + `from dotenv import load_dotenv` + `load_dotenv(".env")`** ⇒ 它装载**所在那棵树**的 `.env`。在主仓跑＝真实配置＋真实配额库（红线）；在候选跑虽然那份 `.env` 是 0 字节（我只取 stat），但 `backend/chroma_db/chroma.sqlite3` 同在树里（候选 `du -sk`=144，主仓=357,096）＝有写进去的风险。
+- 改法：**撤回这条**，换成 `tests/test_citation.py`、`tests/test_qa_citation_gate_symmetry.py`、`tests/test_smoke_citation_assertions.py`（经 `tests/conftest.py` 重定向三个出口，不碰真实库）；并写明"确需那只脚本只能在副本树里跑＋四出口＋六根 URL 全指回环＋`RERANK_ENABLED=false`"。
+- **这台机器记进记忆**：把"我记得它 24/24 绿"写成"你去跑它"之前，要读脚本头 30 行的 `chdir/dotenv/DB` 三件事——**引用一条腿的读数 ≠ 授权别人执行那条腿**。
+
+**缺陷二｜"两棵树"附节把禁令文件的归属写错了**
+- 我原来写"只有主仓有 `backend/data/`、`backend/chroma_db/`、`backend/media/`、`backend/.env*`，候选里没有"。逐条 `-e` 现量：**候选树也有 `.env`（0 字节）、`data/`（2 只 eval 相关）、`chroma_db/chroma.sqlite3`、`media/`（空）；候选没有的是 `app.db`、`data/app.db`、`data/quota_used.sqlite`、`backups/`、`venv`。**
+  ⇒ 已按两根轴重写（两树都有=一律禁读禁写／只有主仓有=那五只），并加一句"**候选那几只是空的或极小的，不是安全区**"。
+- 这条如果没抓到，下一个会话会因为"候选树里没有真实库"而放松重定向——正是最容易造成不可逆写入的那种放松。
+
+**顺带**：§26 那张"不变量表"里我钉了本文件节数=26，追加本节就变 27 ⇒ 已把该行改成**只给命令**（自指计数不钉数，在册第 44 条那台机器）。票 X §0 同步改成命令 + "本轮新增节从 §19 起到最后一个 H2"。
+
+## 28. 补记二十六（2026-10-11 02:5x：清掉一条会毁掉"签字对象"的隐患，并把 D-12 的前置做成人词可答）
+
+**隐患：复核会话重建前端会不会把候选树弄脏**（脏了就等于你正要签的那个对象不再是 `porcelain=0`）
+- 被跟踪的嫌疑文件是 `frontend/next-env.d.ts`（Next 构建可能重写它）；构建产物本身无害——现量 `.gitignore:40` = `.next/`、`:42` = `*.tsbuildinfo`，且候选树里这两者**都已存在**（本轮已构建过，next **14.1.0**）。
+- 经验证据：`git status --porcelain -- frontend/next-env.d.ts` = **空** ⇒ 这个版本构建后不改写它。
+- **但我不把这条经验派给别人当结论**：票 X 已加一节"构建类复算的额外要求"——**构建前后各跑一次** `rev-parse --short HEAD` 与 `status --porcelain`，两次原样写进它的报告；出现脏文件**禁止** `git checkout --`/`restore`（在册纪律：脏树里这类命令会连别人未提交的字节一起抹掉），改为停下回报。
+
+**D-12（本轮交付物要不要入库）的前置我已做完**，这样你只需答一个词：
+- 现量：`reports/` + `tickets/` + `model-validation/` 共 **24 只 `.md`**、总 **434,625 B**；**含 CR 的件数 = 0**（逐只字节量过）⇒ 入库不会带进换行噪音，这正是 `git diff` 归一后看不出、只有量 CR 才发现的那台机器（在册 2c）。
+- 复量命令：`node -e 'let n=0;for(const f of process.argv.slice(1)){const d=require("fs").readFileSync(f);for(const b of d)if(b===13){n++;break}}console.log(n)' <文件们>`
+- 若你答「入库」：目标是 `docs/closeout-20261010/`，**单独一笔**、只含这 24 只 `.md`，不含 `evidence/`（266 只，含 pack/二进制）、不含 `browser-acceptance/`、`candidate-env*`、`synthetic/`、`model-cache/`；提交前按在册纪律复量 `git diff --cached --name-only` 证明未夹带。
+- 若你答「只留盘上」：那本轮全部结论的归宿就是这台机器，**没有第二份**——这条我已经在 D-12 里写过，不重复劝。
+
+**边界（02:5x 复量）**：候选 `9e3cfc5`/`porcelain=0`；主仓 21/567；`candidate-envB` freeze 与基线 0 差异；禁令目录 `find -newermt 02:00` 仍 0 命中；复核会话 `review-20261011/` 有起始快照，迁移会话仍无 `mig-*`/`candidate-envC-*`。
+
+## 29. 补记二十七（2026-10-11 03:0x：D-25 用 1 分钟定性；D-20 的 115 条被我推翻——那是**陈旧 ref 轴**；另有一条我自己越线的记录）
+
+### A) D-25 源侧缺陷：不需要 30 分钟构建也能定性
+`PY -m pip download --no-deps -i https://mirrors.aliyun.com/pypi/simple pydantic==2.14.0`（索引 URL 是从 `backend/Dockerfile` 里 `grep` 出来的原值，不是我手打）
+⇒ **rc=1**、`ERROR: HTTP error 404 while getting .../pydantic-2.14.0-...whl`、落盘 whl 数 **0**、耗时 <1 分钟。
+⇒ 结论：出厂路径今天仍红在**索引列出但文件缺**这一根轴上（与"构建慢"无关）。这条比整轮 `docker build` 便宜两个量级，**下次先跑它**。
+
+### B) ⚠️ 我越线了：那条 fetch 仍然顶掉了 `origin/master`
+我对 Owner 承诺"只建新 ref、不动 `refs/remotes/origin/master`（别的会话在读它）"。实跑 `git fetch --no-tags origin master:refs/closing/remote-master` 的输出里同时出现了
+`* [new branch] master -> refs/closing/remote-master` **和** `15562fc..985d53e master -> origin/master` ⇒ **配置的 fetch refspec 被一并应用，我的做法达不到我许的诺**。
+已复原：`git update-ref refs/remotes/origin/master 15562fc9…`（rc=0；复量 `rev-parse` 与 fetch 前**逐字相同**；`reflog refs/remotes/origin/master` 留着 `fast-forward` 与复原两条，可核）。真实头仍留在 `refs/closing/remote-master = 985d53e`。
+⇒ 记下这条机器：**要"不动跟踪 ref"就不能用带 remote 名的 fetch**；可行做法是 `git fetch origin <sha>`（只进 `FETCH_HEAD`）或先 `git config remote.origin.fetch` 临时为空——两者我都没做，因为我已经先跑了。复原是否足够，请 Owner 判：若有会话在这几十秒里读过 `origin/master`，它读到过 985d53e。
+
+### C) D-20 的 115 条作废：真实头轴现量是 **94 条**，且形状更清楚
+现量（`git merge-tree --write-tree --merge-base=<空树> 9e3cfc5 refs/closing/remote-master`，git 2.55）：
+- 候选路径 **2676**、真实头路径 **2136**、交集 **2136** ⇒ **远端那 2136 只路径 100% 在候选树里存在**（旧轴上 origin/master 只有 261 只，所以才得出"交集 260"那种误导性形状）。
+- 交集里 blob 相同 **2042**、不同 **94**；merge-tree 判决 **94 条 CONFLICT，全部 add/add**（差异数 = 冲突数，两把尺子吻合）。
+- 冲突面点名：`.github/workflows/ci.yml`、`.gitignore`、`CONTRIBUTING.md`、`backend/Dockerfile`、`frontend/.env.example`。
+⇒ **重述成一句话**：合 master 的真实成本 = **94 次内容裁决**（远端全部路径都在候选里，差的只有这 94 只），不是原先写的 115 次，也不是"两棵树几乎不相干"。
+`merge-base 9e3cfc5 refs/closing/remote-master` 仍为空（rc=1）⇒ 无共同祖先这点没变，所以 PR 那条路的"合成 merge ref 可能不调度"仍然成立。
+
+### D) 现场更正
+Docker Desktop 已在 02:40 被起回来（进程 6），compose 栈自动 Up：`fazhi-backend (healthy)`／`fazhi-caddy` 发布 **0.0.0.0:8088**／`fazhi-frontend`。
+`docker inspect fazhi-backend` 现量：镜像 `ai-legal-helper-backend` **created 2026-09-17T12:18:42Z**、container started 10-10T18:40:25Z ⇒ **现役跑的仍是 09-17 那份镜像**，本轮五笔提交不在现网里。我全程未对栈做任何 docker 动作。
+
+## 30. 补记二十九（2026-10-11 03:1x：**独立复核 C 回来了**——采纳 6 / 驳回 1，并抓到本轮最重的一条）
+
+**判决**：`reports/independent-review-C-20261011.md`（262 行 / 25,332 B / 02:54 落盘）。七颗钉子 **采纳 6、驳回 1、核不了 0**；驳回的那条只驳"数字层"，核心三事实（历史裸值存在 / 快照按值 0 命中 / 同仪器正对照咬住）**全部复现**。它是**非实现者**跑的，方法也与我的正交（它用三臂构建 + 第二套 python 复算 + 现场重做 docker 探针）。
+
+### 它抓到、我漏掉的一条（最重，已修）
+**无父快照早于第五笔**：`evidence/orphan-snapshot.sha` 里 `from_head=3f605de`、树 `04dd97ad` = **第四笔的树**，而现 `HEAD^{tree}` = `1e91913c`。
+⇒ 凡引用"快照树逐字等于 `HEAD^{tree}`"的现役文字都失效（`h-ci` §7、`runbook` §0/A2、本文件 §19、`decisions-needed` D-5(b)），且 **D-5(b) 若照现文件执行会推出一棵不含第五笔 §14 修复的树**——正是 D-21 那个"验收对象≠交付对象"的重演。
+**已按它的修法执行（03:1x）**：旧三件改名保留（`.3f605de.bak`，未删）→ 重跑 `evidence/orphan_pin.py` → 新快照 `1b1c307e…`，**树 `1e91913c` == `HEAD^{tree}`**（独立复验 + 冷恢复裸仓读回同树）；objs 2581、按值 0 命中、正对照咬住 1、`normal_push_objs=4315`、少 **1734**；pack 141,794,859 B `verify-pack ok`；**用新 ref `refs/closing/orphan-snapshot-20261011` 钉住**（不钉则两周后 `gc.pruneExpire` 会剪掉）。
+⚠️ 顺带抓到我自己仪器一只 bug：`orphan_pin.py` 在 **没建 idx** 时就 `verify-pack` ⇒ rc=1/1 行 ⇒ 把**可读的 pack 误判成 `VERDICT=REFUSE`**。已修（先 `index-pack` 再 verify），并在写入前 `ast.parse` 自检。
+
+### 它抓到我自己那批"更正"里的三处新错（都已改）
+| # | 它的发现 | 我的处置 |
+|---|---|---|
+| 1 | §26 给的 §C 计数命令 `grep -c '^| \*\*D-'` 在 §C **恒为 0**（我移 D-13/D-21 进去时没加粗编号）⇒ 数字 8 对、命令错 | 命令改为 `grep -cE '^\| .*D-[0-9]+'`；**3+16+8=27 且 1..27 每号恰出现一次**由它另行核过 |
+| 2 | §E 的复算块**照抄即 `SyntaxError`**（`'\'` 未闭合），且即便修好，Windows 解释器打不开 `/c/...` ⇒ 会**静默打印 0** | 整块换成我 03:1x 亲手跑通的 `node evidence/audit_axes.js …`，并把这两个坑写进块内注释 |
+| 3 | §E 把 per-package distinct（6/4/2/1）归给 `audit_axes.js`，**而该脚本不印这根轴** | 脚本已扩段，现印 `[per-package distinct 主ID] core6/openai1/splitters2/chromadb2/langsmith4，全库和=15、并集=15、跨包重复=0、族内和=13` ⇒ 指针归位 |
+
+### 另两处现场更正（它带的读数）
+- **对象数轴**：`4301/238` 是第四笔时的数；现 HEAD 为 **4315 对象 / 239 棵树**。且因为两侧**无共同祖先**（`merge-base` 空、rc=1），跟陈旧 `origin/master` 还是跟远端真实头 `985d53e` 比都是 **4315** ⇒ "推上去会不会带那个 blob"的答案与比较基准无关：**会带**（引入笔 `817e7d3` 两边都不在祖先链里）。
+- **"禁令目录 0 命中"要分两轴**：主仓 `backend/data` **目录节点** mtime 被推进到 **02:40:38**（= 容器 `StartedAt 02:40:25` +13 s），**文件级仍 0**、目录内四条目 size/mtime 全未变、无 `-wal/-shm`。归因：**容器启动的瞬态**，不是任何会话的动作（它的 docker 第一条是只读 `docker ps`，当时栈已 Up）。⇒ 该不变量今后写成两句：**文件级 0 命中 + 唯一目录级命中 `backend/data`，归因容器启动**。候选树两轴全 0。
+- 它还按我在 02:41 追加的那节补做了回执：**三臂构建全在 scratch**，候选 `.next`（mtime `10-10 21:52:34`）与 `tsconfig.tsbuildinfo`（`21:45:11`）**均早于复核窗口** ⇒ 构建前后 `porcelain` 两次为空，正面证明"零波及"。
+
+**优先级规则（避免旧数继续被当现量引用）**：本文件 §19–§29 里凡与 §30 冲突的**数字**，以 §30 为准；历史读数保留原文并就地标注，不改写历史。
