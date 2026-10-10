@@ -48,9 +48,12 @@ jobs:
       - name: pip-audit
         run: pip-audit -r requirements.txt
       # 2026-10-10 补：上面的作业**装的是 requirements-dev.txt**，却只审 requirements.txt
-      # ⇒ 构建/测试工具链（ruff、mypy、pytest、pip-audit 自身及其传递依赖）上的通报在 CI 读数里
-      # 永远不出现。这不是"再加一道噪音"：本轮实测 dev 轴确有独立通报，而它对本机不可见的原因
-      # 就是这一行缺失。不缩审计范围、不用 continue-on-error 凑绿——红就让它红，红才是信号。
+      # ⇒ dev 解析集在 CI 读数里从不出现。
+      # ⚠️ 勘误（同日，本条注释的第一版写错过）：我起初写"dev 轴确有独立通报"，实测**不成立**——
+      #   两份 JSON 逐对比较后是**完全相同**的 15 个 (包, ID)：chromadb / langchain-core /
+      #   langchain-openai / langchain-text-splitters / langsmith，dev-only 与 runtime-only 都是 0。
+      #   所以这一步今天**不会**多抓出任何漏洞；它的价值是让"dev 解析集将来漂移"这件事有读数，
+      #   不是"补一个正在漏的口子"。不缩审计范围、不用 continue-on-error 凑绿——红就让它红。
       - name: pip-audit (dev axis)
         run: pip-audit -r requirements-dev.txt
 
