@@ -894,3 +894,23 @@ Docker Desktop 已在 02:40 被起回来（进程 6），compose 栈自动 Up：
 
 门禁复量：`tsc` rc=0、`lint` rc=0、`vitest` 9 files / 83 tests rc=0、`npm run format:check` **仍 3 只**（`globals.css` 在 `.prettierignore` 冻结清单内，未对它跑 `--write`）。
 产物断言 `npm run build:check` rc=0（四个 `badge-*` 各 1，对照 1/3）。⇒ **D-22 的四条尺子全部满足，标记闭合**；分支现 **13 笔**（6 代码 + 6 docs + 1 CI 并入），`porcelain=0`。
+
+## 37. 补记三十六（2026-10-11 04:3x：D-3 迁移会话交付 → 我逐条复算验收；**它反过来纠正了我票面一句假话**）
+
+**被验收件**：`reports/d3-langchain-migration.md`（147 行 / 16,420 B / 04:14），过程登记两份（blocker、smoke-breach），产物在 `mig-20261011/` 与 `evidence/d3-*`。
+
+**我用我自己的仪器复算了什么（不转述它的数字）**
+| 它的结论 | 我的独立复算 | 判定 |
+|---|---|---|
+| langchain 族 distinct 主 ID **13 → 0** | `node evidence/audit_axes.js evidence/d3-audit-envC-req.json` ⇒ 条目 2 / distinct 2 / 包 1（只有 `chromadb`）、**族 = 0/0/0** | **采纳** |
+| `--local` 轴 envB 28/17 → envC 6/4 | 同一仪器读两份 json：envB 28 条目 / 17 ID / 6 包、族 13；envC 6 / 4 / 2 包（`chromadb`+`setuptools`）、族 **0** | **采纳**，且证实"setuptools 2 条与迁移无关"（两环境同版本 78.1.0） |
+| envC 自洽、版本如表 | `pip check` = **No broken requirements found**；`import` 现量 core **1.6.9** / openai **1.7.0** / langsmith **0.14.7** | **采纳** |
+| 改动面只有依赖窗 + 3 只测试 | 读两份 diff 的 `---/+++` 头：`requirements.txt`；`test_cancel_boundaries.py`、`test_llm_lifecycle.py`、`test_stream_cancellation.py` ⇒ **产品源码零改动** | **采纳** |
+| 边界：没动 envB / 候选树 / 主仓 | envB freeze 与基线 **0 差异**；候选 `porcelain=0`（HEAD 仍是**我**的 docs 笔）；主仓 21/567 同数 | **采纳** |
+| 双树门禁 1925/0/10/18、cov 86.35%、rc=0；mypy 74 files | **未复跑**（跑一次全量 = 250s+ 且要占 envC；且我 03:0x 已在候选树上验过同数） | **核不了→暂采**，标注为"未复算项" |
+| `ruff format --check` 284 files（我候选树现量 **283**） | 差 1 只文件，**未解释**；两侧 rc 都是 0，不影响判据 | **登记为口径差**，不追 |
+
+**它纠正了我（这一条最该记）**：我票面 §2.1 写「`dispatch-output/task1/hidden_runner.py` **不在 git 里、必须手工带**」——**为假**。现量 `git ls-files` 列出它、`check-ignore` exit=1（**已跟踪文件不享忽略**）、`git archive HEAD` 自带。
+我的错因是**只看 `.gitignore:77` 的模式匹配就下结论**，没跑 `ls-files`——这条在册纪律（"要查已跟踪却被忽略必须 `git ls-files | git check-ignore --no-index --stdin`"）我写过却没照做，被执行方反过来纠正。票面已就地改写并留痕。
+
+**落地建议（新待裁 D-29）**：推荐**本轮不落**、排在 D-5 之后当下一轮首票。理由：这条分支刚被独立复核钉过形状；换依赖窗＝换基线（要以那个会话自建的 `candidate-envC-1x` 重跑全量才能立基线）；把"推送"与"换依赖"捆一次 = 不可归因。

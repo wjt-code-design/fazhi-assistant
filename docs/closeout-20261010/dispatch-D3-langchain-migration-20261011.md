@@ -60,7 +60,7 @@ grep -arn "from langchain\|import langchain\|from langsmith\|import langsmith" -
 2. **副本树双跑**（不动候选树、不动主仓工作区）：按在册配方建两棵树 = 旧窗树（`requirements.txt` 原样）与 1.x 树（只改 §1 那五行窗）。
    **副本树自足面（2026-10-11 现量，别再照旧册抄"四个目录"——`task1` 不是顶层目录）**
    - 被跟踪、直接跟着 `git archive`/`ls-files` 走：`release-evidence/`（**319 只，全部 tracked**）、`dispatch-output/`（盘上 848 只 / tracked **844**）、`data/`（11 只全 tracked）、根 `CONTRIBUTING.md`（tracked；消费方是 `backend/prompts.py` 与 `tests/test_agent_runtime.py`、`tests/test_smoke_citation_assertions.py`）。
-   - ⚠️ **必须手工带的那一只（不在 git 里）**：`dispatch-output/task1/hidden_runner.py` —— `.gitignore:77` 是 `dispatch-output/task1/`（整目录忽略），而 `tests/test_harness_fact_reveal.py:25` 直接按 `REPO / "dispatch-output/task1/hidden_runner.py"` 加载它。候选树现量该目录**只有这 1 只文件 + `__pycache__`（没有 `hidden-round-protocol-v1.json`）**；带上它那条腿在候选树实测 **4 passed / 50.23s**。
+   ✅ **更正（2026-10-11 04:2x，由 D-3 执行会话 §4-10 抓出、我独立复算确认）**：本行原写「**必须手工带的那一只（不在 git 里）**」——**该断言为假**。现量：`git ls-files dispatch-output/task1/` 列出 `hidden_runner.py`；`git check-ignore -v` 对它 **exit=1**（已跟踪文件不享忽略，`.gitignore:77` 那条只对未跟踪状态生效）；`git archive HEAD dispatch-output/task1` 自带该文件。⇒ **它跟着 tracked 面走，不需要手工带**。我的错因：只看了 `.gitignore` 的模式匹配就下结论，没跑 `ls-files`——正是在册那条「要查『已跟踪却被忽略』必须 `git ls-files | git check-ignore --no-index --stdin`」我没照做。
    - 只读引用、不要复制的：`docs/`（211 只 tracked）留在树里即可；`backend/docs`（3 只）跟着 tracked 走。
    - `__pycache__` 别跨树复用（旧 pyc 会让"源码是否真改了"变得不可判）。
 3. **同一批尺子各跑一次**：全量 `pytest -m "not slow" --cov-fail-under=70`、`ruff check`、`ruff format --check`、`mypy`（判据认 `checked N files` 不只认 rc）、前端 `tsc`/`lint`/`vitest` 只作对照（本票不该动前端）。
