@@ -179,6 +179,30 @@ RESUME_NOT_FOUND_DETAIL = "未找到可恢复的 Agent 任务"
 RESUME_CONFLICT_DETAIL = "Agent 任务已变化，无法恢复"
 RESUME_LAW_AS_OF_DETAIL = "Agent 追问回答沿用该任务建立时的法律基准日，不能中途更改"
 
+# D-10（Owner 2026-10-11 裁「拆」）：409 的对外文案按成因分档。
+# 分档轴 = **用户下一步动作不同**，不是内部状态机有多少个状态：
+#   已经处理过 → 回去看结果；回答不合式 → 再答一次；预算打满 → 重新发起；接不上 → 重新发起。
+# 仍不泄漏状态机名、版本号、run 标识。
+RESUME_DETAIL_ALREADY_ADVANCED = "这条任务已经处理过了，请回到对话查看最新结果。"
+RESUME_DETAIL_ANSWER_INVALID = "这个回答和当前的问题对不上，请重新回答一次。"
+RESUME_DETAIL_STEP_BUDGET = "本次咨询的追问次数已用完，请重新发起一次咨询。"
+RESUME_DETAIL_UNRECOVERABLE = "这条任务接不上了，请重新发起一次咨询。"
+
+RESUME_CONFLICT_DETAILS: dict[str, str] = {
+    "state_stale": RESUME_DETAIL_ALREADY_ADVANCED,
+    "cas_conflict": RESUME_DETAIL_ALREADY_ADVANCED,
+    "answer_invalid": RESUME_DETAIL_ANSWER_INVALID,
+    "step_budget": RESUME_DETAIL_STEP_BUDGET,
+    "state_unreadable": RESUME_DETAIL_UNRECOVERABLE,
+    "pending_anchor_mismatch": RESUME_DETAIL_UNRECOVERABLE,
+    "issue_missing": RESUME_DETAIL_UNRECOVERABLE,
+}
+
+
+def resume_conflict_detail(reason_code: str) -> str:
+    """成因码 → 对外文案。未登记的成因回落到旧那句通用文案（宁可笼统，不可 500）。"""
+    return RESUME_CONFLICT_DETAILS.get(reason_code, RESUME_CONFLICT_DETAIL)
+
 
 class ResumeLawAsOfConflict(RuntimeError):
     """客户端试图在恢复请求里改本 run 的法律基准日。
@@ -243,13 +267,15 @@ class ResumeRunConflict(RuntimeError):
     DB-15（2026-10-09，审查报告 B-47）：这个异常原先被**几类完全不同的成因**共用同一句
     「Agent 任务已变化，无法恢复」⇒ 用户与运维都分不清到底是"版本冲突""状态读不出"，
     还是"这条 run 的步数预算已打满"（后者正是 B-47 的形状；本轮起该边不再计步，见
-    `state_machine.FREE_STEP_EDGES`）。现每个抛点带一个 `reason_code`：**对外文案仍只有一句**
-    （不把内部状态机细节泄漏给客户端），成因进结构化日志字段 `agent_resume_reason`。
+    `state_machine.FREE_STEP_EDGES`）。现每个抛点带一个 `reason_code`：成因进结构化日志字段
+    `agent_resume_reason`，对外文案按 `RESUME_CONFLICT_DETAILS` 分档（D-10，2026-10-11 Owner 裁「拆」）——
+    分档只按"用户下一步该做什么"，仍不泄漏状态机名与版本号。
     """
 
     def __init__(self, reason_code: str = "state_stale") -> None:
         self.reason_code = reason_code
-        super().__init__(RESUME_CONFLICT_DETAIL)
+        self.detail = resume_conflict_detail(reason_code)
+        super().__init__(self.detail)
 
 
 # Ticket 1（2026-09-12）：争点范围选择（产品约束，非法律事实澄清）。

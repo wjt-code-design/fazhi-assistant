@@ -172,10 +172,10 @@ def test_immediate_reask_waits_for_cancelled_turn_commit(store, new_conversation
     entered, release = threading.Event(), threading.Event()
     real_placeholder = namespace["_post_placeholder"]
 
-    def blocked_placeholder(pre):
+    def blocked_placeholder(pre, reason="no_response"):
         entered.set()
         assert release.wait(3), "test must release the owned persistence work"
-        real_placeholder(pre)
+        real_placeholder(pre, reason)
 
     namespace["_post_placeholder"] = blocked_placeholder
     route = namespace.get("_serialized_chat", namespace["chat"])
@@ -200,7 +200,8 @@ def test_immediate_reask_waits_for_cancelled_turn_commit(store, new_conversation
         count, rows = snapshot(store, conv_id)
         assert rows == [
             ("user", "cancelled"),
-            ("assistant", "服务暂时无响应，请稍后重试。"),
+            # 这一轮是**被取消**的（cancel=True），D-23 起占位要说实话：不是服务故障
+            ("assistant", "本次回答已停止，未生成完整内容。"),
             ("user", "reasked"),
             ("assistant", "complete answer"),
         ]

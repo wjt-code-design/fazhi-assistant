@@ -35,7 +35,10 @@ from sqlalchemy.pool import StaticPool
 from starlette.responses import StreamingResponse
 
 BACKEND = Path(__file__).resolve().parents[1]
+# D-23（2026-10-11）：占位文案按成因分两条，逐字硬编码在这里（不从 main import）——
+# 期望值必须独立于实现，否则把"已停止"和"无响应"改回同一句时测试会跟着一起绿。
 PLACEHOLDER = "服务暂时无响应，请稍后重试。"
+PLACEHOLDER_STOPPED = "本次回答已停止，未生成完整内容。"
 
 sys.path.insert(0, str(BACKEND))
 from llm_guard import LLMBusyError, _LLMGuard  # noqa: E402  (stdlib-only module)
@@ -445,13 +448,22 @@ def _build_stream_namespace(sm):
     _extract(BACKEND / "main.py", {"_post_placeholder"}, placeholder_ns)
     namespace["_post_placeholder"] = placeholder_ns["_post_placeholder"]
     error_tree = ast.parse((BACKEND / "main.py").read_text(encoding="utf-8-sig"))
-    error_node = next(
-        node
-        for node in error_tree.body
-        if isinstance(node, ast.Assign)
-        and any(isinstance(t, ast.Name) and t.id == "_ERROR_NO_RESPONSE" for t in node.targets)
-    )
-    exec(compile(ast.Module(body=[error_node], type_ignores=[]), "error-constant", "exec"), namespace)
+    # D-23：占位文案的常量按 main.py 真值注入**两个**命名空间。测试不自带副本——否则生产改了
+    # 句子而夹具仍断言旧句子，这道门就变成假绿；`_post_placeholder` 落在 placeholder_ns，
+    # 正文生成器落在 namespace，两边都可能在运行时读这几条。
+    for _const in ("_ERROR_NO_RESPONSE", "_PLACEHOLDER_NO_RESPONSE", "_PLACEHOLDER_STOPPED"):
+        _node = next(
+            (
+                node
+                for node in error_tree.body
+                if isinstance(node, ast.Assign)
+                and any(isinstance(t, ast.Name) and t.id == _const for t in node.targets)
+            ),
+            None,
+        )
+        assert _node is not None, f"main.py 不再声明 {_const}——仪器要跟改，不能静默跳过"
+        for _ns in (namespace, placeholder_ns):
+            exec(compile(ast.Module(body=[_node], type_ignores=[]), "error-constant", "exec"), _ns)
     return namespace, guard
 
 
@@ -565,7 +577,7 @@ def test_d2_disconnect_before_body_persists_exactly_one_placeholder(gate_first_c
     roles = [row["role"] for row in snapshot["messages"]]
     contents = [row["content"] for row in snapshot["messages"]]
     assert roles == ["user", "assistant"], roles
-    assert contents[1] == PLACEHOLDER, contents
+    assert contents[1] == PLACEHOLDER_STOPPED, contents
     assert snapshot["message_count"] == 2, snapshot
     # no half-body persisted: the placeholder is the only assistant row
     assert not any("first" in c or "second" in c for c in contents), contents
@@ -656,7 +668,7 @@ def test_d2_disconnect_during_response_start_before_iterator_enters():
         anyio.run(scenario, backend="asyncio")
         snapshot = _await_placeholder(sm, engine, expected_rows=2, timeout=0.5)
         assert [row["role"] for row in snapshot["messages"]] == ["user", "assistant"], snapshot
-        assert snapshot["messages"][1]["content"] == PLACEHOLDER
+        assert snapshot["messages"][1]["content"] == PLACEHOLDER_STOPPED
         assert snapshot["message_count"] == 2
         assert bodies == []
         assert llm.async_client.calls == []
@@ -926,7 +938,7 @@ def test_d2_disconnect_during_pre_window_hands_over_at_the_response_boundary():
         assert order == ["user_committed", "pre_returned", "response_start", "response_returned"], order
         snapshot = _await_placeholder(sm, engine, expected_rows=3, timeout=0.5)
         assert [row["role"] for row in snapshot["messages"]] == ["user", "user", "assistant"], snapshot
-        assert snapshot["messages"][2]["content"] == PLACEHOLDER, snapshot
+        assert snapshot["messages"][2]["content"] == PLACEHOLDER_STOPPED, snapshot
         assert snapshot["message_count"] == 3, snapshot
         assert namespace.get("_post_calls", []) == []
         assert guard._sem.acquire(blocking=False)
@@ -1001,7 +1013,8 @@ def test_d2_normal_completion_persists_the_full_answer_through_real_post():
         snapshot = _db_snapshot(engine)
         roles = [row["role"] for row in snapshot["messages"]]
         assert roles == ["user", "assistant"], snapshot
-        assert snapshot["messages"][1]["content"] != PLACEHOLDER, snapshot
+        # 正常完成既不该拿到"无响应"也不该拿到"已停止"——两个标签对它都是假话
+        assert snapshot["messages"][1]["content"] not in (PLACEHOLDER, PLACEHOLDER_STOPPED), snapshot
         assert "cached" in snapshot["messages"][1]["content"], snapshot
         assert snapshot["message_count"] == 2, snapshot
         assert any('"conversation_id"' in frame for frame in frames), frames
@@ -1021,7 +1034,8 @@ def test_d2_compensation_failure_is_observable_and_does_not_swallow_the_disconne
         _stream_namespace_base(namespace, llm)
         headers_started = asyncio.Event()
 
-        def boom(pre):
+        def boom(pre, reason="no_response"):
+            # 签名跟生产一致（D-23 起第二个位置参数是成因档），否则这里红的是 TypeError 而不是被模拟的写库失败
             raise RuntimeError("isolated sqlite unavailable")
 
         namespace["_post_placeholder"] = boom

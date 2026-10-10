@@ -47,7 +47,6 @@ from agent.chat_integration import (
 )
 from agent.controller import (
     _DEFAULT_RUN_LOCKS,
-    RESUME_CONFLICT_DETAIL,
     RESUME_LAW_AS_OF_DETAIL,
     RESUME_NOT_FOUND_DETAIL,
     ResumeLawAsOfConflict,
@@ -1024,17 +1023,22 @@ def _post(pre: dict, answer: str, curate: bool = True):
         db.close()
 
 
-def _post_placeholder(pre: dict) -> None:
+def _post_placeholder(pre: dict, reason: str = "no_response") -> None:
     """SSE 失败/空答的补偿：落一条 assistant 占位消息，保持 user/assistant 成对与 message_count 一致。
 
     _pre 已落库用户消息；若流式生成失败/空答时 _post 从未执行，会留下无答复的用户消息、
     计数永久错位（对抗审计 2026-08-07）。占位不沉淀、不压缩。
+
+    `reason`（D-23，2026-10-11）决定这条历史消息怎么说：`stopped` = 连接在产出答案前就断了
+    （用户停止 / 切换会话 / 断网），`no_response` = 服务端这一轮没给出内容。两者混成一句
+    "服务暂时无响应"，等于把用户自己的操作写成平台故障，而这条记录会留在历史里被反复读到。
     """
     if pre.get("assistant_committed"):
         return
+    content = _PLACEHOLDER_STOPPED if reason == "stopped" else _PLACEHOLDER_NO_RESPONSE
     db = SessionLocal()
     try:
-        db.add(Message(conversation_id=pre["conv_id"], role="assistant", content="服务暂时无响应，请稍后重试。"))
+        db.add(Message(conversation_id=pre["conv_id"], role="assistant", content=content))
         conv = db.get(Conversation, pre["conv_id"])
         # 对抗审计 v2 #21：原子自增（与 _pre/_post 同款防竞态）
         db.execute(
@@ -1088,6 +1092,11 @@ def _safe_pick(modality: str, tier: str, *, exclude: set[str] | None = None) -> 
 # B1（2026-08-07）：去掉"建议核对条文原文"——前端曾为清这句写 stripUnprovidedHint，后端不再制造该噪音
 # 空答兜底文案（4 处 SSE error 帧共用：轻量空答/合同空答/旗舰空答/R15 分支；Standards 轴：Duplicated Code）
 _ERROR_NO_RESPONSE = "服务暂时无响应，请稍后重试"
+# D-23（Owner 2026-10-11 裁「改」）：占位消息此前只有一句"服务暂时无响应"，连**用户自己按下的停止**
+# 也被写成平台故障——当场前端显示"已停止生成"，刷新/换设备看历史却读成"服务不可用"。
+# 故障文案复用上面那条（不抄第二份字面量，两处只允许句号不同）。
+_PLACEHOLDER_NO_RESPONSE = _ERROR_NO_RESPONSE + "。"
+_PLACEHOLDER_STOPPED = "本次回答已停止，未生成完整内容。"
 
 NOTE_COMPLEX = "\n\n> 注：该问题较复杂，本回答仅供参考。"
 NOTE_QUOTA = "\n\n> 注：模型配额紧张，本回答仅供参考。"
@@ -1893,8 +1902,9 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
         except ResumeRunConflict as _resume_exc:
             # DB-15（2026-10-09，审查报告 B-47）：同一句 409 文案背后原本是几类完全不同的成因
             # （版本冲突 / 持久状态读不出 / 用户这次的输入不合式 / 步数预算打满）。
-            # 对外仍只给一句通用文案（不把内部状态机细节泄漏给客户端），成因进结构化日志字段
-            # `agent_resume_reason`（已登记进 observability 白名单，否则会被 JSON formatter 静默丢弃）。
+            # 成因进结构化日志字段 `agent_resume_reason`（已登记进 observability 白名单，
+            # 否则会被 JSON formatter 静默丢弃）；D-10（2026-10-11）起对外文案按成因分档，
+            # 由 `ResumeRunConflict.detail` 给出——不在这里再拼一遍，避免两处漂移。
             logging.getLogger("legal.agent").warning(
                 "agent_resume_conflict",
                 extra={
@@ -1904,7 +1914,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     "conv_id": body.conversation_id,
                 },
             )
-            raise HTTPException(status_code=409, detail=RESUME_CONFLICT_DETAIL) from None
+            raise HTTPException(status_code=409, detail=_resume_exc.detail) from None
         finally:
             db.close()
         _record_actual_agent_route("agent_path")
@@ -2048,6 +2058,9 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
     async def stream():
         stream_state["entered"] = True
         _posted = False  # 本轮 assistant 消息是否已落库（对抗审计 v2 #5/#8：客户端断开时 finally 兜底占位）
+        # D-23：兜底占位要区分"这一轮正常走完了但没内容"与"流被打断在半路"。
+        # 只有 try 体走到自然结尾才置真；GeneratorExit/CancelledError 半途退出时保持假。
+        _delivered = False
         try:
             yield f"data: {json.dumps({'type': 'status', 'msg': '正在思考…'}, ensure_ascii=False)}\n\n"
             if pre.get("agent_fallback_reason"):
@@ -2622,6 +2635,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     _posted = True
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
+            _delivered = True
         except LLMBusyError:
             # 并发门控降级：不占日志噪音（每次 surge 都刷不可取），仅下发繁忙提示
             yield f"data: {json.dumps({'error': '服务繁忙，请稍后重试'}, ensure_ascii=False)}\n\n"
@@ -2631,6 +2645,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 _posted = True
             except Exception as e:
                 print(f"[chat-placeholder] {e}", flush=True)
+            _delivered = True
         except Exception as e:
             # 详情只进日志：str(e) 可能含内部 model id / 供应商错误体 / 服务器路径，不得下发普通用户
             print(f"[chat-stream] {type(e).__name__}: {e}", flush=True)
@@ -2641,14 +2656,18 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 _posted = True
             except Exception as e:
                 print(f"[chat-placeholder] {e}", flush=True)
+            _delivered = True
         finally:
             # 对抗审计 v2 #5/#8：客户端断开（GeneratorExit 不属 Exception）或未走任何落库分支时，
             # close 可以 await 清理但不能 yield；等唯一占位 commit 后才结束响应所有权。
             # _post 已 commit 后即使沉淀/压缩失败，也不能补第二条 assistant。
             if not _posted and not pre.get("assistant_committed"):
+                # D-23：走到自然结尾 = 这一轮确实没给出内容；半途退出 = 用户/网络把流打断了，
+                # 不能对后者说"服务暂时无响应"（那句话会进历史，被反复读成平台故障）。
+                _reason = "no_response" if _delivered else "stopped"
                 with CancelScope(shield=True):
                     try:
-                        await run_in_threadpool(_post_placeholder, pre)
+                        await run_in_threadpool(_post_placeholder, pre, _reason)
                     except Exception as exc:
                         print(f"[chat-cancel-compensate] failed: {type(exc).__name__}", flush=True)
 
@@ -2660,7 +2679,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
         if stream_state["entered"]:
             return
         try:
-            await run_in_threadpool(_post_placeholder, pre)
+            # 走到这里说明响应已关闭而正文生成器从未进入 ⇒ 连接在产出任何内容前就断了（D-23）。
+            await run_in_threadpool(_post_placeholder, pre, "stopped")
         except Exception as exc:
             # 不吞：占位是这一轮唯一保持 user/assistant 成对的动作，静默失败正是 R1 要消除的。
             # 只落异常类型，不落 str(exc)（可能含路径/内部标识）。门禁看这条标记判失败。

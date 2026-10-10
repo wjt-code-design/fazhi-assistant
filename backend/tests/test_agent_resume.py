@@ -27,6 +27,12 @@ from schemas import ChatIn
 
 NOT_FOUND_DETAIL = "未找到可恢复的 Agent 任务"
 CONFLICT_DETAIL = "Agent 任务已变化，无法恢复"
+# D-10（2026-10-11）409 分档文案。这里**逐字硬编码**而不是从被测源码 import：
+# 期望值必须独立于实现，否则文案改错时测试会跟着一起改绿。
+ADVANCED_DETAIL = "这条任务已经处理过了，请回到对话查看最新结果。"
+ANSWER_INVALID_DETAIL = "这个回答和当前的问题对不上，请重新回答一次。"
+STEP_BUDGET_DETAIL = "本次咨询的追问次数已用完，请重新发起一次咨询。"
+UNRECOVERABLE_DETAIL = "这条任务接不上了，请重新发起一次咨询。"
 QUESTION = "是否约定履行期限"
 
 
@@ -319,8 +325,10 @@ def test_resume_conflicts_are_stable_and_do_not_duplicate(store, records, case):
 
     before = _load_snapshot(sessions, records["run_id"])
     db = sessions()
+    # 四例里只有 pending 锚点对不上是"服务端接不上"，其余三例都是"这条任务已被推进"。
+    expected_detail = UNRECOVERABLE_DETAIL if case == "inconsistent_pending" else ADVANCED_DETAIL
     try:
-        with pytest.raises(ResumeRunConflict, match=CONFLICT_DETAIL):
+        with pytest.raises(ResumeRunConflict) as excinfo:
             resume(
                 db=db,
                 run_locks=locks,
@@ -330,6 +338,7 @@ def test_resume_conflicts_are_stable_and_do_not_duplicate(store, records, case):
                 conversation_id=records["conversation"].id,
                 answer="重复回答",
             )
+        assert str(excinfo.value) == expected_detail != CONFLICT_DETAIL
     finally:
         db.close()
     after = _load_snapshot(sessions, records["run_id"])
@@ -478,7 +487,8 @@ def test_http_resume_kill_switch_rejects_before_any_state_change(store, records,
         # 图片门禁（阶段B 501）优先于 resume 的 content 空校验——与 main.py 能力门顺序一致
         ({"image": "data:image/png;base64,eA==", "content": None}, 501, "图片理解当前不可用：所配置模型无视觉能力"),
         ({"agent_run_id": "7d408f72-1dfb-4d30-89b1-1f9c303455d4"}, 404, NOT_FOUND_DETAIL),
-        ({"agent_state_version": 8}, 409, CONFLICT_DETAIL),
+        # 版本不符 ⇒ state_stale ⇒ D-10 分档里的"已处理过"那一句
+        ({"agent_state_version": 8}, 409, ADVANCED_DETAIL),
     ],
 )
 def test_http_resume_failures_bypass_pre_and_emit_no_sse(store, records, monkeypatch, payload_update, status, detail):
@@ -921,3 +931,64 @@ def test_agent_fallback_on_resume_feeds_run_date_into_fast_path(store, records, 
     assert response.status_code == 599
     bootstrap = captured["bootstrap"]
     assert bootstrap.law_as_of == run_date
+
+
+def _resume_reason_codes_in_source() -> set[str]:
+    """AST 现读 controller.py 里所有字面量成因码，含 `__init__` 的默认值。
+
+    不用手写清单：新增一个抛点（带新成因码）必须**自动**进这道门，
+    否则 D-10 的分档会在下一个成因码上悄悄退回笼统文案。
+    """
+    import ast
+    import pathlib
+
+    src = pathlib.Path(__file__).resolve().parents[1] / "agent" / "controller.py"
+    tree = ast.parse(src.read_text(encoding="utf-8"))
+    codes: set[str] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call):
+            fn = node.func
+            name = fn.id if isinstance(fn, ast.Name) else getattr(fn, "attr", "")
+            if name == "ResumeRunConflict" and node.args:
+                first = node.args[0]
+                if isinstance(first, ast.Constant) and isinstance(first.value, str):
+                    codes.add(first.value)
+        if (
+            isinstance(node, ast.FunctionDef)
+            and node.name == "__init__"
+            and any(getattr(a, "arg", "") == "reason_code" for a in node.args.args)
+        ):
+            for default in node.args.defaults:
+                if isinstance(default, ast.Constant) and isinstance(default.value, str):
+                    codes.add(default.value)
+    return codes
+
+
+def test_every_resume_reason_code_has_a_copy_bucket():
+    """每个成因码都必须落到一档；漏登记 = 该 409 又对用户说笼统假话。"""
+    from agent.controller import RESUME_CONFLICT_DETAILS
+
+    codes = _resume_reason_codes_in_source()
+    unmapped = sorted(codes - set(RESUME_CONFLICT_DETAILS))
+    assert codes, "AST 没扫到任何成因码——仪器失效了，不是代码干净"
+    assert not unmapped, f"以下成因码没有对应文案，会回落到笼统那句：{unmapped}"
+
+
+def test_unregistered_reason_code_falls_back_to_the_generic_copy():
+    """回落只给旧那句笼统文案，绝不抛错——分档不能把 409 变成 500。"""
+    from agent.controller import resume_conflict_detail
+
+    assert resume_conflict_detail("a_code_nobody_registered") == CONFLICT_DETAIL
+    assert resume_conflict_detail("") == CONFLICT_DETAIL
+
+
+def test_copy_buckets_are_distinct_and_leak_no_internal_jargon():
+    """四档必须是四个不同的下一步动作，且不带内部状态机名/版本号。"""
+    from agent.controller import RESUME_CONFLICT_DETAILS
+
+    texts = {ADVANCED_DETAIL, ANSWER_INVALID_DETAIL, STEP_BUDGET_DETAIL, UNRECOVERABLE_DETAIL}
+    assert len(texts) == 4, "四档文案有重复，等于没拆开"
+    assert set(RESUME_CONFLICT_DETAILS.values()) == texts
+    for text in texts:
+        for jargon in ("state_stale", "cas_conflict", "WAITING_USER", "run_id", "version", "Agent"):
+            assert jargon not in text, f"文案泄漏了内部标识：{jargon}"

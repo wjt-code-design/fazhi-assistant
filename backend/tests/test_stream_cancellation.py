@@ -802,7 +802,7 @@ def test_real_main_stream_close_closes_retry_and_keeps_failure_placeholder(contr
             settings=SimpleNamespace(fast_path_law_version_check=False),
             registry=SimpleNamespace(get=lambda: llm, variant=lambda disabled: llm),
             _contract_messages=lambda pre, cd: [],
-            _post_placeholder=lambda pre: (placeholders.append(pre), placeholder.set()),
+            _post_placeholder=lambda pre, reason="no_response": (placeholders.append(pre), placeholder.set()),
             _post=lambda *args: posted.append(args),
         )
         tree = ast.parse((BACKEND / "main.py").read_text(encoding="utf-8"))
@@ -856,7 +856,7 @@ def test_normal_chat_has_single_first_status_and_no_failure_placeholder():
             log_account=lambda **kwargs: None,
             run_in_threadpool=run_in_threadpool,
             _post=lambda *args: posted.append(args),
-            _post_placeholder=lambda pre: placeholders.append(pre),
+            _post_placeholder=lambda pre, reason="no_response": placeholders.append(pre),
         )
         tree = ast.parse((BACKEND / "main.py").read_text(encoding="utf-8"))
         chat = next(node for node in tree.body if getattr(node, "name", None) == "chat")
@@ -919,7 +919,7 @@ def test_asgi_disconnect_during_blocked_content_send_owns_body_cleanup(contract)
             settings=SimpleNamespace(fast_path_law_version_check=False),
             registry=SimpleNamespace(get=lambda: llm, variant=lambda disabled: llm),
             _contract_messages=lambda pre, cd: [],
-            _post_placeholder=lambda pre: (placeholders.append(pre), placeholder_ready.set()),
+            _post_placeholder=lambda pre, reason="no_response": (placeholders.append(pre), placeholder_ready.set()),
             _post=lambda *args: posted.append(args),
         )
         response = _real_chat_response(namespace)
@@ -986,7 +986,7 @@ def test_asgi_normal_completion_preserves_single_status_and_post():
             log_account=lambda **kwargs: None,
             run_in_threadpool=run_in_threadpool,
             _post=lambda *args: posted.append(args),
-            _post_placeholder=lambda pre: placeholders.append(pre),
+            _post_placeholder=lambda pre, reason="no_response": placeholders.append(pre),
         )
         response = _real_chat_response(namespace)
         sent = []
@@ -1188,7 +1188,7 @@ def test_buffered_asgi_disconnect_closes_real_sdk_request_before_pool_cleanup(ro
             ),
             stream_with_retry=empty_stream,
             _exit_law_as_of=lambda *args: None,
-            _post_placeholder=lambda value: (placeholders.append(value), placeholder_ready.set()),
+            _post_placeholder=lambda value, reason="no_response": (placeholders.append(value), placeholder_ready.set()),
             _post=lambda *args: posted.append(args),
         )
         response = _real_chat_response(namespace)
