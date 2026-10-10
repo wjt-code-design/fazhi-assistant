@@ -7,11 +7,11 @@
 
 | 项 | 现量 |
 |---|---|
-| 本地相关 ref（**03:2x 现量**） | `master=0b54396`(234 笔)、`codex/nondeploy-closeout-20261010=`**`fc7ebf6`**(241 笔；含 5 笔代码 + 2 笔 docs 入册)、`codex/local-candidate-closeout=fbc29e8`(193)、`refs/remotes/origin/master=15562fc`(192，**陈旧**)、`refs/closing/remote-master=985d53e`(204，**远端真实头**，我 fetch 后已把 origin/master 复原回 15562fc)、`refs/closing/orphan-snapshot-20261011=1b1c307…`(1 笔，无父)。旧行写的是 `3f605de`(238)，已过时两笔 |
+| 本地相关 ref（**03:2x 现量，已过期**） | 那行写的候选头 `fc7ebf6`(241 笔) 之后又走了七笔：**10-11 06:5x 现量 `codex/nondeploy-closeout-20261010=ed76192`**、`master=0b54396`、`codex/local-candidate-closeout=fbc29e8`(193 笔，独联候选 4 笔)、`refs/remotes/origin/master=15562fc`(陈旧，我复放过)、`refs/closing/remote-master=985d53e`(远端真实头)、`refs/closing/orphan-snapshot-20261011=1b1c307`(无父钉ref)。**笔数与头一律现跑**：`git rev-parse --short HEAD`、`git log --oneline 0b54396..HEAD \| wc -l` |
 | `merge-base master origin/master` | **NONE**（rc=1）⇒ 本地主线与远端跟踪的那支**无共同祖先** |
-| 普通推候选分支的对象数 | **4301**（含 13 位历史裸值，`value_hits=1`） |
-| `master` / `codex/local-candidate-closeout` 的对象数与值命中 | 4252 / 3815，各 `value_hits=1`（都含它 ⇒ 817e7d3 是共同祖先） |
-| 无父快照（§7 那条腿） | 2581 对象，`value_hits=0`，树 == `HEAD^{tree}`，pack 已冷恢复读回 |
+| 普通推候选分支要上传的对象 | **＝待推分支全部可达对象**（06:4x 现量：**4464**，`git rev-list --objects HEAD \| wc -l`）。⚠️ 本行旧写的 **4301/4252 与"按对象身份折掉共享 blob"的机理已在 `reports/gates.md` §44 作废**：无关历史时 `A..B` 剪的是 commit 链、不是对象身份，同 blob 的 2037 只实测**全部**仍在上传集里。含 13 位历史裸值（那只 blob `d59a7b614514445d…` 在上传集=1、在远端真实头可达集=0）⇒ **先轮换** |
+| `master` / `codex/local-candidate-closeout` 各自可达对象 | 旧写 4252 / 3815 **只作历史读数保留**；现跑 `git rev-list --objects <ref> \| wc -l`。两支与候选共享根 `817e7d3`（⇒ 三支都含那只裸值） |
+| 无父快照（§7 那条腿） | 旧写 2581 对象 / 树 == `HEAD^{tree}`——**相等这条会随任何提交破**（今天头已到 `ed76192`，旧快照树不再是 `HEAD^{tree}`）。规则保留：**走 D-5(b) 就必须推送前现跑 `evidence/orphan_pin.py`，并当场比 `rev-parse 'HEAD^{tree}'` == 新快照 `^{tree}`**；它比路线 A 小是因为只带一枚 commit 与它自己那棵树，**不是**"去重后的上传集"（这句是 §44 之后的新措辞） |
 | `fbc29e8` | 可解析，但**不是 master 的祖先**；`git grep -o fbc29e8` 现量 **103 次引用 / 15 个文件** |
 | 远端网络轴（**10-11 01:5x 已复测，覆盖 10-10 那句**） | **四条全通**：`api.github.com` 200、`github.com` 200、`ssh -p 443` 认证 OK、`git ls-remote --heads origin` rc=0。⇒ 昨天那句"远端读数今天一律读不到"**作废**，真实读数见下两行 |
 | 远端真实头 / 可见性（10-11 现量） | 远端**只有 `master` 一支** = `985d53e4ee81efc066cc6915abcba98954e7d408`（2026-09-17 15:15，**该对象不在本地库**）；仓库 **public**（`private:false`，size 130,655 KB，star 1）。本地 `origin/master`=`15562fc`（08-25）**比远端旧**，且与候选 `merge-base` 空（rc=1，239 笔 vs 192 笔） |
@@ -64,6 +64,13 @@
   这条是唯一能提前回答"合并会不会很难"的仪器。要我做我就做。
 
 ## 6. A4 的冲突面**已量出来**（纯只读，零副本、零 ref、零 I/O 压力）
+
+> ⚠️ **本节下面的 115 与那张表是"本地陈旧轴"的读数**（`master` × `refs/remotes/origin/master=15562fc`），
+> 10-11 已作废为决策依据：真实轴是候选头 × `refs/closing/remote-master=985d53e`。
+> **当日现量（两次）**：头 `5e9bba8` 上 异 blob **96** = CONFLICT **96**；本会话又提三笔后头 `ed76192` 上 = **99 = 99**
+> （远端 2136 条路径全在候选里、远端独有 **0**）。尺子与机理对账：`evidence/merge_trial_blobs.py` +
+> `evidence/merge_trial_reconcile.py`，读数 `evidence/d20-diff-list.txt`；派单在 `tickets/dispatch-D20-merge-into-master-20261011.md`。
+> **保留本节的理由**：它记录了"空 base ≡ 真 merge"的等价性证明与我自己那三次 fixture 失败——那是方法资产，不是读数。
 
 `git merge-tree` 没有 `--allow-unrelated-histories`（直接 rc=128 `refusing to merge unrelated histories`），
 但它接受 `--merge-base=<空树>` ⇒ 用空 base 试演 disjoint 合并。
