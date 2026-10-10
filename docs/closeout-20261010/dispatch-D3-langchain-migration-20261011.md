@@ -10,7 +10,7 @@
 让 `pip-audit` 里 langchain 族的 **13 个 distinct 主 ID** 清零，
 并且用**同一批尺子在旧树/新树各跑一次**证明"检索与引用校验的语义没跟着 `Runnable` 接口漂移"。
 
-## 1 现场事实（2026-10-11 现量，候选树 HEAD `9e3cfc5`）
+## 1 现场事实（2026-10-11 现量。⚠️ 03:3x 起候选分支多了**第 6 笔 `4300c71`＝docs-only 入册**：`git diff 9e3cfc5..HEAD --name-only` 只含 `docs/closeout-20261010/` 下 27 只 `.md`、**非 docs 文件数 0** ⇒ 代码字节与 `9e3cfc5` 完全相同。你若读到 `HEAD ≠ 9e3cfc5` 属预期，**不算基线被破坏、不必回报**；`0b54396..HEAD` 现为 6 笔。本节下面所有代码相关读数仍以 `9e3cfc5` 那棵树为准，未随文档笔变化。
 
 **分母（审计件复算，复算器 `evidence/audit_axes.js`：`node audit_axes.js <audit-*.json>`）**
 - `evidence/audit-cand-runtime.json` 与 `evidence/audit-cand-dev.json` 两份读数**完全相同**：条目 **24** / distinct 主 ID **15** / 涉及包 **5**
