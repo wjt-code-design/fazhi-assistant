@@ -368,7 +368,7 @@ sed -n '150,155p' "$M/.gitignore"
 复核 A 的未复算理由是"需要重新出网下载 409 MB 权重"。现量：**期望值与内容都已在盘上**——
 `evidence/hf-bge-meta.json` 是 HF API 透传的 `siblings`（含每个文件的 `blobId`/`size`，LFS 文件另带 `lfs.sha256`），
 内容在运行根私有快照 `model-cache/hub/models--BAAI--bge-base-zh-v1.5/snapshots/f03589ce…/`（12 只文件，最大 409,138,989 B）。
-⇒ 新脚本 `evidence/recompute_model_hashes.py` 只读这两处、自算 `sha1("blob <len> "+内容)` 与 `sha256(内容)`，
+⇒ 新脚本 `evidence/recompute_model_hashes.py` 只读这两处、自算 `sha1("blob <len>\0"+内容)` 与 `sha256(内容)`，
 **不引用** `bge-model-verification.json` 的结论（否则是自我印证）。现量（`evidence/recompute_model_hashes.out`）：
 
 ```
@@ -914,3 +914,66 @@ Docker Desktop 已在 02:40 被起回来（进程 6），compose 栈自动 Up：
 我的错因是**只看 `.gitignore:77` 的模式匹配就下结论**，没跑 `ls-files`——这条在册纪律（"要查已跟踪却被忽略必须 `git ls-files | git check-ignore --no-index --stdin`"）我写过却没照做，被执行方反过来纠正。票面已就地改写并留痕。
 
 **落地建议（新待裁 D-29）**：推荐**本轮不落**、排在 D-5 之后当下一轮首票。理由：这条分支刚被独立复核钉过形状；换依赖窗＝换基线（要以那个会话自建的 `candidate-envC-1x` 重跑全量才能立基线）；把"推送"与"换依赖"捆一次 = 不可归因。
+
+## 38. 补记三十七（2026-10-11 05:0x–06:0x：Owner 一句「都交由你的推荐执行」⇒ 我分五批落，每批带测试与负向自证）
+
+授权范围＝当时台账 §A 3 条 + §B 15 条里我给了推荐的那些。分批与落点（逐条正文在 `decisions-needed-20261010.md` §C 的新行）：
+
+- 批 A：D-9 拒答冷却分两档 + D-15 `TOOL_BUSY` 进白名单并单列 ⇒ 提交 `8903da1`
+- 批 B：D-10 的 409 文案分档 + D-23 取消占位文案 ⇒ 提交 `91bd53d`
+- 批 C：D-18 注释与真值、D-16 事件响应三行、D-11 风险册入库 ⇒ 与批 D 同笔 `bffbe1c`
+- 批 D：D-25 镜像源回落 + CI `source-probe` ⇒ 同上
+- 批 E：D-14 / D-6 / D-20 三张票写出（只写票，不执行）
+- 判为"不动"的：D-8（不摘 category）、D-24（探针失败保持宽）、D-17（用冻结题集）、D-29（本轮不落 D-3）
+
+新头上的门禁现量（05:4x，`candidate-envB`，候选树）：
+`pytest -m "not slow" --cov=. --cov-fail-under=70` ⇒ **1932 passed / 0 failed / 10 skipped / 18 deselected，cov 86.37%，rc=0**；
+基线闸配平：`--collect-only` = **1942/1960（18 deselected）**，junit `tests=1942 skipped=10 failures=0 errors=0`（1932+10=1942 对得上）；
+`ruff check` rc=0、`ruff format --check` **283 files already formatted** rc=0、`mypy` **Success: 74 source files** rc=0；
+前端 `tsc` rc=0、`next lint` rc=0（不经管道另取一次）、`vitest` **83 passed (83)**。
+⚠️ **未重跑**：`npm run build:check`（J3 的产物断言腿）——本轮前端字节零改动（五批全在 backend/docs/deploy 面），旧读数仍在 `evidence/d22-build-check.log`。
+证据：`evidence/final-gates-backend-20261011.log`、`final-gates-junit-20261011.xml`、`final-gates-static-frontend-20261011.log`。
+
+## 39. 补记三十八（D-10 / D-23 的实现形状，以及**台账说三条、我实做四档**）
+
+- 409 分档轴选了「用户下一步动作」而不是「内部状态机有多少态」：已处理过 / 再答一次 / 预算用完 / 接不上 ⇒ **4 条文案**。台账 D-10 原文写"三条映射草稿"，第四条是执行时才看清的：`answer_invalid`（空回答、范围选择填错）要用户**再答一次**，跟"这条任务死了"不是同一个动作，合进任一侧都会说错话。
+- 判据用 AST 现读 `controller.py` 的 `ResumeRunConflict("<码>")` 字面量 + `__init__` 默认值 ⇒ 新增抛点**自动**进门；回落腿保证未登记码仍给旧那句（分档不能把 409 变成 500）。
+- 取消占位分两档，两条路**分别**钉住：正文生成器 finally 只在没走到自然结尾时记 stopped；`compensate_unstarted`（响应已关而正文从未进入）记 stopped。服务侧真故障（空答 / 异常 / `main.py:738` bootstrap 抛错）仍是不响应。
+- 变异（`evidence/batchB_mutation.py` + M7 单发，日志 `batchB-mutation-20261011.log`、`batchB-mutation-M7-20261011.log`）：
+  M4 把 finally 两档塌成一句 ⇒ 杀 4 条；M7 把 `compensate_unstarted` 的档摘掉 ⇒ 恰好杀那 2 条（证明这两条路不是同一把尺子在量）；
+  M5 让 409 全回落旧句 ⇒ 杀 5 条；M6 让两档共用一句 ⇒ 杀 1 条。四枪全部位级还原（sha 相同）。
+- 夹具随改（不是放宽）：占位桩签名与生产对齐；两个文案常量按 `main.py` 真值 AST 注入两个命名空间 ⇒ 生产改词时测试不会跟着假装绿。
+- 新文案是我起草的，**要 Owner 过字** ⇒ 台账新行 D-31；前端当场文案与历史文案要不要统一 ⇒ 新行 D-32（推荐保持两套，语义不同）。
+
+## 40. 补记三十九（D-18 比台账宽：那条 docstring 举的模型名有 6 个不在表里）
+
+现量复算（`DEFAULT_ROLES` 区间内逐个 grep 精确串）：`deepseek-r1-distill-qwen-7b` / `qwen2.5-omni-7b` / `qwen3.5-omni-flash` / `qwen3-vl-235b` / `qwen3-vl-32b` / `qwen-plus` 命中 **0**；只有 `qwen3.7-plus`、`qwen3.5-omni-plus-2026-03-15` 在表里。条数现量 **27**（19 text / 3 vision / 5 voice，全 `tier=flag`），复算命令 `awk '/^DEFAULT_ROLES: /,/^\]/' backend/llm_registry.py | grep -c '"model":'`。
+「现有 6 个辅助调用点」这条也对不上：`registry.get()` 在非测试代码里现量 **15** 处（分布在 `agent/runtime.py`、`llm_registry.py`、`main.py`、`request_bootstrap.py`、`scripts/eval_relevance.py`、`scripts/_judge.py`）。
+修法换形：**注释里既不抄数也不举名**，一律指向 `DEFAULT_ROLES`——抄数就是 DB-24 的成因本身。
+核为真、未动的一句：`get()` 仍返回全模态旗舰（`DEFAULT_KEY=vision_flag` ⇒ `qwen3.5-omni-plus-2026-03-15`）。
+⚠️ 我只改了本轮点名的面：`docs/` 与报告里凡引用"8 个代表模型"的旧句子，属同族但未逐处清（未做，不是已做）。
+
+## 41. 补记四十（D-25：缺陷**今天已自愈**，所以落的是这一类的兜底 + 可观测）
+
+10-10 的事实是"阿里云 PyPI 索引页 200、`pydantic-2.14.0` 文件 404"。10-11 05:2x 同一条命令复量：
+`pip download --no-deps --no-cache-dir -i https://mirrors.aliyun.com/pypi/simple pydantic==2.14.0` ⇒ **rc=0，取到 487 kB**；
+`pip download -i https://pypi.org/simple` 同版 ⇒ rc=0（第一次跑没加 `--no-cache-dir` 打出 "Using cached" 是**假绿**，加后才证明官方源真给）。
+torch 侧：阿里云 `pytorch-wheels/cpu/` 目录 200（1,208,113 B）；两页的加号编码不同（aliyun `&#43;`、官方 `%2B`）⇒ 尺子先归一化再比，`torch-2.13.0+cpu-cp311-cp311-manylinux_2_28_x86_64.whl` 两侧都在列。
+落地：`backend/Dockerfile` 两步各加 shell 级失败回退（**不用** `--extra-index-url`：它会把两源候选合并再挑版本，镜像与官方源同名不同步时版本选择权外移）；`.github/workflows/ci.yml` 新增 `source-probe` 作业（逐包真取文件；主源红 = warning、两源同红 = 真红；只挂 schedule + `workflow_dispatch`，不占每次 PR）。
+仪器自检（都留了日志）：`evidence/d25-probe-selfcheck-20261011.log`（正对照两页命中、假版本咬红、空页咬红）、`evidence/d25-pipleg-selfcheck-20261011.log`（两只真包绿、`pydantic==9.99.99` 两源皆红且 rc=1）。
+诚实边界：探针**不等于** `docker build` 通过（模型烘焙那层不在这里）；且 Actions 的 schedule 只在默认分支生效 ⇒ 合进 `master` 之前这条只能手动触发。
+`ci.yml` 结构自检：`evidence/ci_yaml_check.py` ⇒ jobs = backend / frontend / source-probe，triggers 四根，缺 runs-on/steps 的作业 = 0。
+
+## 42. 补记四十一（在册报告 `gates.md` 里有一个**真 NUL 字节**，已修）
+
+发现方式很偶然：`grep -n "^## " reports/gates.md` 回的是 "Binary file … matches"。逐字节定位：**1 个 NUL**，offset 40736，在第 371 行的 `sha1("blob <len>…")` 那句里——本该是字面 `\0` 两个字符，写的时候被当成转义序列落成了真 0x00。
+影响面：任何按文本处理的工具（grep / diff / 某些编辑器）会把这一份台账当二进制；它不影响产品字节，但**影响交付物的可读性与可核性**。
+修法：字节级替换成字面两字符，复量 NUL=0、CR=0、bytes 109119→109120、sha 前缀 `7beea10d`→`cd040a20`。
+我自己的第一次尝试没写成——`replace(b"\x00", b"\0")` 里的 `\` 被 bash heredoc 折叠成真 NUL，长度断言当场把写入拦下（拦得住是好事，但要记：**在这台机器上写反斜杠要用 `bytes([92])` 构造，别指望 heredoc 保留双反斜杠**）。
+
+## 43. 补记四十二（D-20 的冲突数在**几小时内走了 94→96→99**，这次是我自己的提交推的）
+
+同一把尺子（`evidence/merge_trial_blobs.py` + `merge_trial_reconcile.py`，两把必须吻合）：
+`9e3cfc5` ⇒ 94；`5e9bba8` ⇒ 异 blob 96 = CONFLICT 96；本轮三笔之后 `bffbe1c` ⇒ **异 blob 99 = CONFLICT 99**（A 路径 2707、B 路径 2136、交集 2136、远端独有 0）。
+所以票面与 §C 行都不再写"就是 96"，改成：**开工时与最终头上各跑一次**，读数随命令现出。
+顺带抓出自己两把尺子的两处错：`git rev-parse "<ref>:<path>"` 取不到时返回空 ⇒ 被我算成"内容不同"（据此得出的 100 里有 4 只是同 blob）；`line.partition("\t")` 把行尾留在 key 里 ⇒ 清单 96 条写成 192 行。两处都在尺子里修了并留下复跑读数。
