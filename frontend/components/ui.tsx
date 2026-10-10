@@ -25,7 +25,19 @@ export function Spinner({ className = "" }: { className?: string }) {
   );
 }
 
-/** 徽章（可选 status 圆点） */
+/** 徽章（可选 status 圆点）
+ *
+ * 类名必须写成完整字面量：Tailwind 只按内容里出现的字符串保留 `@layer components` 规则，
+ * 运行时拼接（`badge badge-${kind}`）会让四个徽章类在生产构建里被整条 purge 掉。
+ * 回归腿：`npm run build:check`（断言产物里四个类名各 ≥1）。
+ */
+const BADGE_CLASS: Record<string, string> = {
+  success: "badge badge-success",
+  error: "badge badge-error",
+  neutral: "badge badge-neutral",
+  accent: "badge badge-accent",
+};
+
 export function Badge({
   kind = "neutral",
   dot = false,
@@ -36,7 +48,7 @@ export function Badge({
   children: ReactNode;
 }) {
   return (
-    <span className={`badge badge-${kind}`}>
+    <span className={BADGE_CLASS[kind] ?? BADGE_CLASS.neutral}>
       {dot && <span className="inline-block h-1.5 w-1.5 rounded-full bg-current" />}
       {children}
     </span>
