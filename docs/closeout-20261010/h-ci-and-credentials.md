@@ -192,7 +192,7 @@ Owner 批准的第四条并行腿。脚本 `evidence/orphan_pin.py`（临时 `GI
 | 读数 | 现量 | 怎么核 |
 |---|---|---|
 | 快照提交 / 树 | `5df5a1277f775fd226f930336fb6c839027fed4e` / `04dd97ad6acbfc0ef4fcd23a966abe58b6c88618` | `cat evidence/orphan-snapshot.sha` |
-| 与 HEAD 的关系 | **树逐字等于** `git rev-parse HEAD^{tree}`（同一内容，零历史） | 冷恢复那次两条 print 同行比对 |
+| 与 HEAD 的关系 | ~~树逐字等于 `HEAD^{tree}`~~ ⇒ **改为规矩**：⚠️ **03:2x 复量自我更正**：我 03:1x 按现 HEAD 重生成时快照树 == `HEAD^{tree}`（`1e91913c`）；**但我随后又提了两笔 docs 提交**（`4300c71`、`fc7ebf6`），现 `HEAD^{tree}` = `a5eff903` ⇒ **复核 C §2.1 抓到的那条被我亲手复现了**。结论：无父快照**不能当存放件**，只能在推送前最后一刻现生成。 现册规矩＝**D-5(b) 执行前必须重跑 `evidence/orphan_pin.py`**，并以当场两条读数为准：`rev-parse 'HEAD^{tree}'` 与 `rev-parse '<新快照>^{tree}'` 相等才允许推。 | 冷恢复那次两条 print 同行比对（该读数本身仍成立） |
 | 无父证据 | `git log -1 --format='%P'` 为**空**、`parent_lines=0` | 见下命令块 |
 | 对象数 | 快照 **2581**（1 commit + 173 tree + 2407 blob） vs 普通推 **4301** ⇒ 少 **1720** | `git rev-list --objects` |
 | **按值反查（关键）** | 那只 13 位历史裸值在快照对象集里 **0 命中**；同一把值在真实历史对象集里 **1 命中（正对照咬住）** | `evidence/orphan_pin.py` 的 value leg |
@@ -218,7 +218,7 @@ Owner 批准的第四条并行腿。脚本 `evidence/orphan_pin.py`（临时 `GI
 R=/c/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2
 C=/c/Users/33393/Desktop/ai-legal-helper/.worktrees/nondeploy-closeout-20261010
 cat "$R/evidence/orphan-snapshot.sha"
-git -C "$C" rev-parse 'HEAD^{tree}'                       # 期望 == sha 文件里的 tree
+git -C "$C" rev-parse 'HEAD^{tree}'                       # 期望 == sha 文件里的 tree —— 只在『刚生成且之后无新提交』时成立（03:2x 已实测被两笔 docs 提交打破）
 git -C "$C" log -1 --format='%P' 5df5a1277f775fd226f930336fb6c839027fed4e   # 期望空行（无父）
 for t in commit tree blob; do printf "%s=%d
 " "$t" "$(git -C "$C" verify-pack -v "$R/evidence/orphan-snapshot.idx" | awk -v T=$t '$2==T' | wc -l)"; done   # 现量 1/173/2407，合计 2581

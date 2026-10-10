@@ -7,7 +7,7 @@
 
 | 项 | 现量 |
 |---|---|
-| 本地相关 ref | `master=0b54396`(234 笔)、`codex/nondeploy-closeout-20261010=3f605de`(238)、`codex/local-candidate-closeout=fbc29e8`(193)、`origin/master=15562fc`(192) |
+| 本地相关 ref（**03:2x 现量**） | `master=0b54396`(234 笔)、`codex/nondeploy-closeout-20261010=`**`fc7ebf6`**(241 笔；含 5 笔代码 + 2 笔 docs 入册)、`codex/local-candidate-closeout=fbc29e8`(193)、`refs/remotes/origin/master=15562fc`(192，**陈旧**)、`refs/closing/remote-master=985d53e`(204，**远端真实头**，我 fetch 后已把 origin/master 复原回 15562fc)、`refs/closing/orphan-snapshot-20261011=1b1c307…`(1 笔，无父)。旧行写的是 `3f605de`(238)，已过时两笔 |
 | `merge-base master origin/master` | **NONE**（rc=1）⇒ 本地主线与远端跟踪的那支**无共同祖先** |
 | 普通推候选分支的对象数 | **4301**（含 13 位历史裸值，`value_hits=1`） |
 | `master` / `codex/local-candidate-closeout` 的对象数与值命中 | 4252 / 3815，各 `value_hits=1`（都含它 ⇒ 817e7d3 是共同祖先） |
@@ -33,7 +33,7 @@
 |---|---|---|---|
 | A0 | 三条网络探测：`curl api.github.com/meta`、`curl github.com`、`ssh -p 443 -T git@ssh.github.com` | — | 三条各自 rc；若仍 rc=35 ⇒ 后续"远端读数"步骤全标"需 Owner 页面确认" |
 | A1 | **你**在供应商控制台轮换 `ADMIN_PASSWORD`（我不碰外部账户） | 现役值长度/来源不进日志 | 你口头确认"已轮换"；我不读 `.env` 去核 |
-| A2 | `git push ssh://git@ssh.github.com:443/wjt-code-design/fazhi-assistant.git codex/nondeploy-closeout-20261010:codex/nondeploy-closeout-20261010` | 本地该 ref 仍是 `3f605de`；工作树 tracked 脏仍 5 只 | `git ls-remote` 同一内联 URL ⇒ 新 ref 出现且 sha 一致；**新分支创建，天然非 force** |
+| A2 | `git push ssh://git@ssh.github.com:443/wjt-code-design/fazhi-assistant.git codex/nondeploy-closeout-20261010:codex/nondeploy-closeout-20261010`（HTTPS 轨今日同样可用：`git ls-remote` rc=0） | 前置三条现量：① 分支头**不再是 `3f605de`**，以当场 `rev-parse` 为准；② 工作树 `porcelain=0`（旧写「tracked 脏仍 5 只」已过时，那 5 只已进第 5 笔）；③ **若走 D-5(b) 无父快照路线，推送前必须先重跑 `evidence/orphan_pin.py` 并当场比对 `HEAD^{tree}` == 新快照 tree**（03:2x 实测：存放着的旧快照会被后续任何提交打破，这条正是独立复核 C §2.1 抓出的缺陷） | `git ls-remote` 同一内联 URL ⇒ 新 ref 出现且 sha 一致；**新分支创建，天然非 force** |
 | A3 | （可选，解 A1 前置 3）`git push … codex/local-candidate-closeout:codex/local-candidate-closeout` | 现量 4 笔独联提交 | `ls-remote` 该 ref；**不新增凭据外泄**（值命中在候选里已是 1） |
 | A4 | 定 PR base：远端 master 与本地 disjoint ⇒ 直接对远端 master 开 PR＝整树级 diff 且 checks 可能不调度。正路是先合一次 unrelated 历史：`git merge --allow-unrelated-histories origin/<远端真实头>`（**内容冲突要逐个解，不许 discard**） | 远端真实头 sha（需 Owner 页面提供，我今天读不到） | merge 后 `git rev-list --count` 增量、`git status --porcelain` 仍只那 5 只、全量门禁重跑 |
 | A5 | 开 PR（base＝远端 master） | A4 完成或 Owner 选择不做 A4 | PR 号/URL 由 Owner 给；**PR 的 checks 跑在合成 merge ref 上**，无共同祖先时可能压根不调度（在册） |
