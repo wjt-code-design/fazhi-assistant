@@ -188,7 +188,11 @@ def test_legal_resume_updates_exact_issue_once_and_preserves_other_state(store, 
     assert result.old_state_version == 0
     assert result.new_state_version == 1
     assert result.state.status is AgentStatus.PLANNING
-    assert result.state.steps == 4
+    # DB-15（审查报告 B-47）：`WAITING_USER→PLANNING` 是"接受用户自己回答"的记账边，**不计步**
+    # ⇒ 用户回答不再消耗步数（改前此处是 3→4，且当 4 恰好等于 max_steps 时整个 run 永久 409）。
+    # 步数预算的语义由此明确为"模型/工具推进次数"，防循环上界仍在（工具/重规划/澄清边照旧计步，
+    # 见 `tests/test_agent_budget_terminal_edges.py::test_charging_edges_are_untouched`）。
+    assert result.state.steps == 3
     assert result.state.tool_calls == 2
     assert result.state.replans == 1
     assert result.state.clarifications == 1
@@ -673,52 +677,63 @@ def test_resume_twice_advances_version_chain(store, records):
         db.close()
 
 
-def test_resume_when_steps_budget_exhausted_still_conflicts(store, records):
-    """Gate 4 失败路径：steps 预算耗尽时第二次 resume 必须仍 409（budget 防护不被多轮会话绕过）。
+def test_resume_at_exact_step_cap_succeeds_and_still_rejects_stale_version(store, records):
+    """DB-15（审查报告 B-47）：steps 打满时用户的回答**不再被 409 拒收**——恢复边不计步。
 
-    回归背景：settings.agent_max_steps 默认 8 时，两轮澄清会话在第二轮 checkpoint 已 steps=8，
-    用户第二轮回答的 transition(PLANNING) steps→9 触发 BudgetExceeded→409；修复方式为提升默认预算至 16，
-    budget 到顶时本测试确认 fail-closed 语义不变。
+    本测试原先钉的是反面语义（"steps 预算耗尽时第二次 resume 必须仍 409，budget 防护不被
+    多轮会话绕过"），docstring 自己写明：`settings.agent_max_steps` 默认 8 时两轮澄清把
+    steps 顶到 cap ⇒ 第三次转换抛 `BudgetExceeded` ⇒ 409，而当时的"修复"是把默认预算 8→16
+    （后又 16→20）。**边界本身没动**：真数据 47 只 waiting_user run 里有 16 只 steps==cap，
+    它们带着"Agent 任务已变化，无法恢复"这句**假话**永久卡死（任务没变，是预算没了）。
+
+    本轮把 `WAITING_USER→PLANNING` 归入 `state_machine.FREE_STEP_EDGES`（该边不发起任何
+    模型/工具调用；无限追问由 `max_clarifications` 单独封顶，见
+    `tests/test_agent_budget_terminal_edges.py::test_clarification_budget_still_bounds_resume_loop`）。
+    同一条 run 仍必须因**真正的**版本冲突被拒 ⇒ 防绕过的那半防线一口没拆。
     """
     from agent.controller import ResumeRunConflict
     from agent.schemas import AgentBudgets
 
     _engine, sessions = store
     resume, locks = _service()
+
+    tight_state = LegalAgentState(
+        status=AgentStatus.WAITING_USER,
+        steps=8,
+        tool_calls=2,
+        replans=0,
+        clarifications=1,
+        budgets=AgentBudgets(
+            max_steps=8,
+            max_tool_calls=10,
+            max_replans=3,
+            max_clarifications=2,
+            max_duplicate_attempts_per_issue=2,
+            max_verifier_research_returns=1,
+        ),
+        issues=[
+            LegalIssue(
+                issue_id="issue-a",
+                question="请求权是否成立",
+                unknown_facts=[UnknownFact(statement=QUESTION, why_outcome_changes="影响诉讼时效起算")],
+            )
+        ],
+    )
     db = sessions()
     try:
         run = db.get(AgentRun, records["run_id"])
-        tight_state = LegalAgentState(
-            status=AgentStatus.WAITING_USER,
-            steps=8,
-            tool_calls=2,
-            replans=0,
-            clarifications=1,
-            budgets=AgentBudgets(
-                max_steps=8,
-                max_tool_calls=10,
-                max_replans=3,
-                max_clarifications=2,
-                max_duplicate_attempts_per_issue=2,
-                max_verifier_research_returns=1,
-            ),
-            issues=[
-                LegalIssue(
-                    issue_id="issue-a",
-                    question="请求权是否成立",
-                    unknown_facts=[UnknownFact(statement=QUESTION, why_outcome_changes="影响诉讼时效起算")],
-                )
-            ],
-        )
         run.state_json = tight_state.model_dump_json()
         run.state_version = 7
         run.pending_question = QUESTION
         db.commit()
     finally:
         db.close()
-    with pytest.raises(ResumeRunConflict):
-        resume(
-            db=sessions(),
+
+    # ① 改前红、改后必须绿：steps 恰满 cap 的回答要能收下，且状态推进到 PLANNING
+    db = sessions()
+    try:
+        first = resume(
+            db=db,
             run_locks=locks,
             run_id=records["run_id"],
             expected_version=7,
@@ -726,10 +741,44 @@ def test_resume_when_steps_budget_exhausted_still_conflicts(store, records):
             conversation_id=records["conversation"].id,
             answer="约定于2023年1月还款",
         )
+        assert first.new_state_version == 8, "CAS 正常推进应 +1 个 state_version"
+        assert first.state.status is AgentStatus.PLANNING
+        assert first.state.steps == 8, "恢复边免计费 ⇒ steps 仍停在 cap，不被顶到 9"
+        assert first.state.issues[0].facts[-1].statement == "约定于2023年1月还款"
+    finally:
+        db.close()
+
+    # ② 真·版本冲突仍必须 409（防我把"预算绕过"的防线一并拆掉），且成因可归因
     db = sessions()
     try:
-        run = db.get(AgentRun, records["run_id"])
-        assert run.state_version == 7  # 409 不得造成任何状态变更
+        with pytest.raises(ResumeRunConflict) as exc:
+            resume(
+                db=db,
+                run_locks=locks,
+                run_id=records["run_id"],
+                expected_version=7,  # 旧版本重放
+                user_id=records["owner"].id,
+                conversation_id=records["conversation"].id,
+                answer="再答一次",
+            )
+        assert exc.value.reason_code == "state_stale"
+    finally:
+        db.close()
+
+    # ③ 空回答仍按非法回答拒（fx4 语义不变），但成因码与"任务已变化"那一类分得开
+    db = sessions()
+    try:
+        with pytest.raises(ResumeRunConflict) as exc:
+            resume(
+                db=db,
+                run_locks=locks,
+                run_id=records["run_id"],
+                expected_version=8,
+                user_id=records["owner"].id,
+                conversation_id=records["conversation"].id,
+                answer="   ",
+            )
+        assert exc.value.reason_code == "answer_invalid"
     finally:
         db.close()
 

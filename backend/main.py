@@ -76,7 +76,7 @@ from domain_rules import (
     is_contract_review,
 )
 from intent import classify_intent
-from llm_errors import is_transient_error
+from llm_errors import is_request_shape_rejection, is_transient_error, status_of
 from llm_guard import LLMBusyError, llm_guard
 from llm_registry import QuotaExhausted, estimate_tokens, registry
 from memory import compress, load_context, needs_compress, recent_messages, rewrite_query
@@ -1078,7 +1078,10 @@ def _safe_pick(modality: str, tier: str, *, exclude: set[str] | None = None) -> 
         return key, llm, False
     except QuotaExhausted:
         dk = registry.default_key()
-        return dk, registry.get(), registry.is_unavailable(dk)
+        # DB-17 补（2026-10-09 复核轮 B 路）：这条路绕过 `pick` 的冷却过滤，所以降级判定必须
+        # 把"该模型正在 4xx 冷却"也算进去——否则整池冷却时每个请求都会再烧一次刚被打回的
+        # 默认模型，且不标降级（冷却就只剩"少选它"没有"别打它"）。配额语义仍不参与。
+        return dk, registry.get(), registry.is_unavailable(dk) or registry.is_rejected(dk)
 
 
 # 核对/降级提示（轻量升级失败、旗舰自检失败、配额紧张共用，避免字面量重复）
@@ -1887,7 +1890,20 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             raise HTTPException(status_code=404, detail=RESUME_NOT_FOUND_DETAIL) from None
         except ResumeLawAsOfConflict:
             raise HTTPException(status_code=409, detail=RESUME_LAW_AS_OF_DETAIL) from None
-        except ResumeRunConflict:
+        except ResumeRunConflict as _resume_exc:
+            # DB-15（2026-10-09，审查报告 B-47）：同一句 409 文案背后原本是几类完全不同的成因
+            # （版本冲突 / 持久状态读不出 / 用户这次的输入不合式 / 步数预算打满）。
+            # 对外仍只给一句通用文案（不把内部状态机细节泄漏给客户端），成因进结构化日志字段
+            # `agent_resume_reason`（已登记进 observability 白名单，否则会被 JSON formatter 静默丢弃）。
+            logging.getLogger("legal.agent").warning(
+                "agent_resume_conflict",
+                extra={
+                    "agent_resume_reason": _resume_exc.reason_code,
+                    "agent_run_id": str(body.agent_run_id),
+                    "user_id": user.id,
+                    "conv_id": body.conversation_id,
+                },
+            )
             raise HTTPException(status_code=409, detail=RESUME_CONFLICT_DETAIL) from None
         finally:
             db.close()
@@ -2197,7 +2213,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         # （否则 pick 会再选回同一模型 → 死循环）。
                         _ctried.add(_ccur["key"])
                         if not is_transient_error(_e):
-                            registry.mark_depleted(_ccur["key"], "model_failure")
+                            # DB-17（报告 B-48）：请求形状类 4xx（超长上下文/内容审核/模型名错/key 失效）
+                            # 走**冷却**通道，不再记进配额账；真耗尽仍走 mark_depleted。
+                            if is_request_shape_rejection(_e):
+                                registry.mark_rejected(_ccur["key"], "model_failure", status=status_of(_e))
+                            else:
+                                registry.mark_depleted(_ccur["key"], "model_failure")
                     _rstart = True
 
                 async with ClosingStream(
@@ -2409,7 +2430,11 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 if use_router and current["key"]:
                     _tried.add(current["key"])
                     if not is_transient_error(_e):
-                        registry.mark_depleted(current["key"], "model_failure")
+                        # DB-17（报告 B-48）：同上——被拒 ≠ 没钱。见 `_cfail` 处的说明。
+                        if is_request_shape_rejection(_e):
+                            registry.mark_rejected(current["key"], "model_failure", status=status_of(_e))
+                        else:
+                            registry.mark_depleted(current["key"], "model_failure")
                 _restart_pending = True  # 下一 config 将从零重答：前端需清空半截
 
             chunks = []

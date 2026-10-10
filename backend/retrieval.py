@@ -22,7 +22,7 @@ from langchain_core.documents import Document
 import query_understand
 import quota_utils
 import retrieval_core as rc
-from domain_rules import canon_source
+from domain_rules import SOURCE_NAME_PREFIX, canon_source, norm_law_name
 from llm_errors import is_transient_error
 from rag_chain import embeddings, vectorstore
 from settings import settings
@@ -247,7 +247,7 @@ _ART_NO_BRACKET_RE = re.compile(
     r"(?<!《)([一-龥]{1,13}?(?:法|典|条例|规定|办法))"
     r"\s*(第[零〇○一二三四五六七八九十百千万0-9０-９]+条(?:之[一二三四五六七八九十百千万0-9０-９]+)?)"
 )
-_PREFIX_CN = "中华人民共和国"
+_PREFIX_CN = SOURCE_NAME_PREFIX  # DB-18：字面量真源已收进 domain_rules.SOURCE_NAME_PREFIX，此处仅留别名
 
 _CN_DIGITS = "零一二三四五六七八九"  # 下标即数字值（d=1 → 一）
 _CN_UNITS = ("", "万", "亿", "万亿")
@@ -339,9 +339,10 @@ def parse_article_query(query: str):
     if not m:
         return None
     name = m.group(1).strip()
-    if name.startswith(_PREFIX_CN):
-        name = name[len(_PREFIX_CN) :]
-    return name, _normalize_article(m.group(2))
+    # DB-18：原先这里内联着第二份"剥前缀"字面量，现与 `_source_key` 共用同一真源。
+    # （两个抽取正则的第 1 组都只允许汉字/书名号内容，不含括号 ⇒ 剥尾部括注这步在此恒为 no-op，
+    # 行为与改前逐字一致；留着是为了不再有第二份规则。）
+    return norm_law_name(name), _normalize_article(m.group(2))
 
 
 def _valid_docs(data: Mapping[str, Any], cutoff: str, only: list[int] | None = None) -> list[Document]:
@@ -435,18 +436,27 @@ def qa_citations_in_kb(qa: Mapping[str, Any] | None) -> bool:
 
 
 def _norm_source(name: str) -> str:
-    """法名归一：去「中华人民共和国」前缀，便于答案引用与 sources 对齐。"""
+    """法名归一（**弱一档**：只去「中华人民共和国」前缀，不剥尾部括注）。
+
+    ⚠️ 勿删：`tests/test_smoke_citation_assertions.py::test_full_name_normalizer_cannot_drift_from_retrieval`
+    拿它当"照抄错对象"的反面教材——那条断言要求归一对齐 `_source_key`（强一档、剥括注），
+    若有人把归一改成照抄本函数，测试当场红。生产读侧请一律用 `_source_key` / `domain_rules.norm_law_name`。
+    """
     name = (name or "").strip()
     return name[len(_PREFIX_CN) :] if name.startswith(_PREFIX_CN) else name
 
 
 def _source_key(name: str) -> str:
-    """KB 源名归一（用于存在性比对）：去「中华人民共和国」前缀 + 去尾部（年份/版本）括注。
+    """KB 源名归一（用于存在性比对）：真源在 `domain_rules.norm_law_name`，此处仅保留历史名字。
 
     必须处理「宪法（1982年）」：库存源名带括注，用户引「宪法」，不去括注会匹配不上 → 宪法引用全误报。
+    DB-18（2026-10-09，审查报告 B-49）：同一规则此前在本仓有四份字面量（本函数、
+    `parse_article_query` 内联剥前缀、`agent.writer._canonical_law_name`、
+    `scripts/smoke_citation_full.norm_law_name`），且都只认**全角**
+    括注；元典等外部权威源的法规名是 `中华人民共和国劳动合同法(2012修正)` 这类**半角**形状
+    ⇒ 不剥就会让 10 个消费点把"其实有据可查"的引用判成"库里没有"。现收成为一份，全半角都剥。
     """
-    name = _norm_source(name)
-    return re.sub(r"（[^）]*）\s*$", "", name).strip()
+    return norm_law_name(name)
 
 
 # 中文条号 → 数字条号（capture_eval._canonical_number 同口径，供 expected_laws 匹配）。
@@ -675,6 +685,12 @@ def invalidate() -> None:
         _bm25_docs = []
         _src_set_cache = None
         _cache.clear()
+        # DB-16 补（2026-10-09 复核轮 B 路）：seen 集也要跟着清。它是"同一 (stage,category)
+        # 每进程只 warn 一次"的抑制器；知识增删后写侧可能刚把 `category` 补上（或补出错值），
+        # 不清就会带着"上次见过"的记忆继续静默。清掉 ⇒ 新一轮数据允许重新留一次痕。
+        _CATEGORY_MISS_SEEN.clear()
+        # 同上理：写侧补上/改错 `category` 之后，「这个维度存不存在」的答案会变，缓存必须跟着清。
+        _CATEGORY_ADVERTISED.clear()
         answer_cache.clear()
 
 
@@ -732,20 +748,108 @@ def vector_top(
     # embedding_function 自动嵌入时扣减）——此处不再显式扣，防双扣（ADR-011 阶段5）。
     filt = {"category": category} if category else None
     fetch_n = max(n * VECTOR_POOL_MULT, VECTOR_POOL_MIN)
-    res = vectorstore.similarity_search_with_score(query, k=fetch_n, filter=filt)
-    out = []
-    for d, s in res:
-        if valid and not valid(d.metadata):
-            continue
-        out.append((d, float(s)))
-        if len(out) >= n:
-            break
+
+    def _collect(res: list) -> list[tuple[Document, float]]:
+        acc: list[tuple[Document, float]] = []
+        for d, s in res:
+            if valid and not valid(d.metadata):
+                continue
+            acc.append((d, float(s)))
+            if len(acc) >= n:
+                break
+        return acc
+
+    out = _collect(vectorstore.similarity_search_with_score(query, k=fetch_n, filter=filt))
+    # DB-16（2026-10-09，审查报告 B-05）：带 category 却取零 ⇒ 回落一次无过滤，并落 warning。
+    # 现网两个条文集合的 metadata **没有 `category` 键**（实测各 10,266 行、每行 8 键，报告 §12.6），
+    # 而 Chroma 0.4.24 对"缺失键"的 `$eq` 与 `$ne` 一律**排除该行**（实测九腿，报告 §12.3）
+    # ⇒ 非空 category 把向量池与 BM25 池同时清零，改前**零日志**，Agent 只记"证据缺失"。
+    # 回落只在「这个维度在语料里根本不存在」时发生（DB-19「丁」，Owner 2026-10-10）。
+    # 维度存在而值不存在 ⇒ 是真零命中，返回空并留痕；用无过滤结果顶替会把「民法」「劳动法」
+    # 当成「行政法」的依据交下去，那是跨类冒充，比答窄更坏。
+    if not out and category:
+        if _corpus_advertises_category(vectorstore, category):
+            _note_category_filter_miss(category, stage="vector_top", outcome="filter_no_match_kept_empty")
+        else:
+            _note_category_filter_miss(category, stage="vector_top", outcome="filter_unsupported_fell_back")
+            out = _collect(vectorstore.similarity_search_with_score(query, k=fetch_n, filter=None))
     return out
 
 
 def _doc_id(d: Document) -> str:
     # 无稳定外部 id 时以内容作融合 key（chunk 内容唯一）
     return d.page_content
+
+
+# DB-16（2026-10-09，审查报告 B-05）：category 过滤落空的**进程内计数**（同值只 warn 一次，防刷屏）。
+# 现网库里没有 `category` 键，Chroma 对缺失键的 $eq/$ne 都排除该行（实测报告 §12.3）⇒
+# 任何非空 category 都会把向量池与 BM25 池同时清零，且改前零日志。回落之后必须留下痕迹，
+# 否则"检索为空"永远会被读成"库里真没有"（09-26 那次 rerank 降权被误读成召回缺口，就是同一类教训）。
+_CATEGORY_MISS_SEEN: set[str] = set()
+
+# DB-19「丁」（Owner 2026-10-10 裁「按推荐」）：回落的**前置判定**缓存，键是集合名。
+# 值为 True ⇔ 语料里至少有一条文档带 `category` 这个维度 ⇒ 该维度可过滤 ⇒ 过滤取零是真零命中，
+# 不许再用无过滤结果冒充（那是跨类borrow）；False ⇔ 这个键在语料里根本不存在（现网形状）⇒ 回落一次。
+# 判定与所问值无关（见 `_corpus_advertises_category` 的实测依据），所以可按集合名缓存；
+# 知识增删会改变答案，故 `invalidate()` 必须清它。
+_CATEGORY_ADVERTISED: dict[str, bool] = {}
+
+_PRESENCE_PROBE = "__category_presence_probe__"
+
+
+def _corpus_advertises_category(vs: Any, category: str | None = None) -> bool:
+    """向量侧判定「语料里有没有 category 这个维度」，用的是实测语义而不是我希望的语义。
+
+    chromadb 0.4.24 把 metadata 里缺该键的行在 `$eq` 与 `$ne` 下**一并排除**
+    （证据 `evidence/probe_chroma_key_presence.py`：S1 全不带键 ⇒ eq/ne 双 0；S2/S3 带键 ⇒ ne>0）。
+    于是「两条探针都取零而集合非空」⇔「没有任何文档带这个键」。判定与所问值无关 ⇒ 可按集合名缓存。
+    取不到 `_collection` 出口（别处的替身、未来换实现）⇒ 返回 False 维持「回落一次」的旧形状：
+    探测能力缺失不该变成用户侧的硬失败（那是另一种静默）。
+    """
+    col = getattr(vs, "_collection", None)
+    if col is None:
+        return False
+    probe = category or _PRESENCE_PROBE
+    try:
+        name = str(col.name)
+        total = int(col.count())
+        if total == 0:
+            return False
+        cached = _CATEGORY_ADVERTISED.get(name)
+        if cached is not None:
+            return cached
+        eq = col.get(where={"category": probe}, limit=1, include=[])
+        ne = col.get(where={"category": {"$ne": probe}}, limit=1, include=[])
+        advertised = bool((eq or {}).get("ids")) or bool((ne or {}).get("ids"))
+    except Exception:  # noqa: BLE001 - 探针失败一律退回旧形状，不在此处抛穿到用户侧
+        return False
+    _CATEGORY_ADVERTISED[name] = advertised
+    return advertised
+
+
+def _docs_advertise_category(docs: list[Document]) -> bool:
+    """BM25 侧的同一判定：文档就在手边，直接看键，结论与向量侧同一条规则。"""
+    return any("category" in (d.metadata or {}) for d in docs)
+
+
+def _note_category_filter_miss(category: str, *, stage: str, outcome: str) -> None:
+    """带 category 过滤却取零 ⇒ 落一条可归因的 warning（只含键值/阶段名/结局，不含用户文本）。
+
+    `outcome` 进抑制键是必需的：同一 (stage,category) 的两种结局（回落 vs 保持空）不能互相顶掉，
+    否则写侧补上 category 的那天，新结局会被上一轮的旧记录静默吞掉。
+    """
+    key = f"{stage}|{category}|{outcome}"
+    if key in _CATEGORY_MISS_SEEN:
+        return
+    _CATEGORY_MISS_SEEN.add(key)
+    logger.warning(
+        "retrieval_category_filter_miss",
+        extra={
+            "category_filter_value": category,
+            "category_filter_stage": stage,
+            "category_filter_outcome": outcome,
+        },
+    )
 
 
 def bm25_top(
@@ -758,7 +862,17 @@ def bm25_top(
     model, docs = _ensure_bm25()
     if model is None:
         return []
-    return rc.bm25_top(model, docs, query, n, category, valid=valid)
+    out = rc.bm25_top(model, docs, query, n, category, valid=valid)
+    # DB-16（审查报告 B-05）：BM25 侧的 category 是 Python 谓词 `d.metadata.get("category") != category`
+    # （`retrieval_core.py:228`），而 `_ensure_bm25` 的文档与向量池取自**同一个** `_collection.get()`
+    # ⇒ 缺键时这里与向量侧一起清零。同口径回落一次（无 category），并留痕。
+    if not out and category:
+        if _docs_advertise_category(docs):
+            _note_category_filter_miss(category, stage="bm25_top", outcome="filter_no_match_kept_empty")
+        else:
+            _note_category_filter_miss(category, stage="bm25_top", outcome="filter_unsupported_fell_back")
+            out = rc.bm25_top(model, docs, query, n, None, valid=valid)
+    return out
 
 
 def _cosine_rank(query: str, docs: list[Document]) -> list[Document]:
@@ -1201,10 +1315,22 @@ def grounded_top_score(query: str, category: str | None = None, cutoff: str | No
     """
     cutoff = cutoff or date.today().isoformat()
     valid = lambda m: rc.is_valid_by_time(m, cutoff)  # noqa: E731
-    res = vectorstore.similarity_search_with_score(
-        query, k=max(VECTOR_POOL_MIN, 8), filter=({"category": category} if category else None)
-    )
+    fetch_k = max(VECTOR_POOL_MIN, 8)
+    filt = {"category": category} if category else None
+    res = vectorstore.similarity_search_with_score(query, k=fetch_k, filter=filt)
     res = [(d, s) for d, s in res if valid(d.metadata)]
+    # DB-16（审查报告 B-05）：沉淀打分侧同一条 where 形状，同口径回落一次。
+    # 不回落的后果是"带 category 的问句永远打 0 分 ⇒ 永不进待审队列"，而且是**静默**的。
+    if not res and category:
+        if _corpus_advertises_category(vectorstore, category):
+            _note_category_filter_miss(category, stage="grounded_top_score", outcome="filter_no_match_kept_empty")
+        else:
+            _note_category_filter_miss(category, stage="grounded_top_score", outcome="filter_unsupported_fell_back")
+            res = [
+                (d, s)
+                for d, s in vectorstore.similarity_search_with_score(query, k=fetch_k, filter=None)
+                if valid(d.metadata)
+            ]
     if not res:
         return 0.0
     if _collection_is_cosine():

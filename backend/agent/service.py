@@ -632,6 +632,26 @@ def execute_agent_request(
             conversation_id=bootstrap.conv_id,
             state_version=state_version,
         )
+    except BudgetExceeded as exc:
+        # DB-15（2026-10-09，报告 B-01）：终稿边 `DRAFTING→COMPLETED` 自本轮起**不计步**，
+        # 所以这条只在"state 已经越界的坏形状"下到达。此前它被下面的 `except Exception`
+        # 折成 `AGENT_STORAGE_FAILURE`——那是**不在** `routing_metrics.TECHNICAL_FALLBACK_REASON_CODES`
+        # 里的码（白名单有 `AGENT_BUDGET_EXCEEDED`、没有它），于是用户拿到硬错误而不是
+        # 本该有的快车道兜底答案，且 run 永卡 drafting。归到正确的那一档。
+        logging.getLogger("legal.agent").warning(
+            "agent_finalize_budget_exceeded",
+            extra={
+                "agent_run_id": active_run_id,
+                "agent_conversation_id": bootstrap.conv_id,
+                "agent_failure_detail": str(exc)[:200],
+            },
+        )
+        return _failure_or_fallback(
+            "AGENT_BUDGET_EXCEEDED",
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=state_version,
+        )
     except Exception:
         return _failure_or_fallback(
             "AGENT_STORAGE_FAILURE",

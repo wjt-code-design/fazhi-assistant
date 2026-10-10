@@ -18,6 +18,7 @@ from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
+from domain_rules import norm_law_name
 from prompts import AGENT_WRITER_SYSTEM
 from settings import settings
 
@@ -471,11 +472,13 @@ def _canonical_article(article: str) -> tuple[str, str]:
 
 
 def _canonical_law_name(raw: str) -> str:
-    """法名归一化（去「中华人民共和国」前缀与尾部括注）——`canonical_citations` 与续引展开共用。"""
-    source = raw.strip()
-    if source.startswith("中华人民共和国"):
-        source = source[len("中华人民共和国") :]
-    return re.sub(r"（[^）]*）\s*$", "", source).strip()
+    """法名归一化——真源在 `domain_rules.norm_law_name`（DB-18 / 审查报告 B-49，2026-10-09）。
+
+    原先本函数自带一份"去前缀 + 剥尾部括注"的字面量，且**只认全角** `（…）`；
+    它与 `retrieval._source_key` 是同一规则的两份实现，改一份就会漂 ⇒ 现两处共用同一真源。
+    `canonical_citations` 与续引展开共用本函数（对外行为只放宽一处：半角版本括注现在也能对上）。
+    """
+    return norm_law_name(raw)
 
 
 def canonical_citations_in_order(text: str) -> list[tuple[str, str, str]]:

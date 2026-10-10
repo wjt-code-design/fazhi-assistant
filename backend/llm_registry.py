@@ -14,7 +14,9 @@
 
 import inspect
 import json
+import logging
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -26,6 +28,16 @@ from domain_rules import QUOTA_THRESHOLD
 from settings import settings
 
 DEFAULT_QUOTA = 1_000_000
+
+# DB-17（2026-10-09，审查报告 B-48）：**请求形状类 4xx** 的冷却时长（秒）。
+# 判据来自 `llm_errors.is_request_shape_rejection`——400/401/403/404/422 是「这一发请求本身不被接受」
+# （超长上下文、内容审核、模型名写错、key 失效、端点点错），**不是**「这个模型的积分用完了」。
+# 改前两证已钉：分类口径由 `tests/test_llm_failover.py::test_permanent_status_is_not_transient_in_both_sdk_shapes`
+# 钉成 permanent（本轮不动它；按名字引，行号会随该文件加腿而漂），
+# 但 permanent 的处理通道只有一条 `mark_depleted`，其实现是 `runtime_used += quota_left`，
+# 且 `reason` 参数被**整个丢弃** ⇒ 一次 400 在管理台/配额库里的读数是"该模型配额耗尽"，
+# 运维据此去加积分、调 calibrate，而真病因（payload/配置）永远不出现在任何一张表里。
+REJECT_COOLDOWN_S = 300
 
 # 默认代表模型表：key / model / modality / tier / capabilities / initial_used（截图已用量）
 # base_url / api_key 复用 settings；可在 .env 用 LLM_MODELS_JSON 整体覆盖。
@@ -312,6 +324,10 @@ class ModelEntry:
     quota_total: int
     initial_used: int
     runtime_used: int = 0
+    # DB-17：请求形状类 4xx 的**冷却到期时刻**（`time.monotonic()` 基准，0 = 未处于冷却）。
+    # 刻意不写进配额账（`runtime_used`/`initial_used` 一字不动），也刻意不落库：
+    # 耗尽是运行期事实可持久校准，拒绝是**瞬时事实**，过期即自愈（重启自然清零）。
+    rejected_until: float = 0.0
     llm: ChatOpenAI | None = field(default=None, repr=False)
 
     @property
@@ -329,7 +345,15 @@ class ModelEntry:
         return self.quota_left / self.quota_total < QUOTA_THRESHOLD
 
     @property
+    def rejected_now(self) -> bool:
+        """是否处于 4xx 冷却中（DB-17）。与配额语义**无关**。"""
+        return self.rejected_until > time.monotonic()
+
+    @property
     def unavailable(self) -> bool:
+        # DB-17：`unavailable` 的**配额语义**（depleted/below_threshold）保持不变——它被管理台、
+        # `pick_by_key`（judge 等显式指定）与配额快照消费，把冷却混进去会让"显式指定被拒的模型"
+        # 变成 KeyError，那超出本票范围。冷却只作用于**自动路由**（见 `pick` 的过滤式）。
         return self.depleted or self.below_threshold
 
 
@@ -574,6 +598,8 @@ class LLMRegistry:
                 for e in candidates:
                     if e.key in skipped:
                         continue
+                    if e.rejected_now:
+                        continue  # DB-17：4xx 冷却期内退出自动路由，过期自愈（不动配额账）
                     if not e.unavailable and e.key not in self._admin_disabled:
                         assert e.llm is not None
                         return e.key, e.llm
@@ -600,6 +626,18 @@ class LLMRegistry:
         with self._lock:
             e = self._entries.get(key)
             return e.unavailable if e else True
+
+    def is_rejected(self, key: str) -> bool:
+        """该 key 是否处于 4xx **冷却**中（DB-17，2026-10-09 复核轮 B 路补）。
+
+        为什么单独要这个口子：`_safe_pick` 在 `QuotaExhausted` 时直接回落 `registry.get()`，
+        那条路**绕过了 `pick` 的冷却过滤**。若只看配额（`is_unavailable`），"整池都在冷却"
+        会被读成"默认模型健康"，于是每个请求都再烧一次刚被打回的调用、还不标降级——
+        冷却就只剩"少选它"没有"别打它"。语义与 `unavailable` 严格分开：这里不涉配额。
+        """
+        with self._lock:
+            e = self._entries.get(key)
+            return bool(e and e.rejected_now)
 
     def default_key(self) -> str:
         """默认/兜底模型 key（_safe_pick 回退用，使回退路径也能扣配额）。"""
@@ -637,6 +675,34 @@ class LLMRegistry:
             if not e or e.depleted:
                 return
             e.runtime_used += max(0, e.quota_left)
+        # DB-17：`reason` 参数此前**被整个丢弃**（连日志都不落）。保留原有幂等早退语义
+        # （已 depleted 不重复记账、不重复落日志），只在真正置尽的那一次落一条。
+        logging.getLogger("legal.llm").warning(
+            "llm_model_depleted",
+            extra={"model": self.model_of(key), "model_failure_channel": "exhausted", "model_failure_reason": reason},
+        )
+
+    def mark_rejected(self, key: str, reason: str, *, status: int | None = None) -> None:
+        """请求形状类 4xx ⇒ **短期冷却**，不改任何配额数字（DB-17 / 报告 B-48）。
+
+        与 `mark_depleted` 的分工：耗尽→配额账 + 直到重启或人工校准；拒绝→只进冷却 + 自动到期。
+        `reason`/`status` 进结构化日志（`model_failure_channel` 等字段已登记白名单），
+        因为"被拒"与"没钱"在管理台上必须一眼分得开——这是本票的全部动机。
+        """
+        with self._lock:
+            e = self._entries.get(key)
+            if not e:
+                return
+            e.rejected_until = time.monotonic() + REJECT_COOLDOWN_S
+        logging.getLogger("legal.llm").warning(
+            "llm_request_rejected",
+            extra={
+                "model": self.model_of(key),
+                "model_failure_channel": "rejected",
+                "model_failure_reason": reason,
+                "llm_error_status_code": status,
+            },
+        )
 
     def calibrate(self, key: str, remaining: int) -> dict[str, Any]:
         """配额校准（块 3）：按控制台真实剩余值回写 initial_used，看门狗对齐真实值。
@@ -699,6 +765,8 @@ class LLMRegistry:
                     "quota_total": e.quota_total,
                     "quota_left": e.quota_left,
                     "depleted": e.depleted,
+                    # DB-17：冷却是**另一个通道**，管理台要看得见，否则会把它误读成配额耗尽
+                    "rejected_remaining_s": round(max(0.0, e.rejected_until - time.monotonic()), 1),
                     "below_threshold": e.below_threshold,
                     "admin_disabled": e.key in self._admin_disabled,
                 }

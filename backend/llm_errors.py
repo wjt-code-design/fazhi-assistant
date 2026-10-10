@@ -97,3 +97,25 @@ def is_transient_error(exc: BaseException) -> bool:
     if _is_transport_like(exc):
         return True
     return status_of(exc) in TRANSIENT_STATUS
+
+
+# DB-17（2026-10-09，审查报告 B-48）：**请求形状类 4xx** —— 语义是"这一发请求不被接受"，
+# 不是"这个模型没额度了"。超长上下文（context_length_exceeded）、内容审核拦截、模型名写错、
+# key 失效、端点点错都在这一族；`tests/test_llm_failover.py::test_permanent_status_is_not_transient_in_both_sdk_shapes`
+# 已把它们钉成 **非瞬时**（本轮一个字没动那条口径——模型名错/key 失效确实该退出轮换；
+# 该用例在 HEAD 的行号是 :167-170，本轮给该文件加了腿之后落在 :174-177，所以这里按**名字**引），
+# 本常量的用途只是给"退出多久、以什么名义退出"换一个通道。
+# 真 SDK 网格实测（报告 §12.4，openai 1.109.1 打 127.0.0.1 stub）：
+# 400→BadRequestError、401→AuthenticationError、403→PermissionDeniedError、
+# 404→NotFoundError、422→UnprocessableEntityError，均 `is_transient_error() == False`，
+# 且**同一 400 连打三次同判** ⇒ 同一份 payload 换模型继续打，会把链上模型逐个标死。
+REQUEST_SHAPE_STATUS = frozenset({400, 401, 403, 404, 422})
+
+
+def is_request_shape_rejection(exc: BaseException) -> bool:
+    """非瞬时失败里再分一刀：是"请求被拒"（4xx 形状类）还是"真耗尽/坏配置"。
+
+    True  ⇒ 调用方走 `llm_registry.mark_rejected`（冷却，不动配额账）；
+    False ⇒ 保持原路 `mark_depleted`（含无状态码的本地异常，如解析错、SDK 侧 QuotaExceeded 文案）。
+    """
+    return status_of(exc) in REQUEST_SHAPE_STATUS

@@ -9,13 +9,19 @@ target-version = "py311"
 # 2026-09-16 unfreeze 记录：verifier.py（T2 渲染收窄，handoff 授权）与 chat_integration.py
 # （T1 覆盖契约；不在 1e9 候选 candidate-hashes.json 锚定内）已由用户工作流解冻并接受改动
 # ⇒ 两项从 exclude 删除（履行本注释义务，恢复 lint 覆盖）。
+# 2026-10-10 unfreeze 记录：agent/state_machine.py。Owner 在非部署收尾轮对「在册仍声明冻结 vs DB-15 已改此文件」
+#   的冲突裁「按推荐」=确认解冻并保留改动。判据与前两例同式：最新锚定 candidate-hashes.json（1e9，git_head 604fa240）
+#   只含 writer.py/verifier.py/switches/prior，**不含 state_machine.py**；本轮改动（FREE_STEP_EDGES + charge 查表，+22/-1）
+#   由 tests/test_agent_budget_terminal_edges.py 钉住。履行本文件注释义务：已从 exclude 删除该行，恢复 lint 覆盖。
+#   解冻代价实测（2026-10-10）：`ruff check` 该文件 HEAD 与接收字节均 rc=0；`ruff format --check` 两者**同一条 rc=1**
+#   （`self.state = state.model_copy(...)` 那段旧语句，HEAD:37）⇒ 格式债早于本轮，本次随解冻做一次纯格式化并断言 AST 不变。
+#   prompts.py 与 scripts/gate5_judge.py 仍冻结保留（后者实测解冻要真改代码：ruff check 2 个错误）。
 # 2026-09-18 unfreeze 记录：repository.py（R15-lite：law_as_of 服务端注入管道须改 create_run；
 # Owner 于当日会话决策卡明确授权"解冻并保留改动"）。判据与 09-16 先例一致：最新 1e9 锚定
 # （candidate-hashes.json）不含 repository.py，仅 09-10 t2-persistence 老 manifest 锚定过
 # （历史状态可经 git 历史复现）。解冻代价实测：ruff check 0 issue；format 仅 1 处既有签名
 # 折叠（load_owned_run，与本批改动无关），已接受。state_machine/prompts/gate5_judge 仍冻结保留。
 exclude = [
-    "agent/state_machine.py",
     "prompts.py",
     "scripts/gate5_judge.py",
 ]

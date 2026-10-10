@@ -103,6 +103,29 @@ _ACCOUNT_FIELDS = (
     # 只含模型名与异常类名/摘要（截断 160 字符），不含任何用户文本或密钥。
     "rerank_model",
     "rerank_error",
+    # agent_resume_conflict（2026-10-09，DB-15 / 审查报告 B-47）：409 恢复冲突的**成因码**。
+    # 同一句对外文案「Agent 任务已变化，无法恢复」背后原本是几类完全不同的成因（版本冲突 /
+    # 持久状态读不出 / 用户这次输入不合式 / 步数预算打满）——不带码就只能知道"拒了"而不知道"为什么拒"，
+    # 而 B-47 那 16/47 只卡死的 run 正是靠最后这一类才能被发现。未登记会被 JSON formatter 静默丢弃。
+    # 值只含成因字面量与 run/conversation 标识，不含用户文本。
+    "agent_resume_reason",
+    # retrieval_category_filter_miss（2026-10-09，DB-16 / 审查报告 B-05）：带 `category` 过滤却取零
+    # ⇒ 回落无过滤并落此条。现网两个条文集合的 metadata **没有 `category` 键**（实测各 10,266 行、
+    # 每行 8 键），而 Chroma 0.4.24 对缺失键的 `$eq`/`$ne` 一律排除该行（实测报告 §12.3）
+    # ⇒ 非空 category 会把向量池与 BM25 池同时清零，改前**零日志**、Agent 只记"证据缺失"。
+    # 未登记会被 JSON formatter 静默丢弃 ⇒ "回落发生了多少次、被哪个值触发"又变回不可归因。
+    # 值只含调用方给的分类字面值与内部阶段名，不含用户文本。
+    "category_filter_value",
+    "category_filter_stage",
+    "category_filter_outcome",
+    # llm_request_rejected / llm_model_depleted（2026-10-09，DB-17 / 审查报告 B-48）：
+    # 把"这个模型没额度了"与"这一发请求被拒（400 超长/审核、401/403 key 失效、404 端点错、422）"
+    # 拆成两条通道之后，必须让拆分本身可见——`model_failure_channel` 只有 exhausted/rejected 两个值，
+    # `model_failure_reason` 是调用方给的原因字面量（此前 `mark_depleted(key, reason)` 的 reason
+    # 被**整个丢弃**，连日志都不落，所以"为什么这个模型在管理台上变红了"事后无从查）。
+    # 两个字段都不含用户文本与密钥。
+    "model_failure_channel",
+    "model_failure_reason",
     # S5 快车道版本绊线（2026-09-19，settings.fast_path_law_version_check）：命中/保守分支落日志的
     # 归因四字段。`fast_path_law_version_detail` = **被判定原文**（模型答案，截断 200），
     # `fast_path_law_version_reason` = 命中口径（沿用 agent 路径的 LAW_VERSION_WATERSHED_MISMATCH /

@@ -29,23 +29,14 @@ BACKEND = os.path.dirname(HERE)
 sys.path.insert(0, BACKEND)
 
 import output_normalize  # noqa: E402
+from domain_rules import norm_law_name  # DB-18（2026-10-09）：归一真源在 domain_rules，脚本不再自带副本
 
 BASE = "http://localhost:8000"
 
-_PREFIX_CN = "中华人民共和国"
-_YEAR_NOTE_RE = re.compile(r"（[^）]*）\s*$")
 # 与生产 `retrieval._ART_FULL_RE` 同一截条号形状；两处字面量必须共存，由
 # `test_full_citation_pattern_cannot_drift_from_retrieval` 钉住不许分叉。
 _ART_CORE = r"第[零〇○一二三四五六七八九十百千万0-9０-９]+条(?:之[一二三四五六七八九十百千万0-9０-９]+)?"
 _CITE_RE = re.compile(r"《([^》]{1,24}?)》\s*(" + _ART_CORE + r")")
-
-
-def norm_law_name(name: str) -> str:
-    """法名归一：去"中华人民共和国"前缀、剥尾部年份/修正括注（与 `retrieval._source_key` 同口径）。"""
-    name = (name or "").strip()
-    if name.startswith(_PREFIX_CN):
-        name = name[len(_PREFIX_CN) :]
-    return _YEAR_NOTE_RE.sub("", name).strip()
 
 
 def citation_pairs(answer: str):

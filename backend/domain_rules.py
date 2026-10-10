@@ -318,6 +318,41 @@ def canon_source(name: str) -> str:
     return SOURCE_ALIAS.get(name, name)
 
 
+# ==================== 法名归一（唯一真源，DB-18 / 审查报告 B-49，2026-10-09） ====================
+# 库存 `source` 是裸名（`劳动合同法`），而外部权威源与模型输出常写成
+# `中华人民共和国劳动合同法(2012修正)`——元典智库返回的法规名**正是这个形状**
+# （实测 docs/backend-readonly-audit-20260929.md §12.6：劳动合同法/消费者权益保护法都带
+# 半角修正括注）。此前"去前缀 + 剥尾部括注"这条规则有**三份**实现
+# （`retrieval._source_key`、`retrieval.parse_article_query` 内联剥前缀、
+# `agent.writer._canonical_law_name`）加脚本里一份副本，且**全部只认全角 `（…）`**
+# ⇒ 半角版本括注不被容忍，10 个引用校验消费点会把"其实有据可查"的引用判成"库里没有"
+# （引用校验假阴性，比拦下更坏）。
+# 本函数把**生产读侧那四份**收成一份（`_source_key`、`parse_article_query` 内联、
+# `agent.writer._canonical_law_name`、`scripts/smoke_citation_full.norm_law_name`）。
+# ⚠️ 射程要说清楚：还有几份**没并进来**，别把这里读成"全仓只剩一份"——
+#   写侧 `scripts/import_docs.py:36` + `:53-54`（决定库存 `source` 长什么样）、
+#   `scripts/capture_eval.py:56`、`scripts/gen_qwen_cases.py:61`；
+#   以及"弱一档那一族"（只剥前缀、不剥括注）的两份 `retrieval._norm_source:438-446` 与
+#   `agent/dept_guard.py:42` + `:45-52`——并进来会**变宽**它们的语义，属另两票（报告 DB-20/DB-21）。
+# `gate_exit_registry.py:280` 的在册纪律是"不另写第二份去括注正则"——本票是**收口**，未新增第二份。
+SOURCE_NAME_PREFIX = "中华人民共和国"
+# 尾部版本/年份括注：全角 `（…）` 与半角 `(…)` 都剥（历史只认全角即 B-49 根因）。
+# 只剥**尾部**一个，不动中段——与既有 `_source_key` 的行为同界，避免顺手改宽语义。
+_SOURCE_TAIL_PAREN_RE = re.compile(r"[（(][^（）()]*[）)][\s]*$")
+
+
+def norm_law_name(name: str) -> str:
+    """法名归一：去「中华人民共和国」前缀 + 剥**尾部**版本/年份括注（全角与半角都剥）。
+
+    空值安全（None/空串 → 空串）。前缀剥离后立即 strip，不留前导空格
+    （旧 `_norm_source` 单独用会返回 `" 民法典"`，靠调用方末尾 `.strip()` 兜住）。
+    """
+    out = (name or "").strip()
+    if out.startswith(SOURCE_NAME_PREFIX):
+        out = out[len(SOURCE_NAME_PREFIX) :].strip()
+    return _SOURCE_TAIL_PAREN_RE.sub("", out).strip()
+
+
 # ==================== 提示词规则 ====================
 # 引用选择规则（所有意图统一，治"选引不准"）：优先引最具体直接的条款，严禁含糊替代。
 # 原 FORMAT_CLAUSE_RULE 已并入本规则——涉及商家单方限制消费者权利时，

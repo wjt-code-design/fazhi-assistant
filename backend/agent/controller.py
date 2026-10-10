@@ -238,9 +238,17 @@ def _find_pending_unknown(state: LegalAgentState, pending: str | None) -> tuple[
 
 
 class ResumeRunConflict(RuntimeError):
-    """A stale, already-resumed, or structurally inconsistent resume."""
+    """A stale, already-resumed, or structurally inconsistent resume.
 
-    def __init__(self) -> None:
+    DB-15（2026-10-09，审查报告 B-47）：这个异常原先被**几类完全不同的成因**共用同一句
+    「Agent 任务已变化，无法恢复」⇒ 用户与运维都分不清到底是"版本冲突""状态读不出"，
+    还是"这条 run 的步数预算已打满"（后者正是 B-47 的形状；本轮起该边不再计步，见
+    `state_machine.FREE_STEP_EDGES`）。现每个抛点带一个 `reason_code`：**对外文案仍只有一句**
+    （不把内部状态机细节泄漏给客户端），成因进结构化日志字段 `agent_resume_reason`。
+    """
+
+    def __init__(self, reason_code: str = "state_stale") -> None:
+        self.reason_code = reason_code
         super().__init__(RESUME_CONFLICT_DETAIL)
 
 
@@ -255,17 +263,17 @@ def _parse_scope_selection(answer: str, issue_count: int) -> list[int]:
     """确定性解析范围选择：仅接受 1..issue_count 中 1–5 个唯一 ASCII 编号，其余一律拒绝。"""
     tokens = [token for token in _SCOPE_SELECTION_SEPARATORS.split(answer.strip()) if token]
     if not 1 <= len(tokens) <= _SCOPE_MAX_SELECTION:
-        raise ResumeRunConflict()
+        raise ResumeRunConflict("answer_invalid")
     numbers: list[int] = []
     for token in tokens:
         if not (token.isascii() and token.isdigit()):
-            raise ResumeRunConflict()
+            raise ResumeRunConflict("answer_invalid")
         number = int(token)
         if not 1 <= number <= issue_count:
-            raise ResumeRunConflict()
+            raise ResumeRunConflict("answer_invalid")
         numbers.append(number)
     if len(set(numbers)) != len(numbers):
-        raise ResumeRunConflict()
+        raise ResumeRunConflict("answer_invalid")
     return sorted(numbers)
 
 
@@ -294,7 +302,7 @@ def _resume_with_scope_selection(
     try:
         next_state = transition(next_state, AgentStatus.PLANNING)
     except BudgetExceeded as exc:
-        raise ResumeRunConflict() from exc
+        raise ResumeRunConflict("step_budget") from exc
     try:
         saved = compare_and_save(
             db,
@@ -310,7 +318,7 @@ def _resume_with_scope_selection(
             ),
         )
     except RunVersionConflict as exc:
-        raise ResumeRunConflict() from exc
+        raise ResumeRunConflict("cas_conflict") from exc
     return ResumeResult(
         run_id=cast(str, saved.id),
         issue_id="scope",
@@ -354,7 +362,7 @@ def resume_with_user_fact(
     normalized_answer = answer.strip()
     if not normalized_answer:
         # 对抗审查 fx4（2026-09-13）：空输入按非法回答拒绝（409），而非 ValueError→500。
-        raise ResumeRunConflict()
+        raise ResumeRunConflict("answer_invalid")
 
     evidence_evaluator = evaluator or EvidenceEvaluator()
     with run_locks.acquire(run_id):
@@ -367,16 +375,16 @@ def resume_with_user_fact(
         if run is None:
             raise ResumeRunNotFound()
         if run.state_version != expected_version or run.status != AgentStatus.WAITING_USER.value:
-            raise ResumeRunConflict()
+            raise ResumeRunConflict("state_stale")
         if expected_law_as_of is not None and expected_law_as_of != run.law_as_of:
             raise ResumeLawAsOfConflict()
 
         try:
             persisted_state = LegalAgentState.model_validate_json(cast(str, run.state_json))
         except ValueError as exc:
-            raise ResumeRunConflict() from exc
+            raise ResumeRunConflict("state_unreadable") from exc
         if persisted_state.status is not AgentStatus.WAITING_USER:
-            raise ResumeRunConflict()
+            raise ResumeRunConflict("state_stale")
 
         if persisted_state.pending_scope_issue_ids:
             # Ticket 1：范围选择待决——先于普通事实澄清逻辑处理（纯确定性，不调 LLM）。
@@ -398,7 +406,7 @@ def resume_with_user_fact(
                 or evaluation.clarification is None
                 or run.pending_question != evaluation.clarification.statement
             ):
-                raise ResumeRunConflict()
+                raise ResumeRunConflict("pending_anchor_mismatch")
             resume_issue_id: str = evaluation.issue_id
             resume_fact = evaluation.clarification
         else:
@@ -411,13 +419,13 @@ def resume_with_user_fact(
             None,
         )
         if issue is None:
-            raise ResumeRunConflict()
+            raise ResumeRunConflict("issue_missing")
         selected_index = next(
             (index for index, item in enumerate(issue.unknown_facts) if item == resume_fact),
             None,
         )
         if selected_index is None:
-            raise ResumeRunConflict()
+            raise ResumeRunConflict("pending_anchor_mismatch")
 
         if _is_explicit_unknown(normalized_answer):
             # 用户确认无法提供该事实：acknowledge 并转入条件化（不写入已确认事实，不 409）
@@ -435,7 +443,7 @@ def resume_with_user_fact(
         try:
             next_state = transition(next_state, AgentStatus.PLANNING)
         except BudgetExceeded as exc:
-            raise ResumeRunConflict() from exc
+            raise ResumeRunConflict("step_budget") from exc
 
         try:
             saved = compare_and_save(
@@ -452,7 +460,7 @@ def resume_with_user_fact(
                 ),
             )
         except RunVersionConflict as exc:
-            raise ResumeRunConflict() from exc
+            raise ResumeRunConflict("cas_conflict") from exc
 
         return ResumeResult(
             run_id=cast(str, saved.id),

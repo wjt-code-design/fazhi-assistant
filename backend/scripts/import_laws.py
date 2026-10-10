@@ -8,6 +8,10 @@
 - origin 固定为 "import"（区别于 seed/manual/upload，管理端可显示第三态徽章）。
 
 用法：cd backend && python scripts/import_laws.py [--input 路径] [--validate-only | --dry-run]
+
+三段闸（B-45）：①`CHROMA_DIR` 与固定目标分歧 ⇒ CLI 入口即拒绝（读写之前）；②`--validate-only`
+只校验输入文件，不连接知识库、不加载嵌入模型；③`--dry-run` 读库预览但**不写**——注意它仍然读库，
+别把 `--dry-run` 当"不碰库"。默认（两个开关都不带）就是实写生产索引。
 """
 
 import argparse
@@ -24,8 +28,11 @@ os.chdir(BACKEND)
 
 from law_versions import ReplacementPlan, replaceable_version_ids, version_metadata  # noqa: E402
 from retrieval_core import STATUS_WHITELIST  # noqa: E402
+from scripts import chroma_dir_guard  # noqa: E402
 
 DEFAULT_INPUT = os.path.join(BACKEND, "..", "data", "laws_extra.json")
+# 本脚本的固定目标：它会**实写**生产索引（默认无 --dry-run，并按 file_hash 替换已有 chunk）。
+PROD_CHROMA_DIR = os.path.join(BACKEND, "chroma_db")
 _DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
 _REQUIRED = ("title", "article_number", "content")
 # 占位符拦截：防止「忘了替换原文」就导入（新手流程保护）
@@ -252,5 +259,30 @@ def main():
     print(f"\n导入完成：替换 {n_del} 旧片段，新增 {n_add} 条，跳过 {n_skip} 条。")
 
 
+def _check_env_contract() -> None:
+    """CLI 前置守卫（B-45）：`CHROMA_DIR` 与本脚本固定目标分歧时拒绝跑。
+
+    为什么 import_laws 需要它：它经 `rag_chain.vectorstore` 写入，而那个目录是**环境变量出口**
+    （`rag_chain.py:127`）——运维为了换嵌入/迁库导出过 `CHROMA_DIR` 之后，"我以为在往生产索引导入"
+    和"实际写进了另一个目录"会同时成立，且脚本照常打印"导入完成"。同族的 `backup_data`/
+    `rebuild_embeddings` 早就被这把锁检查过，本脚本是三类可改写生产索引的动作里唯一没被检查的。
+
+    位置是硬约束（判例见 `chroma_dir_guard` 模块 docstring）：只在 `__main__` 路径上调，
+    **不能进 `main()`、更不能在 import 期调** —— `tests/conftest.py` 无条件把 `CHROMA_DIR`
+    指向进程临时库，而 `test_import_laws_preflight.py` 是直接 `monkeypatch sys.argv` 后调
+    `main()` 的，守卫一旦进 `main()` 就把它们钉红。
+    """
+    chroma_dir_guard.assert_matches(PROD_CHROMA_DIR, "import_laws")
+
+
 if __name__ == "__main__":
+    # `--validate-only` 不套守卫，是判据推出来的例外而不是为了让测试过：那条模式在 `main()` 里
+    # 早于 `import knowledge_service / rag_chain` 就在 `if args.validate_only:` 分支 return，
+    # **结构上不可能写库**
+    # ⇒ 没有需要保护的动作；而 `test_import_laws_validation.py` 正靠"把 CHROMA_DIR 指到一只不存在的
+    # 目录"来证明 validate-only 不碰库，拦它等于守卫自己把测试钉红。
+    # 已知粗糙处：按字符串查 argv，argparse 的前缀缩写（`--validate`）会落到"守卫跑"那一侧
+    # ⇒ 偏保守（该放行的被拒），不会把该拦的放走。
+    if "--validate-only" not in sys.argv:
+        _check_env_contract()
     main()
