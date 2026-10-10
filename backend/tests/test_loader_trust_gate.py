@@ -83,19 +83,26 @@ def test_canary_itself_can_go_red():
 
 
 def test_no_production_site_requests_trusted_custom_code():
-    """全生产面 grep `trust_remote_code`，只允许"False / 不设"的形状。"""
-    offenders = []
+    """全生产面用 **AST** 找 `trust_remote_code`，不用行文本 grep。
+
+    为什么不是 grep：grep 腿能被两种写法穿过去 —— ①同一行里出现 `False`（例如
+    `{"trust_remote_code": False or True}`）就被"跳过含 False 的行"这条规则放走；②键名在运行期拼出来。
+    ①现在由本条堵住（AST 不看行文本，只看有没有这个关键字/这个字符串常量）；
+    ②**静态查不到**，那是已知射程外 —— 真行为证据在 `evidence/probe_st_trust*.py`（五臂，独立进程），
+    把这条腿当"接线检查"而不是"门"来读。
+    """
+    hits = []
     for root in PROD_DIRS:
         if not root.is_dir():
             continue
         for py in sorted(root.glob("*.py")):
-            text = py.read_text(encoding="utf-8")
-            for lineno, line in enumerate(text.splitlines(), 1):
-                if "trust_remote_code" not in line:
-                    continue
-                if line.lstrip().startswith("#"):
-                    continue
-                if "False" in line:
-                    continue
-                offenders.append(f"{py.name}:{lineno}: {line.strip()}")
-    assert offenders == [], "生产代码请求了可信自定义代码：" + " | ".join(offenders)
+            try:
+                tree = ast.parse(py.read_text(encoding="utf-8"))
+            except (SyntaxError, UnicodeDecodeError):
+                continue
+            for node in ast.walk(tree):
+                if isinstance(node, ast.keyword) and node.arg == "trust_remote_code":
+                    hits.append(f"{py.name}:{node.lineno} keyword")
+                elif isinstance(node, ast.Constant) and node.value == "trust_remote_code":
+                    hits.append(f"{py.name}:{node.lineno} 字符串键")
+    assert hits == [], "生产代码里出现了 trust_remote_code 的传递点：" + " | ".join(hits)
