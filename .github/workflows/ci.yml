@@ -84,4 +84,8 @@ jobs:
       - name: Unit tests
         run: npm run test
       - name: Build
-        run: npm run build
+        # 2026-10-11：这一步顺带带上产物断言（J3 的回归腿）。dev 与 build 的形状可以不同——
+        # 动态拼出来的类名会被 Tailwind 整条 purge，而此前没有任何测试覆盖这条差异。
+        # 断言脚本自带"对照必须为正"：找不到 CSS 或对照为 0 时退出码 2，不允许假装通过。
+        # 复用已有的 build 步骤 ⇒ 不增加 CI 耗时（只多一次 grep 级读文件）。
+        run: npm run build:check
