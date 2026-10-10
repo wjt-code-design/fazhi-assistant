@@ -17,9 +17,12 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      # 先装 CPU 版 torch，避免 PyPI 默认拉取数 GB 的 CUDA 包
+      # 先装 CPU 版 torch，避免 PyPI 默认拉取数 GB 的 CUDA 包。
+      # 2026-10-10：原先不钉版本 ⇒ CI 每天装的 torch 都在漂，而 requirements 里没有 torch，
+      # 下面 `pip-audit -r requirements.txt` 对它永久失明。现与 backend/requirements.txt、
+      # backend/Dockerfile 同钉 2.13.0，让本机/CI/镜像三根轴对齐。
       - name: Install CPU torch
-        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+        run: pip install "torch==2.13.0+cpu" --index-url https://download.pytorch.org/whl/cpu
       - name: Install deps
         run: pip install -r requirements-dev.txt
       - name: Ruff lint
@@ -44,6 +47,12 @@ jobs:
 
       - name: pip-audit
         run: pip-audit -r requirements.txt
+      # 2026-10-10 补：上面的作业**装的是 requirements-dev.txt**，却只审 requirements.txt
+      # ⇒ 构建/测试工具链（ruff、mypy、pytest、pip-audit 自身及其传递依赖）上的通报在 CI 读数里
+      # 永远不出现。这不是"再加一道噪音"：本轮实测 dev 轴确有独立通报，而它对本机不可见的原因
+      # 就是这一行缺失。不缩审计范围、不用 continue-on-error 凑绿——红就让它红，红才是信号。
+      - name: pip-audit (dev axis)
+        run: pip-audit -r requirements-dev.txt
 
   frontend:
     name: Frontend · build (lint+tsc)
@@ -60,5 +69,16 @@ jobs:
           cache-dependency-path: frontend/package-lock.json
       - name: Install deps
         run: npm ci
+      # 2026-10-10 补三条独立腿。理由不是"多跑一次"：`next build` 只在没设
+      # `eslint.ignoreDuringBuilds` / `typescript.ignoreBuildErrors` 时才顺带检查，
+      # 一旦这两个开关被打开（或被继承自某个配置），前端 lint 与类型门会**静默消失**，
+      # 而 CI 读数照样绿；vitest 用例则从来不在 build 里。三条分开还能让失败一眼归因。
+      # 下一轮若要动 next.config.js，先确认这两个开关仍是关闭态。
+      - name: Lint
+        run: npm run lint
+      - name: Typecheck
+        run: npx tsc --noEmit
+      - name: Unit tests
+        run: npm run test
       - name: Build
         run: npm run build

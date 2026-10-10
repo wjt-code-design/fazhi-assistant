@@ -34,12 +34,16 @@ COPY requirements.txt .
 #     传递依赖仍走上面的 PIP_INDEX_URL(阿里云 PyPI)——此处不覆盖 index，正是修复原根因的关键。
 #   [为什么必须钉死版本] 阿里云 PyPI 镜像上的 torch 是 2.14.0（CUDA 版，数 GB），与 find-links
 #     上的 2.6.0+cpu 并存。按 PEP 440，2.14.0 > 2.6.0+cpu（本地版本标识符仅在主版本号相同时
-#     才参与比较），若不钉死 pip 会选 CUDA 版。钉死 "torch==2.6.0+cpu" 后，阿里云 PyPI 上的
+#     才参与比较），若不钉死 pip 会选 CUDA 版。钉死带 `+cpu` 本地段的版本后，阿里云 PyPI 上的
 #     无后缀版本均不匹配该本地版本标识符，依赖混淆风险归零。
-#   [已知取舍] torch 锁在 2.6.0（镜像已同步的最新 cp311+cpu 版，2025-01 发布），非最新。
+#   [已知取舍] 2026-10-10 由 2.6.0+cpu 升 2.13.0+cpu：torch 2.6.0 单包审计实测 24 条记录/22 个不同 ID，
+#     2.13.0 复算 0 条（修复线含 2.7.0/2.7.1/2.10.0/2.13.0）。按本节自己写的升级路径先核了镜像同步：
+#     `mirrors.aliyun.com/pytorch-wheels/cpu/` 目录现含 +cpu-cp311 共 118 个构建，最高 2.14.1+cpu，2.13.0+cpu 在列
+#     ⇒ 旧注释「镜像只同步到 2.6.0」已过期，这句是它的替代品。下方防呆断言原样保留，未放宽。
+#     非最新：2.14.1+cpu 也在列，但按「不追未经验证的 latest」留在有官方修复线且已过全量的 2.13.0。
 #     若日后需升级：先确认镜像已同步更高 +cpu 版本，再同步修改此处与下方防呆断言。
 RUN pip install --no-cache-dir --retries 10 --timeout 60 \
-      "torch==2.6.0+cpu" \
+      "torch==2.13.0+cpu" \
       --find-links https://mirrors.aliyun.com/pytorch-wheels/cpu/
 
 RUN pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt
