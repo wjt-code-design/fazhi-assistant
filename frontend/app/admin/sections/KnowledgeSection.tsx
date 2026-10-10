@@ -11,11 +11,31 @@ import type { KnowledgeDoc, KnowledgeHit, QaCandidate } from "@/lib/types";
 
 const K_PAGE_SIZE = 50;
 
-/** 条文时效状态徽章（阶段5） */
+/** 条文时效状态徽章（阶段5）
+ *
+ *  值域真源：backend/retrieval_core.py:39 STATUS_WHITELIST（六个）。此前只判两个分支、
+ *  else 一律渲染绿色"现行"⇒ 库里写 `未验证`/`已修改`/`未生效`，界面上显示"现行"
+ *  （报告 H2）。`未验证` 是写侧缺省（main.py:2714/2757），后端 `time_validity_state`
+ *  又判它为 unknown（retrieval_core.py:82）⇒ 这里必须与"现行"视觉分开。
+ *  白名单外的值（如缓存命中行的描述性 status）照原样显示，不再改写文案。
+ */
 function StatusBadge({ status }: { status?: string }) {
-  if (status === "已废止") return <Badge kind="error">已废止</Badge>;
-  if (status === "即将施行") return <Badge kind="accent">即将施行</Badge>;
-  return <Badge kind="success">现行</Badge>;
+  switch (status) {
+    case "现行":
+      return <Badge kind="success">现行</Badge>;
+    case "已修改":
+      return <Badge kind="accent">已修改</Badge>;
+    case "已废止":
+      return <Badge kind="error">已废止</Badge>;
+    case "即将施行":
+      return <Badge kind="accent">即将施行</Badge>;
+    case "未生效":
+      return <Badge kind="accent">未生效</Badge>;
+    case "未验证":
+      return <Badge kind="neutral">未验证</Badge>;
+    default:
+      return <Badge kind="neutral">{status || "未标注"}</Badge>;
+  }
 }
 
 export function KnowledgeSection({
@@ -152,9 +172,14 @@ export function KnowledgeSection({
             value={addForm.status}
             onChange={(e) => setAddForm((f) => ({ ...f, status: e.target.value }))}
           >
+            {/* 值域对齐后端白名单（retrieval_core.py:39）：此前只给 6 值中的 3 个，
+                管理员无法手工录入 已修改/未生效/未验证（schemas.py:179 其实全部接受）。 */}
             <option value="现行">现行</option>
+            <option value="已修改">已修改</option>
             <option value="已废止">已废止</option>
             <option value="即将施行">即将施行</option>
+            <option value="未生效">未生效</option>
+            <option value="未验证">未验证</option>
           </select>
           <div className="flex gap-2">
             <input

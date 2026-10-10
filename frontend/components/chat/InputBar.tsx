@@ -81,7 +81,12 @@ export function InputBar({
             </button>
           </div>
         )}
-        <div className="flex items-center gap-1.5 md:gap-2">
+        {/* G1：390px 视口下 44px 定宽钮吃掉近半行宽，textarea 被挤到 158px（compose 部署态实测）。
+            <md：允许换行（flex-wrap），输入框用 basis-full 独占一行、order-first 提到行首。
+            ≥md：md:flex-nowrap 恢复单行、md:basis-0 配 grow/shrink 等价于改前的 flex-1、
+            md:order-none 恢复源码顺序 ⇒ 桌面端计算样式逐项与改前一致。
+            已知代价：<md 视觉顺序与 DOM 顺序不一致（DOM 先钮后框，视觉上框在上），键盘焦点按 DOM 走。 */}
+        <div className="flex flex-wrap items-center gap-1.5 md:flex-nowrap md:gap-2">
           {caps?.image_chat !== false && (
             <>
               <input
@@ -188,7 +193,7 @@ export function InputBar({
             </button>
           )}
           <textarea
-            className="input min-w-0 flex-1 !rounded-[6px] !py-2 !text-[15px] resize-none max-h-[120px] md:!text-base"
+            className="input min-w-0 order-first grow shrink basis-full md:order-none md:basis-0 !rounded-[6px] !py-2 !text-[16px] resize-none max-h-[120px] md:!text-base"
             rows={2}
             value={input}
             onChange={(e) => onInputChange(e.target.value)}

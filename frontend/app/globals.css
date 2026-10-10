@@ -726,6 +726,13 @@
     box-shadow: var(--shadow-md);
     transform: translateY(-2px);
   }
+  /* 键盘可达（配套 UploadSection 的 role="button" + tabIndex）：焦点必须看得见，
+     样式对齐 .input:focus 的 3px 光环，不加 hover 的上浮（避免焦点态抖动）。 */
+  .upload-zone:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-tint);
+  }
 
   /* ===== 顶栏毛玻璃（樱海玻璃） ===== */
   .header-blur {
@@ -886,6 +893,9 @@
   margin: 0.4rem 0;
   line-height: 1.75;
 }
+/* annotate.ts:222 的标题正则吃 `#`–`####`（四级），第四级此前无规则 ⇒
+   `<h4 class="answer-h4">` 掉回浏览器默认样式（无衬线、无左竖线），脱离设计系统。 */
+.answer-h4,
 .answer-h3,
 .answer-h2,
 .answer-h1 {
@@ -897,6 +907,7 @@
   border-left: 3px solid var(--accent);
   padding-left: 0.625rem;
 }
+.answer-h4 { font-size: 0.95rem; }
 .answer-h3 { font-size: 1.02rem; }
 .answer-h2 { font-size: 1.12rem; }
 .answer-h1 { font-size: 1.25rem; }

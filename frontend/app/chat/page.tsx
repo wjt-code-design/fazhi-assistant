@@ -141,6 +141,12 @@ export default function ChatPage() {
   if (loading || !user) return null;
 
   function acceptImageFile(file: File) {
+    // D12：图片钮按能力位隐藏后，粘贴/拖拽仍能塞图进来 → 发送必然 501（main.py:1697）。
+    // 与按钮用同一判据、同一 fail-open 方向：只有能力位**确认**无视觉能力时才拦（caps 取不到不拦）。
+    if (caps?.image_chat === false) {
+      alert("图片理解当前不可用：所配置模型无视觉能力");
+      return;
+    }
     if (!ACCEPT_IMAGE.includes(file.type)) {
       alert("仅支持 JPEG / PNG 图片");
       return;
