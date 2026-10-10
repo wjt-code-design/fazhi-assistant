@@ -126,6 +126,12 @@ _ACCOUNT_FIELDS = (
     # 两个字段都不含用户文本与密钥。
     "model_failure_channel",
     "model_failure_reason",
+    # D-9 拒答分档（2026-10-11，审查报告 B-48 后续）：401/403/404（key/端点配置错）冷却 3600s、
+    # 400/422（请求形状被拒）沿用 300s。不落这两个字段就只知道"拒了、冷却了一会儿"，
+    # 分不清是配置错还是超长——而前者反复重试永远不会自愈，后者换请求体就能过。
+    # 值只有秒数与档位字面量，不含用户文本与密钥。
+    "llm_reject_cooldown_s",
+    "llm_reject_kind",
     # S5 快车道版本绊线（2026-09-19，settings.fast_path_law_version_check）：命中/保守分支落日志的
     # 归因四字段。`fast_path_law_version_detail` = **被判定原文**（模型答案，截断 200），
     # `fast_path_law_version_reason` = 命中口径（沿用 agent 路径的 LAW_VERSION_WATERSHED_MISMATCH /

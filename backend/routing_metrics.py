@@ -15,6 +15,11 @@ TECHNICAL_FALLBACK_REASON_CODES = frozenset(
         "PLANNER_PARSE_ERROR",
         "TOOL_TIMEOUT",
         "TOOL_UNAVAILABLE",
+        # D-15（Owner 2026-10-11 裁「进 + 单列」）：`TOOL_BUSY` 的唯一产点是 tools/gateway.py 里
+        # try_submit 返回 None 那条分支——它既不发起工具调用也不记账，满足 state_machine.py 自写的
+        # 判据「该边是否发起模型或工具调用」。单列由 fallback_reason_code_counts（每因一 key）保证，
+        # 不得并进 TOOL_UNAVAILABLE 的桶，否则容量背压与依赖不可见会混成同一个数。
+        "TOOL_BUSY",
         "AGENT_BUDGET_EXCEEDED",
         "VERIFIER_TECHNICAL_FAILURE",
     }

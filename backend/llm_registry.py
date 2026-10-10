@@ -1,11 +1,10 @@
 """多模型分级路由注册表 + token 配额监控（保留旧单模型兼容接口）。
 
-代表模型 8 个（按 modality × tier 分层），配额一次性、用完即止、剩余 <5% 自动跳过：
-- 纯文本旗舰 qwen3.7-plus / 轻量 deepseek-r1-distill-qwen-7b / 备用 qwen-plus
-- 全模态旗舰 qwen3.5-omni-plus-2026-03-15 + qwen3-vl-235b / 中端 qwen3-vl-32b /
-  轻量 qwen3.5-omni-flash + qwen2.5-omni-7b
+代表模型按 modality × tier 分层，条目见 `DEFAULT_ROLES`（单一真源；这里不抄条数也不举模型名——
+DB-24 的成因就是注释抄过"8 个"和一批模型名，而表已换成 27 条、举的名字大半不在表里）。
+配额一次性、用完即止、剩余 <5% 自动跳过。
 
-兼容：`get()` 仍返回旧默认全模态旗舰（omni-plus），现有 6 个辅助调用点（描述/改写/
+兼容：`get()` 仍返回旧默认全模态旗舰（omni-plus），现有辅助调用点（描述/改写/
 压缩/兜底/流式首配置）行为不变；主回答路由用 `pick(modality, tier)`。
 
 配额运行态经 quota_store（独立 SQLite）持久化，重启不丢。
@@ -38,6 +37,22 @@ DEFAULT_QUOTA = 1_000_000
 # 且 `reason` 参数被**整个丢弃** ⇒ 一次 400 在管理台/配额库里的读数是"该模型配额耗尽"，
 # 运维据此去加积分、调 calibrate，而真病因（payload/配置）永远不出现在任何一张表里。
 REJECT_COOLDOWN_S = 300
+
+# D-9（Owner 2026-10-11 裁「分两档」）：401/403/404 是**配置性拒绝**——不改配置就不会好，
+# 300 秒后重试等于反复打同一个坏端点；400/422 才是请求形状问题，短冷却合理。
+# 两档在管理台也必须分得开，故 `rejected_kind` 进 `status()` 每一行。
+REJECT_COOLDOWN_BY_STATUS = {401: 3600, 403: 3600, 404: 3600}
+REJECT_CONFIG_STATUSES = frozenset(REJECT_COOLDOWN_BY_STATUS)
+
+
+def reject_cooldown_s(status: int | None) -> int:
+    """按状态码取冷却秒数；未知或无状态 ⇒ 短档（保守，不误升级成长冷却）。"""
+    return REJECT_COOLDOWN_BY_STATUS.get(status if isinstance(status, int) else -1, REJECT_COOLDOWN_S)
+
+
+def reject_kind(status: int | None) -> str:
+    return "config" if isinstance(status, int) and status in REJECT_CONFIG_STATUSES else "shape"
+
 
 # 默认代表模型表：key / model / modality / tier / capabilities / initial_used（截图已用量）
 # base_url / api_key 复用 settings；可在 .env 用 LLM_MODELS_JSON 整体覆盖。
@@ -328,6 +343,7 @@ class ModelEntry:
     # 刻意不写进配额账（`runtime_used`/`initial_used` 一字不动），也刻意不落库：
     # 耗尽是运行期事实可持久校准，拒绝是**瞬时事实**，过期即自愈（重启自然清零）。
     rejected_until: float = 0.0
+    rejected_kind: str | None = None  # D-9：config（改配置才好）与 shape（本次请求的问题）分档
     llm: ChatOpenAI | None = field(default=None, repr=False)
 
     @property
@@ -693,7 +709,9 @@ class LLMRegistry:
             e = self._entries.get(key)
             if not e:
                 return
-            e.rejected_until = time.monotonic() + REJECT_COOLDOWN_S
+            cooldown = reject_cooldown_s(status)
+            e.rejected_kind = reject_kind(status)
+            e.rejected_until = time.monotonic() + cooldown
         logging.getLogger("legal.llm").warning(
             "llm_request_rejected",
             extra={
@@ -701,6 +719,8 @@ class LLMRegistry:
                 "model_failure_channel": "rejected",
                 "model_failure_reason": reason,
                 "llm_error_status_code": status,
+                "llm_reject_cooldown_s": cooldown,
+                "llm_reject_kind": e.rejected_kind,
             },
         )
 
@@ -767,6 +787,7 @@ class LLMRegistry:
                     "depleted": e.depleted,
                     # DB-17：冷却是**另一个通道**，管理台要看得见，否则会把它误读成配额耗尽
                     "rejected_remaining_s": round(max(0.0, e.rejected_until - time.monotonic()), 1),
+                    "rejected_kind": e.rejected_kind if e.rejected_now else None,
                     "below_threshold": e.below_threshold,
                     "admin_disabled": e.key in self._admin_disabled,
                 }

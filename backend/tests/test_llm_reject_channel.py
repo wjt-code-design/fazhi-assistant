@@ -378,3 +378,69 @@ def test_reject_predicate_is_the_only_thing_that_moves_the_flag(monkeypatch):
 
     monkeypatch.setattr(ModelEntry, "rejected_now", property(lambda self: False))
     assert main_module._safe_pick("vision", "flag")[2] is False, "摘掉冷却位即回到 False ⇒ 判据真由它决定"
+
+
+# ---------------------------------------------------------------------------
+# D-9（2026-10-11，Owner 裁「分两档」）：配置性拒绝与请求形状拒绝分档
+# ---------------------------------------------------------------------------
+
+
+def _cooling_left(reg, key, clock):
+    e = llm_registry.registry._entries[key]
+    return round(e.rejected_until - clock["t"], 3)
+
+
+def test_config_rejections_cool_longer_than_shape_rejections(entries, monkeypatch, records):
+    """401/403/404 ⇒ 3600s（改配置才好）；400/422 ⇒ 300s（本次请求的问题）。
+
+    负向控制写在断言里而不是靠"红了"：短档过点后必须回到路由，长档同一时刻
+    必须仍在冷却——把两档改回同一个常数，这两条断言会同时失效。
+    """
+    reg = llm_registry.registry
+    table = entries(_entry("k1"), _entry("k2", priority=2))
+    clock = {"t": 1000.0}
+    monkeypatch.setattr(llm_registry.time, "monotonic", lambda: clock["t"])
+
+    reg.mark_rejected("k1", "model_failure", status=401)
+    assert _cooling_left(reg, "k1", clock) == 3600
+    assert table["k1"].rejected_kind == "config"
+    assert _cooling_left(reg, "k1", clock) != llm_registry.REJECT_COOLDOWN_S, "两档必须真的不同"
+
+    clock["t"] += llm_registry.REJECT_COOLDOWN_S + 1  # 短档已过点，长档必须仍在冷却
+    assert _cooling_left(reg, "k1", clock) > 0, "3600s 档不得随 300s 档一起到期"
+    assert reg.is_rejected("k1") is True
+    clock["t"] += 3600  # 远超长档
+    assert reg.is_rejected("k1") is False, "长档过点后必须自愈"
+
+    reg.mark_rejected("k1", "model_failure", status=400)
+    assert _cooling_left(reg, "k1", clock) == llm_registry.REJECT_COOLDOWN_S
+    assert table["k1"].rejected_kind == "shape"
+
+    hit = [r for r in records if r.getMessage() == "llm_request_rejected"]
+    assert [getattr(r, "llm_reject_cooldown_s", None) for r in hit] == [3600, 300]
+    assert [getattr(r, "llm_reject_kind", None) for r in hit] == ["config", "shape"]
+
+
+def test_status_single_columns_the_two_rejection_kinds(entries):
+    """管理台要分得开「配置坏了」与「这次请求有问题」——混在一起就又回到 B-48。"""
+    reg = llm_registry.registry
+    entries(_entry("cfg"), _entry("shp"), _entry("free"))
+    reg.mark_rejected("cfg", "model_failure", status=403)
+    reg.mark_rejected("shp", "model_failure", status=422)
+    rows = {r["key"]: r for r in reg.status()}
+    assert rows["cfg"]["rejected_kind"] == "config"
+    assert rows["shp"]["rejected_kind"] == "shape"
+    assert rows["free"]["rejected_kind"] is None, "未被拒的模型不该带档别"
+    assert rows["cfg"]["rejected_remaining_s"] > rows["shp"]["rejected_remaining_s"]
+
+
+def test_new_reject_log_fields_are_registered_in_the_whitelist():
+    """在册纪律：动 `extra=` 必须同时登记 `observability._ACCOUNT_FIELDS`。
+
+    白名单外的键不报错——JSON formatter 只拷贝白名单内的键 ⇒ 漏登记等于这两档在
+    结构化日志里根本不存在（本仓 AST 哨兵已抓到过同族两次）。
+    """
+    from observability import _ACCOUNT_FIELDS
+
+    assert "llm_reject_cooldown_s" in _ACCOUNT_FIELDS
+    assert "llm_reject_kind" in _ACCOUNT_FIELDS
