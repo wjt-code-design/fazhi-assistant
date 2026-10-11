@@ -22,7 +22,8 @@
 
 ## 1. 三条硬前置（缺一条就别往下走）
 
-1. **D-5 的答案**（(a) 先轮换 / (b) 孤儿快照 / 先不推）。
+1. **D-5 的答案**（(a) 先轮换 / (b) 孤儿快照 / 先不推）——10-12 已裁 (a)，且「轮换」的真实动作已重定义为 A1+A1b 两步。
+   ⚠️ 就地更正：本卡原 A1 写的「你在供应商控制台轮换 `ADMIN_PASSWORD`」**是错的**——这是应用自己库里的账号，不在任何供应商控制台；而只改 `backend/.env` 里的 `ADMIN_PASSWORD` 也不会让库里那个 `password_hash` 变。旧句按意图已被上面 A1/A1b 两行替换，历史读数不回填。
 2. **远端真实头未知**：TLS 不通 ⇒ 我没法确认远端 master 现在是哪枚、有没有分支保护、Actions 是否启用。
    ⇒ 卡里凡依赖这些的步骤都写成"需 Owner 在页面确认"，不写成我已完成。
 3. **文档引用悬空这件事要先定策**：`fbc29e8` 不在 master 里，103 处引用指向的对象远端将不存在。
@@ -34,7 +35,8 @@
 | 步 | 命令（形状） | 前置读数 | 后置读数（必须打印） |
 |---|---|---|---|
 | A0 | 三条网络探测：`curl api.github.com/meta`、`curl github.com`、`ssh -p 443 -T git@ssh.github.com` | — | 三条各自 rc；若仍 rc=35 ⇒ 后续"远端读数"步骤全标"需 Owner 页面确认" |
-| A1 | **你**在供应商控制台轮换 `ADMIN_PASSWORD`（我不碰外部账户） | 现役值长度/来源不进日志 | 你口头确认"已轮换"；我不读 `.env` 去核 |
+| A1 | **你**在服务器上跑 `python scripts/reset_admin_password.py --username admin`（不带 `--write` 只预览目标，确认打印的 id/role 就是那个账号后再加 `--write`。口令只在终端输入：不进 argv、不读 `.env` 的 `ADMIN_PASSWORD`，我也不经手任何值） | 旧值不出现在我的任何读数里；预览腿不写库（判据 `tests/test_reset_admin_password.py` 10 条，变异仪 9/9 杀） | 你自己确认“已重置”；有效证据是**旧口令登录失败且新口令成功**，由你在页面上试出来 |
+| A1b | **你**在同一处换 `JWT_SECRET` 并按现役形态重启后端 | 代价你已在 10-12 签过：**所有用户一起掉线**（现 token 有效期 7 天）。只重置口令**不会**作废已签发的 JWT——这条限制已由 `test_reset_does_not_revoke_already_issued_token` 走现役 `get_current_user` 钉住 | 拿一个改动前发出的旧 token 打一次受保护接口 ⇒ 期望 401；打不通就说明会话确实断了 |
 | A2 | `git push ssh://git@ssh.github.com:443/wjt-code-design/fazhi-assistant.git codex/nondeploy-closeout-20261010:codex/nondeploy-closeout-20261010`（HTTPS 轨今日同样可用：`git ls-remote` rc=0） | 前置三条现量：① 分支头**不再是 `3f605de`**，以当场 `rev-parse` 为准；② 工作树 `porcelain=0`（旧写「tracked 脏仍 5 只」已过时，那 5 只已进第 5 笔）；③ **若走 D-5(b) 无父快照路线，推送前必须先重跑 `evidence/orphan_pin.py` 并当场比对 `HEAD^{tree}` == 新快照 tree**（03:2x 实测：存放着的旧快照会被后续任何提交打破，这条正是独立复核 C §2.1 抓出的缺陷） | `git ls-remote` 同一内联 URL ⇒ 新 ref 出现且 sha 一致；**新分支创建，天然非 force** |
 | A3 | （可选，解 A1 前置 3）`git push … codex/local-candidate-closeout:codex/local-candidate-closeout` | 现量 4 笔独联提交 | `ls-remote` 该 ref；**不新增凭据外泄**（值命中在候选里已是 1） |
 | A4 | 定 PR base：远端 master 与本地 disjoint ⇒ 直接对远端 master 开 PR＝整树级 diff 且 checks 可能不调度。正路是先合一次 unrelated 历史：`git merge --allow-unrelated-histories origin/<远端真实头>`（**内容冲突要逐个解，不许 discard**） | 远端真实头 sha（需 Owner 页面提供，我今天读不到） | merge 后 `git rev-list --count` 增量、`git status --porcelain` 仍只那 5 只、全量门禁重跑 |

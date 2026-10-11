@@ -1105,3 +1105,65 @@ D-34/D-14 两份报告的锚定值 ⇒ 盘上字节＝被审过的字节。归�
 其中 D-14 那张票在 10-11 19:25 换过机制前提（旧前提被复核推翻），谁按仓里那版开工就会照被推翻的前提干活 ⇒ 本轮以运行根为准回灌，回灌后 diverged=0。
 另 3 只镜像件（`gold-freeze-draft.md` 与两份 round2 复核报告）并不在运行根的 `reports/`+`tickets/` 下，而在 `model-validation/` 与 `reviews/20261011-round2/`；
 我第一次扫描只看了那两个目录，差点把它们说成"仓里有、根上没有"的孤儿——**口径必须写明是哪两根目录，不是整个运行根**。
+
+## 49. 10-12 接手轮第二遍：D-35(a) 候选侧与 D-33 负例（Owner 一句「按推荐」整包）
+
+**结论**：D-35 的候选侧那一半与 D-33 三条负例已落码并提交；两枚负控各自 VERDICT 达标，全量门在**含新增 14 条判据**的树上重跑绿。
+非部署阶段仍 **BLOCKED**：D-35 的服务器两步、D-5 推送、D-19、F/G/J5/J6 一条没被本轮抵消。
+
+**现场读数（本轮本机跑，cwd＝候选 `backend`，解释器＝运行根 `candidate-envB`，Python 3.11.0）**
+
+| 检查 | 读数 | 原始证据（运行根 `evidence/` 下） |
+|---|---|---|
+| 全量非 slow（第三趟） | 2030 passed / 0 failed / 10 skipped / 18 deselected，rc=0，cov **86.57%**（门槛 70），259.73s | `integration-gates-backend-pass3-20261012.log`、`integration-gates-backend-junit-pass3-20261012.xml`（tests=2040 failures=0 errors=0 skipped=10） |
+| 与上一趟的分母关系 | 上一趟 junit tests=2026 ⇒ 本轮 2040 ＝ +14（`test_reset_admin_password.py` 10 条 + `test_agent_resume.py` 4 条）。`-q` 这两趟都没打印 collected 头，**不引用"collected"这一轴** | `integration-gates-backend-pass2-junit-20261012.xml` 对照 |
+| Ruff lint / format | 均 rc=0（286 files already formatted） | `static-gates-20261012-round2.log` |
+| mypy | rc=0，Success: no issues found in 74 source files（仍有既有未类型化函数体提示，不是全仓类型覆盖） | 同上 |
+| D-35 定向判据 | 10 passed，rc=0 | `d35-reset-targeted-20261012.log` |
+| D-35 变异仪 | 控制腿绿；9/9 期望臂杀；每条臂还原后**逐字节相同**；只在 `d35-mut-tree/` 副本树动，产品树未被写过 | `d35-mutation-20261012.log` VERDICT=ALL_EXPECTED_ARMS_DIE，驱动器 `d35-mutation-20261012.py` |
+| D-33 负控 | 控制腿 4 passed；内存源码变异后点名杀 3 条、反向护栏腿按预期存活；`agent/state_machine.py` 前后 sha 相同 | `d33-mutation-20261012.log` VERDICT=NEGATIVE_CONTROL_HOLDS，插件 `d33_mutation_plugin.py` |
+| 提交与树 | 本轮两笔 `cd2007e`（D-35）、`c4cc6b3`（D-33），`porcelain=0`；笔数与头以 `git -C "$C" rev-list --count 0b54396..HEAD`、`rev-parse HEAD` 现读为准，本行不钉死 | — |
+
+**为什么 D-35 的形状变了（我的错前提，更正三处留痕）**
+- 我上一版写「全仓没有改口令入口」——**假阴性**。我只 grep 了 `main.py` 与 `backend/` 根目录，漏了 `backend/scripts/`。
+  入口自 `5e51384`（2026-09-17）就在库里，tracked，且**零测试、零文档指针**（`git grep -n reset_admin_password -- ':!dispatch-output'`
+  只命中本轮新写的两份汇报）。
+- 因此 Owner 签的 (a) 里「我新写一个脚本」这半句作废，实际做成了**改造既有入口**；已批属性一条没少：口令不进 argv、
+  不回落 `.env`、不打印哈希、不动 `is_active`/`role`。留痕位置：本段、台账「给 Owner 的几句话」第二条与 §C D-40、提交 `cd2007e` 的正文。
+- 顺带收掉在册 **B-44**（`--password` 走 argv + 改密不落 `log_audit`）。`.env` 回落这条比原登记更危险：库里那个账号正在退役，
+  而缺省路径会把 `.env` 里那个**待退役的旧值原样写回库**，看起来"重置成功"、实际零变化。
+**本轮我自己的三处仪器错（都是读数当场暴露，不是事后追认）**
+1. **同文件两条 edit 的还原回到中间态**：第一版驱动用 `originals[path] = text` 记账，M9 那臂对 `auth.py` 有两处替换，
+   第二次把**已变异**的文本当成原始值存进去 ⇒ 还原只回到"打了第一处"的状态，日志给的是 `sha_identical=False`。
+   这等于把副本树留在被污染状态，且第一轮的 M9 读数不可复用。修法：原始字节按路径**只取一次**，替换在内存里串联，
+   还原逐字节写回并逐文件复量（第二轮日志每条臂都是 `byte_identical=True`）。
+2. **杀了的腿被我误记成未杀**：`-q --tb=no` 的短摘要把首行失败原因缀在名字后面
+   （`FAILED ...::test_preview_writes_nothing - Asse...`），我的 `split("::")[-1]` 因此不等于期望名 ⇒
+   第一轮报 `killed=8/9`。方向与"假绿"相反（它低估自己），但同样是**不准的读数**；修成 `split(" - ")[0]` 后 9/9。
+3. **JSON 转义把我的 `\n` 折成真空行**，驱动文件第一次写坏（`SyntaxError`，AST 自检当场拦下，零读数产出）；
+   改写为完全不需要反斜杠的 `bytes([10])` / `write_bytes` 形式。
+
+**D-35 十条判据各自钉什么**（`backend/tests/test_reset_admin_password.py`）
+import 不改库指向（本文件其余九条能安全 import 被测脚本的前置闸）／argv 带不进口令／
+`.env` 的 `ADMIN_PASSWORD` 不会被当新值写回／预览不写库也不落审计／`--write` 改哈希且 `role`+`is_active` 不动、
+审计恰好一条且输出里查不到口令与哈希／未知用户拒绝且不创建／空口令与公知默认 `admin12345` 各自拒绝／
+两次输入不一致不写／改口令**不作废**已签发 token（走现役 `get_current_user`，把"必须换 `JWT_SECRET`"从口头变成判据）。
+`admin12345` 这个字面量不是新暴露：`backend/seed_admin.py` 早在对抗审计 2026-08-07 的注释里写着同一句（`git grep -c admin12345` 命中 1）。
+
+**D-33 四条负例**（追加在 `backend/tests/test_agent_resume.py` 末尾）
+`test_steps_over_cap_still_raises_in_the_state_machine`（状态机自己 fail-closed，reason 为 `budget_exceeded:steps`）、
+`test_steps_over_cap_resume_is_step_budget_and_leaves_run_untouched`（恢复层转 `step_budget` 档、`__cause__` 是 `BudgetExceeded`、
+且 `state_version`/`pending_question`/`status` 三项原样）、`test_lowered_step_budget_rejects_the_same_run_through_the_same_path`
+（预算下调后旧 run 越界走同一条拒绝路）、`test_clarification_exhaustion_stays_on_its_own_axis`（反向护栏：
+clarifications 打满 + steps 恰满 cap 时回答仍收得下，`steps` 不被顶高、`clarifications` 不被消耗）。
+票上第 1 条「steps 恰满 cap 可恢复」**已由 `test_resume_at_exact_step_cap_succeeds_...` 钉住**（断言 CAS+1、状态到 PLANNING、
+steps 停在 cap、事实落库），本轮不重复造。反向护栏在 step-limit 变异下**存活是预期**——它量的不是那根轴。
+
+**本轮明确没做（不是做了没写）**
+- `--write` 从未对**真实库**执行过；判据只在 conftest 的进程私有临时 SQLite 上成立。候选工作树里的 `backend/.env` 是
+  **0 字节**（`load_dotenv()` 返回 False、新置键 0 个），所以本轮任何测试进程都没接到现役配置值。
+- 服务器上的两步（跑脚本、换 `JWT_SECRET` 重启）只能 Owner 做；D-39（按用户作废会话）一个字未动。
+- 前端腿本轮**未重跑**（本轮零前端文件改动，`§48` 那 11 条读数不能当本轮证据复用）；`socket` 非回环守卫、`pip check`、
+  在线 `pip-audit`、`slow`/`real_kb`、远端 CI 当前对象读数同样未跑。
+- 台账里那格「D-35 的真实入口」已从 §B 搬进 §A（只剩你动），D-36/D-37 进 §C；复算 `evidence/ledger_row_audit.py`
+  现量 §A=3、§B=1、§C=36、max=40、无跨档重复无缺号；单文件对账 `evidence/audit_one_file.py` 对台账 68 个 key 缺 0。
