@@ -3,8 +3,11 @@
 # 项目根 .dockerignore 不覆盖子目录构建上下文。
 .env
 .env.*
-*.db
-*.sqlite*
+# `*` 在 Docker 的 .dockerignore 里不跨 `/`：写成 `*.db` 只挡上下文根，
+# data/app.db 与 data/quota_used.sqlite 会照原样被 `COPY . .` 烘进镜像层。
+**/*.db
+**/*.sqlite*
+.ptmp*
 chroma_db/
 media/
 backups/
