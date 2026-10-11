@@ -24,7 +24,7 @@
 | 编号 | 已裁成的形状 | 为什么我不能推进它 | 你可以答 |
 |---|---|---|---|
 | **D-5 凭据与推送** | 按推荐＝先轮换 `ADMIN_PASSWORD`，再普通 `git push` + 开 PR | 轮换只能你动（我不读 `.env`、不碰凭据）；推送与开 PR 是共享状态动作，没有你那一键我不做。连带两条已在册：① 推 `codex/*` 本身不产生 CI 读数（`on.push.branches` 只列 main 与 master，10-11 重核过），要第三方验证就得连开 PR 一起做；② 远端主线历史 push 全红，别把 CI 红当成这笔候选的判决。逐条前置与命令在 `tickets/runbook-I-push-pr-merge.md`（已刷到 10-11 现量） | 「已轮换，推+开 PR」/「走无父快照备选」/「先不推」**（10-12 接手补一句：这句里『先轮换』的真实入口要重问，见 §B D-35；你已裁的方向我没有改）** |
-| **D-19 文档 ref 一起推** | 按推荐＝一起推 `codex/local-candidate-closeout`（现量：仓库内 `git grep -o fbc29e8` = 103 次引用 / 15 个文件，而该尖端 `fbc29e8` 不是 master 的祖先（`merge-base --is-ancestor` rc=1）、这支从未推送 ⇒ 不推就是 103 处在远端悬空） | 同一个动作、同一把钥匙：它也是一条 push，排在 D-5 之后。两条已核的连带事实：只多 4 笔独联提交（`rev-list --count 候选..closeout` = 4），且**不新增凭据外泄**（按值反查 closeout 对象集 value_hits=1，候选里也已是 1） | 「随 D-5 一起推」/「只推代码支」 |
+| **D-19 文档 ref 一起推** | 按推荐＝一起推 `codex/local-candidate-closeout`（现读（写行时 10-12：**109 次 / 13 个文件**；这两个数随头动，推前必重跑）：`git -C 候选 grep -o fbc29e8 -- '*.md' | wc -l` 与 `git -C 候选 grep -l fbc29e8 -- '*.md' | wc -l`，而该尖端 `fbc29e8` 不是 master 的祖先（`merge-base --is-ancestor` rc=1）、这支从未推送 ⇒ 不推就是 103 处在远端悬空） | 同一个动作、同一把钥匙：它也是一条 push，排在 D-5 之后。两条已核的连带事实：只多 4 笔独联提交（`rev-list --count 候选..closeout` = 4），且**不新增凭据外泄**（按值反查 closeout 对象集 value_hits=1，候选里也已是 1） | 「随 D-5 一起推」/「只推代码支」 |
 | **D-35 口令与会话的真实失效动作** | 10-12 按推荐裁 (a)＋同换 `JWT_SECRET`。候选侧那一半我已做完（见 §C D-40），剩下两步只能你在服务器上动：① 跑 `python scripts/reset_admin_password.py --username admin`（先预览再加 `--write`）把库里那个 `password_hash` 换掉；② 换 `JWT_SECRET` 并重启后端，代价是**所有用户重新登录** | 口令值不经我手、不进 argv、不进日志；我不读 `.env`、不连真实库。两步的形状与判据在 `tickets/runbook-I-push-pr-merge.md` 的 A1/A1b（原 A1「供应商控制台」那句已就地更正） | 「两步已做完，推+开 PR」/「只做①，先不换 `JWT_SECRET`（接受最长 7 天旧 token 仍有效）」/「先不动」 |
 
 ## B. 新发现与范围待裁（是否阻塞须按影响判断）

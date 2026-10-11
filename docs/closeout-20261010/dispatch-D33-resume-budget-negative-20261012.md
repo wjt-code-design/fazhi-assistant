@@ -1,5 +1,6 @@
 # 票 D-33：恢复 API 的越界与预算下降负例（只加测试，不动产品语义）
 
+> **10-12 已由 Owner 会话自己执行，不必再派**：四条里缺的三条落在 `backend/tests/test_agent_resume.py`（提交 `c4cc6b3`），第 1 条由既有 `test_resume_at_exact_step_cap_succeeds_...` 钉住未重复。负控读数 `evidence/d33-mutation-20261012.log` VERDICT=NEGATIVE_CONTROL_HOLDS。下面的票面保留作验收口径与复现入口。
 **背景与已裁结论**：Owner 10-12 按推荐裁定「保留越界防御」。当前在册事实是 `WAITING_USER→PLANNING` 这条边免计步
 （`FREE_STEP_EDGES`），但 `transition()` 仍然执行 `_limit(next_steps, max_steps)`，schema 也不禁止 steps 超过 budgets。
 Owner 会话复核件 R5 的纯状态机复现给出两个读数：steps 等于上限时可恢复（`AT_CAP_RESUME_ALLOWED`），超过上限时仍抛
