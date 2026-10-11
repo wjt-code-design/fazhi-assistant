@@ -200,6 +200,7 @@ node "$R/evidence/audit_axes.js" "$R/evidence/audit-cand-runtime.json" "$R/evide
 - **D-33 负例已自己执行**（票上四条里缺的三条：越界拒绝的状态机腿 + 恢复层腿、预算下降腿、澄清轴反向护栏；用例 1「steps 恰满 cap 可恢复」`test_agent_resume.py:690` 早在册且断言够硬，不重复造）。负控走**内存源码变异**（磁盘产品一字未改，前后 sha 相同）：`evidence/d33-mutation-20261012.log` VERDICT=NEGATIVE_CONTROL_HOLDS，点名杀的正是那三条，反向护栏腿按预期存活。
 - **推送卡已修**：`tickets/runbook-I-push-pr-merge.md` 的 A1「你在供应商控制台轮换 `ADMIN_PASSWORD`」是错的（这是应用自己库里的账号，且改环境变量碰不到 `password_hash`），已就地更正为 A1 跑脚本 + 新增 A1b 换 `JWT_SECRET`。
 - **台账档位重排**：D-35 从 §B 搬到 §A（只剩你服务器两步），D-36、D-37 进 §C（已裁已执行），新登记 D-39（按用户作废会话的能力，推荐本轮不做），D-40 记我这边那一半。复算见 `evidence/ledger_row_audit.py`。
+- **第三轮复核票随本轮刷头扩到九颗钉子**（新增：复跑 D-35 判据并要求自拟反证、专挑我那条「反向护栏存活是预期」的说法）；派发权在你，我没有派。票 `docs/closeout-20261010/dispatch-independent-review-20261012-round3.md`。
 
 ## H. 还差什么没做（分类穷尽；每条指名归属与出处）
 
