@@ -98,3 +98,43 @@ node "$R/evidence/audit_axes.js" "$R/evidence/audit-cand-runtime.json" "$R/evide
 # 注意：原先这块写的是 python -c 里 glob('<msys 路径>').replace('','/')，两处坏：
 #   ① '' 是未闭合字符串 ⇒ SyntaxError；② 即使修好，Windows 解释器打不开 /c/... 形式 ⇒ 会静默打印 0（假干净）。
 ```
+
+## F. 本轮总账（这一节的存在理由：让本文件可以单独转发）
+
+**状态**：候选分支本地 8 笔、头 `dae319d`、`git status --porcelain` = 0 行、未跟踪 0；**未 push、未开 PR、未合并、未轮换任何凭据、未动真实库/向量库/容器/端口 3021 与 8088**。代码面自 `bee37d3` 起未再变动（其后两笔都是 docs）。
+**门禁现量（07:3x 当场跑，不是推的）**：全量非 slow 1933 passed / 0 failed / 10 skipped / 18 deselected、cov 86.38%、rc=0；collected 1943/1961、junit tests=1943；ruff check、ruff format --check（283 files）、mypy（74 files）均 rc=0；前端 tsc、lint、vitest 83、`npm run build:check` 的产物断言 VERDICT=OK。复算命令在 `reports/gates.md` §45 与本文 §D。
+
+**等你答的只有 4 条**：§A 的 D-5（先轮换 `ADMIN_PASSWORD` 再普通推 + 开 PR）与 D-19（文档 ref 一起推）；§B 的 D-33（不可达的 step_budget 档怎么处置）与 D-34（Agent 轮次没有占位补偿腿）。
+
+**独立复核二轮（两路子代理，正交）**
+- A 复现腿 `reviews/20261011-round2/independent-review-A-replication-20261011.md`：采纳 8 / 驳回 1 / 核不了 0。它自己在 `git archive` 副本树上复刻了变异、重跑了全量门禁与对象轴，没引用我的转述。
+- B 对抗腿 `reviews/20261011-round2/independent-review-B-challenge-20261011.md`：新发现 12 条，其中四处我当场验实后**本轮已修**——① 取消档原先用"有没有走到 try 结尾"反推 ⇒ 只认真实断开信号（并补结构不变量测试）；② `source-probe` 缺**作业级** `if:` ⇒ 补上（我三处"不占每次 PR"是假话）；③ torch 回落只换 find-links 不换 index ⇒ 已同时换官方源；④ D-14 票的机制前提不成立（那四只脚本跟随 `CHROMA_DIR`，`assert_matches` 对它们是**恒等式**、永不咬红）⇒ 票已重写。
+- 另两条只登记不实现：就是 §B 的 D-33、D-34。
+
+**推送量的一条自我更正（影响你怎么读 D-5）**：我上一轮写"上传集会因对象身份被折小"**是错的**，这次复量到 `rev-list --objects remote-master..HEAD` == `rev-list --objects HEAD` == **4464**，且两侧同 blob 的 2037 只**全部**仍在上传集里 ⇒ 无关历史时剪的是 commit 链不是对象身份。方向不变的结论只有一条：那只 13 位裸值的 blob 在上传集里、不在远端可达集里 ⇒ **先轮换再推**。
+
+**我本轮的自曝错（原先只在对话里说过，现按规矩落进正文；细节在 `reports/gates.md` §42、§45、§47 与 J §10.2）**
+1. 给新测试编了不存在的符号（`registry.snapshot()` 真名 `status()`；白名单真名 `_ACCOUNT_FIELDS`）。
+2. 写过一条**恒真**三元断言（期望值由被测值现算，永不红）。
+3. D-6 对账第一次**读错轴**：拿主仓旧那份 requirements 比 venv，得 4 条偏离；换成候选那份才是 6 条。
+4. D-20 的两把尺子各带一处仪器错（`rev-parse` 取不到返回空被算成差异；`partition` 把行尾留在 key 里）。
+5. 计数词口算：写过"18 条全部处置完"，真值是 §A/§B 由 18 降到 2 ⇒ 现在**计数词又是口算的**这条被脚本兜着（差集实测）。
+6. 中文串里嵌 ASCII 双引号 ⇒ `SyntaxError`，**同一个坑我又踩第三次**；之后脚本里的中文散文不带 ASCII 双引号，竖线用 `chr(124)`、反斜杠用 `chr(92)`。
+7. 表格单元里写 shell 的竖线导致**劈列**（4 列变 7 列），被 `evidence/md_table_columns.py`（自带 `--selftest`）抓到。
+8. 用 `bytes(10)` 当换行去数节数 ⇒ 恒返 0（那是 10 个 NUL）；改按 `chr(10)` 切行后现量 47 节。
+9. 在册报告 `gates.md` 里有一个**真 NUL 字节**（`grep` 把整份台账当二进制），已修并复量 NUL=0。
+10. heredoc 会把双反斜杠折成单个 ⇒ 第一次修 NUL 时被自己的长度断言拦下；写法改成 `chr(92)` 构造。
+11. `grep -q` 在 `set -o pipefail` 下让上游 `sed` 收 **SIGPIPE** ⇒ 正对照假阴性（探针差点被我误判为"两页都缺件"）。
+12. `pip download` 不加 `--no-cache-dir` 时用 "Using cached" 冒充"官方源真取到"（第一次的假绿）。
+13. 两条**新待裁项错放进 §C**（已裁档）且列数写成四列 ⇒ 被列数检查器与重号脚本同时抓到，已挪回 §B。
+14. 汇报自查：本轮"都写进决策文件了吗"由 `evidence/work_log_key_audit.py` 出数——29 个 key 只对这一只文件跑，最初缺 14 个（就是本节存在的原因）。
+
+**交付物路径**（运行根 `C:/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2`）
+- 汇报：`reports/closeout-final-J-draft.md`（§0 状态、§3 待裁四条、§10.2 我的错、§11 复核二轮）
+- 状态与读数：`reports/gates.md`（§38–§47）
+- 本文件：`reports/decisions-needed-20261010.md`（§A/§B 待裁、§C 已裁 30 条逐条落地位置、§D 门禁、§F 总账）
+- 下一轮三张票：`tickets/dispatch-D14-index-write-guards-20261011.md`、`tickets/dispatch-D6-dev-env-alignment-20261011.md`、`tickets/dispatch-D20-merge-into-master-20261011.md`
+- 你要动手时用：`tickets/runbook-I-push-pr-merge.md`（推送前置与命令；已按 §44 更正刷新）
+- 两份复核报告：上面"复核二轮"里那两个路径；均已同步进仓内 `docs/closeout-20261010/`（34 只 .md，与运行根逐只 sha 相同）
+
+**本轮未做（不是"已做"）**：F 五类真实模型腿未跑（Owner 裁本轮不开，冻结稿在册）；`socket` 守卫与 `pip check` 两轴未重跑（未动依赖与网络面）；D-18 的旧断言我只清了代码注释与文档引用面；D-33/D-34 只登记未实现；D-3 的两份 diff 按 D-29 本轮不落。
