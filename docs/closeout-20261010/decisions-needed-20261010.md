@@ -245,3 +245,4 @@ node "$R/evidence/audit_axes.js" "$R/evidence/audit-cand-runtime.json" "$R/evide
 28. 本轮明确未跑的腿：`--write` 从未对**真实库**执行过（判据只在 conftest 的进程私有临时 SQLite 上跑）；重置后「旧口令登录失败/新口令成功」这条只能由你在页面上给出现场读数。
 29. 已知限制：改动作废会话的能力仍然没有（新登记 D-39）。在换 `JWT_SECRET` 之前，已签发的 token 最长 7 天内照旧有效——这条限制本轮由 `test_reset_does_not_revoke_already_issued_token` 走现役 `get_current_user` 钉成了判据，不是口头承诺。
 30. 已知限制（接口变更）：`--password` 参数被删除 ⇒ 任何照旧命令粘贴的调用会 argparse 直接报错（rc=2），这是有意的。仓库内除 `dispatch-output/*-source-sha.json` 的哈希清单外没有调用者，复算：`git grep -n reset_admin_password -- ':!dispatch-output'`。
+31. **已裁待执行（新登记 D-41，真实模型验收那轮的资源边界）**：Owner 10-12 裁「**用现役那套账号**（不另开测试号），**上限 100 元**」⇒ 执行侧按双阈值设闸（金额 100 元 + 调用次数上限由执行会话按题量折算并报 Owner 确认），到数即停；只在副本树 + 私有临时库/临时索引/私有配额库上跑，六根出网轴里**只放开模型那一根**，其余指死回环；跑完拿平台控制台真实读数校准一次（本地 token 估算不可信是在册纪律）。**未答的一格**：法律专业审签谁做（Owner 自己 / 律师 / 先只出机器分数）——这决定那轮能不能报「专业合格」，否则只能报机器分。
