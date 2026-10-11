@@ -23,15 +23,15 @@
 
 | 编号 | 已裁成的形状 | 为什么我不能推进它 | 你可以答 |
 |---|---|---|---|
-| **D-5 凭据与推送** | 按推荐＝先轮换 `ADMIN_PASSWORD`，再普通 `git push` + 开 PR | 轮换只能你动（我不读 `.env`、不碰凭据）；推送与开 PR 是共享状态动作，没有你那一键我不做。连带两条已在册：① 推 `codex/*` 本身不产生 CI 读数（`on.push.branches` 只列 main 与 master，10-11 重核过），要第三方验证就得连开 PR 一起做；② 远端主线历史 push 全红，别把 CI 红当成这笔候选的判决。逐条前置与命令在 `tickets/runbook-I-push-pr-merge.md`（已刷到 10-11 现量） | 「已轮换，推+开 PR」/「走无父快照备选」/「先不推」**（10-12 接手补一句：这句里『先轮换』的真实入口要重问，见 §B D-35；你已裁的方向我没有改）** |
-| **D-19 文档 ref 一起推** | 按推荐＝一起推 `codex/local-candidate-closeout`（现读（写行时 10-12：**109 次 / 13 个文件**；这两个数随头动，推前必重跑）：`git -C 候选 grep -o fbc29e8 -- '*.md' | wc -l` 与 `git -C 候选 grep -l fbc29e8 -- '*.md' | wc -l`，而该尖端 `fbc29e8` 不是 master 的祖先（`merge-base --is-ancestor` rc=1）、这支从未推送 ⇒ 不推就是 103 处在远端悬空） | 同一个动作、同一把钥匙：它也是一条 push，排在 D-5 之后。两条已核的连带事实：只多 4 笔独联提交（`rev-list --count 候选..closeout` = 4），且**不新增凭据外泄**（按值反查 closeout 对象集 value_hits=1，候选里也已是 1） | 「随 D-5 一起推」/「只推代码支」 |
+| **D-5 凭据与推送** | 按推荐＝先轮换 `ADMIN_PASSWORD`，再普通 `git push` + 开 PR | 轮换只能你动（我不读 `.env`、不碰凭据）；推送与开 PR 是共享状态动作，没有你那一键我不做。连带两条已在册：① 推 `codex/*` 本身不产生 CI 读数（`on.push.branches` 只列 main 与 master，10-11 重核过），要第三方验证就得连开 PR 一起做；② 远端主线历史 push 全红，别把 CI 红当成这笔候选的判决。逐条前置与命令在 `tickets/runbook-I-push-pr-merge.md`（已刷到 10-11 现量） | 「已轮换，推+开 PR」/「走无父快照备选」/「先不推」**（10-12 接手补一句：这句里『先轮换』的真实入口要重问，见 §B D-35；你已裁的方向我没有改）** **10-12 Owner 现答：「等我改完密码再推」**⇒ 本轮不推、不开 PR、不走快照；推的钥匙排在 D-35 两步之后（当天到 GitHub 的三条探测全 rc=35，那是当天的轴，不是理由）。 |
+| **D-19 文档 ref 一起推** | 按推荐＝一起推 `codex/local-candidate-closeout`（现读（写行时 10-12：**109 次 / 13 个文件**；这两个数随头动，推前必重跑）：`git -C 候选 grep -o fbc29e8 -- '*.md' \| wc -l` 与 `git -C 候选 grep -l fbc29e8 -- '*.md' \| wc -l`，而该尖端 `fbc29e8` 不是 master 的祖先（`merge-base --is-ancestor` rc=1）、这支从未推送 ⇒ 不推就是那些引用在远端解析不出来（条数用同行上面那两条现读）） | 同一个动作、同一把钥匙：它也是一条 push，排在 D-5 之后。两条已核的连带事实：只多 4 笔独联提交（`rev-list --count 候选..closeout` = 4），且**不新增凭据外泄**（按值反查 closeout 对象集 value_hits=1，候选里也已是 1） | 「随 D-5 一起推」/「只推代码支」 **10-12 现答**：随 D-5 一起等——同一把钥匙，Owner 启动前不动。 |
 | **D-35 口令与会话的真实失效动作** | 10-12 按推荐裁 (a)＋同换 `JWT_SECRET`。候选侧那一半我已做完（见 §C D-40），剩下两步只能你在服务器上动：① 跑 `python scripts/reset_admin_password.py --username admin`（先预览再加 `--write`）把库里那个 `password_hash` 换掉；② 换 `JWT_SECRET` 并重启后端，代价是**所有用户重新登录** | 口令值不经我手、不进 argv、不进日志；我不读 `.env`、不连真实库。两步的形状与判据在 `tickets/runbook-I-push-pr-merge.md` 的 A1/A1b（原 A1「供应商控制台」那句已就地更正） | 「两步已做完，推+开 PR」/「只做①，先不换 `JWT_SECRET`（接受最长 7 天旧 token 仍有效）」/「先不动」 |
 
 ## B. 新发现与范围待裁（是否阻塞须按影响判断）
 
 | 编号 | 一句话 | 现量证据 | 我的推荐 | 你可以答 |
 |---|---|---|---|---|
-| **D-39 按用户作废会话的能力** | 现在能作废会话的**只有**全局换 `JWT_SECRET`（所有人一起掉线），或把账号 `is_active=False`（会连同管理员自己一起挡在 `require_admin` 外面）。库里没有 token 版本，也没有会话登记表 ⇒ **做不到「只踢掉某个人的旧会话」** | 本轮只读复核 `backend/auth.py:45-68`（payload 只有 sub/username/role/exp，7 天有效）；`tests/test_reset_admin_password.py::test_reset_does_not_revoke_already_issued_token` 把这条限制走现役 `get_current_user` 钉住了 | 推荐**本轮不做**：先按 D-35 两步收口，真需要「精准踢人」时再立一张票（要动认证面 + 一次 schema 迁移，不该塞进收口轮） | 「本轮不做，登记」（推荐）/「开票做」 |
+| **D-39 按用户作废会话的能力** | 现在能作废会话的**只有**全局换 `JWT_SECRET`（所有人一起掉线），或把账号 `is_active=False`（会连同管理员自己一起挡在 `require_admin` 外面）。库里没有 token 版本，也没有会话登记表 ⇒ **做不到「只踢掉某个人的旧会话」** | 本轮只读复核 `backend/auth.py:45-68`（payload 只有 sub/username/role/exp，7 天有效）；`tests/test_reset_admin_password.py::test_reset_does_not_revoke_already_issued_token` 把这条限制走现役 `get_current_user` 钉住了 | 推荐**本轮不做**：先按 D-35 两步收口，真需要「精准踢人」时再立一张票（要动认证面 + 一次 schema 迁移，不该塞进收口轮） | 「本轮不做，登记」（推荐）/「开票做」 **10-12**：Owner 本轮没答这一格（他先定了「等改完密码再推」）⇒ 按推荐默认**不动**，要用时再问一次。 |
 
 > 这两条是复核 A/B（10-11 06:5x）之后新问出来的，发现时间在上一次整包授权**之后**，所以不并入已裁。
 > 10-12 接手轮第二遍：上一批 §B 的 D-33、D-34 已裁并执行提交；本节原来的 D-35 搬到 §A（候选侧已完成，只剩你服务器两步），D-36、D-37 搬进 §C（已裁已执行，零残留）。⇒ 等你动的现在是 §A 三条（D-5、D-19、D-35）+ 本节一条（D-39）。**档位计数不要引用本句，用下面那条命令现读。**
@@ -130,7 +130,7 @@ node "$R/evidence/audit_axes.js" "$R/evidence/audit-cand-runtime.json" "$R/evide
 **状态**：候选分支本地笔数与头只给命令（`git log --oneline 0b54396..HEAD | wc -l`、`git rev-parse HEAD`——写这行时钉过一次 33，入册这笔之后当场过期，所以改成规则句）、`git status --porcelain` 现量 0 行；**未 push、未开 PR、未合并、未轮换任何凭据、未动真实库/向量库/容器/端口 3021 与 8088**。最后一笔代码交付是 `a9ef432`，其后都是文档入册。
 **门禁现量（10-12 00:5x 当场跑，不是推的）**：全量非 slow 2016 passed / 0 failed / 10 skipped / 18 deselected、cov 86.55%、rc=0；collected 2026/2044、junit tests=2026；ruff check、ruff format（285 files）、mypy（整仓与 D-14 五脚本各一次）均 rc=0；前端 lint、tsc、vitest 9 files / 83 tests、`build:check` VERDICT=OK；`format:check` rc=1（3 只，在册两把口径）。复算命令与逐腿 rc 在 `reports/gates.md` §48 与本文 §D。
 
-**等你答的**：§A 三条推送/服务器动作（D-35 两步 → D-5 推+开 PR → D-19 随推），加 §B 一条 D-39（按用户作废会话的能力，推荐本轮不做）。上一批的 D-33、D-34 已裁已执行；本节上一版列的 D-36、D-37 也已裁完并搬进 §C。
+**等你答的 / 你已答的（10-12 现量）**：D-5 与 D-19 已答「**等我把密码改完再推**」⇒ 本轮起我不再准备推送动作，只等你先做 D-35 两步（服务器上跑重置脚本 + 换 `JWT_SECRET`）。还开着的一格是 D-39（推荐不动，你没答就默认不动）。另有两件事在你手上但不必现在答：第三轮复核票要不要派（票已刷到新头、九颗钉子），以及要不要我把 D-35 两步写成一张能照抄的纸条。
 
 **独立复核二轮（两路子代理，正交）**
 - A 复现腿 `reviews/20261011-round2/independent-review-A-replication-20261011.md`：采纳 8 / 驳回 1 / 核不了 0。它自己在 `git archive` 副本树上复刻了变异、重跑了全量门禁与对象轴，没引用我的转述。
