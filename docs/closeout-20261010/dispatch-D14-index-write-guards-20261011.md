@@ -1,5 +1,22 @@
 # 票 D-14：给四只能写知识库的 CLI 补 `chroma_dir_guard`（2026-10-11 派发）
 
+> 当前结果：修订范围已执行并完成两轴本地安全复核，208 项 D-14/D-34 综合隔离回归与 24 项既有邻域通过；代码尚未提交，全项目完整门未重跑。详见运行根 `reports/d14-index-guards-20261011.md`。下文历史条款不得用于重开已完成工作或自动操作真实库、提交/推送/部署。
+
+> Owner 后续已选择 A，授权本会话修正本票并完成隔离修复/测试/自审。**以下修订契约优先于正文历史条款**：原 §4.1 要求每只使用 `assert_matches` 与 §0 的恒等式诊断矛盾；原“不改业务语义”不适用于本次已批准的默认预览、显式写入及临时库改造。
+
+## 当前执行契约（2026-10-11 Owner A）
+
+- 文件范围：四只脚本、`scripts/chroma_dir_guard.py` 中必要的共用入口保护及相关测试；不修改 D-34、依赖或 schema。保持原业务校验/切分/检索逻辑。
+- `import_docs`、`backfill_time_meta`：默认预览，`--write` 才执行写/删；`--dry-run` 与 `--write` 互斥。预览仍会初始化/读向量库，因此两种模式均须在初始化前显式设置非空 `CHROMA_DIR`，不能自动退回默认产品目录。
+- 共用 `require_explicit_target` 检查实际环境出口；不使用恒等的 `assert_matches` 验收。检查缺失/空白目标，在当前 cwd 将目标正规化为绝对路径；已加载的 rag_chain 若绑定不同目录则拒绝。错误信息须带守卫名称，便于区分拒绝与后续失败。
+- 四只脚本仅导入时不得加载 dotenv、rag_chain、retrieval 或 knowledge_service，不改 cwd、不建库；`--help` 同样不建库。入口解析与目标保护先于运行依赖加载。原固定目标脚本的 `assert_matches` 位置保持原样；原 docstring 对那些旧脚本的限制不应外推成新脚本可以绕过目标保护。
+- `eval_chunking`、`verify_new_law`：独立 CLI 进程内建立临时 Chroma/配额/应用 DB 路径，固定本地嵌入与关闭云 rerank/配额。临时绑定必须早于 settings/rag_chain 初始化；若运行依赖已预加载则拒绝，不重绑模块单例。移除真实 dotenv 读取。检索预期保持原判据；如临时样本需要补种，只用合成夹具并明确记录。
+- 隐式配置读取补充：评测运行期进入自身临时 cwd，防止 Chroma Settings 隐式读调用目录 `.env`，finally 恢复 cwd/环境。异常与 SystemExit 出口也报告 Windows 文件锁导致的残留目录；提示不是物理清理成功的声明。
+- 测试须证明真实 CLI 的拒绝码/消息与导入顺序、默认预览零业务写、显式写入仅作用于合成目标、评测忽略外部目标并只作用于临时库、异常仍执行临时清理。不用“调用过守卫”作为判据。
+- 测试不读取真实库/凭据/模型缓存。用真实临时 Chroma 和既有 FakeEmbeddings 代替模型边界，运行时阻断网络；默认应用 conftest 不适合本次定向入口验证，使用 `--noconftest`。完整门禁仅在安全私有副本准备后执行；未运行则明确登记，不要求新测试后仍与旧计数机械相同。
+- 本轮不提交/推送/合并/部署，不操作真实库和凭据。旧票“对禁区做内容指纹”的要求作废：只可观察存在性/mtime，不能为证明没写而读取禁区内容。
+- 交付以 `reports/d14-index-guards-20261011.md` 为当前结果，原始红/绿证据分别保存；下文保留为先前派发历史，不直接照抄执行。
+
 > 台账出处：`reports/decisions-needed-20261010.md` §B 的 **D-14**（Owner 2026-10-11 裁「登记下一轮」，并授权由本会话把票写出来）。
 > 执行书：`docs/superpowers/plans/2026-10-10-non-deployment-release-closeout-execution-plan.md` 的 **B 单只点名了 B-45**，本票是 B-45 的**同族扩面**，不是重开 B-45。
 > 落盘约定：候选树 = `C:/Users/33393/Desktop/ai-legal-helper/.worktrees/nondeploy-closeout-20261010`；运行根（证据/报告）= `C:/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2`。

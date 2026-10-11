@@ -1,5 +1,7 @@
 # D-3 langchain 族 1.x 迁移：B+ 路线执行报告（2026-10-11）
 
+> 当前候选复核补记：本会话已对 HEAD 19e296e8 加 D-34/D-14 未提交快照做双栈隔离复验，补齐三处测试后每栈 2016 passed / 10 skipped / 18 deselected，cov 86.55%，前端三门与 83 单测通过。详见 [当前候选复核报告](C:/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2/reports/d3-current-candidate-review-20261011.md)。原 §4.5 撤回 variant_of 字段断言的理由不能证明判据有效，现已变异复现旧断言假绿；“生产不可达”仅限一次应用生命周期且关闭后不重建。另核干净解析 NumPy 2.x 与保留的 Chroma 0.4.24 不兼容，原 envC 的 NumPy 1.26.4 来自继承 freeze。最新审计仍红，CPU torch 未覆盖。补丁只在私有副本，D-29 未解除，不能由本报告推导已落候选、干净安装通过或整体安全门通过；以下原过程报告保留。
+
 > 票：`tickets/dispatch-D3-langchain-migration-20261011.md`（过程登记：`tickets/D3-blocker-dependency-20261011.md`＝裁决前阻塞、`tickets/D3-smoke-breach-20261011.md`＝冒烟红回报与 R1–R5 清单）。
 > Owner 已批两轮：①「按推荐」＝B+ 整包（含"冒烟红即停再裁"）；②冒烟红回报后「按推荐」＝放行 R1–R4 修复与复跑闭环。
 > **本报告落盘时：候选树/主仓零字节改动、未 commit、未推送**；全部产物在运行根 `fazhi-nondeploy-closeout-20261010-b4e7a2/`（trees 在 `mig-20261011/`，证据在 `evidence/`）。落地方式见 §6 台账 1。

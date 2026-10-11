@@ -1098,3 +1098,10 @@ D-34/D-14 两份报告的锚定值 ⇒ 盘上字节＝被审过的字节。归�
 
 **本轮没有动的**：未 push、未开 PR、未合并、未轮换凭据、未读真实库内容、未动现役栈（`netstat` 现量 8088 仍 LISTENING、3000/3021 无监听）、
 未跑 `slow`/`real_kb` 腿、未重跑在线依赖审计；D-3 仍按 D-29「本轮不落」。阶段结论仍 **BLOCKED**，本轮只把「已交付但未验收＝未交付」这一格关掉。
+
+**入册时又查出一格文档漂移（本轮现量）**：把 42 只镜像件逐只与运行根比 sha256 ⇒ **DIVERGED=5**：
+`closeout-final-J-draft.md`、`d3-langchain-migration.md`、`dispatch-D14-index-write-guards-20261011.md`、
+`dispatch-D20-merge-into-master-20261011.md`、`runbook-I-push-pr-merge.md`。五只都是运行根更新且更大（后续重写没回灌镜像），
+其中 D-14 那张票在 10-11 19:25 换过机制前提（旧前提被复核推翻），谁按仓里那版开工就会照被推翻的前提干活 ⇒ 本轮以运行根为准回灌，回灌后 diverged=0。
+另 3 只镜像件（`gold-freeze-draft.md` 与两份 round2 复核报告）并不在运行根的 `reports/`+`tickets/` 下，而在 `model-validation/` 与 `reviews/20261011-round2/`；
+我第一次扫描只看了那两个目录，差点把它们说成"仓里有、根上没有"的孤儿——**口径必须写明是哪两根目录，不是整个运行根**。
