@@ -52,12 +52,16 @@ COPY requirements.txt .
 #   [诚实标注] 2026-10-11 本机复量：阿里云 pydantic-2.14.0 已可取（487 kB，rc=0）、
 #     官方 CPU 页 `torch-2.13.0%2Bcpu-cp311` 在列 ⇒ 本轮没有正在复现的缺陷，这里落的是
 #     **这一类**故障的兜底；配套可观测腿 = `.github/workflows/ci.yml` 的 `source-probe`。
+#   [10-11 复核后补] torch 那发的回落**同时换 index**（`-i pypi.org`）：只换 --find-links 的话
+#     torch 本体来源换了、它的传递依赖仍从上面 ENV PIP_INDEX_URL(阿里云) 取——而 10-10 炸的正是
+#     那一个源（独立复核 B 抓出）。`+cpu` 本地段只在 find-links 有，换了 index 也不会误选 CUDA 版。
 RUN pip install --no-cache-dir --retries 10 --timeout 60 \
       "torch==2.13.0+cpu" \
       --find-links https://mirrors.aliyun.com/pytorch-wheels/cpu/ \
   || pip install --no-cache-dir --retries 10 --timeout 60 \
       "torch==2.13.0+cpu" \
-      --find-links https://download.pytorch.org/whl/cpu/torch/
+      --find-links https://download.pytorch.org/whl/cpu/torch/ \
+      -i https://pypi.org/simple
 
 RUN pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt \
   || pip install --no-cache-dir --retries 10 --timeout 60 -i https://pypi.org/simple -r requirements.txt

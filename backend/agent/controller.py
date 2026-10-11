@@ -185,7 +185,7 @@ RESUME_LAW_AS_OF_DETAIL = "Agent 追问回答沿用该任务建立时的法律�
 # 仍不泄漏状态机名、版本号、run 标识。
 RESUME_DETAIL_ALREADY_ADVANCED = "这条任务已经处理过了，请回到对话查看最新结果。"
 RESUME_DETAIL_ANSWER_INVALID = "这个回答和当前的问题对不上，请重新回答一次。"
-RESUME_DETAIL_STEP_BUDGET = "本次咨询的追问次数已用完，请重新发起一次咨询。"
+RESUME_DETAIL_STEP_BUDGET = "这次任务可用的处理步骤已经用完了，请重新发起一次咨询。"
 RESUME_DETAIL_UNRECOVERABLE = "这条任务接不上了，请重新发起一次咨询。"
 
 RESUME_CONFLICT_DETAILS: dict[str, str] = {
@@ -193,6 +193,10 @@ RESUME_CONFLICT_DETAILS: dict[str, str] = {
     "cas_conflict": RESUME_DETAIL_ALREADY_ADVANCED,
     "answer_invalid": RESUME_DETAIL_ANSWER_INVALID,
     "step_budget": RESUME_DETAIL_STEP_BUDGET,
+    # ⚠️ 这档今天走不到：DB-15 起 (WAITING_USER→PLANNING) 在 `FREE_STEP_EDGES` 里不计步，
+    # `transition` 的 `_limit(steps)` 因此不会在这两个 raise 站点炸。保留是因为站点仍在
+    # （预算被调小或持久状态越界时仍可能命中）；处置选择登记在台账 D-33。
+    # 本文件的 AST 判据只保证"每个成因码有一档"，**不保证成因码可达**——这是它量不到的那一面。
     "state_unreadable": RESUME_DETAIL_UNRECOVERABLE,
     "pending_anchor_mismatch": RESUME_DETAIL_UNRECOVERABLE,
     "issue_missing": RESUME_DETAIL_UNRECOVERABLE,

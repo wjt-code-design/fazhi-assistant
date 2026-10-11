@@ -1063,3 +1063,54 @@ def test_d2_compensation_failure_is_observable_and_does_not_swallow_the_disconne
         guard._sem.release()
     finally:
         engine.dispose()
+
+
+def test_stopped_label_can_only_be_set_by_a_disconnect_signal():
+    """D-23 的不变量：历史里那句"已停止"只能由**断开信号**置起，不能由控制流走到哪推断。
+
+    反例形状（独立复核 B 2026-10-11 打中过我第一版实现）：用"有没有走到 try 结尾"反推取消，
+    而 `stream()` 的 try 体里有若干**主动 return**（正常分支走完就退），于是轻量分支的空答
+    被写成"已停止"，同样的空答在旗舰分支写"不响应"——同一症状两句话。
+    这条测试钉的就是：`_client_gone = True` 只许出现在捕获 GeneratorExit/CancelledError 的
+    except 块里，且 finally 的档位判定读的是它。
+    """
+    import ast
+
+    src = (Path(__file__).resolve().parents[1] / "main.py").read_text(encoding="utf-8-sig")
+    tree = ast.parse(src)
+    chat = next(n for n in tree.body if getattr(n, "name", None) == "chat")
+    stream = next(n for n in chat.body if isinstance(n, ast.AsyncFunctionDef) and n.name == "stream")
+
+    def assign_targets(node):
+        return {t.id for t in ast.walk(node) if isinstance(t, ast.Name) and isinstance(t.ctx, ast.Store)}
+
+    def caught_names(handler):
+        """`except (GeneratorExit, asyncio.CancelledError)` 里后者是 Attribute，不是 Name。"""
+        out = set()
+        for part in handler.type.elts if isinstance(handler.type, ast.Tuple) else [handler.type]:
+            if isinstance(part, ast.Name):
+                out.add(part.id)
+            elif isinstance(part, ast.Attribute):
+                out.add(part.attr)
+        return out
+
+    # ① 谁把 _client_gone 置真：必须只在"抓到断开异常"的 except 块里
+    setters = []
+    for handler in (n for n in ast.walk(stream) if isinstance(n, ast.ExceptHandler)):
+        if "_client_gone" in assign_targets(handler):
+            names = caught_names(handler)
+            assert {"GeneratorExit", "CancelledError"} <= names, f"置真它的 except 抓的是 {sorted(names)}"
+            setters.append(handler.lineno)
+    assert setters, "没有任何 except 块置 _client_gone——那「已停止」档是靠什么判的？"
+
+    # ② try 体里不许出现对该标记的赋值（return 路径不能冒充取消）
+    for stmt in (n for n in ast.walk(stream) if isinstance(n, ast.Try)):
+        body_targets = set()
+        for sub in stmt.body:
+            body_targets |= {t.id for t in ast.walk(sub) if isinstance(t, ast.Name) and isinstance(t.ctx, ast.Store)}
+        assert "_client_gone" not in body_targets, "try 体内在给断开标记赋值 ⇒ 又回到用控制流推断取消"
+
+    # ③ finally 的档位判定必须读这个标记
+    fin = next(n for n in ast.walk(stream) if isinstance(n, ast.Try) and n.finalbody)
+    readers = {n.id for n in ast.walk(fin) if isinstance(n, ast.Name) and isinstance(n.ctx, ast.Load)}
+    assert "_client_gone" in readers, "finally 没在读断开标记 ⇒ 档位判定又和断开脱钩了"

@@ -31,7 +31,7 @@ CONFLICT_DETAIL = "Agent 任务已变化，无法恢复"
 # 期望值必须独立于实现，否则文案改错时测试会跟着一起改绿。
 ADVANCED_DETAIL = "这条任务已经处理过了，请回到对话查看最新结果。"
 ANSWER_INVALID_DETAIL = "这个回答和当前的问题对不上，请重新回答一次。"
-STEP_BUDGET_DETAIL = "本次咨询的追问次数已用完，请重新发起一次咨询。"
+STEP_BUDGET_DETAIL = "这次任务可用的处理步骤已经用完了，请重新发起一次咨询。"
 UNRECOVERABLE_DETAIL = "这条任务接不上了，请重新发起一次咨询。"
 QUESTION = "是否约定履行期限"
 

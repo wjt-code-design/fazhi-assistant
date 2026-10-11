@@ -99,6 +99,10 @@ jobs:
   source-probe:
     name: Source probe · 出厂镜像源真取（D-25）
     runs-on: ubuntu-latest
+    # 独立复核 B（2026-10-11）打中我上一版：只在工作流级加 schedule 不等于这个作业只在计划
+    # 与手动触发时跑——`push`/`pull_request` 会连带把它跑上，而我三处文字都写了"不占每次 PR"。
+    # 作业级 if 才是那道门；三根触发轴现读：`on` 段 4 根，本作业 if 只放行 schedule/workflow_dispatch。
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     # 判据不是"索引页 200"，而是"这一版 wheels 文件真取得到"：2026-10-10 的 `[5/9]` 就是
     # 索引页正常、文件 404。torch 单列一根轴——它由 Dockerfile 从 pytorch-wheels 的
     # --find-links 单独装，`-r requirements.txt` 那一步只会看到"已满足"，所以逐包探针覆盖不到它。
@@ -134,6 +138,11 @@ jobs:
             echo "::error title=两源都取不到::$spec（官方源日志尾：$(tail -1 "$logs/o.log")）"
           done < <(grep -E '^[A-Za-z0-9]' backend/requirements.txt | grep -viE '^torch(==|[[:space:]]|$)')
           echo "probed=$probed mirror_fail=$(echo "$mirror_bad" | wc -w) both_fail=$(echo "$both_bad" | wc -w)"
+          # 正对照：清单为空 ⇒ 这把尺子什么都没量（独立复核 B 抓的假绿形状）。0 个包不许报绿。
+          if [ "$probed" -eq 0 ]; then
+            echo "::error::逐包清单为空（probed=0）——不是干净，是仪器没接到对象"
+            exit 1
+          fi
           [ -n "$both_bad" ] && exit 1
           exit 0
       - name: torch CPU wheel 双目录核对（阿里云 + 官方页）

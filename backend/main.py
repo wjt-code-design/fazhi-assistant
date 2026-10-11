@@ -2058,9 +2058,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
     async def stream():
         stream_state["entered"] = True
         _posted = False  # 本轮 assistant 消息是否已落库（对抗审计 v2 #5/#8：客户端断开时 finally 兜底占位）
-        # D-23：兜底占位要区分"这一轮正常走完了但没内容"与"流被打断在半路"。
-        # 只有 try 体走到自然结尾才置真；GeneratorExit/CancelledError 半途退出时保持假。
-        _delivered = False
+        # D-23：兜底占位要区分"连接被打断"与"这一轮服务端没给出内容"。
+        # 判据必须是**真实断开信号**，不能是"有没有走到 try 结尾"——正文里有 5 处 `return` 是
+        # 走完正常分支后主动退出的（轻量/合同/chitchat 等），用"没走到结尾"反推会把它们全判成取消。
+        # 独立复核 B（2026-10-11）就是这么打中我这版实现的：轻量分支空答走 `:2415` 的 return，
+        # 会被错写成"已停止"，而同样的空答在旗舰分支写的是"不响应"——同一症状两句话。
+        _client_gone = False
         try:
             yield f"data: {json.dumps({'type': 'status', 'msg': '正在思考…'}, ensure_ascii=False)}\n\n"
             if pre.get("agent_fallback_reason"):
@@ -2635,7 +2638,11 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     _posted = True
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
-            _delivered = True
+        except (GeneratorExit, asyncio.CancelledError):
+            # D-23：这两支才是"连接被打断"的真信号（用户停止 / 切换会话 / 断网）。
+            # 只置标记并原样抛出——GeneratorExit 期间不能再 yield，CancelledError 不能吞。
+            _client_gone = True
+            raise
         except LLMBusyError:
             # 并发门控降级：不占日志噪音（每次 surge 都刷不可取），仅下发繁忙提示
             yield f"data: {json.dumps({'error': '服务繁忙，请稍后重试'}, ensure_ascii=False)}\n\n"
@@ -2645,7 +2652,6 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 _posted = True
             except Exception as e:
                 print(f"[chat-placeholder] {e}", flush=True)
-            _delivered = True
         except Exception as e:
             # 详情只进日志：str(e) 可能含内部 model id / 供应商错误体 / 服务器路径，不得下发普通用户
             print(f"[chat-stream] {type(e).__name__}: {e}", flush=True)
@@ -2656,15 +2662,14 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 _posted = True
             except Exception as e:
                 print(f"[chat-placeholder] {e}", flush=True)
-            _delivered = True
         finally:
             # 对抗审计 v2 #5/#8：客户端断开（GeneratorExit 不属 Exception）或未走任何落库分支时，
             # close 可以 await 清理但不能 yield；等唯一占位 commit 后才结束响应所有权。
             # _post 已 commit 后即使沉淀/压缩失败，也不能补第二条 assistant。
             if not _posted and not pre.get("assistant_committed"):
-                # D-23：走到自然结尾 = 这一轮确实没给出内容；半途退出 = 用户/网络把流打断了，
-                # 不能对后者说"服务暂时无响应"（那句话会进历史，被反复读成平台故障）。
-                _reason = "no_response" if _delivered else "stopped"
+                # D-23：只有真断开才说"已停止"；主动 return（含轻量分支的空答）与落库失败
+                # 都归"这一轮没给出内容"，不能挂到用户操作上。
+                _reason = "stopped" if _client_gone else "no_response"
                 with CancelScope(shield=True):
                     try:
                         await run_in_threadpool(_post_placeholder, pre, _reason)
