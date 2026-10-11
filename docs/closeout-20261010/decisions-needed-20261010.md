@@ -14,12 +14,12 @@
 
 | 编号 | 一句话 | 现量证据 | 我的推荐 | 你可以答 |
 |---|---|---|---|---|
+| **D-33 409 的 step_budget 档今天走不到** | 这档文案留着还是把不可达的站点删掉？ | 复核 B 打出来：DB-15 起 `(WAITING_USER→PLANNING)` 在 `agent/state_machine.py:29-36` 的 `FREE_STEP_EDGES` 里不计步，`transition` 的 `_limit(steps)`（同文件 `:60-62` + `:74-77`）在这两个 raise 站点不会炸 ⇒ `ResumeRunConflict("step_budget")` 实际不可达（预算被调小或持久状态越界时仍可能命中）。真正的追问轮数上界是 `max_clarifications`，它耗尽走 `CLARIFY_BUDGET_EXHAUSTED`、不落 409。复算：`grep -n FREE_STEP_EDGES backend/agent/state_machine.py` | **本轮只改准措辞并就地标注**（文案已换成「这次任务可用的处理步骤已经用完了」，不再说「追问次数」；站点保留不删）。下一轮二选一：① 删两个不可达站点；② 让 `max_clarifications` 耗尽也进这条码并配测试。判据盲区写明：AST 全覆盖只保证「每个成因码有一档」，不保证成因码可达 | 「本轮只标注」/「现在就删站点」/「让澄清耗尽并进来」 |
+| **D-34 Agent 轮次没有占位补偿腿** | 要不要给 Agent 路径也配成对性补偿？ | 复核 B 的新发现（**不是本轮引入**）：`_agent_streaming_response`（`backend/main.py:836`）用裸 `StreamingResponse`，没有 `on_response_close`；assistant 行只在 DRAFTING→COMPLETED 的 CAS 里写（`backend/agent/chat_integration.py`），而用户行早在 bootstrap 落库 ⇒ Agent 轮次被取消/失败时可能留下**没有配对 assistant 的用户消息**，正是快车道上花力气堵的那个形状（对抗审计 v2 #5/#8）。复算：`grep -n on_response_close backend/main.py` | **本轮不动**：它要自己的用例集（成对性、message_count、不重复落），且刚被复核钉过的取消面不宜在同批里二次改动。要么并入 D-14 那张票，要么另开 | 「并入 D-14 票」/「另开一张」/「先只做读数」 |
 
-> 本节**现为空**（不是漏登）：10-11 06:2x 你那句「决策按你的推荐走」之后，§A/§B 从 **18 条**降到 **2 条**
-> （差集实测离场 16 条；本批新问出的 D-30/D-31/D-32 也已同批裁完并移进 §C）。
-> 剩下的两条都不是"问题"而是"只剩你手上的动作"，已挪到 §A。
-> 各档现数一律现读，别引用本节措辞里的数字：`awk '/^## [ABC]\./{s=substr($0,4,1)} s' <本文件> | grep -cE '^\| \*\*D-[0-9]+'`（按段各跑一次）。
-
+> 这两条是复核 A/B（10-11 06:5x）之后新问出来的，发现时间在上一次整包授权**之后**，所以不并入已裁。
+> 上一批离场 15 条（§A/§B 由 18 降到 2），本批加回 2 条 ⇒ 等你动的现在是：§A 两条推送动作 + 本节两条。
+> 各档现数不要引用本节措辞，用脚本现读：`evidence/ledger_row_audit.py`（按 §A/§B/§C 切段，抽编号，报重复与缺号）。
 ## C. 已裁过、已执行完（不再问你，只作对账）
 
 | 编号 | 内容 | 落地位置 |
@@ -36,37 +36,37 @@
 | D-21 | 「§14 那份从没进过任何提交」的整合动作 | **已执行**（同上，第五笔 `9e3cfc5`）；证据 `evidence/frontend-dirty-20261010.patch` 与 `.manifest`。**注意 J3（生产构建 purge 徽章类名）没有随这笔修掉**，那是 D-22，另开票 |
 | D-22 | J3：生产构建把四个 `badge-*` 类名 purge 掉 | **已执行并闭合**（Owner 裁「按推荐」→ 本会话自验）：`ui.tsx` 改静态映射 + 新增 `npm run build:check`（带 INERT 判据）+ CI 既有 Build 步并入；提交 `842ef0b`、`0d3d662`。产物层 0/0/0/0 → 1/1/1/1；变异臂只让被改那一类变 0 |
 | D-28 | D-22 暴露的徽章配色 AA（前景压自己浅底只有 1.42–4.01）怎么裁 | **已裁 (b) 并已执行**：前景统一 `--ink`，差异交给底色 + inset 环（不用 `border-left`：胶囊会弯成碎片且撑高 2px）。复量 **11.15 / 11.22 / 10.30 / 5.70，全部 ≥4.5**；按「底色+环」两维 6 对里相同 0 对；提交 `033cd3d`。同一把尺子本轮出现三态（全同→红 / AA 不达→红 / 现在→绿）⇒ 它不是恒绿的 |
-| D-12 | 本轮交付物要不要入库 | **已执行**：`docs/closeout-20261010/` 现量 **29 只 `.md` 全部 tracked**（随 4 笔 docs 提交入册；未含 `evidence/`、`candidate-env*`、`synthetic/`）。入库前三检留痕：逐只 CR=0；凭据形状复扫 `sk-`/AKIA/JWT/PEM/URL-in-creds 命中 0，13 位形状 45 处全是普通标识符、与参照值相同 0 处；`git diff --cached --name-only` 自证未夹带 |
+| D-12 | 本轮交付物要不要入库 | **已执行**：`docs/closeout-20261010/` 现量 **32 只 `.md` 全部 tracked**（10-11 06:5x；这数随每轮交付增，读法 `ls docs/closeout-20261010/*.md \| wc -l` 配 `git ls-files -- docs/closeout-20261010 \| wc -l`，两数相等才算入库）（随 4 笔 docs 提交入册；未含 `evidence/`、`candidate-env*`、`synthetic/`）。入库前三检留痕：逐只 CR=0；凭据形状复扫 `sk-`/AKIA/JWT/PEM/URL-in-creds 命中 0，13 位形状 45 处全是普通标识符、与参照值相同 0 处；`git diff --cached --name-only` 自证未夹带 |
 | D-6 | 开发环境对齐怎么办 ⇒ 已开票，本轮不动宿主机 venv | 票 tickets/dispatch-D6-dev-env-alignment-20261011.md（7 节）。10-11 现量：对【候选】requirements.txt 偏离 6 只（fastapi 0.110.3 / uvicorn 0.52.1 高于上限 / sentence-transformers 2.7.0 / sqlalchemy 2.0.51 / pypdf 6.14.2 / torch 2.6.0+cpu），pip check 既有 2 条红；⚠️ 同一条命令读【主仓旧那份】只得 4 条偏离（那份没有 torch 行、sqlalchemy 下限还是 >=2.0）⇒ 报数必须点名读哪一份。尺子 evidence/venv_vs_requirements_axis.py，读数 evidence/d6-venv-axis-20261011.txt |
 | D-8 | DB-19 的 category 字段摘不摘 ⇒ 已裁：不摘 | Owner 10-11「都交由你的推荐执行」＝采纳维持现状；schema 与回落形状未动，category_filter_* 三字段读数继续存在。零代码改动 |
 | D-9 | DB-22 拒答冷却分档 ⇒ 已执行并测到 | backend/llm_registry.py：REJECT_COOLDOWN_BY_STATUS（401/403/404 = 3600s）+ reject_cooldown_s() + reject_kind() + ModelEntry.rejected_kind；status() 每行带 rejected_kind（config 与 shape 分得开）；两字段登记进 observability._ACCOUNT_FIELDS。新增 3 条用例（tests/test_llm_reject_channel.py）。负向自证：M1 把长档塌回 300 ⇒ 杀 2 条；M2 取消登记 ⇒ 杀 2 条（含 AST 哨兵那条）⇒ evidence/batchA-mutation-20261011.log |
-| D-10 | DB-23 的 409 文案 ⇒ 已执行，且实拆成 4 档（台账原写三条） | backend/agent/controller.py：RESUME_CONFLICT_DETAILS 成因码表 + resume_conflict_detail()（未登记码回落旧句 ⇒ 409 不会变 500），ResumeRunConflict.detail 承载；main.py 用 _resume_exc.detail，不再拼第二份。分档轴是【用户下一步动作】（已处理过 / 再答一次 / 预算用完 / 接不上），所以 answer_invalid 单列一档 ⇒ 共 4 条文案。新腿：AST 现读成因码全覆盖（新增抛点自动进门）+ 回落腿 + 四档互不相同且不泄漏内部标识；变异 M5（全塌成旧句）杀 5 条、M6（两档共用一句）杀 1 条 ⇒ evidence/batchB-mutation-20261011.log。文案要你过字见新行 D-31 |
+| D-10 | DB-23 的 409 文案 ⇒ 已执行，且实拆成 4 档（台账原写三条） | backend/agent/controller.py：RESUME_CONFLICT_DETAILS 成因码表 + resume_conflict_detail()（未登记码回落旧句 ⇒ 409 不会变 500），ResumeRunConflict.detail 承载；main.py 用 _resume_exc.detail，不再拼第二份。分档轴是【用户下一步动作】（已处理过 / 再答一次 / 预算用完 / 接不上），所以 answer_invalid 单列一档 ⇒ 共 4 条文案。新腿：AST 现读成因码全覆盖（新增抛点自动进门）+ 回落腿 + 四档互不相同且不泄漏内部标识；变异 M5（全塌成旧句）杀 5 条、M6（两档共用一句）杀 1 条 ⇒ evidence/batchB-mutation-20261011.log。文案由我起草并经整包授权落地，Owner 未逐字过稿（D-31）：改词只动常量，逐字用例会变红（那是预期信号） |
 | D-11 | 在册风险册入库 ⇒ 已执行 | 主仓那份 docs/chroma-risk-triage-20261003.md（3,252 B / 23 行 / sha256 前缀 0847ba2d）10-11 现量仍是未跟踪且未被忽略（两棵树 ls-files 都 0、check-ignore 无命中），候选树里根本没有 ⇒ 已 cp -a 进候选 docs/（mtime 与 sha 逐字相同），随本轮文档提交。⚠️ 同族未跟踪文档主仓现量 34 只 ⇒ 见新行 D-30 |
 | D-14 | 索引写入口守卫覆盖面 ⇒ 已开票 | 票 tickets/dispatch-D14-index-write-guards-20261011.md（8 节）。10-11 现量：守卫消费方 4 只（backup_data / import_laws / rebuild_embeddings / switch_embedding）；无守卫却能改生产向量库的 CLI 4 只共 13 个站点（import_docs 2、verify_new_law 7、eval_chunking 3、backfill_time_meta 1），且四只写目标都是 vectorstore._collection = 生产库 |
 | D-15 | DB-7 技术降级白名单 ⇒ 已执行并测到 | backend/routing_metrics.py：TOOL_BUSY 进 TECHNICAL_FALLBACK_REASON_CODES（集合 5→6）；record_agent_route 的 raise 两侧都有用例钉住；管理台快照 fallback_reason_code_counts 里 TOOL_BUSY 与 TOOL_UNAVAILABLE 分列（逐键断言）。变异 M3 摘掉 TOOL_BUSY ⇒ 杀 2 条（精确集合 + 分列） |
 | D-16 | DB-10 事件响应文档 ⇒ 已执行，并更正我台账的读数面 | DEPLOYMENT.md 新增 §7（三行表：信号 / 看哪个计数器 / 读到之后做什么），只写计数器不写法律口径。⚠️ 我原句写错：读数面不是 /metrics（全仓没有这个路由），真身 = GET /api/admin/llm-status（backend/main.py:3082，require_admin），返回 models / utility_quota / metrics |
 | D-17 | F 的可播种语料 ⇒ 已裁：用冻结题集，本轮不播种 | Owner 10-11「按你的推荐」＝可播种条文仅 11 对，不足以撑 F2 的 12 题；F 腿仍由 §A 的 D-7 卡着，零代码改动 |
 | D-18 | DB-24 注释与真值不符 ⇒ 已执行，且发现比台账宽 | 两处「8」改成「条数以 DEFAULT_ROLES 为准，注释里不抄数」。新发现：同一只 docstring 举的 7 个模型名里 6 个不在表里（deepseek-r1-distill-qwen-7b / qwen2.5-omni-7b / qwen3.5-omni-flash / qwen3-vl-235b / qwen3-vl-32b / qwen-plus 现量命中 0，只有 qwen3.7-plus 与 qwen3.5-omni-plus-2026-03-15 在）；「现有 6 个辅助调用点」这条现量是 registry.get() 15 处 ⇒ 假例子已删，条数与调用点数都改成指向真源。get() 返回 omni-plus 那句核为真（DEFAULT_KEY=vision_flag ⇒ qwen3.5-omni-plus-2026-03-15），未动 |
-| D-20 | 合 master ⇒ 已开票，且数会随头动 | 票 tickets/dispatch-D20-merge-into-master-20261011.md（7 节）+ 尺子 evidence/merge_trial_blobs.py、evidence/merge_trial_reconcile.py + 清单 evidence/d20-diff-list.txt。10-11 04:0x 在头 5e9bba8 × refs/closing/remote-master（985d53e，与当日 ls-remote 一致）重跑：候选 2706 / 远端 2136 / 交集 2136 / 远端独有 0 / 同 blob 2040 / 异 blob 96 = CONFLICT 96（全 add/add）⇒ 两把尺子吻合。台账旧写 94 是 9e3cfc5 轴、更早 115 是本地陈旧 ref 轴，均已就地作废。分组：backend 72（含 tests 33）、frontend 15、docs 5、门禁会读的配置 4。⚠️ **同一把尺子在 10-11 05:5x 的本轮三笔提交后再跑 = 异 blob 99 = CONFLICT 99（头 bffbe1c，A 路径 2707、B 独有 0）** ⇒ 96 只在 5e9bba8 上成立；这条不是笔误，是"数随头动"的现行演示，也正是票里写死"开工时与最终头上都要重跑"的原因 |
-| D-23 | 取消占位文案 ⇒ 已执行并测到 | backend/main.py：_PLACEHOLDER_NO_RESPONSE（复用 _ERROR_NO_RESPONSE，两处只差句号，不抄第二份）与 _PLACEHOLDER_STOPPED 两档；_post_placeholder(pre, reason)。两条路分别钉住：正文生成器 finally 只在【没走到自然结尾】时记 stopped（M4 把两档塌成一句 ⇒ 杀 4 条）；compensate_unstarted（响应已关而正文从未进入）记 stopped（M7 ⇒ 杀 2 条）。服务侧真故障（空答 / 异常 / bootstrap 抛错 main.py:738）仍走 no_response。前端当场文案未动 ⇒ 见新行 D-32 |
+| D-20 | 合 master ⇒ 已开票，且数会随头动 | 票 tickets/dispatch-D20-merge-into-master-20261011.md（7 节）+ 尺子 evidence/merge_trial_blobs.py、evidence/merge_trial_reconcile.py + 清单 evidence/d20-diff-list.txt。10-11 04:0x 在头 5e9bba8 × refs/closing/remote-master（985d53e，与当日 ls-remote 一致）重跑：候选 2706 / 远端 2136 / 交集 2136 / 远端独有 0 / 同 blob 2040 / 异 blob 96 = CONFLICT 96（全 add/add）⇒ 两把尺子吻合。台账旧写 94 是 9e3cfc5 轴、更早 115 是本地陈旧 ref 轴，均已就地作废。分组（176899f 上的 99 只）：backend 74、frontend 15、docs 5、`DEPLOYMENT.md`/`CONTRIBUTING.md`/`.gitignore`/`.github`/`dispatch-output` 各 1；**头一动分組就重算**，别引用本句做排工。⚠️ **同一把尺子在 10-11 05:5x 的本轮三笔提交后再跑 = 异 blob 99 = CONFLICT 99（头 bffbe1c，A 路径 2707、B 独有 0）** ⇒ 96 只在 5e9bba8 上成立；这条不是笔误，是"数随头动"的现行演示，也正是票里写死"开工时与最终头上都要重跑"的原因 |
+| D-23 | 取消占位文案 ⇒ 已执行并测到 | backend/main.py：_PLACEHOLDER_NO_RESPONSE（复用 _ERROR_NO_RESPONSE，两处只差句号，不抄第二份）与 _PLACEHOLDER_STOPPED 两档；_post_placeholder(pre, reason)。两条路分别钉住：正文生成器 finally 只在【抓到 GeneratorExit / CancelledError】时记 stopped。〔10-11 复核 B 打中我第一版：那时用「有没有走到 try 结尾」反推取消，而 try 体里有 5 处主动 return （轻量分支空答走 :2415），会把「服务端没给出内容」错写成「用户已停止」，同样的空答在旗舰分支却写「不响应」——同一症状两句话。已改为断开信号置档，并补一条 AST 结构不变量测试（只有 except 能置 _client_gone）。变异读数：旧版 M4 杀 4 条；改写后 M8 抽掉该信号杀 3 条（含这条新测试），日志 evidence/batchC-mutation-M8-20261011.log〕；compensate_unstarted（响应已关而正文从未进入）记 stopped（M7 ⇒ 杀 2 条）。服务侧真故障（空答 / 异常 / bootstrap 抛错 main.py:738）仍走 no_response。前端当场文案未动 ⇒ 见新行 D-32 |
 | D-24 | 探针失败往宽还是往窄 ⇒ 已裁：保持宽 | Owner 10-11「按你的推荐」＝保持 _corpus_advertises_category 探测失败 return False ⇒ 无过滤回落；代价由 category_filter_* 三条日志字段承担（可见而不静默）。零代码改动 |
 | D-25 | 出厂 Dockerfile 源侧缺陷 ⇒ 已执行（回落 + 可观测两条腿） | backend/Dockerfile：torch 步与 requirements 步各加 `\|\|` 失败回落（官方 CPU find-links / -i pypi.org），选 `\|\|` 而非 --extra-index-url 的理由写在文件里（不合并两源候选，避免版本选择权外移）。.github/workflows/ci.yml 新增 source-probe 作业（PyPI 逐包 pip download --no-deps --no-cache-dir + torch CPU 目录双源核对；主源红 = 降级 warning，两源同红 = 真红），只挂 schedule + dispatch，不占每次 PR。⚠️ 10-11 本机复量：缺陷已自愈（阿里云 pydantic-2.14.0 可取 487 kB rc=0；官方页 torch-2.13.0%2Bcpu-cp311 在列）⇒ 落的是【这一类】故障的兜底，不是复现中的补丁。自检：evidence/d25-probe-selfcheck-20261011.log、evidence/d25-pipleg-selfcheck-20261011.log（假版本必两源皆红、rc=1） |
 | D-29 | D-3 的两份 diff 要不要现在落 ⇒ 已裁：本轮不落 | Owner 10-11「按你的推荐」＝不落地。迁移证据已交付且我独立复算过族 ID 13→0，但落它＝换整栈依赖，与本轮【验收对象 = 交付对象】的收口顺序冲突；登记为下一轮首票（连同 D-3 报告 §6 的两条观察项） |
 | **D-7 | F 五类真实模型验收这轮开不开 ⇒ 已裁：不开 | 按推荐执行＝本轮零模型调用（在册预算 81/162 未动用）；冻结稿在 `docs/closeout-20261010/gold-freeze-draft.md`，F 的三根阻塞（含可播种语料仅 11 对）逐条仍在报告里挂着，**没有**被本轮顺手做掉 |
 | **D-30 | 主仓其余未跟踪文档 ⇒ 已裁：本轮不收 | 现量：主仓 `docs/` 未跟踪 34 只，本轮只按 D-11 收了点名的 `chroma-risk-triage-20261003.md`。不收的理由是公开仓一推就永久可见；要收时一次性裁「收哪几类、放哪个目录」 |
-| **D-31 | 我代起草的用户可见文案 ⇒ 已裁：照草案 | 409 四档在 `backend/agent/controller.py` 的 `RESUME_DETAIL_*`；取消与故障两档在 `backend/main.py` 的 `_PLACEHOLDER_STOPPED` / `_PLACEHOLDER_NO_RESPONSE`。每条都有用例逐字钉住 ⇒ 将来改词只动常量，分档与判据不动（改词会让那几条逐字断言红，那是预期信号，不是回归） |
+| **D-31 | 我代起草的用户可见文案 ⇒ 整包授权下按草案落地（**未逐字过稿**；要改词只动常量，判据不动） | 409 四档在 `backend/agent/controller.py` 的 `RESUME_DETAIL_*`；取消与故障两档在 `backend/main.py` 的 `_PLACEHOLDER_STOPPED` / `_PLACEHOLDER_NO_RESPONSE`。每条都有用例逐字钉住 ⇒ 将来改词只动常量，分档与判据不动（改词会让那几条逐字断言红，那是预期信号，不是回归） |
 | **D-32 | 取消的历史文案与前端当场文案 ⇒ 已裁：保持两套 | `frontend/lib/hooks/useChatStream.ts:65-66`（当场，可能有半截答案）与 `backend/main.py` 的历史占位（一定没有答案）语义不同，不合并；本轮前端零改动 |
 
 ## D. 一句话门禁现状（截至本文件写出时）
 
 候选 `codex/nondeploy-closeout-20261010`；本轮提交笔数用 `git log --oneline 0b54396..HEAD` 现量（本文不写死笔数，写完就会过期）
 **未推送、未开 PR、未合并、未轮换任何凭据、未动真实库与容器**。
-门禁现量（2026-10-11 05:4x，头 `bffbe1c`）：`ruff check .` rc=0、`ruff format --check .` 283 files rc=0、`mypy .` Success（74 files）、
-全量非 slow **1932 passed / 0 failed / 10 skipped / 18 deselected**、覆盖率 **86.37%**（门槛 70）rc=0、
-基线闸：collected **1942/1960**、junit tests=1942 skipped=10 failures=0 errors=0；
-前端 `tsc` rc=0、`next lint` rc=0、`vitest` **83 passed**（`build:check` 本轮未重跑，前端字节零改动）。
+门禁现量（2026-10-11 07:3x，头 `bee37d3`＝复核修复后）：`ruff check .` rc=0、`ruff format --check .` 283 files rc=0、`mypy .` Success（74 files）、
+全量非 slow **1933 passed / 0 failed / 10 skipped / 18 deselected**、覆盖率 **86.38%**（门槛 70）rc=0、
+基线闸：collected **1943/1961**、junit tests=1943 skipped=10 failures=0 errors=0（1933+10=1943）；
+前端 `tsc` rc=0、`next lint` rc=0、`vitest` **83 passed**、`npm run build:check` rc=0（产物断言 VERDICT=OK）。
 证据 `evidence/final-gates-backend-20261011.log`、`final-gates-junit-20261011.xml`、`final-gates-static-frontend-20261011.log`；
-`socket` 守卫与 `pip check` 两轴本轮未重跑（未动依赖与网络面），在册读数见 `reports/gates.md` §38。
+`socket` 守卫与 `pip check` 两轴本轮未重跑（未动依赖与网络面），在册读数见 `reports/gates.md` §38。 注：第二遍全量的 collected/junit 只在新加那条 AST 不变量测试后 +1；两遍读数都在 evidence/final-gates*-20261011.log。
 
 ## E. C 单元（依赖风险）的收口建议：15 条其实只剩**两条处置要你点头**
 

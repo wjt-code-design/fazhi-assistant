@@ -7,8 +7,8 @@
 ## §0 三行汇总
 
 1. **现状**：`scripts/chroma_dir_guard.py` 的消费方只有 **4 只**（`backup_data` / `import_laws` / `rebuild_embeddings` / `switch_embedding`，现量见 §1.1）；另有 **4 只能改生产向量库的 CLI 一只守卫都没有**，合计 **13 个写/删站点**（`import_docs` 2、`verify_new_law` 7、`eval_chunking` 3、`backfill_time_meta` 1）。
-2. **要做的**：给这 4 只补与 `import_laws` 同款的前置守卫（只在 `__main__` 路径调、不进 import 路径），并按在册先例各配一只"守卫真的会拦"的用例。
-3. **判据形状**：照抄 `tests/test_import_laws_guard.py` + `tests/test_chroma_dir_guard.py` 的双腿（正对照必须绿、错 env 必须咬红），**不许只断言"调用过守卫函数"**。
+2. **要做的（10-11 复核后重写——原写法机制不成立）**：这四只**没有自己的固定目标**，它们的目标是 `rag_chain.py:125` 的 `CHROMA_DIR = os.environ.get("CHROMA_DIR") or DEFAULT_CHROMA_DIR` ⇒ 对它们调 `assert_matches` 是**恒等式**，永远不咬红（独立复核 B 抓出，我第一版照 `import_laws` 抄守卫是抄错了对象）。改成三件事：① 新腿 `require_explicit_target(caller, writes)`——**未设 CHROMA_DIR 且要写/删** ⇒ 拒绝（此时默认落生产目录，操作者从未选择过）；② `eval_chunking.py` / `verify_new_law.py` 是评测与验证脚本，却真的 add_documents + delete 生产 collection ⇒ 改成在临时目录上跑（播种它们需要的条文），而不是给它加一道必然绿的门；③ `import_docs.py` / `backfill_time_meta.py` 的破坏性子命令改**默认 dry-run + 显式 --write**。
+3. **判据形状**：每只都要"不设 env 就跑破坏性写 ⇒ 退出码非 0"与"设 env 指到临时目录 ⇒ 放行并写在临时库"两条腿，且断言里点名是哪一个守卫抛的。**只断言守卫函数被调用＝假绿**（本票第一版就是这个形状）。
 
 ## §1 现场事实（每条都带复算命令，开工前先自己重跑一遍）
 
@@ -37,7 +37,7 @@ done
 | 脚本 | 站点 | 打在哪个对象上 |
 |---|---|---|
 | `import_docs.py` | `:70` `:100` 两处 `_col().delete(...)` | `_col()` = `vectorstore._collection`（`:58`）⇒ **生产向量库** |
-| `verify_new_law.py` | 6 处 `add_text(...)` + `:50` `col.delete(...)` | 经 `knowledge_service` 写生产库；且该文件有 **2 处 `load_dotenv`** |
+| `verify_new_law.py` | 6 处 `add_text(...)` + `:50` `col.delete(...)` | 经 `knowledge_service` 写生产库；且该文件 **`load_dotenv` 在模块级第 26 行**（import 该脚本就会装载真实 `.env`，比 CLI 里装更危险；另第 24 行是 import 语句） |
 | `eval_chunking.py` | `:51` `_collection.delete(...)` + `:71,72` `vectorstore.add_documents(...)` | 生产库（评测用完就删，删的就是生产里的条目） |
 | `backfill_time_meta.py` | `:42` `col.update(...)` | 生产库元数据回写 |
 
@@ -50,7 +50,7 @@ done
 ## §2 任务范围（含明确的不做什么）
 
 做：
-1. 四只脚本各加 `_check_env_contract()`（名字与 `backup_data` 对齐），调 `chroma_dir_guard.assert_matches(<该脚本实际写的那个目录>, "<脚本名>")`。
+1. 加 `require_explicit_target(caller, writes: bool)`（放 `chroma_dir_guard.py` 旁边或同模块），语义是"**没选过目标就不许写生产默认目录**"，与既有 `assert_matches` 的"选了 A 却打到 B"是**两根不同的轴**，别混成一个函数。
 2. `verify_new_law.py` 还要按在册纪律处理 `load_dotenv`：**不要**改成"顺手把真实 `.env` 装进测试进程"——见 §3 的红线。
 3. 每只脚本配一只"守卫会咬红"的用例（放 `backend/tests/`，命名跟 `test_import_laws_guard.py` 同族）。
 
@@ -71,7 +71,7 @@ done
 ## §4 判据（每条都要能红，且要说清"红的是哪一条"）
 
 1. **守卫在场**：`grep -n "chroma_dir_guard" backend/scripts/<四只>.py` 每只至少 1 处 import + 1 处 `assert_matches`。
-2. **会咬红**（核心）：新用例必须包含"环境指到别处 ⇒ 抛错/退出码非 0"的断言，且断言里点名是 `assert_matches` 抛的（照 `tests/test_chroma_dir_guard.py:44` 的形状）。只断言"函数被调用"不合格。
+2. **会咬红**（核心）：新用例必须证明"未设 `CHROMA_DIR` 且执行写/删 ⇒ 拒绝"，以及"设 `CHROMA_DIR` 指向临时目录 ⇒ 放行且**只动临时库**"；两条都要断言到具体守卫名与退出码。
 3. **不进 import 路径**：`python -c "import scripts.<name>"` 在正常环境下不应触发守卫（判例见 `import_laws.py:270` 那句"位置是硬约束"）⇒ 用例里要有一只"仅 `__main__` 才检查"的腿。
 4. **回归**：全量 `pytest -m "not slow" --cov=. --cov-fail-under=70` 与 `ruff check` / `ruff format --check` / `mypy .` 四腿 rc=0，读数与在册基线**同数**（`--collect-only` 单取 collected，junit 用例数配平；见 `reports/gates.md` 的轴纪律）。基线本身会随别的提交漂 ⇒ 你开工时先记一次基线读数再动。
 5. **真实库零改动证明**：`find` 目录级 + 文件级两轴（口径见 `reports/gates.md` §2.3 那条更正：文件轴 0 命中 + 唯一目录级命中要归因），外加跑前跑后各一次指纹。
@@ -85,7 +85,7 @@ done
 
 ## §6 停止条件（回报，不要自己扩大范围）
 
-1. 某只脚本的写目标**不是** `vectorstore._collection` 而是自建 collection ⇒ 守卫的"目标目录"取哪个值要先裁。
+1. 若在实现②时发现 `eval_chunking` / `verify_new_law` 离了生产 collection 就跑不了（依赖真实语料）⇒ **停**：这说明"评测脚本必须能离线跑"是另一条产品债，要另计一条，不能拿"给它加恒等守卫"交差。
 2. `chroma_dir_guard` 现有 API 放不下这条轴（比如脚本压根不读 `CHROMA_DIR`）⇒ 停，回报要改本体。
 3. 你发现 `main.py` 运行时也有无守卫写入口 ⇒ **另计一条**，别顺手改（那是产品路径，风险面不同）。
 4. 全量回归里出现**开工前没有**的红 ⇒ 先归因（单变量隔离到"我这几处改动"），归因不清就停。

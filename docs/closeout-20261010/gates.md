@@ -1011,3 +1011,24 @@ torch 侧：阿里云 `pytorch-wheels/cpu/` 目录 200（1,208,113 B）；两页
 - **台账收口**：§A 整段改写成「已裁，只剩你手上的动作」（D-5 / D-19 两行），§B **现为空并写明为什么空**；D-7/D-30/D-31/D-32 按推荐裁完移进 §C。差集实测：§A/§B 从 18 条 → 2 条。
 - **重复编号自查**：改写 §A 时我把 D-19 同时留在了 §B ⇒ 脚本断言"同一编号不两档并存"当场抓到（`removed_from_B=1 重复编号={}`），已删。
 - **仍未做的**（不是已做）：推送、开 PR、凭据轮换、以及三张下一轮票（D-14 / D-6 / D-20）的执行——前两条卡在你的键，后三条是**有意留作下一轮**（理由在各票头与 §C 行）。
+
+## 46. 补记四十五（2026-10-11 06:5x–07:3x：两路独立复核回来，**B 打中我四处**，其中一处是我刚交付的实现）
+
+派发：Owner 令"再派子代理独立审核所有的任务"⇒ 两路正交，各写各的报告，都不许把我的转述当证据：
+- A 复现腿 `reviews/20261011-round2/independent-review-A-replication-20261011.md`：**采纳 8 / 驳回 1 / 核不了 0**。它自己在副本树上重跑了 M1（杀 2）与 M4（杀 4）、重跑全量门禁（逐字同读数）、重跑了 §44 那三根 rev-list 轴。
+- B 对抗腿 `reviews/20261011-round2/independent-review-B-challenge-20261011.md`：新发现 12 条，其中 4 条我当场验实并本轮修掉。
+
+**B 打中的四条（每条我都自己复跑确认，再改）**：
+1. **取消档的判据用错了信号**（`_delivered`＝"有没有走到 try 结尾"）。事实：`stream()` 的 try 体里有 **5 处主动 return**（`main.py:2103/2134/2163/2339/2415`，每条都在 `yield "data: [DONE]"` 之后），其中**轻量分支空答**走 `:2409` 的 `if answer:` 为假 ⇒ 直接 `:2415` return ⇒ 被我的旧逻辑判成"用户已停止"，而同样的空答在旗舰分支走 `:2534` 自己那条占位腿，写的是"不响应"。**同一症状两句话——正是 D-23 要消灭的东西，被我自己的实现重新造了出来。**
+   修法：改成只认真实断开信号（新增 `except (GeneratorExit, asyncio.CancelledError)` 置 `_client_gone` 并原样抛出），finally 读它；补一条 AST 结构不变量测试 `test_stopped_label_can_only_be_set_by_a_disconnect_signal`（断言"只有那个 except 能置档、try 体内不许置档、finally 必须读它"）。M8 抽掉信号 ⇒ 杀 3 条（含这条新测试），逐字还原 sha 相同。
+2. **`source-probe` 没挂作业级门 ⇒ 每个 PR/push 都跑**，与我三处写的"不占每次 PR"相反（`grep -c 'if:'` 全文件 = 0）。修法：作业级 `if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'`，并给 pip 腿补 `probed=0 ⇒ 报错退出`的正对照（0 个包不是"干净"，是仪器没接到对象）。
+3. **torch 回落只换 `--find-links`、不换 index** ⇒ 传递依赖仍从阿里云 PyPI 取，而 10-10 炸的正是那个源。修法：回落那一发同时 `-i https://pypi.org/simple`（`+cpu` 本地段只在 find-links 有，不会因此误选 CUDA 版）。
+4. **D-14 那张票的机制前提不成立**：四只脚本都 `from rag_chain import vectorstore`，而 `rag_chain.py:125` 是 `CHROMA_DIR = os.environ.get("CHROMA_DIR") or DEFAULT_CHROMA_DIR` ⇒ 它们**没有自己的固定目标**，`assert_matches` 对它们是恒等式、永不咬红。票已就地重写：换成 ① `require_explicit_target(caller, writes)`——"没选过目标就不许写生产默认目录"（与 `assert_matches` 是两根不同的轴）；② 评测/验证两只改到临时目录上跑；③ 破坏性子命令默认 dry-run + 显式 `--write`。判据里明写"只断言守卫被调用＝假绿"。
+
+**B 找到但我本轮**只登记不实现**的两条**（都是新问出来的，进 §B 等 Owner）：
+- **D-33**：409 的 `step_budget` 档今天走不到（`state_machine.py:29-36` 的 `FREE_STEP_EDGES` 免计步 ⇒ `_limit` 不在这两个站点炸），而真正的追问轮数上界是 `max_clarifications`，它不落 409。本轮只把措辞改准（不再说"追问次数"）并就地标注判据盲区：**AST 全覆盖只保证"每个码有一档"，不保证"码可达"**。
+- **D-34**：Agent 路径没有占位补偿腿（`_agent_streaming_response` 是裸 `StreamingResponse`，没有 `on_response_close`）⇒ Agent 轮次被取消时可能留下没有配对的用户消息。**不是本轮引入**，且它要自己的用例集，刚被复核钉过的取消面不宜同批二次改 ⇒ 登记待裁。
+
+**其余 B 提到的过期数，我逐条现量后改了**：D-12 的镜像只数 29⇒**32**（并给两轴相等的读法）；D-20 分组按 `176899f` 重算＝**99**（backend 74 / frontend 15 / docs 5 / 其余 5 项各 1，相加 99）；D-14 票里"2 处 `load_dotenv`"精确成"第 26 行**模块级调用** + 第 24 行 import"（模块级装载真实 `.env` 比 CLI 里装更危险，这条本来就该写准）。
+
+**我自己再补一条纪律**：本轮两处"我已经改好了"的表述（"不占每次 PR"、"空答仍是不响应"）都是我**写完实现后按意图**写的，不是按读数写的。B 之所以能打到，是因为它去数了 `if:` 的个数、去读了 `stream()` 里有几处 return。**⇒ 凡"我已经把它做成 X"的句式，X 必须是一个可数出来的东西。**
