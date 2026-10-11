@@ -1159,6 +1159,11 @@ clarifications 打满 + steps 恰满 cap 时回答仍收得下，`steps` 不被�
 票上第 1 条「steps 恰满 cap 可恢复」**已由 `test_resume_at_exact_step_cap_succeeds_...` 钉住**（断言 CAS+1、状态到 PLANNING、
 steps 停在 cap、事实落库），本轮不重复造。反向护栏在 step-limit 变异下**存活是预期**——它量的不是那根轴。
 
+**票面刷新**：第三轮独立复核票已随本轮刷头重写：`tickets/dispatch-independent-review-20261012-round3.md` 从七颗钉子扩到九颗
+  （第八颗查 D-35 判据并要求**自拟反证**、不许复用我那 9 臂；第九颗专门让我自己那条"反向护栏存活是预期"的说法被挑战），
+  B 路多加一项：用我这台假阴性机器（只 grep `main.py` 与 `backend/` 根目录）回查台账里所有"没有 X／只剩 Y"式主张。
+  钉子 1/4/5/6/7 的期望值随头刷新（2030 passed、collected 2040/2058、并集 1..40、清单改给现读命令）。**派发权在 Owner**，我没派。
+
 **本轮明确没做（不是做了没写）**
 - `--write` 从未对**真实库**执行过；判据只在 conftest 的进程私有临时 SQLite 上成立。候选工作树里的 `backend/.env` 是
   **0 字节**（`load_dotenv()` 返回 False、新置键 0 个），所以本轮任何测试进程都没接到现役配置值。
@@ -1167,7 +1172,3 @@ steps 停在 cap、事实落库），本轮不重复造。反向护栏在 step-l
   在线 `pip-audit`、`slow`/`real_kb`、远端 CI 当前对象读数同样未跑。
 - 台账里那格「D-35 的真实入口」已从 §B 搬进 §A（只剩你动），D-36/D-37 进 §C；复算 `evidence/ledger_row_audit.py`
   现量 §A=3、§B=1、§C=36、max=40、无跨档重复无缺号；单文件对账 `evidence/audit_one_file.py` 对台账 68 个 key 缺 0。
-- 第三轮独立复核票已随本轮刷头重写：`tickets/dispatch-independent-review-20261012-round3.md` 从七颗钉子扩到九颗
-  （第八颗查 D-35 判据并要求**自拟反证**、不许复用我那 9 臂；第九颗专门让我自己那条"反向护栏存活是预期"的说法被挑战），
-  B 路多加一项：用我这台假阴性机器（只 grep `main.py` 与 `backend/` 根目录）回查台账里所有"没有 X／只剩 Y"式主张。
-  钉子 1/4/5/6/7 的期望值随头刷新（2030 passed、collected 2040/2058、并集 1..40、清单改给现读命令）。**派发权在 Owner**，我没派。
