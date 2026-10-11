@@ -5,14 +5,16 @@
 - 本脚本只处理历史存量（上传/手动添加的旧 chunk），幂等可重跑。
 - 自检断言：回填后缺键 chunk 数 == 0。
 
-用法：cd backend && python scripts/backfill_time_meta.py
+用法：显式设置 CHROMA_DIR 后 python scripts/backfill_time_meta.py 预览；--write 才回填。
 """
 
+import argparse
+import os
 import sys
 
-sys.path.insert(0, ".")  # 允许从 backend/ 或任意目录运行
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from rag_chain import vectorstore  # noqa: E402
+from scripts import chroma_dir_guard  # noqa: E402
 
 BATCH = 100
 KEYS = ("status", "effective_from", "effective_to")
@@ -20,6 +22,14 @@ DEFAULTS = {"status": "未验证", "effective_from": "", "effective_to": ""}
 
 
 def main():
+    ap = argparse.ArgumentParser(description="预览或回填知识库时效元数据")
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true", help="只预览（默认）")
+    mode.add_argument("--write", action="store_true", help="显式允许回填")
+    args = ap.parse_args()
+    chroma_dir_guard.require_explicit_target("backfill_time_meta")
+    from rag_chain import vectorstore
+
     col = vectorstore._collection
     data = col.get(include=["metadatas"])
     ids, metas = data["ids"], data["metadatas"]
@@ -28,15 +38,18 @@ def main():
         meta = m or {}
         if all(k in meta for k in KEYS):
             continue
-        patched = {k: meta.get(k) for k in KEYS}
+        patched = dict(meta)
         for k in KEYS:
-            if patched[k] is None or patched[k] == "":
+            if patched.get(k) is None or patched[k] == "":
                 patched[k] = DEFAULTS[k]
         fix_ids.append(ids[i])
         fix_metas.append(patched)
     if not fix_ids:
         print(f"无需回填：{len(ids)} 个 chunk 三键齐全")
         print("自检通过：缺键 chunk 数 = 0")
+        return
+    if not args.write:
+        print(f"dry-run：将回填 {len(fix_ids)}/{len(ids)} 个 chunk，未执行业务写入")
         return
     for i in range(0, len(fix_ids), BATCH):
         col.update(ids=fix_ids[i : i + BATCH], metadatas=fix_metas[i : i + BATCH])

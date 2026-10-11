@@ -10,9 +10,10 @@
 用法：
   cd backend
   python scripts/import_docs.py --dry-run                       # 全量预检
-  python scripts/import_docs.py --only 劳动法,民法典            # 只导入指定短名
-  python scripts/import_docs.py --purge-source 个人所得税法     # 清理残留（先 --dry-run）
-  python scripts/import_docs.py                                  # 全量导入
+  python scripts/import_docs.py --only 劳动法,民法典              # 只预览指定短名
+  python scripts/import_docs.py --purge-source 个人所得税法       # 预览清理残留
+  python scripts/import_docs.py --write                          # 实际导入
+运行前显式设置 CHROMA_DIR；预览也会初始化/读库，默认不执行业务写入。
 """
 
 import argparse
@@ -25,11 +26,11 @@ import time
 HERE = os.path.dirname(os.path.abspath(__file__))
 BACKEND = os.path.dirname(HERE)
 sys.path.insert(0, BACKEND)
-os.chdir(BACKEND)
 
-import chunking  # noqa: E402
-import knowledge_service as ks  # noqa: E402
-from rag_chain import vectorstore  # noqa: E402
+from scripts import chroma_dir_guard  # noqa: E402
+
+# 保留现有内部测试/调用者的库注入接缝，真实库只在操作时加载。
+vectorstore = None
 
 CLEAN_DIR = os.path.join(BACKEND, "..", "data", "laws_clean")
 _DATE_SUFFIX_RE = re.compile(r"_\d{8}$")
@@ -56,7 +57,11 @@ def short_source(fname: str) -> str:
 
 
 def _col():
-    return vectorstore._collection
+    store = vectorstore
+    if store is None:
+        from rag_chain import vectorstore as store
+
+    return store._collection
 
 
 def purge_source(source: str, dry_run: bool) -> int:
@@ -67,13 +72,17 @@ def purge_source(source: str, dry_run: bool) -> int:
         return 0
     print(f"  purge：{source} 将删除 {len(ids)} 条{'（dry-run，未执行）' if dry_run else ''}")
     if not dry_run:
+        import retrieval
+
         _col().delete(ids=ids)
-        ks.retrieval.invalidate()
+        retrieval.invalidate()
     return len(ids)
 
 
-def import_one(fname: str, dry_run: bool) -> dict:
-    path = os.path.join(CLEAN_DIR, fname)
+def import_one(fname: str, dry_run: bool, *, clean_dir: str | None = None) -> dict:
+    import chunking
+
+    path = os.path.join(CLEAN_DIR if clean_dir is None else clean_dir, fname)
     text = open(path, encoding="utf-8").read()
     source = short_source(fname)
     fh = hashlib.sha256(text.encode("utf-8")).hexdigest()
@@ -105,6 +114,8 @@ def import_one(fname: str, dry_run: bool) -> dict:
     pairs = [
         (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")}) for c in chunks
     ]
+    import knowledge_service as ks
+
     n = ks.add_chunks(pairs, source=source, origin="upload", file_hash_value=fh)
     return {"source": source, "skipped_hash": False, "chunks": n, "seed_replaced": seed_replaced}
 
@@ -127,8 +138,12 @@ def main():
     ap.add_argument("--dir", default=CLEAN_DIR)
     ap.add_argument("--only", default="", help="只导入短名匹配的部法（逗号分隔）")
     ap.add_argument("--purge-source", default="", help="导入前按 source 精确清理残留（配合 --dry-run 预览）")
-    ap.add_argument("--dry-run", action="store_true", help="只报告不写入")
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument("--dry-run", action="store_true", help="只报告不执行业务写入（默认）")
+    mode.add_argument("--write", action="store_true", help="显式允许导入与删除")
     args = ap.parse_args()
+    args.dry_run = not args.write
+    chroma_dir_guard.require_explicit_target("import_docs")
 
     if not os.path.isdir(args.dir):
         print(f"目录不存在：{args.dir}（先跑 convert_docx.py + clean_law_text.py）", file=sys.stderr)
@@ -159,7 +174,7 @@ def main():
     t0 = time.time()
     for f in files:
         st = time.time()
-        r = import_one(f, args.dry_run)
+        r = import_one(f, args.dry_run, clean_dir=args.dir)
         total_chunks += r["chunks"]
         total_skipped += 1 if r["skipped_hash"] else 0
         flag = "（hash 幂等跳过）" if r["skipped_hash"] else ""
