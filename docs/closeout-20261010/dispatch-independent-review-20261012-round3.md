@@ -1,9 +1,9 @@
 # 票：10-12 接手轮的独立复核（非实现者腿，两路正交，只读）
 
-**为什么需要这张票**：本轮 7 笔提交由**同一个会话**实现、复验、集成并写台账；执行书 §I 要求独立审查者从候选 diff、原始日志与冻结清单**自行复算**，实现者不得担任 reviewer。本票就是这个缺口。它是自足的：不需要任何前置会话上下文。
+**为什么需要这张票**：本轮一串提交由**同一个会话**实现、复验、集成并写台账；执行书 §I 要求独立审查者从候选 diff、原始日志与冻结清单**自行复算**，实现者不得担任 reviewer。本票就是这个缺口。它是自足的：不需要任何前置会话上下文。
 
 
-**对象**：分支 `codex/nondeploy-closeout-20261010`。终点现读 `git rev-parse HEAD`（写票时 `9ed5544`，`porcelain=0`）；本轮范围 = `git log --oneline 29b0488..HEAD` 现读的 7 笔，其中**只有两笔动产品/测试字节**（`cd2007e` 重置入口、`c4cc6b3` 恢复负例），其余 5 笔是文档与镜像。起点 `19e296e` 是上一轮头。
+**对象**：分支 `codex/nondeploy-closeout-20261010`。终点现读 `git rev-parse HEAD`（写票时 `9ed5544`，`porcelain=0`）；本轮范围 = `git log --oneline 29b0488..HEAD` 现读（写票时 8 笔，其中**只有两笔动产品/测试字节**）（`cd2007e` 重置入口、`c4cc6b3` 恢复负例），其余 5 笔是文档与镜像。起点 `19e296e` 是上一轮头。
 候选 worktree `C:/Users/33393/Desktop/ai-legal-helper/.worktrees/nondeploy-closeout-20261010`；运行根 `C:/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2`。
 统一解释器 `运行根/candidate-envB/Scripts/python.exe`（Python 3.11.0）。
 
@@ -15,7 +15,7 @@
 1. 全量门：`pytest -q -m "not slow" --cov=. --cov-fail-under=70 -p no:cacheprovider` ⇒ 期望 **2030 passed / 0 failed / 10 skipped / 18 deselected、cov 86.57%、rc=0**；分母闭合要求 collected 轴 **2040/2058**（复跑 `--collect-only -q` 单取，别从收尾行推）、junit `tests=2040 skipped=10 failures=0 errors=0`。**代码自 `c4cc6b3` 后未变**，所以 2030/86.57% 这组数应当逐字复现；若别的会话已让候选头前进，分母会变——那时请同时报`--collect-only -q` 单取的 collected 轴与 junit `tests=` 两个数，别拿我这组的期望去判它的红。请在**副本树或 `git archive HEAD` 的纯发布物树**上跑，别在候选直接跑；跑前后各记一次候选 `git status --porcelain`，必须都是 0 行。
 2. 归因（不要重跑全量）：证明那两只红是 D-34 改接口造成的，而不是本来就红。做法：在起点 `19e296e` 的树上跑**未修的**那两条用例应绿；在当前树把接线修反向还原（`git apply -R` 那份 patch）应红，且红的是同两条同名用例。两次都要点名用例名。
 3. `.dockerignore` 修法：不许复用运行根的 10 格矩阵自证。请用另一种独立判据（读 moby `patternmatcher` 对 `**` 的文档语义并做一次你自己的最小构建对照，或对镜像层内容直接检查），回答两问：`**/*.db` 是否仍覆盖上下文根的 `app.db`；有没有把运行时**需要**的文件挡掉（`git ls-files backend/data` 现量 2 只评测件必须仍在镜像里）。
-4. 交付==验收：逐只把 `git ls-tree -r HEAD` 的 blob 与 `git hash-object --no-filters` 的盘上值比对，覆盖本轮改动文件——清单现读 `git diff --name-only 29b0488..HEAD`（写票时 6 只：脚本 1、测试 2、镜像文档 3），条数随头动就别钉数；并核这些文件里没有 CRLF。
+4. 交付==验收：逐只把 `git ls-tree -r HEAD` 的 blob 与 `git hash-object --no-filters` 的盘上值比对，覆盖本轮改动文件——清单现读 `git diff --name-only 29b0488..HEAD`（写票时 7 只：脚本 1、测试 2、文档 4），条数随头动就别钉数；并核这些文件里没有 CRLF。
 5. 凭据轴（本轮新入册的就是上面那 3 只镜像文档）：形状扫描与值级对照要**自带咬得住的正对照**（假 `sk-` 值与 13 位参照值的自匹配）。运行根 `evidence/mirror_precheck.py` 可复用，但你必须自己跑一次红控，否则"0 命中"不算数。**不要读 `.env`，不要打印任何值。**
 6. 台账一致性：`python -B 运行根/evidence/ledger_row_audit.py 运行根` ⇒ §A/§B/§C 无跨档重复、并集 1..40 无缺号（D-39 新登记在 §B、D-40 与 D-36/D-37 在 §C）；`work_log_key_audit.py` 多文件跑"未落正文=无"、单文件（决策台账）缺=0。请挑战 KEYS 本身：本轮有哪些主张**没有**对应 key（尤其 D-35 是否被我写成已解决——它现在只剩 Owner 服务器两步，不该读成已关闭）。
 7. 未完成面：对照 `reports/owner-review-and-next-actions-20261011.md` 的 R1–R8，逐条回答"本轮有没有处置记录、处置在哪一只文件的哪一节"。R3 的凭据失效入口本轮落成 §A D-35 + §C D-40，**没有被"已轮换"糊过去**——请核这句。
