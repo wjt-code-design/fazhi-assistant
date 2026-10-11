@@ -711,10 +711,10 @@ def _bootstrap_only(
     return bootstrap
 
 
-def _prepare_fast_path_only(bootstrap: RequestBootstrap):
+def _prepare_fast_path_only(bootstrap: RequestBootstrap, turn: dict | None = None):
     """Run legacy retrieval from an already committed bootstrap exactly once."""
     try:
-        return prepare_fast_path(
+        prepared = prepare_fast_path(
             bootstrap,
             _deps=FastPathDependencies(
                 feature_study_retrieval=settings.feature_study_retrieval,
@@ -733,9 +733,12 @@ def _prepare_fast_path_only(bootstrap: RequestBootstrap):
                 format_docs=format_docs,
             ),
         )
+        if turn is not None:
+            prepared.update(turn)
+        return prepared
     except Exception:
         # bootstrap 已提交 user，而响应尚未构造；先完成该轮再把原异常交给入口。
-        _post_placeholder({"conv_id": bootstrap.conv_id})
+        _post_placeholder(turn if turn is not None else {"conv_id": bootstrap.conv_id})
         raise
 
 
@@ -777,11 +780,11 @@ def _record_actual_agent_route(route: str, *, fallback_reason: str | None = None
             pass
 
 
-def fallback_to_fast_path(bootstrap: RequestBootstrap, reason_code: str) -> dict:
+def fallback_to_fast_path(bootstrap: RequestBootstrap, reason_code: str, turn: dict | None = None) -> dict:
     """Prepare Fast Path only for one allowlisted technical Agent failure."""
     if not routing_metrics.is_technical_fallback_reason(reason_code):
         raise ValueError("Agent failure is not eligible for Fast Path fallback")
-    prepared = _prepare_fast_path_only(bootstrap)
+    prepared = _prepare_fast_path_only(bootstrap) if turn is None else _prepare_fast_path_only(bootstrap, turn)
     prepared["agent_fallback_reason"] = reason_code
     return prepared
 
@@ -846,10 +849,137 @@ def _agent_streaming_response(result) -> StreamingResponse:
     )
 
 
-async def _execute_agent_observing_disconnect(request: Request, **kwargs):
-    """Run one bounded service call while projecting client disconnect into a stop check."""
+async def _join_owned_task(task: asyncio.Task):
+    """Finish owned work despite repeated task cancellation; retain its result."""
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            continue
+        except Exception:
+            break
+    return task.result()
+
+
+async def _execute_agent_observing_disconnect(
+    request: Request,
+    *,
+    resume: dict | None = None,
+    initial: dict | None = None,
+    fast_path_pre: dict | None = None,
+    **kwargs,
+):
+    """Own acceptance, execution and Fast Path handoff as one preparation task.
+
+    Rejected resume has no compensation. Once accepted, worker and Session must
+    outlive cancellation; clarification remains fact-only. A normal Fast Path
+    handoff carries the same storage guard to response cleanup.
+    """
     disconnected = Event()
     finished = asyncio.Event()
+    pre: dict = {}
+
+    def snapshot_turn() -> dict:
+        with SessionLocal() as db:
+            conv_id = resume["conversation_id"] if resume is not None else kwargs["bootstrap"].conv_id
+            conv = db.get(Conversation, conv_id)
+            if conv is None or conv.user_id != kwargs["user_id"]:
+                raise RuntimeError("Agent turn conversation ownership changed")
+            boundary = db.query(func.max(Message.id)).filter(Message.conversation_id == conv_id).scalar() or 0
+            return {"conv_id": conv_id, "agent_user_id": kwargs["user_id"], "agent_turn_after": boundary}
+
+    async def compensate(pre: dict) -> None:
+        try:
+            await run_in_threadpool(_post_placeholder, pre, "stopped" if disconnected.is_set() else "no_response")
+        except Exception as exc:
+            # Do not report a safe close when the only result write failed.
+            print(f"[agent-turn-compensate] failed: {type(exc).__name__}", flush=True)
+            logging.getLogger("legal.agent").error(
+                "agent_turn_compensation_failed: %s",
+                type(exc).__name__,
+                extra={"conv_id": pre.get("conv_id"), "user_id": kwargs["user_id"]},
+            )
+            raise
+
+    async def run_and_record():
+        # Acceptance is inside the owned task: cancellation must not abandon a
+        # CAS/bootstrap thread after commit but before its return is delivered.
+        resumed = None
+        if resume is not None:
+            resumed = await run_in_threadpool(resume_with_user_fact, db=kwargs["db"], **resume)
+        elif initial is not None:
+            kwargs["bootstrap"] = await run_in_threadpool(
+                _bootstrap_only,
+                kwargs["user_id"],
+                initial["conversation_id"],
+                initial["text"],
+                initial["image"],
+                initial["truncated"],
+                initial["case_domain"],
+                initial["law_as_of"],
+            )
+        pre.update(await run_in_threadpool(snapshot_turn))
+        try:
+            if resumed is not None:
+                kwargs["bootstrap"] = _resume_bootstrap(
+                    conversation_id=resume["conversation_id"],
+                    answer=resume["answer"],
+                    state=resumed.state,
+                    law_as_of=_resume_law_as_of(resumed.law_as_of),
+                )
+                kwargs["run_id"] = resumed.run_id
+            if initial is not None:
+                bootstrap = kwargs["bootstrap"]
+                correlation_id = make_agent_correlation_id(conversation_id=bootstrap.conv_id)
+                try:
+                    gate = decide_gate(bootstrap)
+                except Exception:
+                    _observe_agent_gate(correlation_id, "fast_path", [GATE_TECHNICAL_FAILURE], technical_failure=True)
+                    selected = False
+                else:
+                    _observe_agent_gate(correlation_id, gate.mode, list(gate.reason_codes), technical_failure=False)
+                    selected = (initial["force_agent"] and gate.mode != "refuse") or routing_metrics.should_route_agent(
+                        gate, settings, _stable_agent_request_seed(kwargs["user_id"], bootstrap.conv_id)
+                    )
+                if not selected:
+                    if disconnected.is_set():
+                        await compensate(pre)
+                        raise asyncio.CancelledError
+                    prepared = await run_in_threadpool(_prepare_fast_path_only, bootstrap, pre)
+                    pre.update(prepared)
+                    if disconnected.is_set():
+                        await compensate(pre)
+                        raise asyncio.CancelledError
+                    assert fast_path_pre is not None
+                    fast_path_pre.update(pre)
+                    _record_actual_agent_route("fast_path")
+                    return None
+            result = await run_in_threadpool(execute_agent_request, cancelled=disconnected.is_set, **kwargs)
+            _record_actual_agent_route("agent_path")
+            if result.outcome == "fallback":
+                await run_in_threadpool(kwargs["db"].rollback)
+                if disconnected.is_set():
+                    await compensate(pre)
+                    raise asyncio.CancelledError
+                if fast_path_pre is not None:
+                    prepared = await run_in_threadpool(
+                        fallback_to_fast_path, kwargs["bootstrap"], result.reason_code, pre
+                    )
+                    pre.update(prepared)
+                    if disconnected.is_set():
+                        await compensate(pre)
+                        raise asyncio.CancelledError
+                    fast_path_pre.update(pre)
+                    _record_actual_agent_route("fast_path", fallback_reason=result.reason_code)
+        except Exception:
+            # Release failed/unfinished SQL before a fresh session writes the result.
+            await run_in_threadpool(kwargs["db"].rollback)
+            await compensate(pre)
+            raise
+        if result.outcome == "failed":
+            await run_in_threadpool(kwargs["db"].rollback)
+            await compensate(pre)
+        return result
 
     async def watch_disconnect() -> None:
         while not finished.is_set():
@@ -862,12 +992,24 @@ async def _execute_agent_observing_disconnect(request: Request, **kwargs):
                 continue
 
     watcher = asyncio.create_task(watch_disconnect())
+    worker = asyncio.create_task(run_and_record())
     try:
-        return await run_in_threadpool(
-            execute_agent_request,
-            cancelled=disconnected.is_set,
-            **kwargs,
-        )
+        return await asyncio.shield(worker)
+    except asyncio.CancelledError:
+        disconnected.set()
+        # A sync worker cannot be cancelled safely. Join it before the caller
+        # closes its Session or releases the conversation lock. Shield AnyIO
+        # level cancellation and tolerate repeated asyncio task.cancel().
+        with CancelScope(shield=True):
+            try:
+                result = await _join_owned_task(worker)
+                # Cancellation may win exactly as the worker returns fallback;
+                # then the caller never transfers storage to the Fast Path.
+                if pre and (result is None or result.outcome == "fallback"):
+                    await _join_owned_task(asyncio.create_task(compensate(pre)))
+            except Exception as exc:
+                print(f"[agent-turn-cancel-cleanup] failed: {type(exc).__name__}", flush=True)
+        raise
     finally:
         finished.set()
         watcher.cancel()
@@ -1038,8 +1180,23 @@ def _post_placeholder(pre: dict, reason: str = "no_response") -> None:
     content = _PLACEHOLDER_STOPPED if reason == "stopped" else _PLACEHOLDER_NO_RESPONSE
     db = SessionLocal()
     try:
-        db.add(Message(conversation_id=pre["conv_id"], role="assistant", content=content))
         conv = db.get(Conversation, pre["conv_id"])
+        if "agent_turn_after" in pre:
+            # The cursor is captured by the accepted, serialized request, not
+            # inferred from the last user message or a reusable run_id.
+            if conv is None or conv.user_id != pre.get("agent_user_id"):
+                raise RuntimeError("Agent compensation conversation ownership changed")
+            later_roles: list[Row[tuple[str]]] = (
+                db.query(Message.role)
+                .filter(Message.conversation_id == pre["conv_id"], Message.id > pre["agent_turn_after"])
+                .all()
+            )
+            if any(role == "assistant" for (role,) in later_roles):
+                pre["assistant_committed"] = True
+                return
+            if any(role == "user" for (role,) in later_roles):
+                raise RuntimeError("Agent compensation lost its turn ownership")
+        db.add(Message(conversation_id=pre["conv_id"], role="assistant", content=content))
         # 对抗审计 v2 #21：原子自增（与 _pre/_post 同款防竞态）
         db.execute(
             text("UPDATE conversations SET message_count = COALESCE(message_count, 0) + 1 WHERE id = :id"),
@@ -1806,6 +1963,9 @@ async def _serialized_chat(request: Request, body: ChatIn, user: User = Depends(
     """同会话从 bootstrap 前持有到响应持久化结束；不同会话保持并行。"""
     lock = None
     response = None
+    # Populated only on an Agent preparation -> Fast Path handoff. Terminal
+    # Agent outcomes keep storage responsibility inside the preparation task.
+    agent_turn: dict = {}
     try:
         if body.agent_run_id is None:
             _client_law_as_of(body)  # 拒绝门须在新会话提交前执行。
@@ -1823,7 +1983,7 @@ async def _serialized_chat(request: Request, body: ChatIn, user: User = Depends(
             lock = await _acquire_chat_turn(request, user.id, body.conversation_id)
             if body.agent_run_id is None:
                 await run_in_threadpool(_require_chat_conversation, user.id, body.conversation_id, created_at)
-        response = await chat(request, body, user)
+        response = await chat(request, body, user, accepted_agent_turn=agent_turn)
         if isinstance(response, _ChatStreamingResponse):
             owned_lock = lock
             cleanup = response._on_response_close
@@ -1837,17 +1997,42 @@ async def _serialized_chat(request: Request, body: ChatIn, user: User = Depends(
             response._on_response_close = finish_turn
             lock = None  # 响应接管；不能在路由返回时释放。
         return response
-    except BaseException:
+    except BaseException as exc:
         if isinstance(response, _ChatStreamingResponse):
             with CancelScope(shield=True):
-                await response._on_response_close()
+                await _join_owned_task(asyncio.create_task(response._on_response_close()))
+        elif "agent_turn_after" in agent_turn:
+            # Preparation is done but no response owns cleanup yet. Keep this
+            # write inside the conversation lock, including repeated cancellation.
+            with CancelScope(shield=True):
+                cleanup_task = asyncio.create_task(
+                    run_in_threadpool(
+                        _post_placeholder,
+                        agent_turn,
+                        "stopped" if isinstance(exc, asyncio.CancelledError) else "no_response",
+                    )
+                )
+                try:
+                    await _join_owned_task(cleanup_task)
+                except Exception as cleanup_exc:
+                    logging.getLogger("legal.agent").error(
+                        "agent_response_compensation_failed: %s",
+                        type(cleanup_exc).__name__,
+                        extra={"conv_id": agent_turn["conv_id"], "user_id": user.id},
+                    )
         raise
     finally:
         if lock is not None:
             lock.release()
 
 
-async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
+async def chat(
+    request: Request,
+    body: ChatIn,
+    user: User = Depends(get_current_user),
+    *,
+    accepted_agent_turn: dict | None = None,
+):
     # 在取证前捕获代次与日期；失效前启动的请求可以完成，但不得重新污染共享缓存。
     cache_generation = answer_cache.generation()
     cache_cutoff = _cutoff()
@@ -1860,7 +2045,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
     if image and not registry.has_modality("vision"):
         raise HTTPException(status_code=501, detail="图片理解当前不可用：所配置模型无视觉能力")
     t0 = time.perf_counter()
-    pre = None
+    pre: dict | None = None
     if body.agent_run_id is not None:
         assert body.agent_state_version is not None and body.conversation_id is not None
         if not text:
@@ -1869,31 +2054,23 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             raise HTTPException(status_code=503, detail="Agent 当前已停用，请稍后重试")
         db = SessionLocal()
         try:
-            resumed = await run_in_threadpool(
-                resume_with_user_fact,
-                db=db,
-                run_locks=_DEFAULT_RUN_LOCKS,
-                run_id=str(body.agent_run_id),
-                expected_version=body.agent_state_version,
-                user_id=user.id,
-                conversation_id=body.conversation_id,
-                answer=text,
-                expected_law_as_of=client_law_as_of,
-            )
-            resume_bootstrap = _resume_bootstrap(
-                conversation_id=body.conversation_id,
-                answer=text,
-                state=resumed.state,
-                law_as_of=_resume_law_as_of(resumed.law_as_of),
-            )
+            pre = accepted_agent_turn if accepted_agent_turn is not None else {}
             agent_result = await _execute_agent_observing_disconnect(
                 request,
+                resume={
+                    "run_locks": _DEFAULT_RUN_LOCKS,
+                    "run_id": str(body.agent_run_id),
+                    "expected_version": body.agent_state_version,
+                    "user_id": user.id,
+                    "conversation_id": body.conversation_id,
+                    "answer": text,
+                    "expected_law_as_of": client_law_as_of,
+                },
+                fast_path_pre=pre,
                 db=db,
                 user_id=user.id,
                 settings=settings,
-                bootstrap=resume_bootstrap,
                 finalizer=finalize_verified_agent_answer,
-                run_id=resumed.run_id,
             )
         except ResumeRunNotFound:
             raise HTTPException(status_code=404, detail=RESUME_NOT_FOUND_DETAIL) from None
@@ -1917,15 +2094,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             raise HTTPException(status_code=409, detail=_resume_exc.detail) from None
         finally:
             db.close()
-        _record_actual_agent_route("agent_path")
         if agent_result.outcome != "fallback":
             return _agent_streaming_response(agent_result)
-        _record_actual_agent_route("fast_path", fallback_reason=agent_result.reason_code)
-        pre = await run_in_threadpool(
-            fallback_to_fast_path,
-            resume_bootstrap,
-            agent_result.reason_code,
-        )
     if not text and not image:
         raise HTTPException(status_code=400, detail="请输入问题或上传图片")
     if pre is None:
@@ -1942,68 +2112,30 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 )
                 _record_actual_agent_route("fast_path")
             else:
-                bootstrap = await run_in_threadpool(
-                    _bootstrap_only,
-                    user.id,
-                    body.conversation_id,
-                    text,
-                    image,
-                    body.truncated,
-                    _client_case_domain(body),
-                    client_law_as_of,
-                )
-                correlation_id = make_agent_correlation_id(conversation_id=bootstrap.conv_id)
+                db = SessionLocal()
+                pre = accepted_agent_turn if accepted_agent_turn is not None else {}
                 try:
-                    gate = decide_gate(bootstrap)
-                except Exception:
-                    _observe_agent_gate(
-                        correlation_id,
-                        "fast_path",
-                        [GATE_TECHNICAL_FAILURE],
-                        technical_failure=True,
+                    agent_result = await _execute_agent_observing_disconnect(
+                        request,
+                        initial={
+                            "conversation_id": body.conversation_id,
+                            "text": text,
+                            "image": image,
+                            "truncated": body.truncated,
+                            "case_domain": _client_case_domain(body),
+                            "law_as_of": client_law_as_of,
+                            "force_agent": bool(getattr(body, "force_agent", False)),
+                        },
+                        fast_path_pre=pre,
+                        db=db,
+                        user_id=user.id,
+                        settings=settings,
+                        finalizer=finalize_verified_agent_answer,
                     )
-                    selected = False
-                else:
-                    _observe_agent_gate(
-                        correlation_id,
-                        gate.mode,
-                        list(gate.reason_codes),
-                        technical_failure=False,
-                    )
-                    forced_manual = bool(getattr(body, "force_agent", False)) and gate.mode != "refuse"
-                    selected = forced_manual or routing_metrics.should_route_agent(
-                        gate,
-                        settings,
-                        _stable_agent_request_seed(user.id, bootstrap.conv_id),
-                    )
-                if selected:
-                    db = SessionLocal()
-                    try:
-                        agent_result = await _execute_agent_observing_disconnect(
-                            request,
-                            db=db,
-                            user_id=user.id,
-                            settings=settings,
-                            bootstrap=bootstrap,
-                            finalizer=finalize_verified_agent_answer,
-                        )
-                    finally:
-                        db.close()
-                    _record_actual_agent_route("agent_path")
-                    if agent_result.outcome != "fallback":
-                        return _agent_streaming_response(agent_result)
-                    _record_actual_agent_route(
-                        "fast_path",
-                        fallback_reason=agent_result.reason_code,
-                    )
-                    pre = await run_in_threadpool(
-                        fallback_to_fast_path,
-                        bootstrap,
-                        agent_result.reason_code,
-                    )
-                else:
-                    _record_actual_agent_route("fast_path")
-                    pre = await run_in_threadpool(_prepare_fast_path_only, bootstrap)
+                finally:
+                    db.close()
+                if agent_result is not None and agent_result.outcome != "fallback":
+                    return _agent_streaming_response(agent_result)
         except ValueError as ve:
             raise HTTPException(status_code=400, detail=str(ve)) from ve
         except LLMBusyError:

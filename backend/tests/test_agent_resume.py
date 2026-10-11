@@ -905,15 +905,17 @@ def test_agent_fallback_on_resume_feeds_run_date_into_fast_path(store, records, 
             law_as_of=run_date,
         )
 
-    async def fake_execute(request, **kwargs):
+    def fake_execute(**kwargs):
         return SimpleNamespace(outcome="fallback", reason_code="TOOL_TIMEOUT")
 
-    def fake_fallback(bootstrap, reason_code):
+    def fake_fallback(bootstrap, reason_code, turn=None):
+        assert isinstance(turn, dict)
         captured["bootstrap"] = bootstrap
         raise HTTPException(status_code=599, detail="stop-after-capture")
 
     monkeypatch.setattr(main, "resume_with_user_fact", fake_resume)
-    monkeypatch.setattr(main, "_execute_agent_observing_disconnect", fake_execute)
+    # Keep the real resume/bootstrap/handoff owner; stub only Agent execution.
+    monkeypatch.setattr(main, "execute_agent_request", fake_execute)
     monkeypatch.setattr(main, "fallback_to_fast_path", fake_fallback)
     client = _client(store, monkeypatch, records["owner"])
     payload = {

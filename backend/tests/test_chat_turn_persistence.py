@@ -366,7 +366,8 @@ def test_other_conversation_is_not_blocked_and_route_exception_releases_lock(sto
             await respond(first)
         real_chat = namespace["chat"]
 
-        async def fail(*args):
+        async def fail(*args, accepted_agent_turn):
+            assert accepted_agent_turn == {}
             raise RuntimeError("before bootstrap")
 
         namespace["chat"] = fail
