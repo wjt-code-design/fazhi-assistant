@@ -78,7 +78,7 @@
 
 ## D. 一句话门禁现状（截至本文件写出时）
 
-候选 `codex/nondeploy-closeout-20261010`；笔数现读 `git log --oneline 0b54396..HEAD | wc -l`（写这行时 33 笔，头 `a9ef432`），`porcelain` 0 行。
+候选 `codex/nondeploy-closeout-20261010`；笔数与头**都不钉数**：本行每入册一笔就 +1，钉它必然自我过期。现读 `git log --oneline 0b54396..HEAD | wc -l` 与 `git rev-parse HEAD`；本文件只钉三笔**代码交付**的号（`c15b775`、`87f58c0`、`a9ef432`），它们是固定对象不是当前位置。`porcelain` 现量 0 行。
 **未 push、未开 PR、未合并、未轮换任何凭据、未读真实库内容、未动 3021 与 8088 现役栈。**
 
 **10-12 接手轮现量（当场跑，不是引用历史日志）**：全量非 slow **2016 passed / 0 failed / 10 skipped / 18 deselected**，cov **86.55%**，rc=0；
@@ -124,7 +124,7 @@ node "$R/evidence/audit_axes.js" "$R/evidence/audit-cand-runtime.json" "$R/evide
 
 ## F. 本轮总账（这一节的存在理由：让本文件可以单独转发）
 
-**状态**：候选分支本地笔数现读 `git log --oneline 0b54396..HEAD | wc -l`（写这行时 33 笔）、头 `a9ef432`、`git status --porcelain` = 0 行；**未 push、未开 PR、未合并、未轮换任何凭据、未动真实库/向量库/容器/端口 3021 与 8088**。代码面自 `a9ef432` 起与库内同源。
+**状态**：候选分支本地笔数与头只给命令（`git log --oneline 0b54396..HEAD | wc -l`、`git rev-parse HEAD`——写这行时钉过一次 33，入册这笔之后当场过期，所以改成规则句）、`git status --porcelain` 现量 0 行；**未 push、未开 PR、未合并、未轮换任何凭据、未动真实库/向量库/容器/端口 3021 与 8088**。最后一笔代码交付是 `a9ef432`，其后都是文档入册。
 **门禁现量（10-12 00:5x 当场跑，不是推的）**：全量非 slow 2016 passed / 0 failed / 10 skipped / 18 deselected、cov 86.55%、rc=0；collected 2026/2044、junit tests=2026；ruff check、ruff format（285 files）、mypy（整仓与 D-14 五脚本各一次）均 rc=0；前端 lint、tsc、vitest 9 files / 83 tests、`build:check` VERDICT=OK；`format:check` rc=1（3 只，在册两把口径）。复算命令与逐腿 rc 在 `reports/gates.md` §48 与本文 §D。
 
 **等你答的**：§A 两条推送动作（D-5、D-19），其中 D-5 现在要先答 §B 的 D-35（凭据失效的真实入口）才谈得上执行；§B 三条新裁项（D-35 失效入口、D-36 检索质量面归属、D-37 前端格式门）。上一批的 D-33、D-34 本轮已裁并已执行提交。
