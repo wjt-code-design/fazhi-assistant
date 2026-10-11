@@ -994,3 +994,175 @@ def test_copy_buckets_are_distinct_and_leak_no_internal_jargon():
     for text in texts:
         for jargon in ("state_stale", "cas_conflict", "WAITING_USER", "run_id", "version", "Agent"):
             assert jargon not in text, f"文案泄漏了内部标识：{jargon}"
+
+
+# ==================== D-33：越界防御与预算下降的负例 ====================
+# 票 `tickets/dispatch-D33-resume-budget-negative-20261012.md`。在册事实：`WAITING_USER→PLANNING`
+# 免计步，但 `transition()` 仍执行 `_limit(next_steps, max_steps)`，schema 也不禁止 steps 越过 budgets。
+# 本组只钉"越界仍被拒"，不实现新语义；用例 1（steps 恰满 cap 可恢复）已由
+# `test_resume_at_exact_step_cap_succeeds_and_still_rejects_stale_version` 钉住，此处不重复。
+
+
+def _edge_state(*, steps: int, max_steps: int, clarifications: int = 1) -> LegalAgentState:
+    from agent.schemas import AgentBudgets
+
+    return LegalAgentState(
+        status=AgentStatus.WAITING_USER,
+        steps=steps,
+        tool_calls=2,
+        replans=0,
+        clarifications=clarifications,
+        budgets=AgentBudgets(
+            max_steps=max_steps,
+            max_tool_calls=10,
+            max_replans=3,
+            max_clarifications=2,
+            max_duplicate_attempts_per_issue=2,
+            max_verifier_research_returns=1,
+        ),
+        issues=[
+            LegalIssue(
+                issue_id="issue-a",
+                question="请求权是否成立",
+                unknown_facts=[UnknownFact(statement=QUESTION, why_outcome_changes="影响诉讼时效起算")],
+            )
+        ],
+    )
+
+
+def _persist_edge_state(sessions, records, state: LegalAgentState, *, version: int) -> None:
+    db = sessions()
+    try:
+        run = db.get(AgentRun, records["run_id"])
+        run.state_json = state.model_dump_json()
+        run.state_version = version
+        run.pending_question = QUESTION
+        db.commit()
+    finally:
+        db.close()
+
+
+def _run_snapshot(sessions, records) -> dict:
+    db = sessions()
+    try:
+        run = db.get(AgentRun, records["run_id"])
+        return {
+            "state_version": run.state_version,
+            "pending_question": run.pending_question,
+            "status": LegalAgentState.model_validate_json(run.state_json).status,
+        }
+    finally:
+        db.close()
+
+
+def test_steps_over_cap_still_raises_in_the_state_machine():
+    """用例 2 的第① 条腿：越界由 `transition` 自己 fail-closed，不靠恢复层兜。"""
+    from agent.state_machine import BudgetExceeded, transition
+
+    with pytest.raises(BudgetExceeded) as exc:
+        transition(_edge_state(steps=9, max_steps=8), AgentStatus.PLANNING)
+
+    assert exc.value.decision.reason == "budget_exceeded:steps"
+    assert exc.value.state.status is AgentStatus.STOPPED
+
+
+def test_steps_over_cap_resume_is_step_budget_and_leaves_run_untouched(store, records):
+    """用例 2 的第② 条腿：恢复层把越界转成 `step_budget` 档，且不改库。"""
+    from agent.controller import ResumeRunConflict
+    from agent.state_machine import BudgetExceeded
+
+    _engine, sessions = store
+    resume, locks = _service()
+    _persist_edge_state(sessions, records, _edge_state(steps=9, max_steps=8), version=11)
+
+    db = sessions()
+    try:
+        with pytest.raises(ResumeRunConflict) as exc:
+            resume(
+                db=db,
+                run_locks=locks,
+                run_id=records["run_id"],
+                expected_version=11,
+                user_id=records["owner"].id,
+                conversation_id=records["conversation"].id,
+                answer="约定于2023年1月还款",
+            )
+    finally:
+        db.close()
+
+    assert exc.value.reason_code == "step_budget"
+    assert exc.value.detail == STEP_BUDGET_DETAIL
+    assert isinstance(exc.value.__cause__, BudgetExceeded)
+    assert _run_snapshot(sessions, records) == {
+        "state_version": 11,
+        "pending_question": QUESTION,
+        "status": AgentStatus.WAITING_USER,
+    }
+
+
+def test_lowered_step_budget_rejects_the_same_run_through_the_same_path(store, records):
+    """用例 3：预算被下调后原 run 的 steps 已越界 ⇒ 走的还是 step_budget 这条拒绝路。"""
+    from agent.controller import ResumeRunConflict
+
+    _engine, sessions = store
+    resume, locks = _service()
+    _persist_edge_state(sessions, records, _edge_state(steps=8, max_steps=7), version=21)
+
+    db = sessions()
+    try:
+        with pytest.raises(ResumeRunConflict) as exc:
+            resume(
+                db=db,
+                run_locks=locks,
+                run_id=records["run_id"],
+                expected_version=21,
+                user_id=records["owner"].id,
+                conversation_id=records["conversation"].id,
+                answer="约定于2023年1月还款",
+            )
+    finally:
+        db.close()
+
+    assert exc.value.reason_code == "step_budget"
+    assert _run_snapshot(sessions, records) == {
+        "state_version": 21,
+        "pending_question": QUESTION,
+        "status": AgentStatus.WAITING_USER,
+    }
+
+
+def test_clarification_exhaustion_stays_on_its_own_axis(store, records):
+    """用例 4（反向护栏）：两条预算轴不合并。
+
+    steps 恰满 cap 且 clarifications 已到上限时，用户的回答仍要收得下（免计步边、恢复不消耗澄清
+    预算），而"再追问一次"由 `register_clarification` 单独封顶报 `budget_exceeded:clarifications`。
+    谁要是为了扩大 step_budget 档的可达面把两个计数器合并，这条会红。
+    """
+    from agent.state_machine import BudgetExceeded, register_clarification
+
+    with pytest.raises(BudgetExceeded) as exc:
+        register_clarification(_edge_state(steps=8, max_steps=8, clarifications=2))
+    assert exc.value.decision.reason == "budget_exceeded:clarifications"
+
+    _engine, sessions = store
+    resume, locks = _service()
+    _persist_edge_state(sessions, records, _edge_state(steps=8, max_steps=8, clarifications=2), version=31)
+
+    db = sessions()
+    try:
+        result = resume(
+            db=db,
+            run_locks=locks,
+            run_id=records["run_id"],
+            expected_version=31,
+            user_id=records["owner"].id,
+            conversation_id=records["conversation"].id,
+            answer="约定于2023年1月还款",
+        )
+    finally:
+        db.close()
+
+    assert result.new_state_version == 32, "clarifications 打满不得让回答落到 409"
+    assert result.state.status is AgentStatus.PLANNING
+    assert result.state.steps == 8, "恢复边免计步 ⇒ steps 不被顶高"
+    assert result.state.clarifications == 2, "恢复不消耗澄清预算（在册语义）"
