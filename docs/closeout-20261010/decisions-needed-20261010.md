@@ -138,3 +138,53 @@ node "$R/evidence/audit_axes.js" "$R/evidence/audit-cand-runtime.json" "$R/evide
 - 两份复核报告：上面"复核二轮"里那两个路径；均已同步进仓内 `docs/closeout-20261010/`（34 只 .md，与运行根逐只 sha 相同）
 
 **本轮未做（不是"已做"）**：F 五类真实模型腿未跑（Owner 裁本轮不开，冻结稿在册）；`socket` 守卫与 `pip check` 两轴未重跑（未动依赖与网络面）；D-18 的旧断言我只清了代码注释与文档引用面；D-33/D-34 只登记未实现；D-3 的两份 diff 按 D-29 本轮不落。
+
+## G. 本轮做了什么（穷尽清单；细读数在 `reports/gates.md` §38–§47，叙述在 J）
+
+**单元层（A–J 按执行书的单元记账）**
+- A 接手保护与登记：闭合（基线 `reports/baseline.md`，候选分支 `codex/nondeploy-closeout-20261010`）。
+- B 后端四票 + B-45 守卫 + D-3 迁移证据：闭合（D-3 由我独立复算验收，落地转 D-29）。
+- C 依赖风险：闭合（15 条压成两堆处置，Owner 已裁；迁移票已真写出并交付）。
+- D 前端五项残差 + 取消流程真实浏览器验收：已验收；其 J3 红（生产构建 purge 掉 `badge-*`）由我自验并修（D-22），连带暴露的配色 AA 按 D-28(b) 修（D-22/D-28 均闭合）。
+- E 模型来源、加载信任门、合成数据演练：闭合（行为级五臂 + 恢复演练）。
+- F 五类真实模型验收：**本轮不跑**（Owner 裁；冻结稿在册，可播种语料仅 11 对是三条阻塞之一）。
+- G 现役环境升级：判为不动（现役是 Docker 容器；宿主 venv 的对齐转 D-6 票）。
+- H 包装、凭据/历史、远端 CI：闭合但带披露（凭据轴见 §2 与 D-5；CI 历史与触发语义见 D-5 现量列）。
+- I 独立审查、本地提交、PR、合并：**只差你手上的推送动作**；本地提交笔数现读 `git log --oneline 0b54396..HEAD | wc -l`（写本行时=27，其中本半段 8 笔）。
+- J 收尾：正式稿（本文件 §F/§G/§H + `closeout-final-J-draft.md`）。
+
+**改动面（代码，按文件）**：`backend/llm_registry.py`（拒答冷却两档 + `rejected_kind` 进 `status()` + DB-24 注释更正）、`backend/observability.py`（两个日志字段登记进 `_ACCOUNT_FIELDS`）、`backend/routing_metrics.py`（`TOOL_BUSY` 进白名单、与 `TOOL_UNAVAILABLE` 分列）、`backend/main.py`（409 用异常携带的分档文案；占位两档；只认 `GeneratorExit`/`CancelledError` 为断开）、`backend/agent/controller.py`（`RESUME_CONFLICT_DETAILS` 成因码表 + 回落 + 不可达性标注）、`backend/settings.py`（注释去抄数）、`backend/tests/`（`test_llm_reject_channel.py`、`test_agent_rollout.py`、`test_agent_resume.py`、`test_cancel_boundaries.py`（含新结构不变量测试）、`test_chat_turn_persistence.py`、`test_stream_cancellation.py` 签名对齐）。
+**改动面（文档与部署）**：`DEPLOYMENT.md` §7 事件响应三行；`backend/Dockerfile` 两步各加失败回落（torch 那发同时换 index）；`.github/workflows/ci.yml` 新增 `source-probe` 作业（含作业级门与逐包正对照）+ 触发段加 schedule/dispatch；`docs/chroma-risk-triage-20261003.md` 入库（D-11）；`docs/closeout-20261010/` 交付镜像现读 `ls docs/closeout-20261010/*.md | wc -l`（写本行时=34，且与 `git ls-files` 同数）。
+**判据与仪器（本轮新增）**：变异 9 枪（M1–M3 批 A、M4–M7 批 B、M8 复核后；每枪只动一个 site、finally 还原、逐文件 sha 位级相同）；`evidence/venv_vs_requirements_axis.py`、`merge_trial_blobs.py` + `merge_trial_reconcile.py`、`md_table_columns.py`（自带 `--selftest`）、`ci_yaml_check.py`、`d25-*-selfcheck`、`work_log_key_audit.py`（key×文件对账）、`push-upload-axis-recheck-20261011.md`。
+**票与复核**：新写三张票（D-14 / D-6 / D-20），刷新 runbook；两路独立子代理复核（A 复现、B 对抗）报告入库，其判决与我的响应在 §F 与 gates §46。
+
+## H. 还差什么没做（分类穷尽；每条指名归属与出处）
+
+**只能你动、我没动（也不该动）**
+1. 凭据轮换（`ADMIN_PASSWORD` 等）——D-5 的前置；我不读 `.env`、不代做。
+2. 普通 push + 开 PR + 合并 master——共享状态动作；命令与三条"推送前现跑"的前置在 `tickets/runbook-I-push-pr-merge.md`。
+3. 推 `codex/local-candidate-closeout` 那支文档 ref——D-19，同一把钥匙。
+4. 用户可见文案的**过字**（409 四档 + 取消两档由我起草、按整包授权已落地，但你未逐字过稿）——D-31；改词只动常量。
+
+**已裁成票、留给下一轮执行（本轮有意不做）**
+5. D-14 四只无守卫 CLI（票已按复核重写机制前提）。
+6. D-6 开发环境 `backend/venv` 对齐（现量 6 条偏离 + `pip check` 2 条既有红）。
+7. D-20 合 master：现量 **99 次**内容裁决（会随头动，开工前重跑）。
+8. D-29 落 D-3 的两份 langchain diff（本轮不落；下一轮首票）。
+9. D-33（不可达的 step_budget 档：删站点 或 让 `max_clarifications` 耗尽并进来）、D-34（Agent 轮次没有占位补偿腿）。
+10. D-30 主仓其余 33 只未跟踪文档：本轮不收，要收时一次性裁范围。
+
+**未跑的读数/轴（我明确没做，不是做了没写）**
+11. F 单元全部：五类真实模型验收、真实路由、独立 gold（零模型调用，预算未动用）。
+12. `socket` 守卫非回环读数 与 `pip check`（本轮未动依赖与网络面）⇒ 仍是上一轮在册值。
+13. 远端 CI 读数：合并前拿不到（`on.push.branches` 只列 main/master，推 `codex/*` 不产生 run；新加的 `source-probe` 又只在默认分支才响应 schedule）。
+14. `docker build` 全量冒烟：探针只覆盖源侧"文件取不取得到"，模型烘焙那层没跑；且 10-10 那次源侧故障今天复量已自愈 ⇒ 没有正在复现的缺陷可证。
+15. 真实知识库语义面：两棵树 `backend/chroma_db` 都是空壳 ⇒ `real_kb` 走 skip，10 条 skip 的**构成**未逐条列（在册纪律要求报"几条走 skip"，这条只做到"未逐条列"）。
+16. 浏览器计算样式那一腿（J3 的六状态视觉等价）由 D 会话与我的 CSS 产物断言承载，我**没有**独立复跑浏览器腿；复核 C 也把这条列为未复算项。
+17. `evidence/` 整目录不入库（交付镜像只含 reports 与 tickets）⇒ 数字可复算的前提是这台机器上的运行根还在。
+
+**已知限制（不影响"做没做"，影响怎么读结论）**
+18. `closeout-final-J-draft.md` §7 那张自我更正表写的是"八条"，那是**写表时**的条数；第二批的错在 §10.2、复核后的错在 §F 第 1–14 条。编号不重排，避免十余处按号引用漂移。
+19. 凭据轴的结论是"轮换前不能推"，**即使推了并轮换，历史里那只 13 位裸值仍在**（只是不再现役）——签了也不解除。
+20. D-25 的 CI 探针**不等于**出厂构建可用；`--no-deps` 逐包解析与整表联合求解可能选到不同版本（该偏差写在作业注释里）。
+21. 台账里所有"几笔提交/几份文件/几次裁决/几个对象"都是**写行时的现量**，一律以同行给的命令为准；本行写这些数字时头是 `50b39ec`。
