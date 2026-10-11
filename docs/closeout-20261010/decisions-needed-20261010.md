@@ -1,31 +1,40 @@
 # 待你裁台账（2026-10-10 非部署收尾轮）—— 每条一词可答
 
+> **2026-10-11 Owner 会话复核：本轮工程成果可继续接收，非部署阶段仍 BLOCKED，不是“只差推送”。** 当前权威补充为同目录 `owner-review-and-next-actions-20261011.md`（含修正后的前置、边界与证据归属）。旧推送卡暂停直接执行；未修改产品或任何 Git/真实数据/凭据状态。报告交付、派单完成不等于验收通过；旧裁定沿用记录不构成本次新授权。
+>
+> 核验要点：1933/86.38 对应 `final-gates2-*` 而非本文旧引用的 `final-gates-*`；第二轮静态日志格式 rc=1 是历史事实，当前候选另行完整 Ruff lint/format 均 rc=0。D-33 仅在合规状态免计步；超过上限仍有拒绝分支，不能按死代码删除。D-34 建议独立修复票，不并入 D-14。管理员改环境变量不会更新既有账号密码，密码改变也不自动撤销 JWT。历史整合、当前 PR CI、安全修复和 F/G 等未满足门禁仍保留，不得因轮换后推分支而变绿。
+
 口径：只列**现在真的还没定**的。已裁过并执行完的放在最后一节，不再问你。
 每条都给了现量证据的位置，你要查就按那条命令查，不必信我的转述。
 
 ## 给 Owner 的几句话（先看这段，再看表）
 
+- **10-12 接手轮做了什么（一句话）**：把两笔「已交付但停在未提交」的成果做成可交付——先证明盘上字节＝被审过的字节（8/8 sha256 命中交付锚定），再补上两份交付报告都欠的那趟**全量门**：第一趟红 2 只（红的正是 D-34 改接口后的旧测试接线，与 D-3 复核件预告的读数逐字相同），落接线修后第二趟 **2016 passed / 0 failed / cov 86.55%**；随后分三笔提交（`c15b775`、`87f58c0`、`a9ef432`），提交后逐只把库里 blob 与盘上字节比对全等。顺带关掉 H 那条 `backend/.dockerignore` 会把真库烘进镜像层的缺口（合成上下文 10 格对照全中，本轮没有再读真实库字节）。
+- **我要更正 D-5 那句话一次**：你签的「先轮换 `ADMIN_PASSWORD`」如果只改环境变量，**库里的管理员口令不会失效**——`seed_admin.py` 见账号已存在就直接返回，登录校验读的是库里的 `password_hash`，而 JWT 由 `JWT_SECRET` 签名、认证不检查密码版本，所以已签发的会话也不会因此作废。我不把「轮换」当成已完成，另立 D-35 问你失效动作的真实入口。
+
+
 - 这一轮真正值钱的不是那几处代码，是两条纪律落了地：**验收对象必须等于交付对象**（盘上那批前端修复从来没进过任何提交，这件事到这轮才算清），以及**数只以同行命令为准**——上传对象数我在同一个指标上连错三版，第三版还是「纠正上一版」的姿态，最后是被一个只会读 `ls-tree` 的脚本钉住的。
-- 还卡着交付的仍然是凭据，不是质量：那只 13 位裸值在候选历史里，**轮换之前推上去就是把它公开一次**；而且轮换完它仍留在历史 blob 里，属于「签了也不解除」那一类，别把文档里写过读成已经消掉。
+- 凭据处置是公开推送前置，但不是唯一质量/交付门：依赖迁移、Agent 失败闭环、历史整合及当前 CI 等仍未完成。轮换完旧值仍可能留在历史中，失效证明与同意公开旧历史必须分别核实。
 - 我实现里最贵的一处错留在正文里（取消占位用「有没有走到结尾」反推语义，被独立复核的对抗腿当场打中）——现在由一条结构不变量测试钉着。**下一轮请继续派对抗腿，别只派复现腿**：复现腿这次给我的结论是「你算的数没错」，而错的是前提。
-- 等你答的 4 条里只有 D-5 阻塞；D-19、D-33、D-34 可以晚答，不会让本轮交付变脏。
-- 只转一份文件就转本文件（§G 做了什么、§H 还差什么、§A/§B 你要答的）。真要按下推送那一刻，再拿 `tickets/runbook-I-push-pr-merge.md`。
+- 待答项不等于全部待办。D-5 阻塞公开；D-34 的持久化一致性问题需要独立复现和修复裁定，不应先宣称“不阻塞质量”。D-33 推荐保留越界防御、不改变澄清上限语义。
+- 转发时先读同目录 `owner-review-and-next-actions-20261011.md`，再按本文件追溯历史。旧 `tickets/runbook-I-push-pr-merge.md` 已标注暂停直接执行，不能当作逐行操作卡。
 ## A. 已裁，但只剩你手上的动作（我不代做，也不代签）
 
 | 编号 | 已裁成的形状 | 为什么我不能推进它 | 你可以答 |
 |---|---|---|---|
-| **D-5 凭据与推送** | 按推荐＝先轮换 `ADMIN_PASSWORD`，再普通 `git push` + 开 PR | 轮换只能你动（我不读 `.env`、不碰凭据）；推送与开 PR 是共享状态动作，没有你那一键我不做。连带两条已在册：① 推 `codex/*` 本身不产生 CI 读数（`on.push.branches` 只列 main 与 master，10-11 重核过），要第三方验证就得连开 PR 一起做；② 远端主线历史 push 全红，别把 CI 红当成这笔候选的判决。逐条前置与命令在 `tickets/runbook-I-push-pr-merge.md`（已刷到 10-11 现量） | 「已轮换，推+开 PR」/「走无父快照备选」/「先不推」 |
+| **D-5 凭据与推送** | 按推荐＝先轮换 `ADMIN_PASSWORD`，再普通 `git push` + 开 PR | 轮换只能你动（我不读 `.env`、不碰凭据）；推送与开 PR 是共享状态动作，没有你那一键我不做。连带两条已在册：① 推 `codex/*` 本身不产生 CI 读数（`on.push.branches` 只列 main 与 master，10-11 重核过），要第三方验证就得连开 PR 一起做；② 远端主线历史 push 全红，别把 CI 红当成这笔候选的判决。逐条前置与命令在 `tickets/runbook-I-push-pr-merge.md`（已刷到 10-11 现量） | 「已轮换，推+开 PR」/「走无父快照备选」/「先不推」**（10-12 接手补一句：这句里『先轮换』的真实入口要重问，见 §B D-35；你已裁的方向我没有改）** |
 | **D-19 文档 ref 一起推** | 按推荐＝一起推 `codex/local-candidate-closeout`（现量：仓库内 `git grep -o fbc29e8` = 103 次引用 / 15 个文件，而该尖端 `fbc29e8` 不是 master 的祖先（`merge-base --is-ancestor` rc=1）、这支从未推送 ⇒ 不推就是 103 处在远端悬空） | 同一个动作、同一把钥匙：它也是一条 push，排在 D-5 之后。两条已核的连带事实：只多 4 笔独联提交（`rev-list --count 候选..closeout` = 4），且**不新增凭据外泄**（按值反查 closeout 对象集 value_hits=1，候选里也已是 1） | 「随 D-5 一起推」/「只推代码支」 |
 
-## B. 不卡交付、但答了我就能继续动手的
+## B. 新发现与范围待裁（是否阻塞须按影响判断）
 
 | 编号 | 一句话 | 现量证据 | 我的推荐 | 你可以答 |
 |---|---|---|---|---|
-| **D-33 409 的 step_budget 档今天走不到** | 这档文案留着还是把不可达的站点删掉？ | 复核 B 打出来：DB-15 起 `(WAITING_USER→PLANNING)` 在 `agent/state_machine.py:29-36` 的 `FREE_STEP_EDGES` 里不计步，`transition` 的 `_limit(steps)`（同文件 `:60-62` + `:74-77`）在这两个 raise 站点不会炸 ⇒ `ResumeRunConflict("step_budget")` 实际不可达（预算被调小或持久状态越界时仍可能命中）。真正的追问轮数上界是 `max_clarifications`，它耗尽走 `CLARIFY_BUDGET_EXHAUSTED`、不落 409。复算：`grep -n FREE_STEP_EDGES backend/agent/state_machine.py` | **本轮只改准措辞并就地标注**（文案已换成「这次任务可用的处理步骤已经用完了」，不再说「追问次数」；站点保留不删）。下一轮二选一：① 删两个不可达站点；② 让 `max_clarifications` 耗尽也进这条码并配测试。判据盲区写明：AST 全覆盖只保证「每个成因码有一档」，不保证成因码可达 | 「本轮只标注」/「现在就删站点」/「让澄清耗尽并进来」 |
-| **D-34 Agent 轮次没有占位补偿腿** | 要不要给 Agent 路径也配成对性补偿？ | 复核 B 的新发现（**不是本轮引入**）：`_agent_streaming_response`（`backend/main.py:836`）用裸 `StreamingResponse`，没有 `on_response_close`；assistant 行只在 DRAFTING→COMPLETED 的 CAS 里写（`backend/agent/chat_integration.py`），而用户行早在 bootstrap 落库 ⇒ Agent 轮次被取消/失败时可能留下**没有配对 assistant 的用户消息**，正是快车道上花力气堵的那个形状（对抗审计 v2 #5/#8）。复算：`grep -n on_response_close backend/main.py` | **本轮不动**：它要自己的用例集（成对性、message_count、不重复落），且刚被复核钉过的取消面不宜在同批里二次改动。要么并入 D-14 那张票，要么另开 | 「并入 D-14 票」/「另开一张」/「先只做读数」 |
+| **D-35 凭据失效的真实入口** | `ADMIN_PASSWORD` 只是环境变量：`backend/seed_admin.py` 在管理员已存在时直接返回，登录校验读的是库里的 `password_hash`；JWT 由 `JWT_SECRET` 签名且认证不检查密码版本 ⇒ 只改环境变量、或重跑 seed，都证明不了那个账号的旧口令已失效 | Owner 会话复核件 R3 加候选源码定位；本轮我没有读过任何凭据值 | 请你先答「失效动作由谁、在哪个入口做，以及已签发会话要不要一并作废」；我不登你的账户、不用命令行传秘密值 | 「我给出口令重置与会话失效的做法，你执行」/「这轮先不推」/「接受旧口令仍有效并说明范围」 |
+| **D-36 检索质量面的原判据仍红** | D-14 的综合回归里 `verify_new_law.py` 的测量退出码是 1；交付报告没有为变绿而改判据，而是把它登记成「安全面通过不等于检索质量通过」 | 报告 `reports/d14-index-guards-20261011.md` 的重要限制节；本轮接收复验原样保留，未改期望 | 推荐并入 F 那一轮与真实模型、真实语料一起查，本轮不自动扩范围，也不动法律规则本身 | 「并入 F 轮」/「单独开票现在查」/「先仅登记」 |
+| **D-37 前端格式门要不要进门禁** | `npm run format:check` 现量 rc=1、3 只文件（Stats、Upload、Users Section）；整目录 prettier 是 15 只；候选 CI 的前端作业跑 lint+tsc+vitest+build+build:check，**没有**跑格式门 | 本轮 `evidence/static-and-frontend-20261012.log` 第 [10] 段；`ci.yml` 第 86-97 行 | 推荐本轮不动这三只文件、也不把格式门塞进 CI（一塞就红，而它们不是本轮改的）。要收口就单开票修完再加门 | 「开票修完再加进门禁」/「接受现状、明确不加门」 |
 
 > 这两条是复核 A/B（10-11 06:5x）之后新问出来的，发现时间在上一次整包授权**之后**，所以不并入已裁。
-> 上一批离场 15 条（§A/§B 由 18 降到 2），本批加回 2 条 ⇒ 等你动的现在是：§A 两条推送动作 + 本节两条。
+> 10-12 接手轮：上一批的 §B 两条（D-33、D-34）已裁并已执行落地提交，本节换成新的三条（D-35、D-36、D-37）⇒ 等你动的现在是 §A 两条推送动作 + 本节三条。**档位计数不要引用本句，用下面那条命令现读。**
 > 各档现数不要引用本节措辞，用脚本现读：`evidence/ledger_row_audit.py`（按 §A/§B/§C 切段，抽编号，报重复与缺号）。
 ## C. 已裁过、已执行完（不再问你，只作对账）
 
@@ -49,7 +58,10 @@
 | D-9 | DB-22 拒答冷却分档 ⇒ 已执行并测到 | backend/llm_registry.py：REJECT_COOLDOWN_BY_STATUS（401/403/404 = 3600s）+ reject_cooldown_s() + reject_kind() + ModelEntry.rejected_kind；status() 每行带 rejected_kind（config 与 shape 分得开）；两字段登记进 observability._ACCOUNT_FIELDS。新增 3 条用例（tests/test_llm_reject_channel.py）。负向自证：M1 把长档塌回 300 ⇒ 杀 2 条；M2 取消登记 ⇒ 杀 2 条（含 AST 哨兵那条）⇒ evidence/batchA-mutation-20261011.log |
 | D-10 | DB-23 的 409 文案 ⇒ 已执行，且实拆成 4 档（台账原写三条） | backend/agent/controller.py：RESUME_CONFLICT_DETAILS 成因码表 + resume_conflict_detail()（未登记码回落旧句 ⇒ 409 不会变 500），ResumeRunConflict.detail 承载；main.py 用 _resume_exc.detail，不再拼第二份。分档轴是【用户下一步动作】（已处理过 / 再答一次 / 预算用完 / 接不上），所以 answer_invalid 单列一档 ⇒ 共 4 条文案。新腿：AST 现读成因码全覆盖（新增抛点自动进门）+ 回落腿 + 四档互不相同且不泄漏内部标识；变异 M5（全塌成旧句）杀 5 条、M6（两档共用一句）杀 1 条 ⇒ evidence/batchB-mutation-20261011.log。文案由我起草并经整包授权落地，Owner 未逐字过稿（D-31）：改词只动常量，逐字用例会变红（那是预期信号） |
 | D-11 | 在册风险册入库 ⇒ 已执行 | 主仓那份 docs/chroma-risk-triage-20261003.md（3,252 B / 23 行 / sha256 前缀 0847ba2d）10-11 现量仍是未跟踪且未被忽略（两棵树 ls-files 都 0、check-ignore 无命中），候选树里根本没有 ⇒ 已 cp -a 进候选 docs/（mtime 与 sha 逐字相同），随本轮文档提交。⚠️ 同族未跟踪文档主仓现量 34 只 ⇒ 见新行 D-30 |
-| D-14 | 索引写入口守卫覆盖面 ⇒ 已开票 | 票 tickets/dispatch-D14-index-write-guards-20261011.md（8 节）。10-11 现量：守卫消费方 4 只（backup_data / import_laws / rebuild_embeddings / switch_embedding）；无守卫却能改生产向量库的 CLI 4 只共 13 个站点（import_docs 2、verify_new_law 7、eval_chunking 3、backfill_time_meta 1），且四只写目标都是 vectorstore._collection = 生产库 |
+| D-14 | 索引 CLI 安全改造 ⇒ **已执行并已提交**（10-12 接手复验） | 提交 `87f58c0`：`backend/scripts/`（`import_docs`、`backfill_time_meta`、`chroma_dir_guard`、`eval_chunking`、`verify_new_law`）+ 新 `backend/tests/test_index_cli_safety.py` 40 项。接收时先验字节：8 只未提交文件 sha256 与交付报告锚定值 8/8 命中。本轮把它放进**全量**里复跑：2016 passed / 0 failed。原判据仍红的那条（`verify_new_law` 测量退出码 1）没有被改成绿 ⇒ 见 §B D-36。报告 `reports/d14-index-guards-20261011.md` |
+| D-33 | 恢复预算越界防御 ⇒ 已裁：保留（Owner 10-12「按你的推荐执行」） | 本轮**零代码改动**：免计步与 `_limit` 的现状与文案维持。推荐里那条「恢复 API 的旧状态与预算下降负例」本轮未实现 ⇒ 转票 `tickets/dispatch-D33-resume-budget-negative-20261012.md`（下一轮首票之一） |
+| D-34 | Agent 轮次响应接管前中断的补偿与归属收敛 ⇒ 已裁 A 并**已提交** | 提交 `c15b775`：`backend/main.py` + 新 `backend/tests/test_agent_turn_compensation.py` + 两条旧测试接线改桩（`test_agent_resume.py`、`test_chat_turn_persistence.py`）。接线修与接口变更同笔，是为不留自身带红的中间提交；补丁出自 D-3 复核会话，本轮只做接收复验。报告 `reports/d34-response-owner-closeout-20261011.md` |
+| D-38 | `backend/.dockerignore` 盖不住 `data/` 下两个真库（上一轮实装面已证） ⇒ 本轮按整包授权直接修掉并复量 | 提交 `a9ef432`：`*.db` 改 `**/*.db`、`*.sqlite*` 改 `**/*.sqlite*`、加 `.ptmp*`。没有整目录排除 `data/`（`git ls-files backend/data` 现量 2 只运行时评测件会被静默少掉）。复量 `dockerignore-probe-20261012/`：合成上下文 10 格预登记期望全中、VERDICT=FIX_VERIFIED，本轮不重复读真实库字节 |
 | D-15 | DB-7 技术降级白名单 ⇒ 已执行并测到 | backend/routing_metrics.py：TOOL_BUSY 进 TECHNICAL_FALLBACK_REASON_CODES（集合 5→6）；record_agent_route 的 raise 两侧都有用例钉住；管理台快照 fallback_reason_code_counts 里 TOOL_BUSY 与 TOOL_UNAVAILABLE 分列（逐键断言）。变异 M3 摘掉 TOOL_BUSY ⇒ 杀 2 条（精确集合 + 分列） |
 | D-16 | DB-10 事件响应文档 ⇒ 已执行，并更正我台账的读数面 | DEPLOYMENT.md 新增 §7（三行表：信号 / 看哪个计数器 / 读到之后做什么），只写计数器不写法律口径。⚠️ 我原句写错：读数面不是 /metrics（全仓没有这个路由），真身 = GET /api/admin/llm-status（backend/main.py:3082，require_admin），返回 models / utility_quota / metrics |
 | D-17 | F 的可播种语料 ⇒ 已裁：用冻结题集，本轮不播种 | Owner 10-11「按你的推荐」＝可播种条文仅 11 对，不足以撑 F2 的 12 题；F 腿仍由 §A 的 D-7 卡着，零代码改动 |
@@ -66,14 +78,18 @@
 
 ## D. 一句话门禁现状（截至本文件写出时）
 
-候选 `codex/nondeploy-closeout-20261010`；本轮提交笔数用 `git log --oneline 0b54396..HEAD` 现量（本文不写死笔数，写完就会过期）
-**未推送、未开 PR、未合并、未轮换任何凭据、未动真实库与容器**。
-门禁现量（2026-10-11 07:3x，头 `bee37d3`＝复核修复后）：`ruff check .` rc=0、`ruff format --check .` 283 files rc=0、`mypy .` Success（74 files）、
-全量非 slow **1933 passed / 0 failed / 10 skipped / 18 deselected**、覆盖率 **86.38%**（门槛 70）rc=0、
-基线闸：collected **1943/1961**、junit tests=1943 skipped=10 failures=0 errors=0（1933+10=1943）；
-前端 `tsc` rc=0、`next lint` rc=0、`vitest` **83 passed**、`npm run build:check` rc=0（产物断言 VERDICT=OK）。
-证据 `evidence/final-gates-backend-20261011.log`、`final-gates-junit-20261011.xml`、`final-gates-static-frontend-20261011.log`；
-`socket` 守卫与 `pip check` 两轴本轮未重跑（未动依赖与网络面），在册读数见 `reports/gates.md` §38。 注：第二遍全量的 collected/junit 只在新加那条 AST 不变量测试后 +1；两遍读数都在 evidence/final-gates*-20261011.log。
+候选 `codex/nondeploy-closeout-20261010`；笔数现读 `git log --oneline 0b54396..HEAD | wc -l`（写这行时 33 笔，头 `a9ef432`），`porcelain` 0 行。
+**未 push、未开 PR、未合并、未轮换任何凭据、未读真实库内容、未动 3021 与 8088 现役栈。**
+
+**10-12 接手轮现量（当场跑，不是引用历史日志）**：全量非 slow **2016 passed / 0 failed / 10 skipped / 18 deselected**，cov **86.55%**，rc=0；
+分母闭合：collected **2026/2044**，junit `tests=2026 skipped=10 failures=0 errors=0`。
+静态与前端 11 条腿 **10 条 rc=0**：`pip check`、ruff check、ruff format --check、mypy 整仓、mypy 点名 D-14 五脚本、`git diff --check`、`npm run lint`、tsc、vitest **9 files / 83 tests**、`npm run build:check` 产物断言 **VERDICT=OK**（四个 `.badge-*` 各出现 1 次，控件 `.badge{`=1、`.upload-zone`=3）。
+唯一 rc=1 的一条是 `npm run format:check`（**3 只**文件），⇒ §B D-37。
+证据：`evidence/integration-gates-backend-pass2-20261012.log` 与同名 junit XML、`evidence/integration-gates-backend-20261012.log`（第一趟红的那次）、`evidence/wiring-fix-targeted-20261012.log`、`evidence/static-and-frontend-20261012.log`、`evidence/dockerignore-probe-20261012.log`。
+
+**三组旧数各属于哪棵树（别混用）**：1933 passed / 86.38% / collected 1943 与 1961 是**候选提交树**（不含 D-34、D-14 那 11 只文件）的读数，出处 `evidence/final-gates2-*`；
+本轮 2016 = 1933 + D-14 的 40 + D-34 的 43，是同一棵树**加上这两笔交付**的分母；更早的 1925 / 86.35% 是第五笔 `9e3cfc5` 之前的树。
+三组各自成立，引用时必须点名读的是哪一棵。`socket` 守卫与在线 `pip audit` 两轴本轮未重跑（未动依赖面）。
 
 ## E. C 单元（依赖风险）的收口建议：15 条其实只剩**两条处置要你点头**
 
@@ -108,10 +124,10 @@ node "$R/evidence/audit_axes.js" "$R/evidence/audit-cand-runtime.json" "$R/evide
 
 ## F. 本轮总账（这一节的存在理由：让本文件可以单独转发）
 
-**状态**：候选分支本地 8 笔、头 `dae319d`、`git status --porcelain` = 0 行、未跟踪 0；**未 push、未开 PR、未合并、未轮换任何凭据、未动真实库/向量库/容器/端口 3021 与 8088**。代码面自 `bee37d3` 起未再变动（其后两笔都是 docs）。
-**门禁现量（07:3x 当场跑，不是推的）**：全量非 slow 1933 passed / 0 failed / 10 skipped / 18 deselected、cov 86.38%、rc=0；collected 1943/1961、junit tests=1943；ruff check、ruff format --check（283 files）、mypy（74 files）均 rc=0；前端 tsc、lint、vitest 83、`npm run build:check` 的产物断言 VERDICT=OK。复算命令在 `reports/gates.md` §45 与本文 §D。
+**状态**：候选分支本地笔数现读 `git log --oneline 0b54396..HEAD | wc -l`（写这行时 33 笔）、头 `a9ef432`、`git status --porcelain` = 0 行；**未 push、未开 PR、未合并、未轮换任何凭据、未动真实库/向量库/容器/端口 3021 与 8088**。代码面自 `a9ef432` 起与库内同源。
+**门禁现量（10-12 00:5x 当场跑，不是推的）**：全量非 slow 2016 passed / 0 failed / 10 skipped / 18 deselected、cov 86.55%、rc=0；collected 2026/2044、junit tests=2026；ruff check、ruff format（285 files）、mypy（整仓与 D-14 五脚本各一次）均 rc=0；前端 lint、tsc、vitest 9 files / 83 tests、`build:check` VERDICT=OK；`format:check` rc=1（3 只，在册两把口径）。复算命令与逐腿 rc 在 `reports/gates.md` §48 与本文 §D。
 
-**等你答的只有 4 条**：§A 的 D-5（先轮换 `ADMIN_PASSWORD` 再普通推 + 开 PR）与 D-19（文档 ref 一起推）；§B 的 D-33（不可达的 step_budget 档怎么处置）与 D-34（Agent 轮次没有占位补偿腿）。
+**等你答的**：§A 两条推送动作（D-5、D-19），其中 D-5 现在要先答 §B 的 D-35（凭据失效的真实入口）才谈得上执行；§B 三条新裁项（D-35 失效入口、D-36 检索质量面归属、D-37 前端格式门）。上一批的 D-33、D-34 本轮已裁并已执行提交。
 
 **独立复核二轮（两路子代理，正交）**
 - A 复现腿 `reviews/20261011-round2/independent-review-A-replication-20261011.md`：采纳 8 / 驳回 1 / 核不了 0。它自己在 `git archive` 副本树上复刻了变异、重跑了全量门禁与对象轴，没引用我的转述。
@@ -135,6 +151,9 @@ node "$R/evidence/audit_axes.js" "$R/evidence/audit-cand-runtime.json" "$R/evide
 12. `pip download` 不加 `--no-cache-dir` 时用 "Using cached" 冒充"官方源真取到"（第一次的假绿）。
 13. 两条**新待裁项错放进 §C**（已裁档）且列数写成四列 ⇒ 被列数检查器与重号脚本同时抓到，已挪回 §B。
 14. 汇报自查：本轮"都写进决策文件了吗"由 `evidence/work_log_key_audit.py` 出数——29 个 key 只对这一只文件跑，最初缺 14 个（就是本节存在的原因）。
+15. 10-12 接手轮：我第一条 pytest 命令给出「`PYTEST_RC=0`、耗时 1 秒、正文一个字没有」的假绿。根因是 PATH 上 `~/.local/bin/env`（绝对写法 `C:/Users/33393/.local/bin/env`） 那个只设 PATH 的 shell 脚本把 `env VAR=x cmd` 整条吞掉并返回 0 ⇒ 这台机器上任何用裸 `env` 起的命令都要先证明它真的跑了。改用 `export` 起才有 17%/35%/53% 的真实进度。
+16. 10-12：我第一版 `.dockerignore` 探针的期望表把 `(old,new)` 元组当成值用 ⇒ 10 格里 9 格被误标 BLOCKED；是打印出来的「ALLOWED=1」这个荒谬数暴露的。自造复算器的手写期望表自己也要跑一遍对照。
+17. 10-12：我把那条 Windows 路径写进正文时漏了盘符后的冒号，而我当时的断言只查「反斜杠加 Users 在不在」、没查真实形状 ⇒ 它没被自己拦住，是事后 grep 才看见的。断言必须断在内容上，否则它只是我意图的回声。
 
 **交付物路径**（运行根 `C:/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2`）
 - 汇报：`reports/closeout-final-J-draft.md`（§0 状态、§3 待裁四条、§10.2 我的错、§11 复核二轮）
@@ -142,7 +161,7 @@ node "$R/evidence/audit_axes.js" "$R/evidence/audit-cand-runtime.json" "$R/evide
 - 本文件：`reports/decisions-needed-20261010.md`（§A/§B 待裁、§C 已裁 30 条逐条落地位置、§D 门禁、§F 总账）
 - 下一轮三张票：`tickets/dispatch-D14-index-write-guards-20261011.md`、`tickets/dispatch-D6-dev-env-alignment-20261011.md`、`tickets/dispatch-D20-merge-into-master-20261011.md`
 - 你要动手时用：`tickets/runbook-I-push-pr-merge.md`（推送前置与命令；已按 §44 更正刷新）
-- 两份复核报告：上面"复核二轮"里那两个路径；均已同步进仓内 `docs/closeout-20261010/`（34 只 .md，与运行根逐只 sha 相同）
+- 两份复核报告：上面"复核二轮"里那两个路径；均已同步进仓内 `docs/closeout-20261010/`（写这行时 34 只，10-12 接手轮已到 42 只，逐只 sha 与运行根相同）
 
 **本轮未做（不是"已做"）**：F 五类真实模型腿未跑（Owner 裁本轮不开，冻结稿在册）；`socket` 守卫与 `pip check` 两轴未重跑（未动依赖与网络面）；D-18 的旧断言我只清了代码注释与文档引用面；D-33/D-34 只登记未实现；D-3 的两份 diff 按 D-29 本轮不落。
 
@@ -151,19 +170,27 @@ node "$R/evidence/audit_axes.js" "$R/evidence/audit-cand-runtime.json" "$R/evide
 **单元层（A–J 按执行书的单元记账）**
 - A 接手保护与登记：闭合（基线 `reports/baseline.md`，候选分支 `codex/nondeploy-closeout-20261010`）。
 - B 后端四票 + B-45 守卫 + D-3 迁移证据：闭合（D-3 由我独立复算验收，落地转 D-29）。
-- C 依赖风险：闭合（15 条压成两堆处置，Owner 已裁；迁移票已真写出并交付）。
+- C 依赖风险：处置方案已登记，风险门未通过。13 项迁移未落地；2 项受限接受按报告追溯，不能自动令现有 pip-audit 门变绿。
 - D 前端五项残差 + 取消流程真实浏览器验收：已验收；其 J3 红（生产构建 purge 掉 `badge-*`）由我自验并修（D-22），连带暴露的配色 AA 按 D-28(b) 修（D-22/D-28 均闭合）。
 - E 模型来源、加载信任门、合成数据演练：闭合（行为级五臂 + 恢复演练）。
 - F 五类真实模型验收：**本轮不跑**（Owner 裁；冻结稿在册，可播种语料仅 11 对是三条阻塞之一）。
 - G 现役环境升级：判为不动（现役是 Docker 容器；宿主 venv 的对齐转 D-6 票）。
-- H 包装、凭据/历史、远端 CI：闭合但带披露（凭据轴见 §2 与 D-5；CI 历史与触发语义见 D-5 现量列）。
-- I 独立审查、本地提交、PR、合并：**只差你手上的推送动作**；本地提交笔数现读 `git log --oneline 0b54396..HEAD | wc -l`（写本行时=27，其中本半段 8 笔）。
+- H 包装、凭据/历史、远端 CI：各子项分别记账；候选包装、凭据失效与公开范围、当前对象 CI 不能相互替代。现阶段不能称 H 全通过。
+- I 独立审查、本地提交、PR、合并：本地成果在册；历史整合、当前整合对象独立审查、凭据/公开前置、PR 检查与正常合并仍待执行，不是仅一次推送。提交笔数按固定对象现读。
 - J 收尾：正式稿（本文件 §F/§G/§H + `closeout-final-J-draft.md`）。
 
 **改动面（代码，按文件）**：`backend/llm_registry.py`（拒答冷却两档 + `rejected_kind` 进 `status()` + DB-24 注释更正）、`backend/observability.py`（两个日志字段登记进 `_ACCOUNT_FIELDS`）、`backend/routing_metrics.py`（`TOOL_BUSY` 进白名单、与 `TOOL_UNAVAILABLE` 分列）、`backend/main.py`（409 用异常携带的分档文案；占位两档；只认 `GeneratorExit`/`CancelledError` 为断开）、`backend/agent/controller.py`（`RESUME_CONFLICT_DETAILS` 成因码表 + 回落 + 不可达性标注）、`backend/settings.py`（注释去抄数）、`backend/tests/`（`test_llm_reject_channel.py`、`test_agent_rollout.py`、`test_agent_resume.py`、`test_cancel_boundaries.py`（含新结构不变量测试）、`test_chat_turn_persistence.py`、`test_stream_cancellation.py` 签名对齐）。
 **改动面（文档与部署）**：`DEPLOYMENT.md` §7 事件响应三行；`backend/Dockerfile` 两步各加失败回落（torch 那发同时换 index）；`.github/workflows/ci.yml` 新增 `source-probe` 作业（含作业级门与逐包正对照）+ 触发段加 schedule/dispatch；`docs/chroma-risk-triage-20261003.md` 入库（D-11）；`docs/closeout-20261010/` 交付镜像现读 `ls docs/closeout-20261010/*.md | wc -l`（写本行时=34，且与 `git ls-files` 同数）。
 **判据与仪器（本轮新增）**：变异 9 枪（M1–M3 批 A、M4–M7 批 B、M8 复核后；每枪只动一个 site、finally 还原、逐文件 sha 位级相同）；`evidence/venv_vs_requirements_axis.py`、`merge_trial_blobs.py` + `merge_trial_reconcile.py`、`md_table_columns.py`（自带 `--selftest`）、`ci_yaml_check.py`、`d25-*-selfcheck`、`work_log_key_audit.py`（key×文件对账）、`push-upload-axis-recheck-20261011.md`。
 **票与复核**：新写三张票（D-14 / D-6 / D-20），刷新 runbook；两路独立子代理复核（A 复现、B 对抗）报告入库，其判决与我的响应在 §F 与 gates §46。
+
+**10-12 接手轮追加（本会话做的事，全部现量，不引用上一轮转述）**
+- **接收复验停在未提交态的两笔交付**：先验字节（8 只文件 sha256 与交付报告锚定值 8/8 命中），再跑「第一趟全量红 2 只 → 定向接线修 2 passed → 第二趟全量 2016 passed / 0 failed / cov 86.55%」。
+- **三笔提交**：`c15b775`(D-34 加两条旧测试接线) → `87f58c0`(D-14) → `a9ef432`(`backend/.dockerignore`)；每笔提交前 `git diff --cached --name-only` 只列点名路径；提交后逐只把 `git ls-tree -r HEAD` 的 blob 与 `git hash-object --no-filters` 的盘上值比对，11 只全等、CR 全 0 ⇒ **交付字节＝验收字节**。
+- **H 的 `.dockerignore` 缺口关闭**：改成 `**/*.db`、`**/*.sqlite*`、加 `.ptmp*`，并用合成上下文跑 10 格预登记对照（同一目标只差规则一个变量；评测件两套规则都放行；runner 在缺基底镜像或正对照不合格时自身 REFUSE，而不是报修好）。
+- **静态与前端 11 条腿复量**：10 条 rc=0；`format:check` 的 3 只文件按现状登记成 D-37，不顺手改、也不静默把门塞进 CI。
+- **Owner 会话复核件 R1–R8 折进台账**：R3 落成新的 D-35；R4 的一半在本轮复量中已过期（候选 `ci.yml` 第 86-97 行现量确实跑 lint、tsc、`npm run test`、build、`build:check`）；R7 关于「1933 对应哪组日志」写进 §D 的三组数轴说明；R8 的「最终门禁同数不是机械要求」正是本轮分母从 1933 变 2016 的解释口径。
+- **交付镜像补齐**：`docs/closeout-20261010/` 从 34 只增到 **42 只**（D-34 四份、D-14 一份、Owner 会话复核一份、D-3 当前候选复核一份，加本轮新写的 D-33 负例票一份），并把改过的 `gates.md` 与本文一起重镜像；逐只 sha 与运行根相同（本轮实测 checked=10 differing=0）。只数现读 `ls docs/closeout-20261010/*.md | wc -l` 配 `git ls-files -- docs/closeout-20261010 | wc -l`，两数相等才算入库。
 
 ## H. 还差什么没做（分类穷尽；每条指名归属与出处）
 
@@ -174,11 +201,11 @@ node "$R/evidence/audit_axes.js" "$R/evidence/audit-cand-runtime.json" "$R/evide
 4. 用户可见文案的**过字**（409 四档 + 取消两档由我起草、按整包授权已落地，但你未逐字过稿）——D-31；改词只动常量。
 
 **已裁成票、留给下一轮执行（本轮有意不做）**
-5. D-14 四只无守卫 CLI（票已按复核重写机制前提）。
+5. D-14 四只无守卫 CLI ⇒ **本轮已关闭**：交付会话按 A 做完，10-12 由我接收复验并提交 `87f58c0`。编号保留不重排，免得按号引用的地方漂移（下同）。
 6. D-6 开发环境 `backend/venv` 对齐（现量 6 条偏离 + `pip check` 2 条既有红）。
 7. D-20 合 master：现量 **99 次**内容裁决（会随头动，开工前重跑）。
 8. D-29 落 D-3 的两份 langchain diff（本轮不落；下一轮首票）。
-9. D-33（不可达的 step_budget 档：删站点 或 让 `max_clarifications` 耗尽并进来）、D-34（Agent 轮次没有占位补偿腿）。
+9. D-33、D-34 ⇒ **D-34 已关闭**（Owner 裁 A，本轮复验后提交 `c15b775`）；**D-33 已裁保留**，但推荐里那条「恢复 API 的旧状态与预算下降负例」本轮未实现 ⇒ 转票 `tickets/dispatch-D33-resume-budget-negative-20261012.md`。
 10. D-30 主仓其余 33 只未跟踪文档：本轮不收，要收时一次性裁范围。
 
 **未跑的读数/轴（我明确没做，不是做了没写）**
@@ -195,3 +222,10 @@ node "$R/evidence/audit_axes.js" "$R/evidence/audit-cand-runtime.json" "$R/evide
 19. 凭据轴的结论是"轮换前不能推"，**即使推了并轮换，历史里那只 13 位裸值仍在**（只是不再现役）——签了也不解除。
 20. D-25 的 CI 探针**不等于**出厂构建可用；`--no-deps` 逐包解析与整表联合求解可能选到不同版本（该偏差写在作业注释里）。
 21. 台账里所有"几笔提交/几份文件/几次裁决/几个对象"都是**写行时的现量**，一律以同行给的命令为准；本行写这些数字时头是 `50b39ec`。
+
+**10-12 接手轮追加（还差的，仍按上面四类分档，编号接着往下）**
+22. 只能你动：D-35 的凭据失效入口。在我这边无论怎么做都只是改环境变量——库里那个账号的 `password_hash` 不变，`seed_admin.py` 见管理员已存在就返回，认证也不检查密码版本，所以已签发的 JWT 更不会因此作废。
+23. 已转票留下一轮：D-33 的恢复负例；D-6 宿主 venv 对齐；D-20 合 master（冲突数随头动，开工与终头各重跑一次）；D-29 落 D-3 的两份 diff；D-36 若你选「单独开票现在查」。
+24. 本轮明确未跑的读数：在线 `pip-audit` 两轴（D-3 未落地，重跑只会复述旧读数）；`slow` 与 `real_kb` 腿；浏览器计算样式的独立腿；远端 CI 当前对象读数（未推送，且推 `codex/*` 本身不产生 run）；`socket` 非回环守卫本轮未重跑。
+25. 已知限制（影响怎么读那个 2016 全绿）：它是在合成嵌入、测试自建数据库、六个上游 URL 全指死回环的形状上取得的，证明接口、控制流、存储、取消与隔离，**不证明**真实语义检索质量与真实模型表现；`format:check` 那条 rc=1 原样保留，没有从分母里摘掉。
+26. 已知限制：本轮所有后端读数只在运行根 `candidate-envB`（Python 3.11.0）上成立，不外推到宿主 `backend/venv`、Docker 镜像或 CI——那三套依赖集合不同源（在册事实）。

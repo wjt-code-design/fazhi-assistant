@@ -1057,3 +1057,44 @@ torch 侧：阿里云 `pytorch-wheels/cpu/` 目录 200（1,208,113 B）；两页
 
 **收口状态没有变**：本地 7 笔、头 `424f8af`、`porcelain=0`、未 push/未开 PR/未合并/未轮换/未动真实库与容器；
 等你的是台账 §A 两条推送动作（D-5、D-19）+ §B 两条新裁项（D-33、D-34）。
+
+## 48. 补记四十七（2026-10-12 00:3x–01:0x：接手会话把 D-34/D-14 的未提交交付做成「验收对象＝交付对象」，并修掉 `.dockerignore` 那条）
+
+**接手现场（现量，不是抄上一轮）**：候选 `19e296e`（`0b54396..HEAD` 30 笔），工作树 **9 只 tracked 改动 + 2 只未跟踪测试**，
+mtime 10-11 17:07–19:19；上一轮在册说法是 `porcelain=0` ⇒ 有交付停在未提交态。那 8 只交付文件的 sha256 **8/8 命中**
+D-34/D-14 两份报告的锚定值 ⇒ 盘上字节＝被审过的字节。归属：`main.py`+`test_agent_turn_compensation.py`=D-34；
+5 只 CLI 脚本+`test_index_cli_safety.py`=D-14。
+
+**这一轮真正缺的一步是「全量集成复验」**（两份报告各自只跑了隔离回归，且都明写完整项目门未重跑）：
+
+| 腿 | 现量 | 证据（运行根 `evidence/` 下） |
+|---|---|---|
+| 第一趟全量（未提交集成态） | **2 failed / 2014 passed / 10 skipped / 18 deselected，cov 86.55%，rc=1** | `integration-gates-backend-20261012.log` |
+| 红的两条用例名 | `test_agent_resume.py::test_agent_fallback_on_resume_feeds_run_date_into_fast_path`、`test_chat_turn_persistence.py::test_other_conversation_is_not_blocked_and_route_exception_releases_lock` | 同日志 FAILED 行；与 D-3 复核件 §3 预告**逐字相同** ⇒ 不是新故障，是 D-34 改接口后旧测试仍桩在 `_execute_agent_observing_disconnect` |
+| 定向接线修 | **2 passed，rc=0**，15.40s | `wiring-fix-targeted-20261012.log`；补丁 `d3-current-review-20261011/baseline-test-compatibility.patch`（2 只文件 / 39 行 / CR=0） |
+| 第二趟全量 | **2016 passed / 0 failed / 10 skipped / 18 deselected，cov 86.55%，rc=0**，278.87s | `integration-gates-backend-pass2-20261012.log`、同名 `-junit-` XML（`tests=2026 errors=0 failures=0 skipped=10`） |
+| 分母闭合 | collected 轴 **2026/2044**（2016+10=2026，+18 deselected=2044） | 同日志 COLLECT ONLY 段 |
+| 静态与前端 11 条腿 | **10 条 rc=0**：pip check / ruff check / ruff format / mypy 整仓 / mypy 五脚本显式 / `git diff --check` / lint / tsc / vitest **9 files 83 tests** / `build:check` **VERDICT=OK**（四个 `.badge-*` 各 1、控件 `.badge{`=1、`.upload-zone`=3） | `static-and-frontend-20261012.log` |
+| 唯一 rc=1 的那条 | `npm run format:check` ⇒ **3 只**（Stats/Upload/Users Section），与在册「两把口径 3 vs 15」同形；本轮未动这三只 ⇒ 见台账 D-37 | 同上第 [10] 段 |
+
+**三笔提交与「交付==验收」的证法**：`c15b775`(D-34 + 接线修，4 只) → `87f58c0`(D-14，6 只) → `a9ef432`(`backend/.dockerignore`)。
+每笔提交前 `git diff --cached --name-only` 只列点名的路径；接线修与接口变更**同笔**落地，是为了不给 bisect 留一个自身带红的中间提交
+（补丁出自 D-3 复核会话，本轮只做接收与复验，这句写在提交信息里）。
+提交后 `porcelain=0`，且 11 只文件逐个比对 `git ls-tree -r HEAD` 的 blob id 与 `git hash-object --no-filters` 的盘上值**全等**、CR 全 0
+⇒ 刚跑绿的那批字节就是现在库里的字节；其中两只被 patch 的文件落盘 blob 恰为补丁声明的 `1ead4040`、`b132d6ec`。
+
+**`.dockerignore` 从「实装面已证」走到「修好并复量」**：改为 `**/*.db`、`**/*.sqlite*`、加 `.ptmp*`。
+没有用整目录 `data/` 排除，因为 `backend/data` 里有两个运行时要读的评测件（`git ls-files backend/data` 现量 2 只），整目录排除会静默少数据。
+本轮**不重复读真实库字节**，改用合成上下文跑同一把尺子：`dockerignore-probe-20261012/` 预登记 10 格期望，实际 **10/10 全中、`VERDICT=FIX_VERIFIED`**
+（`evidence/dockerignore-probe-20261012.log`）。单变量对照是同一目标 `data/app.db` old=ALLOWED→new=BLOCKED；
+没有任何规则涉及的 `data/eval_agent_complex.json` 两套规则都 ALLOWED（防过度排除）。runner 自带两道闸门：基底镜像缺失 ⇒ REFUSE，
+正对照不是 ALLOWED ⇒ REFUSE —— 否则基底不在时「所有构建都失败」会被读成「全都挡住了＝修好了」，那正是这类判据最舒服的假绿形状。
+
+**两台仪器自曝错（写进正文，不只留在对话里）**
+1. 我第一条命令给出的「`PYTEST_RC=0`、1 秒、正文一个字没有」是假的：PATH 上 `C:\Users\33393\.local\bin\env` 是个只设 PATH 的 shell 脚本，
+   把 `env VAR=x cmd` 整条吞掉并回 0。⇒ 这台机器上任何用裸 `env` 起的命令都要先证明它真的跑了；改用 `export` 起才有 17%/35%/53% 的真实进度。（这一句第一次写成了 `C\Users\33393…`，我当时的断言只查了「反斜杠+Users 在不在」而没查 `C:` 后的分隔符，所以它没被自己拦住——断言要断在真实形状上，不然它只是我意图的回声。）
+2. 我第一版探针的期望表把 `(old,new)` 元组当成值用 ⇒ 10 格里 9 格被误标 BLOCKED（打印出的「ALLOWED=1」这个荒谬数当场暴露）。修完才是 5 ALLOWED / 5 BLOCKED。
+   自造复算器的手写期望表本身也要跑一遍对照，不能只信「我按意思写的」。
+
+**本轮没有动的**：未 push、未开 PR、未合并、未轮换凭据、未读真实库内容、未动现役栈（`netstat` 现量 8088 仍 LISTENING、3000/3021 无监听）、
+未跑 `slow`/`real_kb` 腿、未重跑在线依赖审计；D-3 仍按 D-29「本轮不落」。阶段结论仍 **BLOCKED**，本轮只把「已交付但未验收＝未交付」这一格关掉。
