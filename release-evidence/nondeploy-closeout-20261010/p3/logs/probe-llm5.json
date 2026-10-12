@@ -1,0 +1,28 @@
+[
+  {
+    "chunks": 500,
+    "content_chars": 1095,
+    "elapsed_s": 47.03,
+    "finish_reason": "stop",
+    "model": "LongCat-2.0",
+    "reasoning_chars": 0,
+    "usage": {
+      "input_tokens": 24,
+      "output_tokens": 1464,
+      "total_tokens": 1488
+    }
+  },
+  {
+    "chunks": 460,
+    "content_chars": 996,
+    "elapsed_s": 38.77,
+    "finish_reason": "stop",
+    "model": "LongCat-2.5-Preview",
+    "reasoning_chars": 0,
+    "usage": {
+      "input_tokens": 24,
+      "output_tokens": 1374,
+      "total_tokens": 1398
+    }
+  }
+]
