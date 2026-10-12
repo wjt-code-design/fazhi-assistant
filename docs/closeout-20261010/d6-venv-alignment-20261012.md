@@ -26,6 +26,7 @@
 | ③ 核心导入冒烟 | OK：`torch 2.13.0+cpu`（`cuda=None`）、ST 6.1.0、fastapi 0.141.1、uvicorn **0.27.1**（从越上限的 0.52.1 降回）、sqlalchemy 2.1.4 | 本轮命令输出 |
 | ④ 产品门（纯发布物树，解释器＝venv-new） | **2030 passed / 0 failed / 10 skipped / 18 deselected，cov 86.57%，rc=0**；junit `tests=2040 failures=0 errors=0 skipped=10`；树前后 2726→2727（+1＝测试自建的 `chroma.sqlite3`） | `p2-d6-20261012/p2-venv-new-gate.log` / `.xml` |
 
+| ⑤ torch wheel 与官方 sha256 | **MATCH**（细节见 §4 第 1 条） | `p2-venv-new-gate.log` |
 关键版本与 envD（P1 的干净安装）**逐版相同**：core 1.6.9 / lc-openai 1.7.0 / lc-chroma 0.2.3 / openai SDK 2.54.0 / chromadb 0.4.24 / numpy 1.26.4 / fastapi 0.141.1 / sqlalchemy 2.1.4 / pypdf 6.19.0 / ST 6.1.0 / transformers 5.19.0。
 
 ## 3. 为什么不换名（§G 原文 + Owner ①）
@@ -36,7 +37,7 @@
 
 ## 4. 已知限制（不写成通过）
 
-1. **torch wheel 的镜像哈希比对**：任务书 §C 要求"官方源或**可对官方 SHA256 的镜像**"。本轮 torch 取自阿里云 `mirrors.aliyun.com/pytorch-wheels/cpu/`，其页面**不提供哈希** ⇒ 只能拿实际 wheel 与官方索引给的 `10717d8b…` 逐字比对（比对命令与结果见 `p2-d6-20261012/p2-venv-new-gate.log` 尾部）。**对不上即作废该镜像源**。
+1. **torch wheel 的镜像哈希比对 —— 已闭合**：任务书 §C 要求「官方源或**可对官方 SHA256 的镜像**」。阿里云 `mirrors.aliyun.com/pytorch-wheels/cpu/` 页面本身**不提供哈希**，故改为拿**实际下载的那枚 wheel** 算 sha256 与官方索引值逐字比对：`torch-2.13.0+cpu-cp311-cp311-win_amd64.whl`（121,892,056 B）的 sha256 ＝ `10717d8b3b67c45a4788bf7ffc0bab1ea1e5ebbedd24466be6100102d141fac1` ＝ 官方索引值 ⇒ **VERDICT=MATCH**（证据 `p2-d6-20261012/p2-venv-new-gate.log` 尾部；wheel 留存 `D:/fazhi-big/torch-wheel/`，部署离线安装可复用）。**镜像源作废条件未触发**。
 2. 建造第一版出现过 **两个来源同报 "wheel is invalid"**（torch 与 fastapi）——单包探针证明下载路径本身正常 ⇒ 判为**下载被截断**；第二版 `INVALID_WHEEL_COUNT=0` 佐证。此现象会偶发，重跑即可。
 3. 环境只在本机（Windows/win_amd64）成立；生产是 Linux 镜像（`+cpu` 为 manylinux 轮），**两边不是同一个二进制对象**，不能互相当证据。
 4. 本轮**没有**跑 `slow`/`real_kb`、没有碰真实库、没有动容器与 compose 栈。
