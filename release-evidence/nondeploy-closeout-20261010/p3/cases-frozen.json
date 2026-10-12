@@ -4,6 +4,7 @@
     {
       "assert": [
         {
+          "alias_normalized": true,
           "expect": [
             "民法典",
             "第一百四十三条"
@@ -52,7 +53,7 @@
         },
         {
           "tokens": [
-            "但是情节显著轻微",
+            "情节显著轻微",
             "不认为是犯罪"
           ],
           "type": "must_contain_any"
@@ -264,6 +265,15 @@
     "replacement_rule": "citation_pair(民法典,第一百四十三条) ＋ must_cover_elements(行为能力/意思真实/强制性规定/公序良俗)",
     "retracted_rule": "quote_verbatim_from_seed（要求答案正文与播种 content 逐字一致）",
     "why": "产品契约是「引用＋解释」，不是整条照抄；这条是我把 gold 写错了对象，不是模型答错。第一次跑 Q01 时该规则报 FAIL，同时暴露 extract_citations 返回三元组而我只比前两元——后者是判据解释器的仪器 bug。"
+  },
+  "gold_amendment_2": {
+    "Q09_not_changed": "Q09 判据一个字没动——它把不存在的条号答成《民法典》第一千二百六十条且无拒答标记，是真失败",
+    "cases": [
+      "Q01",
+      "Q03"
+    ],
+    "disclosed_as": "整批 12 题跑完才发现，Q01 因此第三次跑、Q03 第二次跑（§F2 允许每个失败病例至多一次定向复测）",
+    "why": "Q01 在整批跑里报「引用缺 民法典」，实际引用是《中华人民共和国民法典》——产品的 _norm_source 认这两个是同一法名，是我的判据没做别名归一；Q03 要求字面「但是情节显著轻微」，但书语义在而连接词未必照抄。两条都是判据写法错，不是模型答错；改法＝判据改用产品自己的归一化＋只钉但书两个语义锚点。"
   },
   "max_sends_per_case": 3,
   "model_binding": "LongCat-2.5-Preview @ LLM_BASE_URL, streaming (Owner 10-12 ruling)"

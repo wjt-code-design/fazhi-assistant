@@ -1,0 +1,64 @@
+[
+  {
+    "answer_chars": 259,
+    "answer_sha8": "8267a6c5",
+    "citations_raw": [
+      [
+        "民法典",
+        "第一百四十三条",
+        "《民法典》第一百四十三条"
+      ]
+    ],
+    "diag": {},
+    "fails": [],
+    "frame_types": {
+      "content": 39,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 2,
+    "http": 200,
+    "id": "Q01",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.siliconflow.cn//v1/rerank",
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "PASS"
+  },
+  {
+    "answer_chars": 651,
+    "answer_sha8": "50ab5b5d",
+    "citations_raw": [
+      [
+        "刑法",
+        "第十三条",
+        "《刑法》第十三条"
+      ]
+    ],
+    "diag": {
+      "but_shorthand": true
+    },
+    "fails": [],
+    "frame_types": {
+      "content": 131,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 4,
+    "http": 200,
+    "id": "Q03",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.siliconflow.cn//v1/rerank",
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "PASS"
+  }
+]

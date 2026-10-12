@@ -87,7 +87,10 @@ def check(case: dict, res: dict) -> list[str]:
 
     fails: list[str] = []
     ans = res["answer"]
-    cites = [list(c)[:2] for c in retrieval.extract_citations(ans)]  # 返回值是 (法名, 条号, 原文匹配) 三元
+    raw_cites = [list(c)[:2] for c in retrieval.extract_citations(ans)]  # (法名, 条号, 原文匹配) 三元
+    norm = retrieval._norm_source
+    cites = [[norm(str(a)), str(b)] for a, b in raw_cites]
+    diag = {"but_shorthand": ("情节显著轻微" in ans) and ("不认为是犯罪" in ans), "refuse_words": [w for w in ("库内", "未收录", "没有", "不在", "无此条") if w in ans]}
     for rule in case["assert"]:
         kind = rule["type"]
         if kind == "citation_pair":
@@ -124,7 +127,7 @@ def check(case: dict, res: dict) -> list[str]:
         elif kind == "must_refuse_or_flag_gap":
             if not any(t in ans for t in ("库内", "未收录", "没有", "无法确认", "不在", "未能找到", "无此条")):
                 fails.append("no refusal/gap flag in answer")
-    return fails
+    return fails, diag
 
 
 async def main() -> int:
@@ -145,11 +148,12 @@ async def main() -> int:
         for c in cases:
             before = len(guard.calls)
             res = await ask(client, token, c["q"])
-            fails = check(c, res) if res["http"] == 200 else ["http %s %s" % (res["http"], res["error_body"])]
+            fails, diag = check(c, res) if res["http"] == 200 else (["http"], {})
+            diag = {k: v for k, v in diag.items() if v}
             rec = {"id": c["id"], "tier": c["tier"], "http": res["http"], "answer_chars": len(res["answer"]),
                    "answer_sha8": hashlib.sha256(res["answer"].encode()).hexdigest()[:8],
                    "sends_this_case": [x.split("/")[2] + "//" + "/".join(x.split("/")[3:]) for x in guard.calls[before:]],
-                   "frame_types": res["frame_types"], "non_json_frames": res["non_json_frames"][:3], "citations": [list(x) for x in retrieval.extract_citations(res["answer"])],
+                   "frame_types": res["frame_types"], "non_json_frames": res["non_json_frames"][:3], "citations_raw": [list(x) for x in retrieval.extract_citations(res["answer"])], "diag": diag,
                    "verdict": "PASS" if not fails else "FAIL", "fails": fails,
                    "guard_sends_so_far": len(guard.calls), "guard_refused": len(guard.refused)}
             rows.append(rec)

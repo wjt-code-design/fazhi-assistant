@@ -1286,3 +1286,7 @@ Owner 两条裁定原话：「那就 longcat2.5preview 跑流式，不算预算�
 
 真实入口＝产品自己的 `/api/chat`（ASGITransport 进程内，含限流/会话锁/检索/引用校验/SSE 落库），载体＝`LongCat-2.5-Preview`＋流式，产品代码零改动。Q01 PASS（两跑）、Q02 PASS；**每题外发 2 次**＝`api.siliconflow.cn//v1/rerank`＋`api.longcat.chat//openai/chat/completions` ⇒ 12 题约 24 次，仍在 §F2 的 36 内，`guard_refused=0`。
 两处仪器修正与一条自曝：`extract_citations()` 返回三元组而我按两元比（恒 FAIL）；SSE 的 `[DONE]` 终止帧不是 JSON（改记数不吞）；**Q01 的 gold「与原文逐字一致」是我写错了对象，在看到第一次输出之后才改成「条号命中＋四要件齐备」**——改的时机登记在 `cases-frozen.json` 的 `gold_amendment_1`，sha256 由 `cb7113fb95e3f2f0` 变 `48ba0779185969d5`。守卫新增 ASGITransport 豁免（进程内不算外发面），真实外发仍逐条 enforce。
+
+## 57. P3 文本腿全量：12 题 11 PASS／1 FAIL，Q09 是真失败已入台账 D-50（2026-10-12 第八遍）
+
+真实入口 `/api/chat`＋流式＋`LongCat-2.5-Preview`＋rerank 开；发送 19＋4＝**23 次**（上限 36），`refused=0`。Q09（问库里不存在的条号）答成库里另一条且无"库内无此条"标记 ⇒ **产品级 FAIL**，判据一个字没动；Q10（问整部不在库的法）反而由规则层拦下、**0 次模型发送**。gold 本轮被我改过两次（别名归一、但书字面），改的时机登记在 `cases-frozen.json` 的 `gold_amendment_1/2`，sha256 `cb7113…`→`48ba07…`→`38ed8c…`。同题多跑的答案长度与引用集会飘 ⇒ 判据全部是结构性的。读数只代表长猫这只模型，现役默认路由（阿里云那 6 只）仍是 403 免费额度。详表 `reports/model-acceptance-20261012.md` §13。

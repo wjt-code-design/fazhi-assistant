@@ -1,0 +1,365 @@
+[
+  {
+    "answer_chars": 164,
+    "answer_sha8": "43404146",
+    "citations": [
+      [
+        "中华人民共和国民法典",
+        "第一百四十三条",
+        "《中华人民共和国民法典》第一百四十三条"
+      ]
+    ],
+    "fails": [
+      "citation_pair missing ['民法典', '第一百四十三条'] (got [['中华人民共和国民法典', '第一百四十三条']])"
+    ],
+    "frame_types": {
+      "content": 31,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 2,
+    "http": 200,
+    "id": "Q01",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.siliconflow.cn//v1/rerank",
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "FAIL"
+  },
+  {
+    "answer_chars": 334,
+    "answer_sha8": "af6d3050",
+    "citations": [
+      [
+        "劳动合同法",
+        "第十九条",
+        "《劳动合同法》第十九条"
+      ],
+      [
+        "劳动合同法",
+        "第二十条",
+        "《劳动合同法》第二十条"
+      ]
+    ],
+    "fails": [],
+    "frame_types": {
+      "content": 51,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 4,
+    "http": 200,
+    "id": "Q02",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.siliconflow.cn//v1/rerank",
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "PASS"
+  },
+  {
+    "answer_chars": 586,
+    "answer_sha8": "b5718d78",
+    "citations": [
+      [
+        "刑法",
+        "第十三条",
+        "《刑法》第十三条"
+      ],
+      [
+        "合成戊法",
+        "第十三条",
+        "《合成戊法》第十三条"
+      ],
+      [
+        "合成乙法",
+        "第七条",
+        "《合成乙法》第七条"
+      ]
+    ],
+    "fails": [
+      "must_contain_any ['但是情节显著轻微', '不认为是犯罪']"
+    ],
+    "frame_types": {
+      "content": 107,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 6,
+    "http": 200,
+    "id": "Q03",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.siliconflow.cn//v1/rerank",
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "FAIL"
+  },
+  {
+    "answer_chars": 183,
+    "answer_sha8": "4e899588",
+    "citations": [
+      [
+        "道路交通安全法",
+        "第九十一条",
+        "《道路交通安全法》第九十一条"
+      ]
+    ],
+    "fails": [],
+    "frame_types": {
+      "content": 29,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 8,
+    "http": 200,
+    "id": "Q04",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.siliconflow.cn//v1/rerank",
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "PASS"
+  },
+  {
+    "answer_chars": 193,
+    "answer_sha8": "e63cd617",
+    "citations": [
+      [
+        "民法典",
+        "第一百四十三条",
+        "《民法典》第一百四十三条"
+      ]
+    ],
+    "fails": [],
+    "frame_types": {
+      "content": 44,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 9,
+    "http": 200,
+    "id": "Q05",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "PASS"
+  },
+  {
+    "answer_chars": 275,
+    "answer_sha8": "195f70b9",
+    "citations": [
+      [
+        "劳动争议调解仲裁法",
+        "第二十七条",
+        "《劳动争议调解仲裁法》第二十七条"
+      ]
+    ],
+    "fails": [],
+    "frame_types": {
+      "content": 39,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 11,
+    "http": 200,
+    "id": "Q06",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.siliconflow.cn//v1/rerank",
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "PASS"
+  },
+  {
+    "answer_chars": 133,
+    "answer_sha8": "02908aaa",
+    "citations": [
+      [
+        "合成甲法",
+        "第一条",
+        "《合成甲法》第一条"
+      ]
+    ],
+    "fails": [],
+    "frame_types": {
+      "content": 31,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 12,
+    "http": 200,
+    "id": "Q07",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "PASS"
+  },
+  {
+    "answer_chars": 387,
+    "answer_sha8": "fc7df326",
+    "citations": [
+      [
+        "合成甲法",
+        "第二条",
+        "《合成甲法》第二条"
+      ]
+    ],
+    "fails": [],
+    "frame_types": {
+      "content": 69,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 13,
+    "http": 200,
+    "id": "Q08",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "PASS"
+  },
+  {
+    "answer_chars": 96,
+    "answer_sha8": "2eebeec1",
+    "citations": [
+      [
+        "民法典",
+        "第一千二百六十条",
+        "《民法典》第一千二百六十条"
+      ]
+    ],
+    "fails": [
+      "no refusal/gap flag in answer"
+    ],
+    "frame_types": {
+      "content": 24,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 15,
+    "http": 200,
+    "id": "Q09",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.siliconflow.cn//v1/rerank",
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "FAIL"
+  },
+  {
+    "answer_chars": 118,
+    "answer_sha8": "bcb22414",
+    "citations": [],
+    "fails": [],
+    "frame_types": {
+      "content": 2,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 16,
+    "http": 200,
+    "id": "Q10",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.siliconflow.cn//v1/rerank"
+    ],
+    "tier": "E",
+    "verdict": "PASS"
+  },
+  {
+    "answer_chars": 221,
+    "answer_sha8": "8d87f843",
+    "citations": [
+      [
+        "合成乙法",
+        "第七条",
+        "《合成乙法》第七条"
+      ]
+    ],
+    "fails": [],
+    "frame_types": {
+      "content": 48,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 17,
+    "http": 200,
+    "id": "Q11",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "PASS"
+  },
+  {
+    "answer_chars": 294,
+    "answer_sha8": "412f8aad",
+    "citations": [
+      [
+        "合成丁法",
+        "第五条",
+        "《合成丁法》第五条"
+      ],
+      [
+        "合成丙法",
+        "第五条",
+        "《合成丙法》第五条"
+      ]
+    ],
+    "fails": [],
+    "frame_types": {
+      "content": 45,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 19,
+    "http": 200,
+    "id": "Q12",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.siliconflow.cn//v1/rerank",
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "L",
+    "verdict": "PASS"
+  }
+]
