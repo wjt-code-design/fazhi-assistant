@@ -1,0 +1,30 @@
+[
+  {
+    "answer_chars": 224,
+    "answer_sha8": "110865de",
+    "citations": [
+      [
+        "民法典",
+        "第一百四十三条",
+        "《民法典》第一百四十三条"
+      ]
+    ],
+    "fails": [
+      "citation_pair missing ['民法典', '第一百四十三条'] (got [['民法典', '第一百四十三条', '《民法典》第一百四十三条']])",
+      "quote not verbatim (['民法典', '第一百四十三条'])"
+    ],
+    "frame_types": {
+      "content": 43,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 2,
+    "http": 200,
+    "id": "Q01",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "tier": "E",
+    "verdict": "FAIL"
+  }
+]

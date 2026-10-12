@@ -1,0 +1,27 @@
+[
+  {
+    "answer_chars": 133,
+    "answer_sha8": "48da3411",
+    "citations": [
+      [
+        "民法典",
+        "第一百四十三条",
+        "《民法典》第一百四十三条"
+      ]
+    ],
+    "fails": [],
+    "frame_types": {
+      "content": 24,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 2,
+    "http": 200,
+    "id": "Q01",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "tier": "E",
+    "verdict": "PASS"
+  }
+]

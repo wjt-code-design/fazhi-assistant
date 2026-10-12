@@ -65,7 +65,9 @@ def install(guard: TransportGuard) -> None:
         _ORIG.append((cls, orig))
 
         def patched(self, request):
-            guard.enforce(str(request.url))
+            # ASGITransport 不出进程，不属于外发面；守卫管的是真正上线的字节
+            if type(self._transport).__name__ != "ASGITransport":
+                guard.enforce(str(request.url))
             return orig(self, request)
 
         cls._send_single_request = patched

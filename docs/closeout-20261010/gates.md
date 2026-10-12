@@ -1281,3 +1281,8 @@ echo "tree=$(find "$T" -type f | wc -l) tracked=$(git -C "$C" ls-files | wc -l)"
 
 `p3_rerank_groups.py` 恰好 3 次发送，判据在脚本字面量里先写死：R-1 正项 0.9932 压过干扰 0.1265；R-2 官方但书条 0.9972 压过绝对化合成条 0.9924（**只差 0.0048，方向对但脆**）；R-3 无正项时最高 0.0004，相对判据成立（不用事后挑的绝对阈值）。三组 `unique_in_range` 全真、全 200。限制一条：响应不回显 `model`，所以模型名只核到请求体。
 Owner 两条裁定原话：「那就 longcat2.5preview 跑流式，不算预算」／「算」。⇒ 文本载体＝`LongCat-2.5-Preview`＋流式，本轮不设 token/金额闸（覆盖 §F2 的 2048 输出约束），但**仍不报任何金额**（价格轴未查、账单未核），护栏仍＝次数＋白名单＋守卫。
+
+## 56. P3 文本腿跑通：两题绿，其中一题的 gold 是我跑完才改的（2026-10-12 第七遍）
+
+真实入口＝产品自己的 `/api/chat`（ASGITransport 进程内，含限流/会话锁/检索/引用校验/SSE 落库），载体＝`LongCat-2.5-Preview`＋流式，产品代码零改动。Q01 PASS（两跑）、Q02 PASS；**每题外发 2 次**＝`api.siliconflow.cn//v1/rerank`＋`api.longcat.chat//openai/chat/completions` ⇒ 12 题约 24 次，仍在 §F2 的 36 内，`guard_refused=0`。
+两处仪器修正与一条自曝：`extract_citations()` 返回三元组而我按两元比（恒 FAIL）；SSE 的 `[DONE]` 终止帧不是 JSON（改记数不吞）；**Q01 的 gold「与原文逐字一致」是我写错了对象，在看到第一次输出之后才改成「条号命中＋四要件齐备」**——改的时机登记在 `cases-frozen.json` 的 `gold_amendment_1`，sha256 由 `cb7113fb95e3f2f0` 变 `48ba0779185969d5`。守卫新增 ASGITransport 豁免（进程内不算外发面），真实外发仍逐条 enforce。

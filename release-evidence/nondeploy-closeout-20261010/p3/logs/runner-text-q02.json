@@ -1,0 +1,31 @@
+[
+  {
+    "answer_chars": 206,
+    "answer_sha8": "7bb13c87",
+    "citations": [
+      [
+        "劳动合同法",
+        "第十九条",
+        "《劳动合同法》第十九条"
+      ]
+    ],
+    "fails": [],
+    "frame_types": {
+      "content": 28,
+      "status": 1
+    },
+    "guard_refused": 0,
+    "guard_sends_so_far": 2,
+    "http": 200,
+    "id": "Q02",
+    "non_json_frames": [
+      "[DONE]"
+    ],
+    "sends_this_case": [
+      "api.siliconflow.cn//v1/rerank",
+      "api.longcat.chat//openai/chat/completions"
+    ],
+    "tier": "E",
+    "verdict": "PASS"
+  }
+]

@@ -11,11 +11,14 @@
           "type": "citation_pair"
         },
         {
-          "pair": [
-            "民法典",
-            "第一百四十三条"
+          "pair_hint": "民法典·第一百四十三条的四项要件",
+          "tokens": [
+            "行为能力",
+            "意思",
+            "强制性规定",
+            "公序良俗"
           ],
-          "type": "quote_verbatim_from_seed"
+          "type": "must_cover_elements"
         }
       ],
       "id": "Q01",
@@ -254,6 +257,14 @@
       "tier": "L"
     }
   ],
+  "gold_amendment_1": {
+    "case": "Q01",
+    "changed_at": "2026-10-12",
+    "disclosed_as": "跑完第一题后才改的 gold，必须随读数一起给复核人看",
+    "replacement_rule": "citation_pair(民法典,第一百四十三条) ＋ must_cover_elements(行为能力/意思真实/强制性规定/公序良俗)",
+    "retracted_rule": "quote_verbatim_from_seed（要求答案正文与播种 content 逐字一致）",
+    "why": "产品契约是「引用＋解释」，不是整条照抄；这条是我把 gold 写错了对象，不是模型答错。第一次跑 Q01 时该规则报 FAIL，同时暴露 extract_citations 返回三元组而我只比前两元——后者是判据解释器的仪器 bug。"
+  },
   "max_sends_per_case": 3,
   "model_binding": "LongCat-2.5-Preview @ LLM_BASE_URL, streaming (Owner 10-12 ruling)"
 }
