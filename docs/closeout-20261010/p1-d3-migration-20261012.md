@@ -44,3 +44,17 @@
 - Owner 三个选项：① 由我从 HEAD 重刷工作树后再落（推荐）；② 先问那个会话；③ 用 plumbing 从 HEAD 直接造提交（不碰工作树，但别的会话仍读旧树）。
 - 落地那一笔的内容已经准备好：`requirements-migrated.txt`（相对 HEAD 只差那 7 处：5 个窗口 + `openai>=2.26,<3` + `numpy>=1.26.4,<2` + 注释）与 `d3-current-review-20261011/migration-tests-reviewed.patch`（3 只测试，`git apply --check` 在当前候选 rc=0）。
 - 落地后仍需的独立腿（本轮**有意未跑**，不记成通过）：`docker build` 全量（镜像里的 Linux `+cpu` 轮与本机的 win_amd64 `+cpu` 不是同一个对象，审计对 `2.13.0+cpu` 的识别本轮 `version=None` ⇒ **不能声称已审到生产那个 wheel**）、前端腿（本轮零前端改动）、`slow`/`real_kb`、真实模型（P3）。
+
+
+## 6. 落地后补记（同轮，Owner「按推荐」批准恢复＋落地）
+
+- 恢复：重刷前把 31 只内容差异文件整份备份（`incident-20261012-worktree-overwrite/pre-restore-backup/`，31 只 / 689,835 B），
+  再 `git checkout -- .`；重刷后 `porcelain=0`、untracked=0，`backend/.dockerignore` 的 `**/*.db`+`.ptmp*` 与脚本的 `import getpass` 全部回到修好的状态。
+  **谁做的那次覆盖仍未查明**，我只恢复了树，没有替任何会话认领。
+- 落地：`requirements.txt`（+15/−5：五个窗口 + `openai>=2.26,<3` + `numpy>=1.26.4,<2` + D-45 支持边界注释）与三只迁移测试**同一笔**，提交 `0ce047d`。
+- 复验两趟逐字同读数：落地前副本树、落地后 `git archive HEAD` 纯树，都是 **2030 passed / 0 failed / 10 skipped / 18 deselected、cov 86.57%、rc=0**，
+  collected 轴 **2040/2058**，junit `tests=2040 failures=0 errors=0 skipped=10`；静态腿 ruff/format/mypy 全 rc=0。
+- 交付身份：4 只文件 `rev-parse HEAD:<path>` == `hash-object --no-filters`，CR=0、NUL=0、`git diff --check` rc=0。
+- 新基线绑定 envD：envB 自此只是旧栈历史基线；回退＝revert `0ce047d`。
+- 未闭合：CI 审计步预期红（D-46，成因＝chromadb 2 条无修复版）、`docker build` 与生产 Linux `+cpu` 轮未审、前端腿未重跑、`slow`/`real_kb` 未跑、
+  真实模型验收（P3）待你给配额与审签口径；D-42 只做了 runbook 前置、`isatty` 代码前置留下一轮；D-43 未动。

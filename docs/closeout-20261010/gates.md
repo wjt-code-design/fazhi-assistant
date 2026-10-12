@@ -1212,3 +1212,37 @@ steps 停在 cap、事实落库），本轮不重复造。反向护栏在 step-l
 | 未闭合的一格 | **D-44**：候选工作树 04:33 被整片重写（1486 脏 / 31 只内容退回主仓版本 / 0 只等于 HEAD），所以我**没落地**——新栈门绿但不写进被污染的树。判别与取证见 `incident-20261012-worktree-overwrite/` 与复核件 §1 | 台账 §B D-44 |
 
 **残余通报的口径**：本轮 langchain 族按**三口径**核过（条目 / distinct 主 ID / 主 ID+aliases）都归零；两轴残余 = chromadb 那 2 条，属 D-2 在册接受、无修复版。**这不等于安全门全绿**——`2.13.0+cpu` 在 `--local` 轴上 `version=None`（未识别为可审计对象），所以"已审到生产那个 Linux 轮"这句仍**不成立**；`docker build` 与真实模型腿本轮有意未跑。
+
+## 52. P1 落地与落地后复验（2026-10-12 第三遍）
+
+**落地笔**：`0ce047d`（`backend/requirements.txt` + 三只迁移测试，同一笔）。落地前静态腿与环境读数见 §51；工作树恢复过程与备份见台账 §C D-44。
+
+| 复验腿 | 读数 | 证据（运行根 `p1-migration-20261012/`） |
+|---|---|---|
+| 落地前副本树（全 tracked 文件 2726 只，逐只 sha 与盘上相等） | **2030 passed / 0 failed / 10 skipped / 18 deselected**，cov **86.57%**，rc=0，274.88s；`find -type f` 前 2726 → 后 **2727**（多出的一只是测试自己建的 `backend/chroma_db/chroma.sqlite3`） | `landing-full-20261012.log` / `.xml`（junit `tests=2040 failures=0 errors=0 skipped=10`） |
+| 落地后纯发布物树（`git archive HEAD`，2726 只 = tracked 2726 只） | 同上逐字相同：**2030 passed / 0 failed / 10 skipped / 18 deselected**，cov **86.57%**，rc=0，258.05s；collected 轴单取 `--collect-only -q -m 'not slow'` = **2040/2058** | `postcommit-full-20261012.log` / `.xml` |
+| 交付==验收 | 4 只改动文件 `git rev-parse HEAD:<path>` 与 `git hash-object --no-filters` **逐只相等**；4 只文本 CR=0、NUL=0；`git diff --check` rc=0；提交后 `porcelain=0` | 本轮现量（命令在报告 §5 与下方复算块） |
+| 静态腿（envD，新内容） | ruff check rc=0、format rc=0（286 files）、mypy rc=0（74 files） | `landing-static-20261012.log` |
+
+**新基线声明（下轮引用必须带环境名）**：非 slow 全量 **2030 passed / cov 86.57% / collected 2040-2058** 现在成立于 **envD（新栈，langchain 1.x）+ Python 3.11.0**；`candidate-envB`（旧栈，声明已不匹配）**不再是可跑全套的解释器**，它保留作 10-12 之前读数的出处与回退参照。回退方式＝revert `0ce047d`，不是"换回 envB"。
+
+**残余红（不是本轮造成的）**：见台账 §B **D-46**——`ci.yml:55/64` 两步 `pip-audit` 都是阻塞步，落地后残余是 chromadb 2 条（`fix_versions` 空）⇒ **推送后 CI 预期在审计步红**；本轮没有加 `--ignore-vuln`、没改非阻塞。
+
+**复算块**
+
+```bash
+R=C:/Users/33393/Desktop/fazhi-nondeploy-closeout-20261010-b4e7a2
+C=C:/Users/33393/Desktop/ai-legal-helper/.worktrees/nondeploy-closeout-20261010
+# 落地笔与内容身份
+git -C "$C" show --stat --format='%h %s' 0ce047d | head -8
+for f in backend/requirements.txt backend/tests/test_llm_lifecycle.py backend/tests/test_stream_cancellation.py backend/tests/test_cancel_boundaries.py; do
+  a=$(git -C "$C" rev-parse "0ce047d:$f"); b=$(git -C "$C" -c core.quotePath=false hash-object --no-filters -- "$f")
+  echo "$f same=$([ "$a" = "$b" ] && echo yes || echo no)"
+done
+# 新栈全量（纯发布物树 + envD，环境配方见 reports/p1-d3-migration-20261012.md §1）
+T=$R/p1-migration-20261012/tree-verify; rm -rf "$T"; mkdir -p "$T"
+git -C "$C" archive HEAD | tar -x -C "$T"
+echo "tree=$(find "$T" -type f | wc -l) tracked=$(git -C "$C" ls-files | wc -l)"
+```
+
+**我自己在这段里又踩的坑（写下来防复用）**：往 markdown 表格单元里写带 `|` 的取数命令（劈列，`9ed5544` 才修）、`pip-audit` 键名读错导致假 0、给工具传不存在的旗标、副本树漏仓库根目录导致 86 条假红、以及**在中文串里嵌 ASCII 双引号**让 heredoc 里的 Python 直接 SyntaxError（同一轮第三次，靠 `rc` 当场暴露，未产出半截读数）。
