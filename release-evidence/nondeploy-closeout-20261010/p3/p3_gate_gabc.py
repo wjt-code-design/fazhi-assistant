@@ -57,13 +57,17 @@ def main() -> int:
     gc = {"total": len(selfq), "self_recall": sum(1 for r in selfq if r["in_top3"]),
           "failures": [r for r in selfq if not r["in_top3"]][:4]}
 
+    import rag_chain as _rc  # 只用于绕开「同查询命中进程内缓存」这条假绿（G-b 两趟要真各发一次）
     probes = []
     for name, q, expects in PROBES:
+        _rc._cache.invalidate() if hasattr(_rc, "_cache") else None
+        retrieval.invalidate()
         docs = retrieval.hybrid_retrieve(q, k=4)
         order = ["%s·%s" % (d.metadata.get("source"), d.metadata.get("article")) for d in docs]
         probes.append({"id": name, "query": q, "order": order,
                        "expects_any_of": sorted(expects),
-                       "hit": bool(set(order[:2]) & expects)})
+                       "hit": bool(set(order[:2]) & expects),
+                       "changed_vs_cosine_baseline": None})
     out = {"mode": MODE,
            "settings": {"rerank_enabled": str(settings.rerank_enabled), "rerank_model": str(settings.rerank_model),
                         "rerank_base_host": str(settings.rerank_base_url).split("/")[2] if settings.rerank_base_url else "",

@@ -16,6 +16,7 @@
   "mode": "off",
   "probes": [
     {
+      "changed_vs_cosine_baseline": null,
       "expects_any_of": [
         "劳动合同法·第十九条"
       ],
@@ -30,6 +31,7 @@
       "query": "试用期是否包含在劳动合同期限内"
     },
     {
+      "changed_vs_cosine_baseline": null,
       "expects_any_of": [
         "劳动争议调解仲裁法·第二十七条",
         "合成乙法·第七条"
@@ -45,6 +47,7 @@
       "query": "申请劳动仲裁的时效期间是多久"
     },
     {
+      "changed_vs_cosine_baseline": null,
       "expects_any_of": [
         "刑法·第十三条"
       ],

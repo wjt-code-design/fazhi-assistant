@@ -10,7 +10,7 @@
     "self_recall": 16,
     "total": 16
   },
-  "guard_calls": 1,
+  "guard_calls": 3,
   "guard_hosts": [
     "api.siliconflow.cn"
   ],
@@ -18,6 +18,7 @@
   "mode": "on",
   "probes": [
     {
+      "changed_vs_cosine_baseline": null,
       "expects_any_of": [
         "劳动合同法·第十九条"
       ],
@@ -27,11 +28,12 @@
         "劳动合同法·第十九条",
         "劳动合同法·第二十条",
         "劳动争议调解仲裁法·第二十七条",
-        "合成甲法·第二条"
+        "合成乙法·第七条"
       ],
       "query": "试用期是否包含在劳动合同期限内"
     },
     {
+      "changed_vs_cosine_baseline": null,
       "expects_any_of": [
         "劳动争议调解仲裁法·第二十七条",
         "合成乙法·第七条"
@@ -42,11 +44,12 @@
         "劳动争议调解仲裁法·第二十七条",
         "民法典·第一百八十八条",
         "劳动合同法·第十九条",
-        "劳动合同法·第二十条"
+        "合成甲法·第一条"
       ],
       "query": "申请劳动仲裁的时效期间是多久"
     },
     {
+      "changed_vs_cosine_baseline": null,
       "expects_any_of": [
         "刑法·第十三条"
       ],
