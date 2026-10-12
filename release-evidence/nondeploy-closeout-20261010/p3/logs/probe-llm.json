@@ -1,0 +1,28 @@
+[
+  {
+    "completion_tokens": null,
+    "elapsed_s": 0.75,
+    "error_code": "invalid_parameter",
+    "has_choices": false,
+    "host": "api.longcat.chat",
+    "key_len": 32,
+    "model": "qwen3.5-omni-plus-2026-03-15",
+    "probe": "llm_default",
+    "prompt_tokens": null,
+    "status": 400,
+    "usage_keys": []
+  },
+  {
+    "completion_tokens": null,
+    "elapsed_s": 0.45,
+    "error_code": "AllocationQuota.FreeTierOnly",
+    "has_choices": false,
+    "host": "dashscope.aliyuncs.com",
+    "key_len": 117,
+    "model": "qwen3.7-max-2026-06-08",
+    "probe": "dashscope_first",
+    "prompt_tokens": null,
+    "status": 403,
+    "usage_keys": []
+  }
+]

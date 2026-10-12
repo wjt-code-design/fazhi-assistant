@@ -1246,3 +1246,23 @@ echo "tree=$(find "$T" -type f | wc -l) tracked=$(git -C "$C" ls-files | wc -l)"
 ```
 
 **我自己在这段里又踩的坑（写下来防复用）**：往 markdown 表格单元里写带 `|` 的取数命令（劈列，`9ed5544` 才修）、`pip-audit` 键名读错导致假 0、给工具传不存在的旗标、副本树漏仓库根目录导致 86 条假红、以及**在中文串里嵌 ASCII 双引号**让 heredoc 里的 Python 直接 SyntaxError（同一轮第三次，靠 `rc` 当场暴露，未产出半截读数）。
+
+## 53. P3（F 腿）开工：仪具就位、四条模型路三条是死的（2026-10-12 第四遍）
+
+叙述与判据在 `reports/model-acceptance-20261012.md`，这里只留读数与复算。
+
+| 项 | 现量 | 取法 |
+|---|---|---|
+| 私有播种 | 16 只＝10 真（逐字取自候选 `43e5037`）＋6 合成；`seed-corpus-frozen.json` sha256 前缀 `06d233548d601198` | `p3_freeze_seed.py`（三只源文件 HEAD blob==盘 blob 逐只核） |
+| G-a | `count=16` 与期望相等；真实 `(法名×条号)` 集合逐字相等；合成标题集合相等（不是尺寸闸） | `logs/gate-off.json` |
+| G-c 自查询 | 16/16 召回自己 | 同上 |
+| G-b | `RERANK_ENABLED` false 趟 `guard_calls=0`、true 趟 >0 ⇒ 开关改了路径；三只探针排序一字未变 | `logs/gate-off.json` / `gate-on.json` |
+| 播种腿零出网 | `outbound attempts=0` ＋ `ANONYMIZED_TELEMETRY=False`（埋点在守卫窗口之前，做成构造性质） | `logs/seed-report.json` |
+| 嵌入素材 | 本机既有 BGE 缓存复制进本轮私有根：`model.safetensors=eccb1d94…`（副本与原缓存同值）、`config.json=6675c035…`、许可 mit；`HF_HUB_OFFLINE=1` 下加载成功 ⇒ 零下载 | `seed-manifest.json` |
+| transport guard | 自检 10 条控制全 PASS，`VERDICT=GUARD_CONTROLS_HOLD`，含新增「接到产品自建 client」的 4 条 | `p3_transport_guard.py` |
+| 四条模型路 | 默认 LLM `qwen3.5-omni-plus-2026-03-15` **400**（该账号 `GET /models` 只有 2 只，不含它）；registry 6 只 DashScope **403 FreeTierOnly**；SiliconFlow rerank **401**；`LongCat-2.5-Preview` **200**（403 字正文＋1561 字推理，`finish_reason=length`）、`LongCat-2.0` **200 但 content 恒空** | `logs/probe-llm{,2,3,4}.json` |
+| 本轮花费 | 10 次真实发送；3 次成功生成＝2319 tokens（全 LongCat）。**折元未做**（F1 的官方价格轴我没查），账单未核 | 各 probe 的 `sends` 与 `usage` |
+
+**这一轮我自己造出来又改掉的仪器**：`TransportGuard.post()` 与 `install()` 会把同一次发送各记一次（第一次 rerank 诊断报 `guard_calls=3`，其实只有 2 次发送）。真实腿一律改成 `install()`＋裸 `httpx`，一次发送＝一次计数；这条现在由自检的 `installed_client_passes`（1 次发送→1 次计数）钉住。另：`EMBEDDING_MODEL` 在 `provider=local` 下**不生效**（`rag_chain._build_embeddings()` 非 aliyun 分支只认本地 BGE），别把 `.env` 里那个模型名读成现役嵌入模型。
+
+**没做且没声称做的**：12 题 gold 未冻结、runner 未写（它们第一行配置就是代表模型，D-47 没答之前写死等于我替你裁）；图片/语音未起步（registry 6 只全 `caps=["text"]`，声明多模态的那只默认值是死的）；Agent/rerank 3 组/真实 `--write`/现役栈一律未跑；未提交未推送由我这边的镜像同步笔完成，产品字节零改动。

@@ -1,0 +1,53 @@
+{
+  "bge_cache": {
+    "config_json_sha256": "6675c035d945dffc89f77a04a254b87cc193a9185a098bb505fe4963b6ddbac1",
+    "config_snapshot": "f03589ceff5aac7111bd60cfc7d497ca17ecac65",
+    "license": "mit",
+    "model_safetensors_sha256": "eccb1d9474c3fc136f990876f96cc3636fa49c782281e0f41c080b3f07cc8c62",
+    "path": "D:\\fazhi-big\\p3-20261012\\model-cache\\hub",
+    "weights_snapshot": "b034223b74fa1f0984ea672da37ef94e92c0ef2a"
+  },
+  "candidate": "C:\\Users\\33393\\Desktop\\ai-legal-helper\\.worktrees\\nondeploy-closeout-20261010",
+  "candidate_head": "43e5037bd71e78ca1f8990f78b4750d1178b1e73",
+  "dropped": [
+    "劳动法·第三条 placeholder"
+  ],
+  "real_count": 10,
+  "real_pairs": [
+    "刑法·第十三条",
+    "劳动争议调解仲裁法·第二十七条",
+    "劳动合同法·第二十条",
+    "劳动合同法·第十九条",
+    "合同法·第四百二十八条",
+    "民法典·第一千二百六十条",
+    "民法典·第一百八十八条",
+    "民法典·第一百四十三条",
+    "消费者权益保护法·第二十五条",
+    "道路交通安全法·第九十一条"
+  ],
+  "seed_corpus_sha256": "06d233548d6011981a34d3ba70a76129a06de2004f238890b34b861d1c5afcc6",
+  "source_blobs": {
+    "data/laws.json": {
+      "disk_blob": "1fb1eaab8a1f8f6e5fbf4f6aa45f1a80c2d00248",
+      "equal": true,
+      "head_blob": "1fb1eaab8a1f8f6e5fbf4f6aa45f1a80c2d00248"
+    },
+    "data/laws_extra.candidate-20260925.json": {
+      "disk_blob": "40c2de763b704bd15c213f2e0cd408692fcde70e",
+      "equal": true,
+      "head_blob": "40c2de763b704bd15c213f2e0cd408692fcde70e"
+    },
+    "data/laws_extra.json": {
+      "disk_blob": "ff00f8b383533cb7264ca8eb1b2dbea570aaa1e7",
+      "equal": true,
+      "head_blob": "ff00f8b383533cb7264ca8eb1b2dbea570aaa1e7"
+    }
+  },
+  "synthetic_titles": [
+    "合成丁法",
+    "合成丙法",
+    "合成乙法",
+    "合成戊法",
+    "合成甲法"
+  ]
+}

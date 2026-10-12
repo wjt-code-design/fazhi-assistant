@@ -1,0 +1,70 @@
+{
+  "G-a": {
+    "count": 16,
+    "expect": 16,
+    "real_anchor_equal": true,
+    "synthetic_equal": true
+  },
+  "G-c": {
+    "failures": [],
+    "self_recall": 16,
+    "total": 16
+  },
+  "guard_calls": 1,
+  "guard_hosts": [
+    "api.siliconflow.cn"
+  ],
+  "guard_refused": [],
+  "mode": "on",
+  "probes": [
+    {
+      "expects_any_of": [
+        "劳动合同法·第十九条"
+      ],
+      "hit": true,
+      "id": "P1",
+      "order": [
+        "劳动合同法·第十九条",
+        "劳动合同法·第二十条",
+        "劳动争议调解仲裁法·第二十七条",
+        "合成甲法·第二条"
+      ],
+      "query": "试用期是否包含在劳动合同期限内"
+    },
+    {
+      "expects_any_of": [
+        "劳动争议调解仲裁法·第二十七条",
+        "合成乙法·第七条"
+      ],
+      "hit": true,
+      "id": "P2",
+      "order": [
+        "劳动争议调解仲裁法·第二十七条",
+        "民法典·第一百八十八条",
+        "劳动合同法·第十九条",
+        "劳动合同法·第二十条"
+      ],
+      "query": "申请劳动仲裁的时效期间是多久"
+    },
+    {
+      "expects_any_of": [
+        "刑法·第十三条"
+      ],
+      "hit": true,
+      "id": "P3",
+      "order": [
+        "刑法·第十三条",
+        "合成戊法·第十三条",
+        "民法典·第一百四十三条",
+        "道路交通安全法·第九十一条"
+      ],
+      "query": "犯罪概念 情节显著轻微危害不大 不认为是犯罪"
+    }
+  ],
+  "settings": {
+    "embedding_provider": "local",
+    "rerank_base_host": "api.siliconflow.cn",
+    "rerank_enabled": "True",
+    "rerank_model": "BAAI/bge-reranker-v2-m3"
+  }
+}

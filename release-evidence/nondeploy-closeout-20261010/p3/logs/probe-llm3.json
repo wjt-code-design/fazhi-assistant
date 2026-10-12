@@ -1,0 +1,87 @@
+{
+  "hosts": [],
+  "probe": {
+    "answer_chars": 0,
+    "answer_sha8": "e3b0c442",
+    "has_choices": true,
+    "model": "LongCat-2.0",
+    "reasoning_field": [
+      "reasoning_content",
+      "role"
+    ],
+    "status": 200,
+    "usage": {
+      "completion_tokens": 200,
+      "prompt_tokens": 17,
+      "total_tokens": 217
+    }
+  },
+  "rows": [
+    {
+      "caps": [
+        "text"
+      ],
+      "default": null,
+      "has_key_field": false,
+      "host": "",
+      "key": "agent_text_37max0608",
+      "model": "qwen3.7-max-2026-06-08",
+      "provider": "dashscope"
+    },
+    {
+      "caps": [
+        "text"
+      ],
+      "default": null,
+      "has_key_field": false,
+      "host": "",
+      "key": "agent_text_37max",
+      "model": "qwen3.7-max",
+      "provider": "dashscope"
+    },
+    {
+      "caps": [
+        "text"
+      ],
+      "default": null,
+      "has_key_field": false,
+      "host": "",
+      "key": "agent_text_37max0520",
+      "model": "qwen3.7-max-2026-05-20",
+      "provider": "dashscope"
+    },
+    {
+      "caps": [
+        "text"
+      ],
+      "default": null,
+      "has_key_field": false,
+      "host": "",
+      "key": "agent_text_37maxpv",
+      "model": "qwen3.7-max-preview",
+      "provider": "dashscope"
+    },
+    {
+      "caps": [
+        "text"
+      ],
+      "default": null,
+      "has_key_field": false,
+      "host": "",
+      "key": "agent_text_37max0517",
+      "model": "qwen3.7-max-2026-05-17",
+      "provider": "dashscope"
+    },
+    {
+      "caps": [
+        "text"
+      ],
+      "default": null,
+      "has_key_field": false,
+      "host": "",
+      "key": "agent_text_37plus0526",
+      "model": "qwen3.7-plus-2026-05-26",
+      "provider": "dashscope"
+    }
+  ]
+}

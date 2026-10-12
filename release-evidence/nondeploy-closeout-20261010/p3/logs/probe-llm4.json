@@ -1,0 +1,39 @@
+[
+  {
+    "content_chars": 0,
+    "content_sha8": "e3b0c442",
+    "elapsed_s": 18.5,
+    "finish_reason": "length",
+    "model": "LongCat-2.0",
+    "msg_fields": [
+      "reasoning_content",
+      "role"
+    ],
+    "reasoning_chars": 2037,
+    "status": 200,
+    "usage": {
+      "completion_tokens": 1024,
+      "prompt_tokens": 27,
+      "total_tokens": 1051
+    }
+  },
+  {
+    "content_chars": 403,
+    "content_sha8": "b3972d09",
+    "elapsed_s": 32.11,
+    "finish_reason": "length",
+    "model": "LongCat-2.5-Preview",
+    "msg_fields": [
+      "content",
+      "reasoning_content",
+      "role"
+    ],
+    "reasoning_chars": 1561,
+    "status": 200,
+    "usage": {
+      "completion_tokens": 1024,
+      "prompt_tokens": 27,
+      "total_tokens": 1051
+    }
+  }
+]
