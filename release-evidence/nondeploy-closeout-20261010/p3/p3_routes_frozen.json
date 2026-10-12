@@ -1,0 +1,119 @@
+{
+  "DEFAULT_KEY": "vision_flag",
+  "entries": [
+    {
+      "built": true,
+      "caps": [
+        "text"
+      ],
+      "disable_thinking": true,
+      "host": "dashscope.aliyuncs.com",
+      "initial_used": 0,
+      "key": "agent_text_37max0608",
+      "modality": "text",
+      "model": "qwen3.7-max-2026-06-08",
+      "priority": 0,
+      "quota_total": 1000000,
+      "tier": "flag",
+      "translation_options": false
+    },
+    {
+      "built": true,
+      "caps": [
+        "text"
+      ],
+      "disable_thinking": true,
+      "host": "dashscope.aliyuncs.com",
+      "initial_used": 0,
+      "key": "agent_text_37max",
+      "modality": "text",
+      "model": "qwen3.7-max",
+      "priority": 1,
+      "quota_total": 1000000,
+      "tier": "flag",
+      "translation_options": false
+    },
+    {
+      "built": true,
+      "caps": [
+        "text"
+      ],
+      "disable_thinking": true,
+      "host": "dashscope.aliyuncs.com",
+      "initial_used": 0,
+      "key": "agent_text_37max0520",
+      "modality": "text",
+      "model": "qwen3.7-max-2026-05-20",
+      "priority": 2,
+      "quota_total": 1000000,
+      "tier": "flag",
+      "translation_options": false
+    },
+    {
+      "built": true,
+      "caps": [
+        "text"
+      ],
+      "disable_thinking": true,
+      "host": "dashscope.aliyuncs.com",
+      "initial_used": 0,
+      "key": "agent_text_37maxpv",
+      "modality": "text",
+      "model": "qwen3.7-max-preview",
+      "priority": 3,
+      "quota_total": 1000000,
+      "tier": "flag",
+      "translation_options": false
+    },
+    {
+      "built": true,
+      "caps": [
+        "text"
+      ],
+      "disable_thinking": true,
+      "host": "dashscope.aliyuncs.com",
+      "initial_used": 0,
+      "key": "agent_text_37max0517",
+      "modality": "text",
+      "model": "qwen3.7-max-2026-05-17",
+      "priority": 4,
+      "quota_total": 1000000,
+      "tier": "flag",
+      "translation_options": false
+    },
+    {
+      "built": true,
+      "caps": [
+        "text"
+      ],
+      "disable_thinking": true,
+      "host": "dashscope.aliyuncs.com",
+      "initial_used": 0,
+      "key": "agent_text_37plus0526",
+      "modality": "text",
+      "model": "qwen3.7-plus-2026-05-26",
+      "priority": 5,
+      "quota_total": 1000000,
+      "tier": "flag",
+      "translation_options": false
+    }
+  ],
+  "env_defaults": {
+    "dashscope_host": "dashscope.aliyuncs.com",
+    "embedding_provider": "local",
+    "llm_host": "api.longcat.chat",
+    "rerank_host": "api.siliconflow.cn",
+    "rerank_model": "BAAI/bge-reranker-v2-m3",
+    "rerank_models": "BAAI/bge-reranker-v2-m3",
+    "zhipu_host": "open.bigmodel.cn"
+  },
+  "has_modality": {
+    "text": true,
+    "vision": false,
+    "voice": false
+  },
+  "llm_model_is_dead_config": "settings.py:40 明文：LLM_MODEL 无任何代码读取（对抗审计 v2 #12 删的死配置）",
+  "registry_get_model": "qwen3.7-max-2026-06-08",
+  "roles_source": "LLM_MODELS_JSON",
+  "thinking_switch_rule": "llm_registry._build 只在 model 名以 qwen 开头时发 thinking:disabled"
+}

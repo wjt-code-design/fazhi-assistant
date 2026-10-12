@@ -25,15 +25,19 @@ WANTED = (
 
 
 def read_env(path: Path = ENV_FILE) -> dict[str, str]:
+    """用产品同款解析器（python-dotenv）读取，只留 WANTED 键。
+
+    手写逐行解析会漏掉它的大小写键名、`export` 前缀、引号剥除等规则，那样我探到的
+    就不是产品实际拿到的值。实测：本文件是 UTF-8（含中文注释），若被存成 GBK，
+    dotenv 直接 UnicodeDecodeError ⇒ 后端起不来。
+    """
+    from dotenv import dotenv_values
+
+    raw = dotenv_values(path, encoding="utf-8")
     out: dict[str, str] = {}
-    for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
-        line = raw.strip()
-        if not line or line.startswith("#") or "=" not in line:
-            continue
-        k, v = line.split("=", 1)
-        k = k.strip()
-        if k in WANTED:
-            out[k] = v.strip().strip('"').strip("'")
+    for k, v in raw.items():
+        if k and k.strip() in WANTED and v is not None:
+            out[k.strip()] = str(v).strip()
     return out
 
 

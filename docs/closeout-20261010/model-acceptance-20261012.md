@@ -49,7 +49,7 @@ for f in probe-llm probe-llm2 probe-llm3 probe-llm4; do echo "== $f"; cat "$R/mo
 
 | 路 | 冻结值 | 现量 | 定性 |
 |---|---|---|---|
-| 默认 LLM | `qwen3.5-omni-plus-2026-03-15` @ `api.longcat.chat/openai` | **400 invalid_parameter**（4 次都是这个码）；`GET /models` 200 ⇒ 认证是通的，只有 2 只模型，冻结值不在其中 | 在册冻结值对本账号**不可达** |
+| 「默认 LLM」 | `qwen3.5-omni-plus-2026-03-15` @ `api.longcat.chat/openai` | **400 invalid_parameter**（4 次都是这个码）；`GET /models` 200 ⇒ 认证通，该账号只有 2 只模型，此名不在其中。**⚠️ 这一行的框架已在 §7 撤回**：`LLM_MODEL` 是死配置（`settings.py:40` 明文「无任何代码读取」），这个名字其实是 `DEFAULT_ROLES` 的 `vision_flag`；产品真正的文本兜底是 registry 的 `qwen3.7-max-2026-06-08` @ DashScope ⇒ 403 | ~~在册默认模型对本账号不可达~~ ⇒ 死配置键对本账号不可达（不影响 chat 路由） |
 | registry（6 只） | `qwen3.7-max-2026-06-08` @ `dashscope.aliyuncs.com/compatible-mode/v1` | **403 `AllocationQuota.FreeTierOnly`** | 账号只有免费额度 ⇒ **只能你动** |
 | rerank | `BAAI/bge-reranker-v2-m3` @ `api.siliconflow.cn/v1/rerank` | **401**（两次，产品路径与自己直连各一次） | key 不被接受 ⇒ **只能你动** |
 | 可用替代 | `LongCat-2.0` / `LongCat-2.5-Preview` | 200。`2.0` 在 1024 输出预算内 **content 恒空**（`finish_reason=length`，2037 字全花在 `reasoning_content`）；`2.5-Preview` 同预算给出 **403 字正文＋1561 字推理**，但同样 `finish_reason=length` ⇒ 正文可能被截 | 只有 `2.5-Preview` 能答，且受推理预算支配 |
@@ -73,3 +73,21 @@ Embedding：`provider=local` ⇒ 走本地 BGE（`rag_chain._build_embeddings()`
 
 > D-47：F 的代表模型——(A) 你去控制台开通 DashScope 付费额度，本轮按 在册冻结值 `qwen3.7-max*` 跑文本＋Agent；(B) 不动控制台，我把代表模型重冻为 `LongCat-2.5-Preview`，只跑文本 RAG 12 题，输出预算取满 2048，rerank/图片/语音/Agent 记 BLOCKED；(C) F 本轮再停一次，零花费收口。
 > 我的推荐＝**A**；退而求其次选 **B**（B 的代价：读数只代表 LongCat 这一只模型，且推理吃掉近半输出预算，法律结论的「正文完整性」这一维会被预算支配，报告里必须这样写）。
+
+## 7. 就地更正（同一轮第二遍，Owner 裁「同意用长猫跑文本」之后现量）
+
+**撤回我在 §0-2 与 §3 第一行里的框架**。我原先写「在册默认 LLM `qwen3.5-omni-plus-2026-03-15` 对本账号不可达 ⇒ 产品默认路由是死的」。这句错在两点，都由 `p3_freeze_routes.py`（读本机 registry 与 settings，不发包）现量推翻：
+
+| 我错在哪 | 现量 |
+|---|---|
+| `LLM_MODEL` 根本不是路由来源 | `settings.py:40` 明文：对抗审计 v2 #12 已删该死配置，「无任何代码读取，真正入口是 llm_registry」。那个模型名其实是 `llm_registry.DEFAULT_ROLES` 里 **`vision_flag`** 的模型 |
+| 产品文本兜底我读错了端点 | `roles_source=LLM_MODELS_JSON`（6 只，provider 全 `dashscope`）⇒ `registry.get()` = **`qwen3.7-max-2026-06-08` @ `dashscope.aliyuncs.com`**，403 FreeTierOnly。⇒「现役文本路是死的」这句**结论不变、成因换了**：死因是阿里云额度，不是长猫模型名 |
+
+顺带三条新事实（同一台机器现量，写在 `p3_routes_frozen.json`）：
+
+1. `has_modality(vision)=false`、`has_modality(voice)=false` ⇒ 现役 JSON 把 `DEFAULT_ROLES` 的 `vision_flag`/`voice_lt` 挤掉了，产品对带图请求是**显式 501**（能力门正常，不是"能用"）。
+2. `DEFAULT_ROLES` 里 `provider:"aliyun"` 的角色实际端点 = `settings.llm_base_url` = **长猫**（`llm_registry.py:452-454` 的 else 分支）⇒ 要"用阿里云多模态"必须写 `provider:"dashscope"` 或显式 `base_url`，否则模型名是阿里云的、请求打到长猫。
+3. `_build()` 只在模型名以 `qwen` 开头时发 `thinking:disabled`（`llm_registry.py:386`）⇒ 长猫这类模型拿不到关思考的开关，而本轮预算把输出封顶 2048，正文可被推理挤空（`LongCat-2.0` 实测 content 恒空）。
+4. 另：`read_env()` 我原先手写逐行解析 ⇒ 已改成产品同款 `dotenv_values(encoding="utf-8")`；并用真实结构做过对照：同一份 `.env` 存成 GBK 时 dotenv 直接 `UnicodeDecodeError`（⇒ 换 key 时编辑器必须 UTF-8 保存）。
+
+**Owner 10-12 已裁**：文本用长猫（三条前提见正文）；语音/图片继续走阿里云 ⇒ 待他给 `.env` 的两只多模态 entry 与额度。
