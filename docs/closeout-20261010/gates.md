@@ -1304,3 +1304,11 @@ Owner 在 PowerShell 里跑通了两步：预览打印「目标 admin（id=1，r
 Owner 要本机浏览器自测，我起了主仓后端（127.0.0.1:8000，PID 1568）＋前端（:3000，PID 11176），`/healthz` 200、`/` 与 `/login` 都 200。**我给的是 `http://127.0.0.1:3000`，这是我的错**：`main.py:281` 的 CORS 默认只放行 `http://localhost:3000`，实测预检 `OPTIONS /api/auth/login` 带 `Origin: http://127.0.0.1:3000` 返回 **400 Bad Request**、带 `Origin: http://localhost:3000` 返回 200 且回 `access-control-allow-origin` ⇒ 浏览器直接报「Failed to fetch」（不是密码错，登录请求根本没发出去）。正确地址＝`http://localhost:3000/login`；用户名＝`admin`（只读查库：`role='admin'` 只有这一个，共 8 个用户）。
 
 **顺带量出来的部署事实（要进新机前置）**：任何非 `localhost:3000` 的来源——手机、局域网 `http://<电脑IP>:3000`、以后绑域名——默认都会被这道 CORS 静默挡成「Failed to fetch」。解法是 `.env` 的 `CORS_ORIGINS`（逗号分隔），不是改代码。这条与「手机能不能访问应用」那个问题是同一格。
+
+## 60. 「Failed to fetch」的真因：`frontend/.env` 还指着那台已停的旧服务器（2026-10-13 00:2x）
+
+我上一条把原因归给 CORS——**那是不完整的诊断**。Owner 换到 `http://localhost:3000` 后仍然失败，真因在 `frontend/.env`：`NEXT_PUBLIC_API_URL=http://162.14.81.34:8000`，即**他已停用的腾讯云旧服务器公网 IP**（注释还写着"后端 CORS 已放行 http://162.14.81.34，并在腾讯云安全组放通 8000"）。浏览器直连一个不存在的地址 ⇒ 请求根本没发出，报的就是 Failed to fetch。CORS 那条只解释"为什么我给 127.0.0.1:3000 时也不行"，两件事别混。
+
+处置（不改仓库文件、可回退）：停掉我起的前端（PID 11176 的 npm 父进程被 TaskStop 杀掉后**子进程仍占 3000**，要再 `taskkill` 一次——这条是在册 Windows 老坑的又一次命中），用 shell 环境变量覆盖重启 `NEXT_PUBLIC_API_URL=http://127.0.0.1:8000 npm run dev`（Next 里 shell 变量优先于 `.env`）。判据取"浏览器真正加载的那几块 JS"：`/_next/static/chunks/app/login/page.js` 与 `layout.js` 现量 `old=0 new=1`（旧 IP 0 次、本机地址 1 次）。注意 `.next` 目录里仍能 grep 到 11 处旧 IP，那是**过期构建缓存**，不是发射形状——别拿它当反证。
+
+**这条要进新机前置**：`frontend/.env` 里那个公网 IP 是上一台服务器的遗产。新机要么改掉它，要么**不设** `NEXT_PUBLIC_API_URL` 走同源 rewrites（`next.config.js` 的 `/api/:path*` → `BACKEND_URL`）——但后者会踩回"SSE 被 Next 反代缓冲、手机端一次性输出"那个老问题（注释里 2026-08-22 就是为此改成直连的）。所以新机该选哪种，是一格待裁，不是我顺手定。
