@@ -456,8 +456,16 @@ _REQUESTIVE_VERBS = ("帮我审", "审一下", "帮忙看看", "帮我看看")
 
 
 _LITIGATION_MARKERS = (
-    "诉讼请求", "起诉", "抗辩", "答辩", "举证责任", "法院应否", "应否受理",
-    "首次开庭", "驳回起诉", "仲裁协议",
+    "诉讼请求",
+    "起诉",
+    "抗辩",
+    "答辩",
+    "举证责任",
+    "法院应否",
+    "应否受理",
+    "首次开庭",
+    "驳回起诉",
+    "仲裁协议",
 )
 
 
@@ -473,15 +481,10 @@ def is_contract_review(text: str) -> bool:
     """
     t = text or ""
     requestive = any(v in t for v in _REQUESTIVE_VERBS) or any(s in t for s in _REQUEST_SUBJECTS)
-    if (requestive and any(v in t for v in _REVIEW_VERBS)
-            and any(n in t for n in _CONTRACT_NOUNS)):
+    if requestive and any(v in t for v in _REVIEW_VERBS) and any(n in t for n in _CONTRACT_NOUNS):
         return True
     if len(t) >= _MIN_CONTRACT_LEN and sum(1 for m in _LITIGATION_MARKERS if m in t) < 2:
-        if (
-            "甲方" in t
-            or "乙方" in t
-            or ("条" in t and sum(1 for n in _CONTRACT_NOUNS if n in t) >= 3)
-        ):
+        if "甲方" in t or "乙方" in t or ("条" in t and sum(1 for n in _CONTRACT_NOUNS if n in t) >= 3):
             return True
     return False
 
