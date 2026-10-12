@@ -1298,3 +1298,9 @@ Owner 在 PowerShell 里跑通了两步：预览打印「目标 admin（id=1，r
 - **§A D-35 的两步里，第一步在"本机这一台"做完了**；`JWT_SECRET` 那一格仍未做（旧登录态还活着）。
 - **第二个库 `backend/data/app.db` 待定**：判据很简单——用新口令登录一次，进得去就是改对了库；进不去说明他平时用的是 Docker 那条路，再对 `data/app.db` 跑同样两条命令。
 - 本机改口令**不改变**一个事实：`seed_admin.py` 仍会把新库的 admin 种成公知默认口令 ⇒ 新服务器第一次启动，默认口令又回来了。这一格登记为 **D-51**。
+
+## 59. 本机起栈自测：我把地址给错了，顺带量出一条部署事实（2026-10-13 00:1x）
+
+Owner 要本机浏览器自测，我起了主仓后端（127.0.0.1:8000，PID 1568）＋前端（:3000，PID 11176），`/healthz` 200、`/` 与 `/login` 都 200。**我给的是 `http://127.0.0.1:3000`，这是我的错**：`main.py:281` 的 CORS 默认只放行 `http://localhost:3000`，实测预检 `OPTIONS /api/auth/login` 带 `Origin: http://127.0.0.1:3000` 返回 **400 Bad Request**、带 `Origin: http://localhost:3000` 返回 200 且回 `access-control-allow-origin` ⇒ 浏览器直接报「Failed to fetch」（不是密码错，登录请求根本没发出去）。正确地址＝`http://localhost:3000/login`；用户名＝`admin`（只读查库：`role='admin'` 只有这一个，共 8 个用户）。
+
+**顺带量出来的部署事实（要进新机前置）**：任何非 `localhost:3000` 的来源——手机、局域网 `http://<电脑IP>:3000`、以后绑域名——默认都会被这道 CORS 静默挡成「Failed to fetch」。解法是 `.env` 的 `CORS_ORIGINS`（逗号分隔），不是改代码。这条与「手机能不能访问应用」那个问题是同一格。
