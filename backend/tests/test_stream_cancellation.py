@@ -31,7 +31,7 @@ from langchain_core.callbacks.manager import AsyncCallbackManager
 from langchain_core.messages import AIMessageChunk, HumanMessage
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableSerializable
-from pydantic.v1 import Field
+from pydantic import Field
 from starlette.concurrency import run_in_threadpool
 from starlette.responses import StreamingResponse
 
@@ -633,7 +633,11 @@ def test_real_http_cancel_disconnects_peer_before_sdk_client_cleanup(after_conte
             assert not observed["sdk_client_closed"]
             assert attempts == [(0, False)] and failures == []
             assert model.async_client is client and model.callbacks == [recorder]
-            assert model.tags == ["model-tag"] and model.metadata == {"model": "same"}
+            # D-3/1.x：langchain-core 1.x 的 model_post_init 会往 metadata 种 lc_versions（追版本用）；
+            # 生产无 llm.metadata 消费方（tickets/D3-smoke-breach-20261011.md §2/§5）。剔除后相等 + 增钉其存在。
+            meta_core = {k: v for k, v in model.metadata.items() if k != "lc_versions"}
+            assert model.tags == ["model-tag"] and meta_core == {"model": "same"}
+            assert {"langchain-core", "langchain-openai"} <= set(model.metadata.get("lc_versions", {}))
             assert len(model_starts) == 1 and "model-tag" in model_starts[0]["tags"]
             assert model_starts[0]["metadata"]["model"] == "same"
             _assert_slot_released(guard)
@@ -674,7 +678,8 @@ def test_factory_preserves_config_callbacks_and_original_client():
         assert llm.configs[0]["callbacks"] == [recorder]
         assert len(recorder.starts) == len(recorder.ends) == 2
         assert [item[0] for item in recorder.ends] == ["one", "two"]
-        assert all(item[0]["id"][-1] == "StrOutputParser" for item in recorder.starts)
+        # D-3/1.x：事件 kwargs 的 name 两栈同真（1.6.9 serialized=None；0.1.53 亦带 name——probe_cb_event.py）。
+        assert all(item[2].get("name") == "StrOutputParser" for item in recorder.starts)
         assert all("callback-tag" in item[2]["tags"] for item in recorder.starts)
         assert config == {"callbacks": [recorder], "tags": ["callback-tag"], "metadata": {"request": "r"}}
         assert response.closed
@@ -709,7 +714,8 @@ def test_per_chunk_parser_awaits_async_callbacks_inside_running_loop(use_manager
         assert llm.configs[0] is config and llm.configs[0]["callbacks"] is callbacks
         assert [item[0] for item in recorder.ends] == ["one", "two"]
         assert len(recorder.starts) == len(recorder.ends) == 2
-        assert all(item[0]["id"][-1] == "StrOutputParser" for item in recorder.starts)
+        # D-3/1.x：事件 kwargs 的 name 两栈同真（1.6.9 serialized=None；0.1.53 亦带 name——probe_cb_event.py）。
+        assert all(item[2].get("name") == "StrOutputParser" for item in recorder.starts)
         assert all(
             "async-tag" in item[2]["tags"] and item[2]["metadata"] == {"request": "async"} for item in recorder.starts
         )

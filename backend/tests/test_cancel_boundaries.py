@@ -28,7 +28,7 @@ import pytest
 from langchain_core.messages import AIMessageChunk
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.runnables import RunnableSerializable
-from pydantic.v1 import Field
+from pydantic import Field
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import StaticPool

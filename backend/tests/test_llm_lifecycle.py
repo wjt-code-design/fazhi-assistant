@@ -20,6 +20,10 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from langchain_openai.chat_models._client_utils import (
+    _cached_async_httpx_client,
+    _cached_sync_httpx_client,
+)
 
 BACKEND = Path(__file__).resolve().parents[1]
 
@@ -215,6 +219,11 @@ def test_real_lifespan_closes_on_business_exception_and_reraises():
 
 
 def _fresh_registry():
+    # D-3/1.x 隔离：langchain-openai 1.x 用 lru_cache 跨实例共享默认 httpx；aclose 关池不令缓存失效，
+    # 前序用例的 aclose 会连坐后续用例（ticket D3-smoke-breach-20261011.md §2 簇5 / §4 R4）。
+    # 「新进程语义」= 每次新建 registry 前清缓存。
+    _cached_sync_httpx_client.cache_clear()
+    _cached_async_httpx_client.cache_clear()
     return lr.LLMRegistry()
 
 
@@ -292,9 +301,11 @@ def test_variant_and_model_reload_reuse_roots_and_keep_request_params():
         assert instance.client._client is base.client._client
         assert instance.async_client._client is base.async_client._client
 
-    assert v_off.model_kwargs.get("extra_body") == {"thinking": {"type": "disabled"}}
-    assert not v_on.model_kwargs.get("extra_body")
-    assert r.model_kwargs.get("extra_body") == {"thinking": {"type": "disabled"}}
+    # D-3/1.x：extra_body 被提升为模型顶层字段（model_kwargs 不再承载；构造告警
+    # "should be specified explicitly"）。生产不读 model_kwargs（tickets/D3-smoke-breach-20261011.md §2/§5）。
+    assert v_off.extra_body == {"thinking": {"type": "disabled"}}
+    assert not v_on.extra_body
+    assert r.extra_body == {"thinking": {"type": "disabled"}}
     assert r.model_name == "qwen-test-model-2"
     assert entry.model == "qwen-test-model-2"
     assert v_off.streaming is True and v_off.temperature == base.temperature
@@ -323,7 +334,7 @@ def test_variant_of_reuses_roots_and_keeps_params():
     v = reg.variant_of(entry.key, False)
     assert v.client._client is base.client._client
     assert v.async_client._client is base.async_client._client
-    assert not v.model_kwargs.get("extra_body")
+    assert not v.extra_body
 
 
 # ---------- 单请求取消不关共享客户端 ----------

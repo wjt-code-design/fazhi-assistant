@@ -2,11 +2,14 @@
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 fastapi==0.141.1
 uvicorn[standard]>=0.27,<0.28
-langchain-core>=0.1,<0.2
-langchain-openai>=0.1,<0.2
-langchain-chroma>=0.1,<0.2
-langchain-huggingface>=0.0.3,<0.1
-langchain-text-splitters>=0.0.2,<0.1
+langchain-core>=1,<2
+langchain-openai>=1.1.14,<2
+# 已测组合（干净安装实测）：langchain-core 1.6.9 / langchain-openai 1.7.0 / langsmith 0.14.7 / openai SDK 2.54.0。
+# ⚠️ 支持边界（D-45）：tests/test_llm_lifecycle.py 依赖 langchain_openai 的**私有模块路径** _client_utils，
+# 只在上面这套实测组合上被证明过。若解析跳到窗口内其它版本并在**收集期**抛 ModuleNotFoundError，那是支持边界外，另开票处理——不通过吞 ImportError 或加 skip 让它变绿。
+langchain-chroma==0.2.3
+langchain-huggingface>=1,<2
+langchain-text-splitters>=1,<2
 chromadb>=0.4,<0.5
 sentence-transformers>=6.0,<7.0
 pydantic>=2.6,<3.0
@@ -44,3 +47,10 @@ pillow>=10.0.1,<15.1
 # 最高 2.14.1+cpu、且 2.13.0+cpu 在列 ⇒ Dockerfile 里「镜像只同步到 2.6.0」那句注释已过期，须同批改。
 # CPU 版仍须单独从 CPU 源/find-links 装（见文件头与 Dockerfile），不要指望这一行去挑 CPU build。
 torch==2.13.0
+
+# D-3 迁移（B+ 路线，2026-10-11 报告 §1.1）：langchain 族抬 1.x 必须同时**新钉 openai**——
+# langchain-openai>=1.1.14 起把 openai 钉在 >=2.26（PYSEC-2026-76 的修复线即 1.1.14），不写出来就等于把选择权交给解析器。
+openai>=2.26,<3
+# numpy 上限是**干净安装面的缺口**（10-12 复核 §5.1）：chromadb 0.4.24 在 api/types.py:102 的 import 期用 `np.float_`，
+# 而 NumPy 2.0 已移除该属性 ⇒ 不写上限时一次全新解析会拿到 numpy 2.4.6 并当场 ImportError（旧环境里 1.26.4 是靠分层安装带进来的，不能当证据）。
+numpy>=1.26.4,<2
