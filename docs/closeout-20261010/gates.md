@@ -1194,3 +1194,21 @@ steps 停在 cap、事实落库），本轮不重复造。反向护栏在 step-l
 **我自己违反的一条纪律（复核 B8，采纳）**：`gates.md` §48/§49 三趟全量的日志头都写着 `cwd = 候选/backend`，即**在候选树上直跑**，而票面第 1 颗钉子明确写"别在候选直接跑"。复核在纯发布物树上复算得**同值**（2030/86.57%/collected 2040-2058），所以读数可用；但下一轮的门禁票要把前置改成「`git archive HEAD` 出树 + 前后各取一次 `find -type f | wc -l`」——它这轮还顺手发现跑完的树里多出 `backend/chroma_db/chroma.sqlite3`，**说明 `porcelain=0` 单独不构成"树未变"的证据**。
 
 **P1 的当前状态（写到这里为止）**：envD 干净安装绿（`pip check` 零红、164 行 freeze、numpy 解析 1.26.4、torch 已单变量换成 `+cpu` 并过镜像同式防呆）；**第一趟 86 failed 的读数作废**——那棵副本树是从 04:33 被污染的工作树 `cp` 出来的（复核 §1 独立证实），不是依赖迁移的结论；改从 `git archive HEAD`（2724 只，与 tracked 逐只对上）重跑，结果出来才决定落不落 `requirements.txt`。
+
+## 51. P1（D-3 迁移）新栈读数与两轴审计（2026-10-12）
+
+细读与我的四处仪器错在 `reports/p1-d3-migration-20261012.md`（镜像同名）。这里只进要数。
+
+| 腿 | 读数 | 证据 |
+|---|---|---|
+| envD 干净安装 | STEP2/3 rc=0，`pip check` 零红，freeze 164 行；解析版本与迁移报告 §1.1 **逐版相同**（core 1.6.9 / openai 1.7.0 / chroma 0.2.3 / hf 1.2.3 / splitters 1.1.3 / openai SDK 2.54.0 / langsmith 0.14.7 / chromadb 0.4.24 / **numpy 1.26.4**） | `p1-migration-20261012/envD-build.log`、`envD-freeze.txt` |
+| torch 单变量 | `2.13.0 → 2.13.0+cpu`，freeze 差集**只有这一行**；镜像同式防呆过（`+cpu` / `cuda is None` / 无 `nvidia-*`） | `envD-torch-cpu.log`、`swap_torch_cpu.sh`（照 `Dockerfile:58` 两发形状） |
+| 新栈全量（`git archive HEAD` 纯树 + envD） | **2030 passed / 0 failed / 10 skipped / 18 deselected**，cov **86.57%**，rc=0；junit `tests=2040 failures=0 errors=0 skipped=10` ⇒ 与旧栈 envB **同分母同读数** | `envD-headtree-full-20261012.log` / `.xml` |
+| 静态腿（envD） | ruff check rc=0、format rc=0（286 files）、mypy rc=0（74 files）。版本轴要点名：envD 的 **ruff 0.17.0** vs envB 0.16.10（mypy/pytest 同版） | `envD-static-20261012.log` |
+| 审计·解析轴 | 只有 chromadb **2 条**（`fix_versions` 空）⇒ **langchain 族 13 个主 ID 归零**，与 §E 的 15 = 13 + 2 分母闭合 | `audit-resolved.json` |
+| 审计·实装轴（升级前） | 164 只被审；chromadb 2 + **pip 22.3 的 14 条目 / 7 主 ID**；setuptools 84.0.0 **0 条**（上一轮 envC 的 4 条构建工具通报在干净装上已消失） | `audit-local.json` |
+| 审计·实装轴（升级后） | envD `pip 22.3 → 26.2.1`（freeze 差 **2 对**、`pip check` 仍零红）后 ⇒ **只剩 chromadb 2 条**，与解析轴同集 | `pipup-audit-20261012.log`、`audit-local-afterpipup.json` |
+| 落地前置（实测） | 迁移后三只测试配旧栈：`test_llm_lifecycle` 收集期 `ModuleNotFoundError: langchain_openai.chat_models._client_utils`；`test_stream_cancellation` 15 failed/27 passed；`test_cancel_boundaries` 1 failed/13 passed ⇒ **requirements 与测试必须同一笔**；且落地后 envB 只能 revert 回退，不是"换解释器继续跑" | 本轮 envB 单跑读数 |
+| 未闭合的一格 | **D-44**：候选工作树 04:33 被整片重写（1486 脏 / 31 只内容退回主仓版本 / 0 只等于 HEAD），所以我**没落地**——新栈门绿但不写进被污染的树。判别与取证见 `incident-20261012-worktree-overwrite/` 与复核件 §1 | 台账 §B D-44 |
+
+**残余通报的口径**：本轮 langchain 族按**三口径**核过（条目 / distinct 主 ID / 主 ID+aliases）都归零；两轴残余 = chromadb 那 2 条，属 D-2 在册接受、无修复版。**这不等于安全门全绿**——`2.13.0+cpu` 在 `--local` 轴上 `version=None`（未识别为可审计对象），所以"已审到生产那个 Linux 轮"这句仍**不成立**；`docker build` 与真实模型腿本轮有意未跑。
