@@ -53,7 +53,7 @@
 
 ## 4. 补记二（2026-10-10 C/B/E 首轮读数）
 
-- 候选全量非 slow：**1901 passed / 0 failed / 10 skipped / 18 deselected**，220.96s，RC=0；总数 1911 与上一轮旧栈读数**同分母**，差的 8 只是 `real_kb` 在候选里 skip（`backend/chroma_db` 按构造不存在）。
+- 候选全量非 slow：**1901 passed / 0 failed / 10 skipped / 18 deselected**，220.96s，RC=0；总数 1911 与上一轮旧栈读数**同分母**，差的 8 只是 `real_kb` 在候选里 skip（`backend/chroma_db` 按构造不存在）【**10-12 就地更正**：改为「tracked 里没有它；盘上有 147,456 B 空壳（mtime 10-10 03:11），由 `.gitignore:32` 忽略；`real_kb` 的 skip 判据是 `conftest.py` 的 `count() < 1000`，不是目录不存在」——复核 B5 抓的正是这句】。
 - socket 守卫：321 事件，**非回环 0**，回环 319；守卫自身的「能红」证据在 `evidence/selfcheck_egress_guard.py`（回环放过 + 两只非回环被拒 + 2 条记账）。
 - 我引进的一处候选改动（超出接收清单）：候选 `backend/requirements.txt` 追加 `transformers>=5.0,<5.19` + 证据注释 ⇒ 候选树现在是 **25 只**改动（20 M 他人 + 4 新测试 + 1 我改的 requirements）。这不是「他人改动」，归属本轮，须单独审。【**该计数是提交前的工作树读数，已过期**：`5ca3315` 之后 `git status --porcelain` 只剩 5 只**前端** `M`（另一会话的 §14 修复，未提交，我不碰），我这轮的后端件已全部入库。工作树计数按在册纪律不该写死在正文——要现量就跑 `git -C <候选> status --porcelain`，并记住分母是**tracked 修改**，未跟踪/被忽略另计】
 - 发现 F-A1（候选放主仓子目录 ⇒ 测试进程读到真实 `.env`）已用两道处置：候选内空 `.env` 截断向上搜索（实测 `find_dotenv()` 解析到候选本地 0 字节文件），加测试进程钉死 18 只键。见 `evidence/finding-dotenv-upward-search.md`。
@@ -409,7 +409,7 @@ Owner 裁定 D 单开会话。票面：`<运行根>/tickets/dispatch-D-browser-a
 4. **`api.ts:27` 开发态硬编 `http://localhost:8000`** ⇒ 必须走 standalone 生产形状，否则 401/空白会被误判成应用缺陷。
 
 **§6 那条我改写了，因为死掉的 agent 给了我两个不存在的符号**：它自述"`_sse_transport` 少 `finally`、`requeued` 丢事件"。
-现量 `git grep -n "_sse_transport|sse_transport|requeued"` 在候选 `3f605de` **全仓零命中**（含 backend/frontend/docs/dispatch-output）
+现量 `git grep -n "_sse_transport|sse_transport|requeued"` 在候选 `3f605de` **全仓零命中**（含 backend/frontend/docs/dispatch-output）【**10-12 就地更正：这把尺子按构造不咬**——`git grep` 默认 BRE，裸 `|` 是字面量，唯一命中的是本句自己（我复量：BRE 轴在 HEAD 命中 1 行＝本引文；`git grep -nE "_sse_transport|sse_transport|requeued" 3f605de -- ':!docs'` 命中 0）。**结论不变、判据写法错**；下面第 426 行的 `\|` 写法才是能用的那条，但当时没按它取数】
 ⇒ 判定是**不可复现的名字，按幻觉处置**，不是"待验证缺陷"。票里把这条腿改成打在**真实流面**上：
 `frontend/lib/api.ts:168/176/226/230`（AbortController + `res.body.getReader()` 读循环）、
 `frontend/lib/hooks/useChatStream.ts:22/84`（`activeRequest` 句柄被覆盖而不 abort＝旧流失联继续写）、后端 SSE 出口。
@@ -1126,7 +1126,7 @@ D-34/D-14 两份报告的锚定值 ⇒ 盘上字节＝被审过的字节。归�
 
 **为什么 D-35 的形状变了（我的错前提，更正三处留痕）**
 - 我上一版写「全仓没有改口令入口」——**假阴性**。我只 grep 了 `main.py` 与 `backend/` 根目录，漏了 `backend/scripts/`。
-  入口自 `5e51384`（2026-09-17）就在库里，tracked，且**零测试、零文档指针**（`git grep -n reset_admin_password -- ':!dispatch-output'`
+  入口自 `5e51384`（2026-09-17）就在库里，tracked，且**零测试、零文档指针**【**10-12 就地更正（复核 B1）**：「零测试」为真（`git ls-tree -r --name-only 29b0488 -- backend/tests | grep -ci reset_admin` = 0），**「零文档指针」为假**——我漏的那一层是**我自己上一轮建的 `docs/closeout-20261010/` 镜像**：`first-round-ledger-recheck.md` 在 `:31`/`:60`/`:115` 三处点名该脚本与 `--password` 行为（就是 B-44 在册条目），`owner-review-and-next-actions-20261011.md` 也有一处。同一台假阴性机器的第二次命中，这次漏的是 `docs/`】（`git grep -n reset_admin_password -- ':!dispatch-output'`
   只命中本轮新写的两份汇报）。
 - 因此 Owner 签的 (a) 里「我新写一个脚本」这半句作废，实际做成了**改造既有入口**；已批属性一条没少：口令不进 argv、
   不回落 `.env`、不打印哈希、不动 `is_active`/`role`。留痕位置：本段、台账「给 Owner 的几句话」第二条与 §C D-40、提交 `cd2007e` 的正文。
@@ -1148,7 +1148,7 @@ import 不改库指向（本文件其余九条能安全 import 被测脚本的�
 `.env` 的 `ADMIN_PASSWORD` 不会被当新值写回／预览不写库也不落审计／`--write` 改哈希且 `role`+`is_active` 不动、
 审计恰好一条且输出里查不到口令与哈希／未知用户拒绝且不创建／空口令与公知默认 `admin12345` 各自拒绝／
 两次输入不一致不写／改口令**不作废**已签发 token（走现役 `get_current_user`，把"必须换 `JWT_SECRET`"从口头变成判据）。
-`admin12345` 这个字面量不是新暴露：`backend/seed_admin.py` 早在对抗审计 2026-08-07 的注释里写着同一句（`git grep -c admin12345` 命中 1）。
+`admin12345` 这个字面量不是新暴露：`backend/seed_admin.py` 早在对抗审计 2026-08-07 的注释里写着同一句（`git grep -c admin12345` 命中 1）【**10-12 就地更正（复核 B2）**：那句「命中 1」只在「`seed_admin.py` 单文件轴」上成立。HEAD 全轴复量：**9 只文件命中 / 匹配行数相加 18 / 出现次数 21**（`git grep -c admin12345 HEAD` 与 `git grep -o admin12345 HEAD | wc -l`）。要证的结论（不是新暴露）不变，但原句会把下一位引到错分母上】。
 
 **D-33 四条负例**（追加在 `backend/tests/test_agent_resume.py` 末尾）
 `test_steps_over_cap_still_raises_in_the_state_machine`（状态机自己 fail-closed，reason 为 `budget_exceeded:steps`）、
@@ -1172,3 +1172,25 @@ steps 停在 cap、事实落库），本轮不重复造。反向护栏在 step-l
   在线 `pip-audit`、`slow`/`real_kb`、远端 CI 当前对象读数同样未跑。
 - 台账里那格「D-35 的真实入口」已从 §B 搬进 §A（只剩你动），D-36/D-37 进 §C；复算 `evidence/ledger_row_audit.py`
   现量 §A=3、§B=1、§C=36、max=40、无跨档重复无缺号；单文件对账 `evidence/audit_one_file.py` 对台账 68 个 key 缺 0。
+
+## 50. 第三轮独立复核到位：逐条复量与处置（2026-10-12）
+
+复核件 `reports/independent-review-20261012-round3.md`（镜像同名入 `docs/closeout-20261010/`，成为第 44 只）。A 路十颗钉子 9 颗逐字复现、第 5 颗复现读数但抓出尺子洞；B 路打穿 7 条。**我全部采纳**，且每条都自己重跑一遍才写下来（不照抄它的数）。
+
+| 复核条目 | 我自己重跑的读数 | 处置 |
+|---|---|---|
+| B1「零文档指针」为假 | `git grep -l reset_admin_password 29b0488` 命中 `docs/closeout-20261010/first-round-ledger-recheck.md`（三处点名脚本与 `--password`）＋ `owner-review-...md` | **采纳**，`gates.md:1129` 就地更正；「零测试」保留 |
+| B2「命中 1」轴不明 | `git grep -c admin12345 HEAD` → 9 只文件、匹配行相加 **18**、出现次数 **21** | **采纳**，`gates.md:1151` 就地补两轴 |
+| B3 那条 BRE 尺子恒不咬 | 原式在 HEAD 命中 1 行＝本句引文自己；`-nE` 配 `-- ':!docs'` 在 `3f605de` 命中 0 | **采纳**，`gates.md:412` 就地更正为「结论对、判据写法错」 |
+| B4「只有全局换 `JWT_SECRET`」枚举不全 | `main.py:2870` `@app.delete("/api/admin/users/{user_id}")` ＋ `:2883 db.delete(user)`（硬删、级联会话/消息、防自删）；`get_current_user` 每请求查 `db.get(User)` | **采纳**，D-39 降级为「没有**非破坏性**的按用户作废入口」；补一句代价：硬删会连账号与历史一起抹掉，不是"踢会话"的正确工具 |
+| B5「`chroma_db` 按构造不存在」已假 | 盘上 `backend/chroma_db/chroma.sqlite3` **147,456 B**、mtime 10-10 03:11、`.gitignore:32` 忽略、tracked 0 只；skip 真判据是 `count() < 1000` | **采纳**，`gates.md:56` 就地改写 |
+| B6 D-41 没有档位（`ledger_row_audit` 只读表格行） | 脚本现读到 1..40，正文出现 1..41；`git grep -nE "^\|.*D-41"` 全仓 0 | **采纳**：本轮给 D-41 补一行进 §C，并把「分母＝表格行」这条口径写进尺子的说明 |
+| B7 `mirror_precheck.py` 值腿自对照恒真 | 该句形如 `sha8(ref) not in {sha8(t) for t in refs}` 而 `refs` 已被前面的 `REFUSE` 钉成单元素 ⇒ 按构造永不为假 | **采纳**：改为注入可匹配的合成本体、断言红在 `equal` 那一列（在册纪律「反证只能动一个 site」的同族漏洞，这次洞在"控制腿"位置上，更危险） |
+| 钉子 8「只从终端进口令」不成立 | 脚本 `isatty` 出现 **0** 次、`os.getenv("ADMIN_PASSWORD")` **0** 次（`ADMIN_PASSWORD` 字面 3 次都在提示文字里）⇒ 性质由 `getpass` 的平台分支代劳；它在拿不到终端时退回读 stdin 并警告"可能被回显" | **采纳**，新登记 **D-42**：加 `sys.stdin.isatty()` 前置**或**把 runbook A1 的 `docker exec -it` 从注释升格为硬前置（我选后者先做，因为它零代码改动且今天就能防住） |
+| 钉子 8-②「写哪个库」没有显式目标 | `load_dotenv()` + `database.py` 的 `DB_URL = os.getenv("DATABASE_URL", …)` ⇒ 目标完全由现役 `.env` 决定；与 D-14 刚立的「写入要显式目标」同形 | **采纳**，新登记 **D-43**（建议：`--database-url` 显式开关 + 缺省时拒绝写；本轮不顺手改） |
+| 钉子 9 反向护栏「存活是预期」 | 它自拟两臂：摘 `FREE_STEP_EDGES` 那条边 ⇒ 该腿**红**；把 `register_clarification` 上界错绑 `max_steps` ⇒ 该腿**红** | **采纳我的说法成立但缺证**：在册判据补一句「护栏腿的敏感臂＝ F 或 C」，否则下一位分不清"量错轴"与"恒不咬" |
+| §1 候选工作树 04:33 被整片重写 | 我独立取证同结论：31 只内容差**逐字节等于主仓工作树**、0 只等于 HEAD；`porcelain=1486`、mtime 全落在 04:33:04–08；HEAD 未动、我那两笔仍在 ancestry | **互证成立**（两条独立路径同一结论）。处置见台账 §A：恢复方向由 Owner 定，我不碰工作树，门禁一律改走 `git archive HEAD` 纯树 |
+
+**我自己违反的一条纪律（复核 B8，采纳）**：`gates.md` §48/§49 三趟全量的日志头都写着 `cwd = 候选/backend`，即**在候选树上直跑**，而票面第 1 颗钉子明确写"别在候选直接跑"。复核在纯发布物树上复算得**同值**（2030/86.57%/collected 2040-2058），所以读数可用；但下一轮的门禁票要把前置改成「`git archive HEAD` 出树 + 前后各取一次 `find -type f | wc -l`」——它这轮还顺手发现跑完的树里多出 `backend/chroma_db/chroma.sqlite3`，**说明 `porcelain=0` 单独不构成"树未变"的证据**。
+
+**P1 的当前状态（写到这里为止）**：envD 干净安装绿（`pip check` 零红、164 行 freeze、numpy 解析 1.26.4、torch 已单变量换成 `+cpu` 并过镜像同式防呆）；**第一趟 86 failed 的读数作废**——那棵副本树是从 04:33 被污染的工作树 `cp` 出来的（复核 §1 独立证实），不是依赖迁移的结论；改从 `git archive HEAD`（2724 只，与 tracked 逐只对上）重跑，结果出来才决定落不落 `requirements.txt`。
