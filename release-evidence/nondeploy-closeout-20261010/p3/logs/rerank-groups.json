@@ -1,0 +1,74 @@
+{
+  "groups": [
+    {
+      "expect": "positive must be rank 1 and ahead of distractor",
+      "id": "R-1",
+      "indices": [
+        0,
+        1,
+        2
+      ],
+      "model_echo": null,
+      "model_requested": "BAAI/bge-reranker-v2-m3",
+      "rank_of_distractor": 2,
+      "rank_of_positive": 1,
+      "scores": {
+        "0": 0.9932,
+        "1": 0.1265,
+        "2": 0.0016
+      },
+      "status": 200,
+      "top_score": 0.9932,
+      "unique_in_range": true
+    },
+    {
+      "expect": "official article with the proviso must outrank the synthetic absolute version",
+      "id": "R-2",
+      "indices": [
+        0,
+        1,
+        2
+      ],
+      "model_echo": null,
+      "model_requested": "BAAI/bge-reranker-v2-m3",
+      "rank_of_distractor": 2,
+      "rank_of_positive": 1,
+      "scores": {
+        "0": 0.9972,
+        "1": 0.9924,
+        "2": 0.0002
+      },
+      "status": 200,
+      "top_score": 0.9972,
+      "unique_in_range": true
+    },
+    {
+      "expect": "no positive exists; top score must stay below R-1 and R-2 positive scores",
+      "id": "R-3",
+      "indices": [
+        1,
+        0,
+        2
+      ],
+      "model_echo": null,
+      "model_requested": "BAAI/bge-reranker-v2-m3",
+      "rank_of_distractor": null,
+      "rank_of_positive": null,
+      "scores": {
+        "0": 0.0001,
+        "1": 0.0004,
+        "2": 0.0
+      },
+      "status": 200,
+      "top_score": 0.0004,
+      "unique_in_range": true
+    }
+  ],
+  "sends": 3,
+  "verdict": {
+    "R-1": true,
+    "R-2": true,
+    "R-3_relative": true,
+    "all": true
+  }
+}
