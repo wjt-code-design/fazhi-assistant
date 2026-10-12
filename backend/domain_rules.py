@@ -468,6 +468,14 @@ _LITIGATION_MARKERS = (
     "仲裁协议",
 )
 
+# 条款结构轴（2026-10-13 第二次收紧）。旧写法用 `'条' in t` 代表"文本像合同"，但案情叙述
+# 本来就会行内引法条（《合同法》第二百零六条）、还会写"借条"——一个"条"字就够咬住。
+# 只加"诉讼语汇 <2"那道闸治不了它：出题人 Q8（时效陷阱题，752 字）全文只命中"起诉"一个
+# 标记，纯树实测仍判 True。这里换成**行首条号密度**：合同草稿的条款标题落在行首，法条引用落在句中。
+# 故意不复用 _CONTRACT_SPLIT_MARK——它还认"一、""(1)""1."这类行首标记，而用户爱把子问题编号
+# 成 1) 2) 3)，实测会把 Q5/Q6/Q7 一起误判成合同审查（真题只剩 4/8）。
+_CLAUSE_ARTICLE_LINE = re.compile(r"(?m)^\s*第[一二三四五六七八九十百千零〇0-9]+条")
+
 
 def is_contract_review(text: str) -> bool:
     """触发判定：显式审查请求 + 合同名词，或长文本 + 合同当事人/条款结构。
@@ -478,14 +486,18 @@ def is_contract_review(text: str) -> bool:
     "第X条结构 + ≥3 合同名词"——即文本真像合同而非案情叙述。
     2026-10-13 再加任务形态轴：上述两支只治"文本像不像合同"，治不了"这是不是待审合同"；
     已涉诉的争议分析题同样像合同，故长文本支额外要求诉讼语汇命中 <2。
+    2026-10-13 再收紧条款支：'条' in t 会被行内法条引文满足，改为行首条号 >=2（见
+    _CLAUSE_ARTICLE_LINE）；"甲方/乙方"支不动，它本身就是合同草稿的称呼方式。
     """
     t = text or ""
     requestive = any(v in t for v in _REQUESTIVE_VERBS) or any(s in t for s in _REQUEST_SUBJECTS)
     if requestive and any(v in t for v in _REVIEW_VERBS) and any(n in t for n in _CONTRACT_NOUNS):
         return True
     if len(t) >= _MIN_CONTRACT_LEN and sum(1 for m in _LITIGATION_MARKERS if m in t) < 2:
-        if "甲方" in t or "乙方" in t or ("条" in t and sum(1 for n in _CONTRACT_NOUNS if n in t) >= 3):
+        if "甲方" in t or "乙方" in t:
             return True
+        if len(_CLAUSE_ARTICLE_LINE.findall(t)) >= 2:
+            return sum(1 for n in _CONTRACT_NOUNS if n in t) >= 3
     return False
 
 
