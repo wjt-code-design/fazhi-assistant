@@ -114,6 +114,28 @@ def test_trigger_contract_without_party_labels():
     assert D.is_contract_review(t) is True
 
 
+def test_trigger_contract_one_line_without_party_labels():
+    """先红用例（2026-10-13 夜间复核抓到）：整份合同挤成**一行**且只写"出租人／承租人"。
+
+    聊天框粘贴、PDF 抽取、移动端输入都会把换行吃掉，这时"行首"锚点根本不存在。
+    上一笔把条款支收成"必须落在行首的 第X条"，这类合同从"能进合同审查"退回"进不去"——
+    代价不只是一条 system 提示词：`request_bootstrap.py` 里合同态还决定
+    `contract_split` 的**逐条证据集**与上一轮合同文本回捞，漏判＝整条链路都不走。
+    判别轴换成"第X条 **且不是紧跟在 》 之后**"：合同自指条款满足，
+    行内引法条（《合同法》第二百零六条）被 》 挡住，于是 Q8 那一型仍然不进合同审查。
+    """
+    t = (
+        "房屋租赁合同 第一条 租赁期限：自2026年1月1日起至2027年12月31日止。"
+        "第二条 租金与付款方式：每月租金三千元，于每月5日前付款至账户。"
+        "第三条 押金：押金六千元，租赁期满无违约则退还。"
+        "第四条 违约责任：逾期付款按日承担违约金，任何一方可解除本条款约定。 出租人（签章）： 承租人（签章）："
+    )
+    assert len(t) >= 80
+    assert "\n" not in t
+    assert not ("甲方" in t or "乙方" in t)
+    assert D.is_contract_review(t) is True
+
+
 def test_trigger_explicit_review_survives_litigation_vocab():
     """防误杀：显式审查请求里出现诉讼词汇，仍必须进合同审查（治标不能把通道一起堵死）。"""
     t = "帮我审查这份采购合同的风险，这单后面可能要打官司，需要看违约金条款站不站得住。"
