@@ -441,6 +441,25 @@ _CONTRACT_LABEL_RE = re.compile(
 )
 _MIN_CONTRACT_LEN = 80  # 触发下限（短合同 ~100 字含 2+ 合同名词也应触发；口语短句如"违约金怎么算"仍不触发）
 
+# 任务形态轴（2026-10-13）：争议分析题必须复述合同条款，于是"长文本＋条款/当事人字样"
+# 对这类题常常成立——光靠"像不像合同"分不开"待审合同"与"已涉诉的争点分析"。
+# 只否决第二支（自动触发），显式审查请求走上面那支不受影响。
+# 阈值取 ≥2 个不同标记：单个"代理人""管辖"也出现在真合同的委托/争议解决条款里，
+# 命中 1 个就否决会误杀；争议分析题几乎必然同时出现多个。
+# 只收**诉讼程序专属**词。不收"代理人／管辖／被告／原告"——真合同的委托签署条款与
+# 争议解决条款本来就写这些字，收了会把待审合同误判成非合同（差分实测：含"委托代理人"
+# ＋"管辖法院"的真合同在通用词版下被判 False，属误杀）。
+# 请求主语：动词命中必须来自"用户在提请求"，不是案情叙述里的"不予审核""未经审查"。
+# 不收裸"请求"——争议题正文常写"诉讼请求"，收了第一支又被叙述触发（C 正是为治它）。
+_REQUEST_SUBJECTS = ("帮我", "请帮", "麻烦", "帮忙", "我需要", "想请", "请求审查")
+_REQUESTIVE_VERBS = ("帮我审", "审一下", "帮忙看看", "帮我看看")
+
+
+_LITIGATION_MARKERS = (
+    "诉讼请求", "起诉", "抗辩", "答辩", "举证责任", "法院应否", "应否受理",
+    "首次开庭", "驳回起诉", "仲裁协议",
+)
+
 
 def is_contract_review(text: str) -> bool:
     """触发判定：显式审查请求 + 合同名词，或长文本 + 合同当事人/条款结构。
@@ -449,14 +468,21 @@ def is_contract_review(text: str) -> bool:
     2026-08-07 收紧长文本自动触发：原"≥2 合同名词"太宽，法律情景题（含"买卖/借款"
     等词）被误判进合同评估、物权/刑法条文不进上下文。现需"甲方/乙方"字样或
     "第X条结构 + ≥3 合同名词"——即文本真像合同而非案情叙述。
+    2026-10-13 再加任务形态轴：上述两支只治"文本像不像合同"，治不了"这是不是待审合同"；
+    已涉诉的争议分析题同样像合同，故长文本支额外要求诉讼语汇命中 <2。
     """
     t = text or ""
-    if any(v in t for v in _REVIEW_VERBS) and any(n in t for n in _CONTRACT_NOUNS):
+    requestive = any(v in t for v in _REQUESTIVE_VERBS) or any(s in t for s in _REQUEST_SUBJECTS)
+    if (requestive and any(v in t for v in _REVIEW_VERBS)
+            and any(n in t for n in _CONTRACT_NOUNS)):
         return True
-    if len(t) >= _MIN_CONTRACT_LEN and (
-        "甲方" in t or "乙方" in t or ("条" in t and sum(1 for n in _CONTRACT_NOUNS if n in t) >= 3)
-    ):
-        return True
+    if len(t) >= _MIN_CONTRACT_LEN and sum(1 for m in _LITIGATION_MARKERS if m in t) < 2:
+        if (
+            "甲方" in t
+            or "乙方" in t
+            or ("条" in t and sum(1 for n in _CONTRACT_NOUNS if n in t) >= 3)
+        ):
+            return True
     return False
 
 
