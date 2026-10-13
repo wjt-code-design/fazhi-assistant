@@ -29,6 +29,11 @@ os.environ["QUOTA_DB"] = os.path.join(tempfile.gettempdir(), f"fazhi_test_quota_
 # 隔离 DATABASE_URL/QUOTA_DB/COVERAGE_FILE）；此处只是把它落到 conftest 这个共享点上，
 # 避免"每个新 store 都要有人记得单独隔离"这类反复出现的漏配。
 _TEST_DB = os.path.join(tempfile.gettempdir(), f"fazhi_test_app_{os.getpid()}.db").replace("\\", "/")
+# 2026-10-13 修：文件名带 PID 的旧库会被**复用的 PID** 捡起来——10-13 全量跑出现 9 条
+# `test_reset_admin_password` 红（`UNIQUE constraint failed: users.username`），根因就是
+# 种子用户撞上陈旧库；当时 %TEMP% 里已积了 323 个同名文件（最早 10-09）。开跑前先删掉同名残留。
+if os.path.exists(_TEST_DB):
+    os.remove(_TEST_DB)
 os.environ["DATABASE_URL"] = f"sqlite:///{_TEST_DB}"
 # 向量库目录同样隔离（T-E，2026-09-18；与上面两条同款**无条件**赋值，理由同款）：
 #   真实 backend/chroma_db 被 docker-compose.yml:47 bind mount 进容器，而 chroma 并发不安全
