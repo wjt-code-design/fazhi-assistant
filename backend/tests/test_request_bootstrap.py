@@ -72,6 +72,7 @@ def _bootstrap_deps(store, **overrides):
         is_exam_question=lambda query: False,
         has_exam_options=lambda query: False,
         is_contract_review=lambda query: False,
+        contract_trigger_reason=lambda query: None,
         feature_multi_analyze=True,
         contract_conversations=set(),
         contract_reviewed_conversations=set(),
@@ -1288,3 +1289,59 @@ def test_legacy_entry_without_timestamp_is_not_killed():
     finally:
         rb._contract_touched.clear()
         rb._contract_touched.update(before)
+
+
+_CLAUSE_ONLY_TEXT = chr(10).join(
+    [
+        "服务协议正文如下：",
+        "第一条 委托方提供资料，受托方按月收取服务费与押金。",
+        "第二条 逾期付款的，按日承担违约金，并可以解除本协议。",
+        "第三条 双方签署补充协议后方可变更本协议条款。",
+    ]
+)
+
+
+def _clear_intent_asked():
+    import request_bootstrap as rb
+
+    rb._contract_intent_asked.clear()
+
+
+def test_clause_only_input_asks_before_switching(store):
+    """口径③⑥（2026-10-13 裁定）：只有"条款自指"命中时**先确认审查意图**，不静默切换；会话级只问一次。"""
+    _clear_intent_asked()
+    active = set()
+    deps = _bootstrap_deps(
+        store,
+        contract_conversations=active,
+        is_contract_review=lambda q: True,
+        contract_trigger_reason=lambda q: "clause_labels",
+    )
+    first = bootstrap_request(store.user_id, store.conv_id, _CLAUSE_ONLY_TEXT, None, False, _deps=deps)
+    assert first.intent_confirm is True
+    assert store.conv_id not in active  # 关键：先确认，不进合同态
+
+    second = bootstrap_request(store.user_id, store.conv_id, _CLAUSE_ONLY_TEXT, None, False, _deps=deps)
+    assert second.intent_confirm is False  # 已问过不再问
+    assert second.contract_mode is False  # 也不静默切换（第二遍落普通分析）
+    assert store.conv_id not in active
+    _clear_intent_asked()
+
+
+def test_explicit_and_party_triggers_still_switch_without_asking(store):
+    """口径③：能可靠区分的自动触发保留——显式请求与"甲方/乙方"两支直接切，不打扰用户。"""
+    _clear_intent_asked()
+    for reason in ("explicit", "party_labels"):
+        active = set()
+        deps = _bootstrap_deps(
+            store,
+            contract_conversations=active,
+            is_contract_review=lambda q: True,
+            contract_trigger_reason=lambda q, r=reason: r,
+        )
+        b = bootstrap_request(store.user_id, store.conv_id, "审合同", None, False, _deps=deps)
+        assert b.intent_confirm is False, reason
+        assert b.contract_mode is True, reason
+        assert store.conv_id in active, reason
+        active.discard(store.conv_id)
+    _clear_intent_asked()

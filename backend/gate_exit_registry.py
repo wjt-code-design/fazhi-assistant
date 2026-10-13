@@ -831,6 +831,27 @@ EXITS: list[dict] = [
             "评测可信度": ("NA", "注记帧；合同类不在 `evals/` 冻结集内。"),
         },
     },
+    {
+        "id": "E19",
+        "where": "stream() / 分支0.3 合同审查意图确认闸（常量 `CONTRACT_INTENT_CONFIRM_PROMPT`，零 LLM）",
+        "traffic": "静态可达（执行未证）",
+        "cells": {
+            "可达性": (
+                "PASS",
+                "`cd[confirm_intent]` 为真即走本出口。触发条件在 `request_bootstrap.bootstrap_request`："
+                "本轮**只有**条款自指支命中（`contract_trigger_reason == clause_labels`，与逐字复述自己条款的"
+                "案情叙述同形）且本会话未问过 ⇒ 不 enter 合同态、改发确认提示词；问过之后同形输入按普通分析走。"
+                "口径来源：Owner 2026-10-13 六格裁定第③⑥条（先确认审查意图，不接受已知误切）。",
+            ),
+            "引用校验": ("NA", "固定模板。"),
+            "自检": ("DISABLED", "`record(" + '"contract_intent_confirm"' + ", ..., checked=False)`。"),
+            "多选完整性": ("NA", "模板不是答案。"),
+            "配额降级注记": ("NA", "零 LLM。"),
+            "版本绊线": ("NA", "`prompts.py::CONTRACT_INTENT_CONFIRM_PROMPT` 全文无时效表述 ⇒ 属「本格不适用」。"),
+            "写缓存闸": ("NA", "不写缓存。"),
+            "评测可信度": ("NA", "合同类不在 `evals/` 冻结集内。"),
+        },
+    },
 ]
 
 # ── 「时效未核验注记」列（S0-c，2026-09-26）────────────────────────────────────────────
@@ -911,6 +932,11 @@ _TIME_NOTE_CELLS: dict[str, tuple[str, str]] = {
         "`bootstrap.law_as_of is not None` 时写入；拿检索层 `cutoff` 当条件是**空判据**，它永远非空）。"
         "取证：`tests/test_time_unverified_note.py` 的 E8/E9 两条正向 + 两条控制腿"
         "（无基准日 / 证据可核验 ⇒ 不注记）。",
+    ),
+    "E19": (
+        "NA",
+        "同 E3／E4：`CONTRACT_INTENT_CONFIRM_PROMPT` 是零 LLM 模板，还没引条文。"
+        "取证：`tests/test_time_unverified_note.py::test_e19_contract_intent_confirm_template_carries_no_note`。",
     ),
     "E18": (
         "PASS",

@@ -83,6 +83,7 @@ S0C_CASES: dict[str, tuple[str, ...]] = {
     "E2": ("test_e2_has_no_note_timing_under_explicit_basis",),
     "E3": ("test_e3_clarify_template_carries_no_note",),
     "E4": ("test_e4_contract_clarify_template_carries_no_note",),
+    "E19": ("test_e19_contract_intent_confirm_template_carries_no_note",),
     "E5": ("test_e5_contract_report_answer_carries_the_note",),
     "E6": (),
     "E7": ("test_e7_light_buffered_answer_carries_the_note_inline",),
@@ -394,3 +395,17 @@ def test_rows_without_cases_explain_themselves_in_the_registry():
         elif status == "GAP-TODO" and not re.search(r"待开票|票\s*[A-Z]|\bS\d{1,2}\b", evidence):
             silent.append(f"{e['id']} 记 GAP-TODO 却没挂票号")
     assert not silent, f"这些出口既没有用例也没有可核的理由：{silent}"
+
+
+def test_e19_contract_intent_confirm_template_carries_no_note(monkeypatch):
+    """E19（合同审查意图确认闸，零 LLM 模板）：同 E3／E4 —— 还没引用任何条文，谈不上时效。"""
+
+    def tune(mp):
+        mp.setattr(
+            main,
+            "build_contract_data",
+            lambda text, cutoff=None: {"confirm_intent": True, "docs": [], "blocks": [], "level": "中"},
+        )
+
+    cs = contents_of(_ask(monkeypatch, route="contract_review", parts=CONTRACT_PARTS, tune=tune))
+    assert cs == [main.CONTRACT_INTENT_CONFIRM_PROMPT], f"没走到 E19 审查意图确认出口（夹具问题）：{cs}"

@@ -47,6 +47,8 @@ class RequestBootstrap:
     # 公开历史查询基准日；Agent run 和快车道检索均使用该值。省略时取当日。
     # Agent runtime/gateway 拒收模型自行改写的 server-owned 日期。
     law_as_of: date | None = None
+    # 口径③⑥（2026-10-13）：只有「条款自指」支命中时先确认审查意图；True 表示本轮应发确认提示词
+    intent_confirm: bool = False
 
 
 @dataclass(frozen=True)
@@ -61,6 +63,7 @@ class BootstrapDependencies:
     is_exam_question: Callable[[str], bool]
     has_exam_options: Callable[[str], bool]
     is_contract_review: Callable[[str], bool]
+    contract_trigger_reason: Callable[[str], str | None]
     feature_multi_analyze: bool
     contract_conversations: set[int]
     contract_reviewed_conversations: set[int]
@@ -195,6 +198,8 @@ def is_contract_exit(text: str) -> bool:
 # （LangGraph 的 prune 教训：只清一个集合、派生状态会静默重建出旧东西），所以这里摘除时同步清时间戳。
 CONTRACT_IDLE_TTL_S = 30 * 60
 _contract_touched: dict[int, float] = {}
+# 口径③⑥：“先确认”每会话只问一次（二段式澄清的“问两次上限”形状）；问过之后同形输入按普通分析走
+_contract_intent_asked: set[int] = set()
 
 
 def mark_contract_turn(conv_id: int, *, now: float | None = None) -> None:
@@ -294,6 +299,7 @@ def _default_bootstrap_dependencies() -> BootstrapDependencies:
         is_exam_question=query_understand._is_exam_question,
         has_exam_options=query_understand.has_exam_options,
         is_contract_review=domain_rules.is_contract_review,
+        contract_trigger_reason=domain_rules.contract_trigger_reason,
         feature_multi_analyze=settings.feature_multi_analyze,
         contract_conversations=DEFAULT_CONTRACT_STATE.active,
         contract_reviewed_conversations=DEFAULT_CONTRACT_STATE.reviewed,
@@ -384,16 +390,24 @@ def bootstrap_request(
         in_contract_mode = contract_session_active(conv_id, deps.contract_conversations)
         exiting_contract = in_contract_mode and deps.is_contract_exit(contract_query)
         active_contract = in_contract_mode and not exiting_contract
+        # 口径③⑥：只有“条款自指”这一支与案情叙述同形——先确认审查意图，不静默切换。
+        # 会话级只问一次；问过之后同形输入按普通分析走（既不反复追问，也不偷偷切换）。
+        fresh_reason = None if in_contract_mode else deps.contract_trigger_reason(contract_query)
+        ambiguous_fresh = fresh_reason == "clause_labels"
+        intent_confirm = ambiguous_fresh and conv_id not in _contract_intent_asked
+        if intent_confirm:
+            _contract_intent_asked.add(conv_id)
+        clause_only_settled = ambiguous_fresh and not intent_confirm
         contract_mode = (
             deps.feature_multi_analyze
             and intent == "legal_query"
-            and (deps.is_contract_review(contract_query) or active_contract)
+            and ((deps.is_contract_review(contract_query) and not clause_only_settled) or active_contract)
         )
 
         contract_text = None
         if contract_mode:
             if deps.is_contract_review(contract_query):
-                state_action = "enter"
+                state_action = "confirm" if intent_confirm else "enter"
                 if image and image_description and deps.is_contract_review(image_description):
                     contract_text = image_description
                 else:
@@ -463,6 +477,7 @@ def bootstrap_request(
             has_options=has_options,
             contract_mode=contract_mode,
             contract_text=contract_text,
+            intent_confirm=intent_confirm,
             client_truncated=client_truncated,
             case_domain=case_domain,
             law_as_of=law_as_of,
@@ -520,6 +535,9 @@ def prepare_fast_path(
         contract_data = deps.build_contract_data(bootstrap.contract_text or raw_query, cutoff=cutoff)
         if bootstrap.client_truncated:
             contract_data["truncated"] = True
+        if bootstrap.intent_confirm:
+            # 口径③⑥：与 need_clarify 同一条通道（contract_data 内字段）——pre 的键集被用例钉死，不能加新键
+            contract_data["confirm_intent"] = True
         docs = contract_data["docs"]
         qa_hit = None
     else:

@@ -70,6 +70,7 @@ from domain_rules import (
     cheating_docs,
     consumer_clause_docs,
     consumer_fraud_docs,
+    contract_trigger_reason,
     is_consumer_clause_scenario,
     is_consumer_fraud_scenario,
     is_contract_review,
@@ -100,6 +101,7 @@ from prompts import (
     _EXAM_TYPE_SUFFIX,
     _EXAM_VERDICT_RULE,
     CONTRACT_CLARIFY_PROMPT,
+    CONTRACT_INTENT_CONFIRM_PROMPT,
     IMAGE_GUIDANCE,
     OUTPUT_FORMAT_RULE,
     SYSTEM_BASE,
@@ -530,6 +532,15 @@ def _describe_image_for_bootstrap(image: str, text: str) -> str:
 configure_default_image_describer(_describe_image_for_bootstrap)
 
 
+def _contract_intent_confirm_frames():
+    """E19（口径③⑥，2026-10-13）：与案情叙述同形的输入先确认审查意图，零 LLM。
+
+    独立成生成器只为让"锚点"与"直接吐 json.dumps({'content': …}) 的那行 yield"落在同一行且不超行宽
+    —— exit 扫描器是 AST 级的，要求锚点与内容表达式同行（见 gate_exit_registry 的 scan_content_yields）。
+    """
+    yield f"data: {json.dumps({'content': CONTRACT_INTENT_CONFIRM_PROMPT}, ensure_ascii=False)}\n\n"  # gate-exit: E19
+
+
 def _contract_messages(pre: dict, cd: dict) -> list:
     """组装合同 messages（首轮 = 完整报告；追问 = 只答追问）。
 
@@ -695,6 +706,7 @@ def _bootstrap_only(
             is_exam_question=query_understand._is_exam_question,
             has_exam_options=query_understand.has_exam_options,
             is_contract_review=is_contract_review,
+            contract_trigger_reason=contract_trigger_reason,
             feature_multi_analyze=settings.feature_multi_analyze,
             contract_conversations=_contract_convs,
             contract_reviewed_conversations=_contract_reviewed_convs,
@@ -2300,6 +2312,38 @@ async def chat(
             # 分支0.3：合同 / 文书风险评估（确定性骨架，2026-08-06）
             if pre.get("contract_data"):
                 cd = pre["contract_data"]
+                if cd.get("confirm_intent"):
+                    # 口径③⑥（2026-10-13）：与案情叙述同形的输入先确认审查意图，不静默切换。
+                    # 零 LLM 反问；用户下一轮回“审合同/分析案情”即定路。会话级只问一次（request_bootstrap 记账）。
+                    _f0 = time.perf_counter()
+                    for _frame in _contract_intent_confirm_frames():
+                        yield _frame
+                    routing_metrics.record("contract_intent_confirm", False, "pass", "miss", checked=False)
+                    log_account(
+                        model="rule",
+                        tier="contract_intent_confirm",
+                        cache="miss",
+                        token_est=0,
+                        first_ms=round((_f0 - t0) * 1000, 1),
+                        ms=round((time.perf_counter() - t0) * 1000, 1),
+                        ok=True,
+                        conv_id=pre["conv_id"],
+                        user_id=user.id,
+                        q_len=len(text),
+                    )
+                    yield (
+                        "data: "
+                        + json.dumps({"conversation_id": pre["conv_id"], "sources": pre["sources"]}, ensure_ascii=False)
+                        + chr(10)
+                        + chr(10)
+                    )
+                    yield "data: [DONE]" + chr(10) + chr(10)
+                    try:
+                        await run_in_threadpool(_post, pre, CONTRACT_INTENT_CONFIRM_PROMPT, False)
+                        _posted = True
+                    except Exception as e:
+                        print(f"[chat-post] {e}", flush=True)
+                    return
                 if cd.get("need_clarify"):
                     # 信息确认闸：触发但无合同全文 → 零 LLM 反问要内容/范围/立场/类型
                     _f0 = time.perf_counter()

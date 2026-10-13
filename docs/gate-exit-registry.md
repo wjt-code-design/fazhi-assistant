@@ -1,5 +1,5 @@
-<!-- generated-at: 2026-09-26 14:49 -->
-<!-- source-commit: 161221b -->
+<!-- generated-at: 2026-10-13 18:40 -->
+<!-- source-commit: 58d5f28 -->
 
 # /api/chat 出口 × 闸门 登记表（生成物，勿手改）
 
@@ -33,6 +33,7 @@
 | **E16** | stream() / 分支1 缓冲轻量出口的多选漏答注记帧（常量 `NOTE_MULTI_INCOMPLETE`） | `NOTE_MULTI_INCOMPLETE` | 零流量（随 E7 不可达） | DISABLED | NA | NA | PASS | NA | NA | PASS | DISABLED | NA |
 | **E17** | stream() / 分支2 两个答案来源合流处的时效未核验注记帧（常量 `NOTE_TIME_UNVERIFIED`） | `NOTE_TIME_UNVERIFIED` | 条件命中（显式历史基准日 + 证据里有 time_validity_state=unknown 的块） | PASS | NA | NA | NA | NA | NA | NA | NA | PASS |
 | **E18** | stream() / 分支0.3 合同报告的时效未核验注记帧（常量 `NOTE_TIME_UNVERIFIED`） | `NOTE_TIME_UNVERIFIED` | 条件命中（同 E17：显式历史基准日 + 证据含 unknown） | PASS | NA | DISABLED | NA | NA | NA | NA | NA | PASS |
+| **E19** | stream() / 分支0.3 合同审查意图确认闸（常量 `CONTRACT_INTENT_CONFIRM_PROMPT`，零 LLM） | `CONTRACT_INTENT_CONFIRM_PROMPT` | 静态可达（执行未证） | PASS | NA | DISABLED | NA | NA | NA | NA | NA | NA |
 
 ## 二、缺口清单（GAP-TODO 共 0 格）
 
@@ -328,6 +329,22 @@
 | 写缓存闸 | `NA` | 与 E17 同一条理由：`_cacheable` 里的 `not pre.get("law_as_of")` 对合同分支同样生效（`cache_key` 在分支之外统一算）⇒ 带本帧的那份报告不进缓存，E5「写缓存闸」格里票 H 修掉的那个「缓存掉告警」形状在这里根本不存在。 |
 | 评测可信度 | `NA` | 注记帧；合同类不在 `evals/` 冻结集内。 |
 | 时效未核验注记 | `PASS` | 本帧即其产物（S0-c，合同分支）。与 E17 共用同一个常量与同一个判据，不各写一份。取证：`tests/test_time_unverified_note.py::test_e5_contract_report_answer_carries_the_note`。 |
+
+### E19 — stream() / 分支0.3 合同审查意图确认闸（常量 `CONTRACT_INTENT_CONFIRM_PROMPT`，零 LLM）
+
+- 流量程度：静态可达（执行未证）
+
+| 闸门 | 状态 | 取证 |
+|---|---|---|
+| 可达性 | `PASS` | `cd[confirm_intent]` 为真即走本出口。触发条件在 `request_bootstrap.bootstrap_request`：本轮**只有**条款自指支命中（`contract_trigger_reason == clause_labels`，与逐字复述自己条款的案情叙述同形）且本会话未问过 ⇒ 不 enter 合同态、改发确认提示词；问过之后同形输入按普通分析走。口径来源：Owner 2026-10-13 六格裁定第③⑥条（先确认审查意图，不接受已知误切）。 |
+| 引用校验 | `NA` | 固定模板。 |
+| 自检 | `DISABLED` | `record("contract_intent_confirm", ..., checked=False)`。 |
+| 多选完整性 | `NA` | 模板不是答案。 |
+| 配额降级注记 | `NA` | 零 LLM。 |
+| 版本绊线 | `NA` | `prompts.py::CONTRACT_INTENT_CONFIRM_PROMPT` 全文无时效表述 ⇒ 属「本格不适用」。 |
+| 写缓存闸 | `NA` | 不写缓存。 |
+| 评测可信度 | `NA` | 合同类不在 `evals/` 冻结集内。 |
+| 时效未核验注记 | `NA` | 同 E3／E4：`CONTRACT_INTENT_CONFIRM_PROMPT` 是零 LLM 模板，还没引条文。取证：`tests/test_time_unverified_note.py::test_e19_contract_intent_confirm_template_carries_no_note`。 |
 
 ## 四、不归本表的东西（显式登记，免得下任重画一遍）
 
