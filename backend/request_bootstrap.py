@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable, Collection, Iterator
+from collections.abc import Callable, Iterator, MutableSet
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -201,7 +201,7 @@ def mark_contract_turn(conv_id: int, *, now: float | None = None) -> None:
     _contract_touched[conv_id] = now if now is not None else time.monotonic()
 
 
-def contract_session_active(conv_id: int, active: Collection[int], *, now: float | None = None) -> bool:
+def contract_session_active(conv_id: int, active: MutableSet[int], *, now: float | None = None) -> bool:
     """合同态是否仍激活：在集合里 且 未闲置过期；过期即**摘除**而不是只判 False。"""
     if conv_id not in active:
         return False
