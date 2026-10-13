@@ -748,10 +748,17 @@ _TRUNCATION_WARNED_LENS: set[int] = set()
 
 
 def _query_token_len(text: str) -> int | None:
-    """尽力取本地嵌入分词长度；取不到返回 None。"""
+    """尽力取本地嵌入分词长度；取不到返回 None。
+
+    ⚠️ 用 getattr 链而不是 `inner.client.tokenizer` 直取：包装对象（QuotaTrackingEmbeddings）
+    与内层类型在 mypy 眼里是 union，直取会报 union-attr；而取不到 tokenizer（云端嵌入）本来就该返回 None。
+    """
     try:
         inner = getattr(embeddings, "_inner", embeddings)
-        tokenizer = inner.client.tokenizer
+        client = getattr(inner, "client", None)
+        tokenizer = getattr(client, "tokenizer", None)
+        if tokenizer is None:
+            return None
         return len(tokenizer(text, truncation=False)["input_ids"])
     except Exception:
         return None
