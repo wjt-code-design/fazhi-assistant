@@ -737,6 +737,44 @@ def _append_unique(dst: list[str], seen: set[str], dids: list[str]) -> None:
             dst.append(did)
 
 
+# ---- 口径④（2026-10-13 裁定）：超窗截断要会响，不许静默 ----
+# 本地 BGE 的 max_seq_length=512 token（实测：纯汉字≈510 字到界、混排≈667–683 字），
+# sentence-transformers 对超长输入**不告警**（源码无该分支）⇒ 沉默是默认，得由链路自己兜。
+# 产品不限制输入长度（裁定原文："不将整套评测限制为约 500 汉字"），但截断必须可见：
+# 超窗即 warning + 计数器，按"产品链路问题"记账。取不到 tokenizer（云端嵌入）时不猜、不误报。
+_MAX_QUERY_TOKENS = 510
+_TRUNCATED_QUERY_COUNT = 0
+_TRUNCATION_WARNED_LENS: set[int] = set()
+
+
+def _query_token_len(text: str) -> int | None:
+    """尽力取本地嵌入分词长度；取不到返回 None。"""
+    try:
+        inner = getattr(embeddings, "_inner", embeddings)
+        tokenizer = inner.client.tokenizer
+        return len(tokenizer(text, truncation=False)["input_ids"])
+    except Exception:
+        return None
+
+
+def _warn_if_query_truncates(text: str) -> int | None:
+    """超窗查询：warning＋计数（同一 token 长度只提示一次，防刷屏）。返回 token 数或 None。"""
+    global _TRUNCATED_QUERY_COUNT
+    n = _query_token_len(text)
+    if n is not None and n > _MAX_QUERY_TOKENS:
+        _TRUNCATED_QUERY_COUNT += 1
+        if n not in _TRUNCATION_WARNED_LENS:
+            _TRUNCATION_WARNED_LENS.add(n)
+            logger.warning(
+                "检索查询超嵌入窗口：%d token 超过 %d（尾部会被静默丢弃）——按口径④记为链路缺陷，"
+                "该走子问题/分段检索；本次查询前 40 字：%s",
+                n,
+                _MAX_QUERY_TOKENS,
+                text[:40],
+            )
+    return n
+
+
 def vector_top(
     query: str,
     n: int,
@@ -760,6 +798,7 @@ def vector_top(
         return acc
 
     out = _collect(vectorstore.similarity_search_with_score(query, k=fetch_n, filter=filt))
+    _warn_if_query_truncates(query)
     # DB-16（2026-10-09，审查报告 B-05）：带 category 却取零 ⇒ 回落一次无过滤，并落 warning。
     # 现网两个条文集合的 metadata **没有 `category` 键**（实测各 10,266 行、每行 8 键，报告 §12.6），
     # 而 Chroma 0.4.24 对"缺失键"的 `$eq` 与 `$ne` 一律**排除该行**（实测九腿，报告 §12.3）
@@ -876,15 +915,26 @@ def bm25_top(
 
 
 def _cosine_rank(query: str, docs: list[Document]) -> list[Document]:
-    """余弦精排（rerank 关闭 / 失败时的回退口径，2026-08-04 恢复旧版单段行为）。
+    """余弦精排（rerank 关闭 / 失败时的回退口径）。
 
-    纯余弦（措辞桥接靠 BM25 捞进候选池 + 余弦定序——用 RRF 会改变桥接 case 排序，
-    如"行政复议受案范围"的"第十一条"靠桥接在 BM25 命中但余弦不高，纯余弦更稳，
-    实测回归后恢复旧口径）。
+    2026-08-04 恢复旧版"纯余弦"口径（措辞桥接靠 BM25 捞进池 + 余弦定序；用 RRF 会改变
+    桥接 case 排序，如实测"行政复议受案范围"的第十一条靠桥接在 BM25 命中但余弦不高）。
+
+    2026-10-13（口径④裁定）再改一处：**定序 query 从"整段"改为逐单元取最大相似**。
+    整段进 BGE 有两条实测病：① 512 token 静默截断（纯汉字≈510 字到界），题尾根本不进向量；
+    ② 长叙述稀释目标——同一目标句放在头 300 字后立刻 top-1，放进 752 字全文却跌出 top-10。
+    单元与召回侧同源（`query_understand.decompose`，含整句/锚点/切片），每条都短、不再触发截断；
+    取 max 而非平均——单元数不同不应带来系统性偏好（LlamaIndex 自己在融合里除以 num_queries 就是反例）。
     """
-    qv = embeddings.embed_query(query)
     dvs = embeddings.embed_documents([d.page_content for d in docs])
-    v_cos: dict[str, float] = {_doc_id(d): rc.cos(qv, dv) for d, dv in zip(docs, dvs, strict=True)}
+    units = [u for u, _kind in query_understand.decompose(query) if u and u.strip()]
+    if not units:
+        units = [query]
+    units = units[:8]  # 上限：单元再多也只多几次短嵌入，防异常输入把嵌入开销放大
+    qvs = embeddings.embed_documents(units)
+    v_cos: dict[str, float] = {}
+    for d, dv in zip(docs, dvs, strict=True):
+        v_cos[_doc_id(d)] = max(rc.cos(qv, dv) for qv in qvs)
     return sorted(docs, key=lambda d: v_cos[_doc_id(d)], reverse=True)
 
 
@@ -1065,9 +1115,15 @@ def hybrid_retrieve(
         anchor_guaranteed: list[str] = []
         ag_seen: set[str] = set()
         if anchor_rank_idx:
+            # 2026-10-13（口径④，实测 Q8）：**保底不得占满 k**。锚点数×（v top-3＋b top-3）
+            # 去重后可以 ≥k（Q8 有 4 条法名锚点，其中两条还是已废止法名——它们拉来的是"合同编通则"
+            # 这类不相关条文）⇒ `docs[:k]` 全被保底吃掉，精排队列连一个位置都没有
+            # （实测：目标条 188 在池内、单独检索稳进 top-10，却因保底占满 10 位而永远不出现）。
+            # 保底的本意是防"单一精准命中被挤掉"，不是把 k 全分给它 ⇒ 上限 max(2, k//2)。
+            _guarantee_cap = max(2, k // 2)
             for qi in anchor_rank_idx:
                 for did in rankings[qi][:3] + b_rankings[qi][:3]:
-                    if did not in ag_seen:
+                    if did not in ag_seen and len(anchor_guaranteed) < _guarantee_cap:
                         ag_seen.add(did)
                         anchor_guaranteed.append(did)
         rest_docs = [d for d in cand_docs if _doc_id(d) not in ag_seen]
