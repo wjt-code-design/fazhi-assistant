@@ -495,15 +495,29 @@ def is_contract_review(text: str) -> bool:
     见 _CLAUSE_LABEL；"甲方/乙方"支不动，它本身就是合同草稿的称呼方式。
     """
     t = text or ""
+    return contract_trigger_reason(t) is not None
+
+
+def contract_trigger_reason(text: str) -> str | None:
+    """**为什么**会被判进合同支——`is_contract_review` 与它同源（单一真源，防两处判据漂移）。
+
+    口径③⑥（2026-10-13 裁定）：三条支路的可信度不同，调用方要区别对待——
+      · `explicit`：用户这一轮就是要求审合同（请求词＋审查动词＋合同名词）⇒ 可靠信号，直接切；
+      · `party_labels`：文本用"甲方/乙方"称呼当事人 ⇒ 合同草稿的常规称呼，可靠信号，直接切；
+      · `clause_labels`：**只有**"条款自指"这一支命中（≥2 条自指条款＋≥3 合同名词）——
+        这一支已证实与"逐字复述自己条款的案情叙述"同形（见测试里的 A9/A10 语料），
+        **不得静默切换**，调用方应先确认审查意图（本函数只负责报出理由，不做策略）。
+    """
+    t = text or ""
     requestive = any(v in t for v in _REQUESTIVE_VERBS) or any(s in t for s in _REQUEST_SUBJECTS)
     if requestive and any(v in t for v in _REVIEW_VERBS) and any(n in t for n in _CONTRACT_NOUNS):
-        return True
+        return "explicit"
     if len(t) >= _MIN_CONTRACT_LEN and sum(1 for m in _LITIGATION_MARKERS if m in t) < 2:
         if "甲方" in t or "乙方" in t:
-            return True
-        if len(_CLAUSE_LABEL.findall(t)) >= 2:
-            return sum(1 for n in _CONTRACT_NOUNS if n in t) >= 3
-    return False
+            return "party_labels"
+        if len(_CLAUSE_LABEL.findall(t)) >= 2 and sum(1 for n in _CONTRACT_NOUNS if n in t) >= 3:
+            return "clause_labels"
+    return None
 
 
 def contract_split(text: str) -> list[tuple[str, str]]:

@@ -211,3 +211,25 @@ def test_is_labor_clause_not_misclassify_services():
     """ "培训"不进特征词：培训服务合同（消费场景）不得判为劳动，保留格式条款映射。"""
     assert D.is_labor_clause("本合同约定培训课程费用一经收取概不退款") is False
     assert D.is_labor_clause("甲方将房屋出租给乙方，租金每月三千元") is False
+
+
+def test_trigger_reason_three_branches_and_single_source():
+    """口径③（2026-10-13）：三条支路可信度不同（explicit/party_labels 可靠、clause_labels 与案情同形），
+    且 reasons 与 is_contract_review **同源**——两条判据漂移是这类改造最容易犯的错。"""
+    explicit = "帮我审一下这份租赁合同"
+    party = "本供货合同由甲方委托代理人与乙方签署，第二条 价款与付款，第三条 违约责任与违约金。" * 3
+    clause_only = chr(10).join(
+        [
+            "服务协议正文如下：",
+            "第一条 委托方提供资料，受托方按月收取服务费与押金。",
+            "第二条 逾期付款的，按日承担违约金，并可以解除本协议。",
+            "第三条 双方签署补充协议后方可变更本协议条款。",
+        ]
+    )
+    none_case = "违约金怎么算？"
+    assert D.contract_trigger_reason(explicit) == "explicit"
+    assert D.contract_trigger_reason(party) == "party_labels"
+    assert D.contract_trigger_reason(clause_only) == "clause_labels"
+    assert D.contract_trigger_reason(none_case) is None
+    for text in (explicit, party, clause_only, none_case):
+        assert (D.contract_trigger_reason(text) is not None) == D.is_contract_review(text), text
