@@ -19,6 +19,7 @@ from request_bootstrap import (
     bootstrap_request,
     cleanup_persisted_images,
     configure_default_image_describer,
+    is_contract_exit,
     override_default_image_describer,
     prepare_fast_path,
 )
@@ -1205,3 +1206,33 @@ def test_contract_messages_mark_historical_baseline_date(store):
 
     assert "2019-01-01" in _contract_messages(historical, contract_data)[-1].content
     assert "法律版本基准日" not in _contract_messages(current, contract_data)[-1].content
+
+
+# ---------------- 口径②（2026-10-13 裁定）：退出只认本轮明示短命令，贴入的合同正文不作退出指令 ----------------
+def test_contract_body_words_do_not_exit_contract_mode():
+    """合同正文里写着"合同结束""暂停履行"，那是文档内容，不是用户的退出指令。"""
+    pasted = chr(10).join(
+        [
+            "第五条 本合同结束后的三十日内，押金不予退还。",
+            "第六条 双方可协商暂停履行，暂停期间不计违约金。",
+            "第七条 一方提出终止的，应提前三十日通知；合同结束时未结算款项按下列方式处理。",
+        ]
+    )
+    assert is_contract_exit(pasted) is False
+
+
+def test_long_prose_with_exit_phrase_does_not_exit():
+    prose = "我们之前那份合同我还在考虑，不过你说如果双方协商一致的话，结束合同之后押金到底怎么退？"
+    assert len(prose) > 20
+    assert is_contract_exit(prose) is False
+
+
+def test_explicit_short_exit_commands_still_exit():
+    for t in ("结束合同", "换个话题", "退出合同。", "不审合同了"):
+        assert is_contract_exit(t) is True, t
+
+
+def test_bare_pause_and_stop_words_no_longer_exit():
+    """裸词不再算退出：含糊时交确认（裁定），不静默退出——这也是"合同正文自触发退出"的根因。"""
+    for t in ("暂停", "结束", "先暂停一下"):
+        assert is_contract_exit(t) is False, t

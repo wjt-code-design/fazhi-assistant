@@ -160,6 +160,13 @@ def override_default_image_describer(describer: ImageDescriber) -> Iterator[None
                 _configured_image_describer = previous
 
 
+# 口径②（2026-10-13）：退出只认用户**本轮**的明示短命令。
+# 旧实现是纯子串匹配、且标记表里带裸词"暂停/结束"——于是贴进来的合同正文自己写着
+# "本合同结束后押金不予退还""双方可协商暂停履行"时，会话会被**文档内容**踢出合同模式
+# （该退的不退、不该退的退）。现在两条约束：
+#   1) 删除裸词，只留带宾语的短语；
+#   2) 去空白与结句标点后，只有整条消息本身够短才认标记——长文里嵌着这些词一律不算。
+# 含糊的（"先暂停一下""先不聊这份合同了"）不静默退出，交确认路径，见 CONTRACT_CLARIFY_PROMPT。
 CONTRACT_EXIT_MARKS = (
     "退出合同",
     "不审合同",
@@ -169,13 +176,16 @@ CONTRACT_EXIT_MARKS = (
     "结束评估",
     "换个话题",
     "换一个问题",
-    "暂停",
-    "结束",
 )
+
+_CONTRACT_EXIT_MAX_CHARS = 20
+_EXIT_PUNCT = "，。！？、；：,.!?　（）"
 
 
 def is_contract_exit(text: str) -> bool:
-    normalized = (text or "").strip().lower()
+    normalized = "".join(ch for ch in (text or "").lower() if not ch.isspace() and ch not in _EXIT_PUNCT)
+    if not normalized or len(normalized) > _CONTRACT_EXIT_MAX_CHARS:
+        return False
     return any(mark in normalized for mark in CONTRACT_EXIT_MARKS)
 
 
