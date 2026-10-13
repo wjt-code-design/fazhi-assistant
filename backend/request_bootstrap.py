@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from collections.abc import Callable, Iterator
+import time
+from collections.abc import Callable, Collection, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime
@@ -189,6 +190,34 @@ def is_contract_exit(text: str) -> bool:
     return any(mark in normalized for mark in CONTRACT_EXIT_MARKS)
 
 
+# 口径②（2026-10-13）：状态暂不落盘，但**必须有过期边界**——不活跃超过 TTL 即视为未激活。
+# 过期要**连着派生状态一起失效**：合同态不只是模板开关，它还牵着"逐条证据集"与上一轮合同文本回捞
+# （LangGraph 的 prune 教训：只清一个集合、派生状态会静默重建出旧东西），所以这里摘除时同步清时间戳。
+CONTRACT_IDLE_TTL_S = 30 * 60
+_contract_touched: dict[int, float] = {}
+
+
+def mark_contract_turn(conv_id: int, *, now: float | None = None) -> None:
+    _contract_touched[conv_id] = now if now is not None else time.monotonic()
+
+
+def contract_session_active(conv_id: int, active: Collection[int], *, now: float | None = None) -> bool:
+    """合同态是否仍激活：在集合里 且 未闲置过期；过期即**摘除**而不是只判 False。"""
+    if conv_id not in active:
+        return False
+    t = now if now is not None else time.monotonic()
+    stamp = _contract_touched.get(conv_id)
+    if stamp is None:  # 旧路径进来的会话没有时间戳：当活跃并补记，不误杀在途会话
+        _contract_touched[conv_id] = t
+        return True
+    if t - stamp > CONTRACT_IDLE_TTL_S:
+        active.discard(conv_id)
+        _contract_touched.pop(conv_id, None)
+        return False
+    _contract_touched[conv_id] = t  # 本轮活跃 ⇒ 续期（闲置 TTL，不是绝对 TTL）
+    return True
+
+
 def cleanup_persisted_images(
     image_rel: str | None,
     thumb_rel: str | None,
@@ -352,8 +381,9 @@ def bootstrap_request(
         is_exam = deps.is_exam_question(text or raw_query)
         has_options = deps.has_exam_options(text or raw_query)
         contract_query = text or raw_query
-        exiting_contract = conv_id in deps.contract_conversations and deps.is_contract_exit(contract_query)
-        active_contract = conv_id in deps.contract_conversations and not exiting_contract
+        in_contract_mode = contract_session_active(conv_id, deps.contract_conversations)
+        exiting_contract = in_contract_mode and deps.is_contract_exit(contract_query)
+        active_contract = in_contract_mode and not exiting_contract
         contract_mode = (
             deps.feature_multi_analyze
             and intent == "legal_query"
@@ -410,9 +440,11 @@ def bootstrap_request(
 
         if state_action == "enter":
             deps.contract_conversations.add(conv_id)
+            mark_contract_turn(conv_id)
         elif state_action == "exit":
             deps.contract_conversations.discard(conv_id)
             deps.contract_reviewed_conversations.discard(conv_id)
+            _contract_touched.pop(conv_id, None)
 
         return RequestBootstrap(
             conv_id=conv_id,

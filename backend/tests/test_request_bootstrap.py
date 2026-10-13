@@ -1236,3 +1236,55 @@ def test_bare_pause_and_stop_words_no_longer_exit():
     """裸词不再算退出：含糊时交确认（裁定），不静默退出——这也是"合同正文自触发退出"的根因。"""
     for t in ("暂停", "结束", "先暂停一下"):
         assert is_contract_exit(t) is False, t
+
+
+def _keep_touched():
+    """把模块级时间戳表存/还原，避免用例互相污染。"""
+    import request_bootstrap as rb
+
+    before = dict(rb._contract_touched)
+    return rb, before
+
+
+def test_contract_state_expires_after_idle_ttl():
+    """口径②：状态不落盘但必须有过期边界——闲置超过 TTL 即**摘除**（不只是判 False）。"""
+    rb, before = _keep_touched()
+    active = {7}
+    rb._contract_touched[7] = 1000.0
+    try:
+        assert rb.contract_session_active(7, active, now=1000.0 + rb.CONTRACT_IDLE_TTL_S - 1) is True
+        rb._contract_touched[7] = 1000.0  # 重置时间戳：这是闲置 TTL，上一次调用已续期
+        assert rb.contract_session_active(7, active, now=1000.0 + rb.CONTRACT_IDLE_TTL_S + 1) is False
+        assert 7 not in active
+        assert 7 not in rb._contract_touched
+    finally:
+        rb._contract_touched.clear()
+        rb._contract_touched.update(before)
+
+
+def test_contract_turn_refreshes_idle_clock():
+    """本轮活跃即续期：这是闲置 TTL，不是绝对 TTL。"""
+    rb, before = _keep_touched()
+    active = {8}
+    rb._contract_touched[8] = 1000.0
+    try:
+        mid = 1000.0 + rb.CONTRACT_IDLE_TTL_S - 1
+        assert rb.contract_session_active(8, active, now=mid) is True
+        assert rb._contract_touched[8] == mid
+        assert rb.contract_session_active(8, active, now=mid + rb.CONTRACT_IDLE_TTL_S - 1) is True
+    finally:
+        rb._contract_touched.clear()
+        rb._contract_touched.update(before)
+
+
+def test_legacy_entry_without_timestamp_is_not_killed():
+    """旧路径（无时间戳）的会话当活跃并补记，避免升级瞬间把在途会话全判死。"""
+    rb, before = _keep_touched()
+    active = {9}
+    rb._contract_touched.pop(9, None)
+    try:
+        assert rb.contract_session_active(9, active) is True
+        assert 9 in rb._contract_touched
+    finally:
+        rb._contract_touched.clear()
+        rb._contract_touched.update(before)
