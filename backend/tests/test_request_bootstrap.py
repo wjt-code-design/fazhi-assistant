@@ -16,6 +16,7 @@ from models import Base, Conversation, Message, User
 from request_bootstrap import (
     BootstrapDependencies,
     FastPathDependencies,
+    RecentMessageSnapshot,
     bootstrap_request,
     cleanup_persisted_images,
     configure_default_image_describer,
@@ -1314,7 +1315,7 @@ def test_clause_only_input_asks_before_switching(store):
     deps = _bootstrap_deps(
         store,
         contract_conversations=active,
-        is_contract_review=lambda q: True,
+        is_contract_review=lambda q: bool(q) and ("合同" in q),
         contract_trigger_reason=lambda q: "clause_labels",
     )
     first = bootstrap_request(store.user_id, store.conv_id, _CLAUSE_ONLY_TEXT, None, False, _deps=deps)
@@ -1336,7 +1337,7 @@ def test_explicit_and_party_triggers_still_switch_without_asking(store):
         deps = _bootstrap_deps(
             store,
             contract_conversations=active,
-            is_contract_review=lambda q: True,
+            is_contract_review=lambda q: bool(q) and ("合同" in q),
             contract_trigger_reason=lambda q, r=reason: r,
         )
         b = bootstrap_request(store.user_id, store.conv_id, "审合同", None, False, _deps=deps)
@@ -1345,3 +1346,46 @@ def test_explicit_and_party_triggers_still_switch_without_asking(store):
         assert store.conv_id in active, reason
         active.discard(store.conv_id)
     _clear_intent_asked()
+
+
+def test_comparison_turn_keeps_previous_contract(store):
+    """口径②（2026-10-13 裁定）：换合同重置，但**明确比较两份合同除外**。
+
+    现状：第二轮若又是"审查请求"（粘第二份合同也算），走 `enter` 覆盖分支 ⇒ 第一份合同从上下文消失，
+    "对比两份"根本答不了。本条先红：断言两轮文本都在 contract_text 里。
+    """
+    active = set()
+    history = [RecentMessageSnapshot(role="user", content="第一份合同：租金每月三万元。", image_desc="")]
+    deps = _bootstrap_deps(
+        store,
+        contract_conversations=active,
+        is_contract_review=lambda q: bool(q) and ("合同" in q),  # 像真判据：空串不得为 True
+        contract_trigger_reason=lambda q: "explicit",
+        load_context=lambda db, conv: ("", history),
+    )
+    first = bootstrap_request(store.user_id, store.conv_id, "第一份合同：租金每月三万元。", None, False, _deps=deps)
+    assert "第一份合同" in (first.contract_text or "")
+
+    second = bootstrap_request(
+        store.user_id, store.conv_id, "对比一下这两份合同：第二份合同租金每月五万元。", None, False, _deps=deps
+    )
+    both = second.contract_text or ""
+    assert "第一份合同" in both, f"比较轮把上一份合同丢了：{both!r}"
+    assert "第二份合同" in both, both
+
+
+def test_non_comparison_new_contract_still_resets(store):
+    """反面钉：不是比较轮时，换合同**要**重置（旧合同不得回捞）。"""
+    active = set()
+    history = [RecentMessageSnapshot(role="user", content="旧合同：租金每月三万元。", image_desc="")]
+    deps = _bootstrap_deps(
+        store,
+        contract_conversations=active,
+        is_contract_review=lambda q: bool(q) and ("合同" in q),
+        contract_trigger_reason=lambda q: "explicit",
+        load_context=lambda db, conv: ("", history),
+    )
+    bootstrap_request(store.user_id, store.conv_id, "旧合同：租金每月三万元。", None, False, _deps=deps)
+    second = bootstrap_request(store.user_id, store.conv_id, "新合同：租金每月五万元。", None, False, _deps=deps)
+    both = second.contract_text or ""
+    assert "新合同" in both and "旧合同" not in both, both

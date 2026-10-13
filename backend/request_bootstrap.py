@@ -183,6 +183,23 @@ CONTRACT_EXIT_MARKS = (
 )
 
 _CONTRACT_EXIT_MAX_CHARS = 20
+# 口径②（2026-10-13 裁定）：换合同重置，**明确比较两份合同除外**——比较轮不得把上一份挤掉。
+_CONTRACT_COMPARE_MARKS = ("对比", "比较", "两份", "异同", "两个版本", "各自")
+
+
+def _previous_contract_text(recent: list[dict[str, str]], deps: BootstrapDependencies) -> str:
+    """从历史里回捞最近一条"用户发来的合同/文书"原文——追问轮与比较轮共用同一把尺。"""
+    for message in reversed(recent):
+        content = message["content"]
+        description = message["image_desc"]
+        is_contract_message = deps.is_contract_review(content) or (
+            content == "[图片]" and deps.is_contract_review(description)
+        )
+        if message["role"] == "user" and is_contract_message:
+            return description if deps.is_contract_review(description) else content
+    return ""
+
+
 _EXIT_PUNCT = "，。！？、；：,.!?　（）"
 
 
@@ -408,21 +425,18 @@ def bootstrap_request(
         if contract_mode:
             if deps.is_contract_review(contract_query):
                 state_action = "confirm" if intent_confirm else "enter"
+                # 口径②：明确要求"对比两份"时不重置——上一份从历史回捞、与本轮一起带上；
+                # 其余情况（换合同）维持覆盖语义（旧合同不回捞）。
+                comparing = any(mark in (text or "") for mark in _CONTRACT_COMPARE_MARKS)
+                previous_contract = _previous_contract_text(recent, deps) if comparing else ""
                 if image and image_description and deps.is_contract_review(image_description):
                     contract_text = image_description
                 else:
                     contract_text = text or raw_query
+                if previous_contract:
+                    contract_text = (previous_contract + chr(10) + contract_text).strip()
             else:
-                previous_contract = ""
-                for message in reversed(recent):
-                    content = message["content"]
-                    description = message["image_desc"]
-                    is_contract_message = deps.is_contract_review(content) or (
-                        content == "[图片]" and deps.is_contract_review(description)
-                    )
-                    if message["role"] == "user" and is_contract_message:
-                        previous_contract = description if deps.is_contract_review(description) else content
-                        break
+                previous_contract = _previous_contract_text(recent, deps)
                 contract_text = (
                     (previous_contract + "\n" + (text or "")) if previous_contract else (text or raw_query)
                 ).strip()
