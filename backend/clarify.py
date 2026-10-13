@@ -42,7 +42,9 @@ REFUSE_MARKS = (
 # 真实案例：保险诈骗罪考题「无法」「非法」、遗产继承「法定/根据法定」均曾被误抽成法名致误拒答；
 # "律师法"等真实法名不受影响。⚠ 该黑名单是持续维护的（中文组合开放，出现新误报即补；
 # 更稳方案=用"在库法名"白名单校验候选，见 roadmap 已知限制）。
-_SOURCE_QUOTE_RE = re.compile(r"《([^》]{1,24}?)》")
+# 上限 60 而非 24：司法解释官方名实测 27 字（《最高人民法院关于审理民间借贷案件适用法律若干问题的规定》），
+# 24 会把它整条漏掉——书引检查与口径①的"缺依据要显形"都会对它静默失效。上限只为防"整段被当名字"的极端输入。
+_SOURCE_QUOTE_RE = re.compile(r"《([^》]{1,60}?)》")
 _SOURCE_BARE_RE = re.compile(
     r"([一-龥]{2,12}(?<!合)(?<!违)(?<!犯)(?<!司)(?<!执)(?<!办)(?<!律)(?<!做)(?<!看)(?<!说)(?<!写)(?<!想)(?<!无)(?<!非)(?<!方)(?<!设)(?<!定)(?<!的)(?<!据)法(?!律)(?:实施条例)?|[一-龥]{2,10}?条例)"
 )
@@ -221,6 +223,44 @@ def detect_underspecified(text: str) -> bool:
     return bool(_UNDERSPEC_RE.search(t))
 
 
+_QUOTED_LAW_SUFFIXES = ("法", "法典", "条例", "解释", "规定", "办法", "细则", "通则")
+
+
+def _quoted_source_looks_like_law(name: str) -> bool:
+    """书引语境下的"像不像法源名称"（口径①，2026-10-13）。
+
+    与 `_plausible_law` **故意分开**：那个服务于裸名抽取（长串多半是误抽，故限长 2–8、只认 法/条例/法典）；
+    书名号里是用户明确写下的名字——官方全称（《中华人民共和国合同法》，12 字）、
+    司法解释名（《…的解释（一）》，带括号后缀）都必须算"点名了法源"，否则它们不在库时会被静默放过，
+    而"缺依据要显形"正是口径①的落点。只把明显的文书/合同名排除（以 合同/协议/通知/书/函/状/意见 结尾）。
+    """
+    n = re.sub(r"[（(][^）)]*[）)]\s*$", "", (name or "").strip())
+    if not n or n.endswith(("合同", "协议", "通知", "书", "函", "状", "意见")):
+        return False
+    return n.endswith(_QUOTED_LAW_SUFFIXES)
+
+
+def missing_sources(text: str) -> list[str]:
+    """点名了、像法源、但不在库的来源名（去重保序）——口径①：这些是"缺少必要依据"的那部分。
+
+    只认书名号里的名字（`_SOURCE_QUOTE_RE`），且必须先过 `_plausible_law`：
+    合同/文书名（《房屋租赁合同》）不算点名法源，不进本清单。
+    """
+    out: list[str] = []
+    seen: set[str] = set()
+    for m in _SOURCE_QUOTE_RE.finditer(text or ""):
+        raw = m.group(1).strip()
+        if not _quoted_source_looks_like_law(raw):
+            continue
+        canon = canon_source(raw)
+        if R.source_in_kb(canon):
+            continue
+        if canon not in seen:
+            seen.add(canon)
+            out.append(raw)
+    return out
+
+
 def decide(
     intent: str,
     text: str,
@@ -257,11 +297,14 @@ def decide(
     t = text or ""
     if any(m in t for m in REFUSE_MARKS):
         return "refuse"
-    # 书引《X法》：确凿点名。用 _SOURCE_QUOTE_RE 直接扫书名号（extract_source_names
-    # 已去书名号，无法区分书引/裸名），不在库 → 诚实拒答。
-    for m in _SOURCE_QUOTE_RE.finditer(t):
-        if not R.source_in_kb(canon_source(m.group(1).strip())):
-            return "refuse"
+    # 书引《X》：口径①（2026-10-13 裁定）——**只触发法源核查，不整题拒答**。
+    # ① 先问"像不像法源名称"：书名号里写合同/文书名（《房屋租赁合同》《解除通知》）不是点名某部法，
+    #    不产生任何拒答（旧版把《…》一律当点名，导致合同审查题被整题拒答）；
+    # ② 确实像法源、点名了、但不在库的：**有检索依据时不再拒答**，改把清单交调用方声明缺依据
+    #    （见 missing_sources）；只在零检索命中时才维持诚实拒答——那才是"确实缺少必要依据"。
+    quoted_missing = missing_sources(t)
+    if quoted_missing and not has_sources:
+        return "refuse"
     # 裸名：无据时保留"可信法名不在库"诚实拒答；有据时不拒答（根治误拒答）。
     if not has_sources:
         for name in extract_source_names(t):
