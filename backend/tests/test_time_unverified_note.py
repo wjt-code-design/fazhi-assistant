@@ -35,6 +35,7 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 from langchain_core.documents import Document  # noqa: E402
 
+import clarify
 import main  # noqa: E402
 from gate_exit_registry import COLUMNS, EXITS  # noqa: E402
 from tests._sse_harness import (  # noqa: E402
@@ -84,6 +85,7 @@ S0C_CASES: dict[str, tuple[str, ...]] = {
     "E3": ("test_e3_clarify_template_carries_no_note",),
     "E4": ("test_e4_contract_clarify_template_carries_no_note",),
     "E19": ("test_e19_contract_intent_confirm_template_carries_no_note",),
+    "E20": ("test_e20_missing_source_note_declares_the_gap",),
     "E5": ("test_e5_contract_report_answer_carries_the_note",),
     "E6": (),
     "E7": ("test_e7_light_buffered_answer_carries_the_note_inline",),
@@ -409,3 +411,14 @@ def test_e19_contract_intent_confirm_template_carries_no_note(monkeypatch):
 
     cs = contents_of(_ask(monkeypatch, route="contract_review", parts=CONTRACT_PARTS, tune=tune))
     assert cs == [main.CONTRACT_INTENT_CONFIRM_PROMPT], f"没走到 E19 审查意图确认出口（夹具问题）：{cs}"
+
+
+def test_e20_missing_source_note_declares_the_gap(monkeypatch):
+    """E20（缺依据声明帧，口径①）：点名了、像法源、但不在库 ⇒ 只声明"这部分缺依据"，不整题拒答。"""
+    monkeypatch.setattr(main, "_time_unverified_hit", lambda pre: False)  # 隔离 E17，免得顺序纠缠
+    # 自足化：本用例只验"声明帧"，不该依赖知识库的真实内容，更不该被别处泄漏的 vectorstore 替身牵动
+    monkeypatch.setattr(clarify.R, "source_in_kb", lambda name: False)
+    q = "《工伤保险条例》里规定的工伤认定标准是什么？"
+    cs = contents_of(_ask(monkeypatch, question=q))
+    hits = [c for c in cs if "不在本库收录范围" in c]
+    assert hits and "工伤保险条例" in hits[0], f"没产缺依据声明帧（夹具/判据问题）：{cs}"

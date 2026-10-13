@@ -2693,6 +2693,19 @@ async def chat(
                 # 注记不进缓存 —— 带显式基准日的请求本来就被 `_cacheable` 挡在共享答案缓存外。
                 answer += NOTE_TIME_UNVERIFIED
                 yield f"data: {json.dumps({'content': NOTE_TIME_UNVERIFIED}, ensure_ascii=False)}\n\n"  # gate-exit: E17
+            if answer and pre["intent"] == "legal_query":
+                # 口径①（2026-10-13 裁定）：点名了、像法源、但不在库的来源要**显形**——只声明"这部分缺依据"，
+                # 不整题拒答（判据侧见 clarify.missing_sources）。合同/文书名（《房屋租赁合同》）不进清单。
+                # 位置在 E14 之前：`content_frames[-1] == NOTE_LAW_VERSION` 那条顺序判据不许被顶掉。
+                _missing_src = clarify.missing_sources(text)
+                if _missing_src:
+                    _ms_note = (
+                        "\n\n> 注：你点名的 "
+                        + "、".join(f"《{m}》" for m in _missing_src)
+                        + " 不在本库收录范围，涉及该来源的部分缺少条文依据。"
+                    )
+                    answer += _ms_note
+                    yield f"data: {json.dumps({'content': _ms_note}, ensure_ascii=False)}\n\n"  # gate-exit: E20
             if law_version_hit and answer:
                 # 空答不注记：门已保证 `answer == ""` 时不追加，这里再挡一次 yield，
                 # 免得把下面 `if not answer:` 的"没答上来"error 帧变成"答了但仅供参考"。

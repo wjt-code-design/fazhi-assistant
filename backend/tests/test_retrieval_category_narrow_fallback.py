@@ -215,3 +215,13 @@ def test_legacy_always_fallback_shape_cannot_pass_S2():
     out = legacy.similarity_search_with_score("行政处罚的设定", k=2, filter={"category": "行政法"})
     assert probes == ["legacy_fallback"], "旧形状若不再兜底，这条负控就没咬住任何东西"
     assert [d.page_content for d, _ in out] == [d.page_content for d in WITHKEY[:2]], "旧形状确实把跨类内容当了答案"
+
+
+@pytest.fixture(autouse=True)
+def _restore_vectorstore():
+    """模块内多处用**裸赋值**换 `retrieval.vectorstore`（历史写法）⇒ 不还原就会泄漏到后续测试：
+    全量序里 test_time_unverified_note 的 E20 用例曾因拿到没有 `_collection` 的替身而红。
+    这个夹具把"换掉就还"变成结构保证，不依赖每条用例自觉。"""
+    saved = retrieval.vectorstore
+    yield
+    retrieval.vectorstore = saved

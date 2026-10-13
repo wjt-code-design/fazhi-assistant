@@ -852,6 +852,29 @@ EXITS: list[dict] = [
             "评测可信度": ("NA", "合同类不在 `evals/` 冻结集内。"),
         },
     },
+    {
+        "id": "E20",
+        "where": "stream() / 旗舰路径答案尾部：缺依据声明（点名了但不在库的法源，零 LLM 注记）",
+        "traffic": "静态可达（执行未证）",
+        "cells": {
+            "可达性": (
+                "PASS",
+                "`answer` 非空且 `intent == legal_query` 且 `clarify.missing_sources(text)` 非空即走本出口。"
+                "触发条件＝书引里出现了「像法源名称、但不在库」的名字（口径①，Owner 2026-10-13 裁定）；"
+                "合同/文书名（《房屋租赁合同》《解除通知》）经 `_quoted_source_looks_like_law` 排除，不进清单。",
+            ),
+            "引用校验": ("NA", "注记文本由确定性清单拼出，不含模型引用。"),
+            "自检": ("DISABLED", "注记在自检之后追加；本出口零 LLM。"),
+            "多选完整性": ("NA", "注记不是答案主体。"),
+            "配额降级注记": ("NA", "零 LLM。"),
+            "版本绊线": ("NA", "注记文本无时效表述；版本注记走 E14。"),
+            "写缓存闸": ("NA", "注记不写缓存；带注记的答案与缓存内容此处不联动（已知边界，登记在案）。"),
+            "评测可信度": (
+                "PASS",
+                "取证：tests/test_time_unverified_note.py::test_e20_missing_source_note_declares_the_gap。",
+            ),
+        },
+    },
 ]
 
 # ── 「时效未核验注记」列（S0-c，2026-09-26）────────────────────────────────────────────
@@ -937,6 +960,11 @@ _TIME_NOTE_CELLS: dict[str, tuple[str, str]] = {
         "NA",
         "同 E3／E4：`CONTRACT_INTENT_CONFIRM_PROMPT` 是零 LLM 模板，还没引条文。"
         "取证：`tests/test_time_unverified_note.py::test_e19_contract_intent_confirm_template_carries_no_note`。",
+    ),
+    "E20": (
+        "NA",
+        "本帧是**缺依据声明**（口径①），不是时效注记；同一答案的时效注记走 E17／E18 那两格。"
+        "取证：`tests/test_time_unverified_note.py::test_e20_missing_source_note_declares_the_gap`。",
     ),
     "E18": (
         "PASS",
