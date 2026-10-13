@@ -740,6 +740,7 @@ def _route_namespace(sm, seam, *, image_validator=None):
                 "is_exam_question": lambda query: False,
                 "has_exam_options": lambda query: False,
                 "is_contract_review": lambda query: False,
+                "contract_trigger_reason": lambda query: None,
                 "feature_multi_analyze": False,
                 "contract_conversations": set(),
                 "contract_reviewed_conversations": set(),
