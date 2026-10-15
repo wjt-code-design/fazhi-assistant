@@ -6,7 +6,8 @@
 `LLM_QUEUE_TIMEOUT` 秒，仍无位则抛 `LLMBusyError`（调用方降级为"服务繁忙"提示）。
 
 async 流式（stream_with_retry）与同步兜底（线程池内 invoke）**共用同一计数**：
-threading.BoundedSemaphore 为唯一计数源，async 侧经 asyncio.to_thread 桥接，
+threading.BoundedSemaphore 为唯一计数源，async 侧在事件循环内非阻塞尝试+可取消轮询
+（取消窗口 D1 修复：不再经 to_thread 阻塞桥接，避免取消后迟到名额无人释放），
 避免"两套池子两套数"导致并发上限形同虚设。
 
 注意：缓存命中 / clarify / refuse 分支零 LLM，不经过本门控（本来就是瞬时返回）。
@@ -16,9 +17,11 @@ threading.BoundedSemaphore 为唯一计数源，async 侧经 asyncio.to_thread �
 import asyncio
 import os
 import threading
+import time
 
 _LIMIT = int(os.getenv("LLM_MAX_CONCURRENCY", "4"))
 _QUEUE_TIMEOUT = float(os.getenv("LLM_QUEUE_TIMEOUT", "30"))
+_POLL_INTERVAL = 0.05
 
 
 class LLMBusyError(Exception):
@@ -32,10 +35,20 @@ class _LLMGuard:
 
     # ---- async 流式路径（stream_with_retry）----
     async def __aenter__(self):
-        got = await asyncio.to_thread(self._sem.acquire, True, self._timeout)
-        if not got:
-            raise LLMBusyError("LLM 并发位满且排队超时")
-        return self
+        # 修复（取消窗口 D1，2026-10-06）：旧实现 `asyncio.to_thread(self._sem.acquire, True,
+        # self._timeout)` 在等待任务被取消后，工作线程仍会继续阻塞并在迟到拿到名额时无人
+        # release——名额永久泄漏（复现见 tests/test_cancel_boundaries.py）。
+        # 改为事件循环内非阻塞尝试 + 可取消的短睡轮询：同一 BoundedSemaphore 唯一计数源
+        # 不变；acquire 成功与返回 self 之间无 await（原子），取消不可能丢失已授予名额；
+        # 到期语义与原 timeout 一致。轮询间隔短于取消传播判据（3s），不影响正常路径。
+        deadline = time.monotonic() + self._timeout
+        while True:
+            if self._sem.acquire(blocking=False):
+                return self
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise LLMBusyError("LLM 并发位满且排队超时")
+            await asyncio.sleep(min(_POLL_INTERVAL, remaining))
 
     async def __aexit__(self, *exc):
         self._sem.release()

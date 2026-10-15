@@ -2,6 +2,7 @@
 
 import os
 import sys
+from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -18,6 +19,9 @@ class _FakeCand:
     answer = "修正后的答案"
     evidence = ""
     status = ""
+    # 真行由 `models.QaCandidate.created_at`（default=utcnow）保证有值 ⇒ 替身也得有，
+    # 否则本文件的假绿来自"替身比真对象少一列"（采纳路径要把这一列传给写侧当基准日）。
+    created_at = datetime(2026, 9, 1, 3, 0, 0)
 
 
 class _FakeDb:
@@ -45,3 +49,16 @@ def test_reject_does_not_invalidate(monkeypatch):
     monkeypatch.setattr(retrieval, "invalidate", lambda: called.append(1))
     ks.decide_candidate(_FakeDb(), 1, "rejected")
     assert called == []
+
+
+def test_approve_passes_candidate_date_as_basis(monkeypatch):
+    """采纳路径的**接缝**：把候选产生日交给写侧当基准日（不是让写侧自己落今天）。
+
+    本票其余用例把 `add_qa_pair` 打桩吞掉参数 ⇒ 看不见这条线；`test_qa_basis_write_side.py`
+    量的是"落库后存的到底是什么"（走真写侧）。两处都要有：这条钉接线，那条钉结果。
+    """
+    seen = {}
+    monkeypatch.setattr(ks, "add_qa_pair", lambda *a, **k: seen.update(args=a, kwargs=k))
+    monkeypatch.setattr(retrieval, "invalidate", lambda: None)
+    ks.decide_candidate(_FakeDb(), 1, "approved")
+    assert seen["kwargs"]["basis"] == "2026-09-01" == _FakeCand.created_at.date().isoformat()

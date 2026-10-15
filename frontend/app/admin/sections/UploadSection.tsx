@@ -56,11 +56,26 @@ export function UploadSection() {
         支持 .txt / .md / .pdf / .docx。文件内容会被切分并加入知识库，此后的提问即可检索并引用其中内容（RAG
         知识库扩充，非模型训练）。
       </p>
-      <div className="upload-zone mt-6" onClick={() => fileRef.current?.click()}>
+      {/* G13：此前是裸 div onClick + 一个 display:none 的 file input（拿不到焦点）
+          ⇒ 键盘 / 读屏用户无法完成入库。补齐 role/tabIndex/键盘触发与可达名称。 */}
+      <div
+        className="upload-zone mt-6"
+        role="button"
+        tabIndex={0}
+        aria-label="上传法律知识文件（回车选择文件）"
+        onClick={() => fileRef.current?.click()}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault(); // 空格默认滚动页面，这里归给按钮语义
+            fileRef.current?.click();
+          }
+        }}
+      >
         <input
           ref={fileRef}
           type="file"
           accept=".txt,.md,.pdf,.docx"
+          tabIndex={-1} // 焦点由外层 role=button 承担，避免两个 Tab 停靠点指向同一动作
           className="hidden"
           onChange={(e) => onUpload(e.target.files)}
         />

@@ -6,23 +6,26 @@ import os
 import socket
 import time
 from contextlib import asynccontextmanager, suppress
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import date, datetime
 from threading import Event
 from typing import Any
 from urllib.parse import urlparse
+from weakref import WeakValueDictionary
 
 from dotenv import load_dotenv
 
 # 必须在导入会读取环境变量的本地模块之前加载 .env
 load_dotenv()
 
+from anyio import CancelScope
 from fastapi import Depends, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.concurrency import run_in_threadpool
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from sqlalchemy import func, text
+from sqlalchemy.engine import Row
 from sqlalchemy.orm import Session
 
 import answer_cache
@@ -35,6 +38,7 @@ import quality
 import query_understand
 import quota_store
 import routing_metrics
+from agent import limitation_calc  # S5：快车道只**消费**版本判定真源，不在本文件重写规则
 from agent.chat_integration import (
     CoverageProjection,
     coverage_from_state_json,
@@ -43,8 +47,9 @@ from agent.chat_integration import (
 )
 from agent.controller import (
     _DEFAULT_RUN_LOCKS,
-    RESUME_CONFLICT_DETAIL,
+    RESUME_LAW_AS_OF_DETAIL,
     RESUME_NOT_FOUND_DETAIL,
+    ResumeLawAsOfConflict,
     ResumeRunConflict,
     ResumeRunNotFound,
     resume_with_user_fact,
@@ -61,15 +66,17 @@ from database import SessionLocal, get_db, init_db
 from domain_rules import (
     CITATION_SELECTION_RULE,
     build_contract_data,
+    canon_source,
     cheating_docs,
     consumer_clause_docs,
     consumer_fraud_docs,
+    contract_trigger_reason,
     is_consumer_clause_scenario,
     is_consumer_fraud_scenario,
     is_contract_review,
 )
 from intent import classify_intent
-from llm_errors import is_transient_error
+from llm_errors import is_request_shape_rejection, is_transient_error, status_of
 from llm_guard import LLMBusyError, llm_guard
 from llm_registry import QuotaExhausted, estimate_tokens, registry
 from memory import compress, load_context, needs_compress, recent_messages, rewrite_query
@@ -94,6 +101,7 @@ from prompts import (
     _EXAM_TYPE_SUFFIX,
     _EXAM_VERDICT_RULE,
     CONTRACT_CLARIFY_PROMPT,
+    CONTRACT_INTENT_CONFIRM_PROMPT,
     IMAGE_GUIDANCE,
     OUTPUT_FORMAT_RULE,
     SYSTEM_BASE,
@@ -103,7 +111,7 @@ from prompts import (
     SYSTEM_STUDY,
 )
 from quota_utils import UtilityQuotaExhausted
-from rag_chain import clean_answer, embeddings, format_docs, make_chain, stream_with_retry, vectorstore
+from rag_chain import ClosingStream, clean_answer, embeddings, format_docs, make_chain, stream_with_retry, vectorstore
 from request_bootstrap import (
     DEFAULT_CONTRACT_STATE,
     BootstrapDependencies,
@@ -117,18 +125,21 @@ from request_bootstrap import (
 )
 from retrieval import (
     _normalize_article,
+    _source_key,
     citation_grounding,
     citation_verify,
     exact_article_lookup,
     extract_citations,
     grounded_top_score,
     prewarm,
+    qa_citations_in_kb,
     retrieve,
     retrieve_exam,
     retrieve_for_test,
     scenario_supplement_docs,
     source_in_kb,
 )
+from retrieval_core import qa_provenance_verifiable, time_validity_state
 from schemas import (
     ChatIn,
     ConversationDetail,
@@ -240,13 +251,18 @@ class MaxContentLengthMiddleware:
 @asynccontextmanager
 async def lifespan(_app):
     setup_logging(settings.log_level)
-    # 预热：BM25 索引 + 源名集合（重启后首问冷启动 3s+ → 0），不阻塞事件循环。
-    # 失败仅降级（首问走惰性构建），不让应用拒绝启动（code-review：chroma 损坏时原惰性路径可恢复）
     try:
-        await run_in_threadpool(prewarm)
-    except Exception as e:
-        logging.warning("[prewarm] 预热失败，降级惰性构建（重启后首问稍慢）：%s", e)
-    yield
+        # 预热：BM25 索引 + 源名集合（重启后首问冷启动 3s+ → 0），不阻塞事件循环。
+        # 失败仅降级（首问走惰性构建），不让应用拒绝启动（code-review：chroma 损坏时原惰性路径可恢复）
+        try:
+            await run_in_threadpool(prewarm)
+        except Exception as e:
+            logging.warning("[prewarm] 预热失败，降级惰性构建（重启后首问稍慢）：%s", e)
+        yield
+    finally:
+        # 应用级收尾：事件循环仍在运行时由 registry 关闭其拥有的 SDK 连接池（幂等）；
+        # 业务异常先完成收尾再原样上抛，不吞异常。
+        await registry.aclose()
 
 
 app = FastAPI(title="AI 法律咨询小助手", lifespan=lifespan)
@@ -425,6 +441,16 @@ def get_media(filepath: str, user: User = Depends(get_current_user), db: Session
     return FileResponse(full)
 
 
+def _law_version_scope_note(pre: dict) -> str:
+    """显式历史基准日的模型可见标注（空串 = 未指定，不标注）。
+
+    全仓一份措辞：普通问答与合同两条 messages 组装路径共用。各抄一份会漂移，
+    而模型看到「哪一版法」的提示必须两处同义（同 NOTE_MULTI_INCOMPLETE 的复用理由）。
+    """
+    as_of = pre.get("law_as_of")
+    return f"（法律版本基准日：{as_of.isoformat()}）" if as_of else ""
+
+
 # ==================== 问答编排（多轮 + 多模态 + 异步压缩 + 受控沉淀） ====================
 def _build_messages(pre: dict) -> list:
     intent = pre.get("intent", "legal_query")
@@ -458,8 +484,9 @@ def _build_messages(pre: dict) -> list:
         qa_note = (
             f"此前已确认的问答（可优先参考）：\n问：{pre['qa_hit']['question']}\n答：{pre['qa_hit']['answer']}\n\n"
         )
+    date_scope = _law_version_scope_note(pre)
     context_block = (
-        f"本题相关法律条文（以下均为本题判断依据，含场景补充条文，可全部直接引用）：\n"
+        f"本题相关法律条文{date_scope}（以下均为本题判断依据，含场景补充条文，可全部直接引用）：\n"
         f"{pre['context'] or '（无直接命中条文）'}\n\n{qa_note}"
     )
     user_text = pre["user_text"]
@@ -505,6 +532,15 @@ def _describe_image_for_bootstrap(image: str, text: str) -> str:
 configure_default_image_describer(_describe_image_for_bootstrap)
 
 
+def _contract_intent_confirm_frames():
+    """E19（口径③⑥，2026-10-13）：与案情叙述同形的输入先确认审查意图，零 LLM。
+
+    独立成生成器只为让"锚点"与"直接吐 json.dumps({'content': …}) 的那行 yield"落在同一行且不超行宽
+    —— exit 扫描器是 AST 级的，要求锚点与内容表达式同行（见 gate_exit_registry 的 scan_content_yields）。
+    """
+    yield f"data: {json.dumps({'content': CONTRACT_INTENT_CONFIRM_PROMPT}, ensure_ascii=False)}\n\n"  # gate-exit: E19
+
+
 def _contract_messages(pre: dict, cd: dict) -> list:
     """组装合同 messages（首轮 = 完整报告；追问 = 只答追问）。
 
@@ -519,6 +555,7 @@ def _contract_messages(pre: dict, cd: dict) -> list:
         tags = "、".join(b["tags"]) or "无"
         evidence.append(f"[{b['n']}. {b['label']}] 风险标签：{tags}\n{b['text']}\n（相关条文：{arts}）")
     evidence_block = "\n\n".join(evidence)
+    scope_note = _law_version_scope_note(pre)
 
     # 追问判定用「是否已产出过完整报告」，而非「recent 有无 assistant 消息」——
     # need_clarify 信息确认反问也是 assistant 消息，会把首次真评估误判成追问、
@@ -540,7 +577,7 @@ def _contract_messages(pre: dict, cd: dict) -> list:
         sys_text += OUTPUT_FORMAT_RULE
         sys_text += CITATION_SELECTION_RULE
         user_content = (
-            f"【合同（分条款）】\n{evidence_block}\n\n"
+            f"【合同（分条款）】{scope_note}\n{evidence_block}\n\n"
             f"用户追问：{pre.get('user_text') or ''}\n\n"
             "请直接针对上面的追问回答，不要重新输出完整风险评估报告。"
         )
@@ -553,7 +590,7 @@ def _contract_messages(pre: dict, cd: dict) -> list:
     sys_text += f"\n（本份合同总体风险等级：{cd['level']}——判定依据：{cd['basis']}）"
     if cd.get("truncated"):
         sys_text += "\n（合同过长已截取前段，末尾请列出'未覆盖条款段'清单，建议用户分段审查）"
-    user_content = f"【合同（分条款）】\n{evidence_block}\n\n请按模板输出合同风险评估报告。"
+    user_content = f"【合同（分条款）】{scope_note}\n{evidence_block}\n\n请按模板输出合同风险评估报告。"
     return [SystemMessage(content=sys_text), HumanMessage(content=user_content)]
 
 
@@ -647,15 +684,17 @@ def _bootstrap_only(
     image,
     client_truncated: bool = False,
     case_domain: str | None = None,
+    law_as_of: date | None = None,
 ):
     """Persist one accepted user request without starting either answer path."""
-    return bootstrap_request(
+    bootstrap = bootstrap_request(
         user_id,
         conversation_id,
         text,
         image,
         client_truncated,
         case_domain=case_domain,
+        law_as_of=law_as_of,
         _deps=BootstrapDependencies(
             session_factory=SessionLocal,
             load_context=load_context,
@@ -667,40 +706,64 @@ def _bootstrap_only(
             is_exam_question=query_understand._is_exam_question,
             has_exam_options=query_understand.has_exam_options,
             is_contract_review=is_contract_review,
+            contract_trigger_reason=contract_trigger_reason,
             feature_multi_analyze=settings.feature_multi_analyze,
             contract_conversations=_contract_convs,
             contract_reviewed_conversations=_contract_reviewed_convs,
             is_contract_exit=is_contract_exit,
         ),
     )
+    if bootstrap.law_as_of is not None:
+        log_account(
+            kind="historical_law_query",
+            user_id=user_id,
+            conv_id=bootstrap.conv_id,
+            law_as_of=bootstrap.law_as_of.isoformat(),
+        )
+    return bootstrap
 
 
-def _prepare_fast_path_only(bootstrap: RequestBootstrap):
+def _prepare_fast_path_only(bootstrap: RequestBootstrap, turn: dict | None = None):
     """Run legacy retrieval from an already committed bootstrap exactly once."""
-    return prepare_fast_path(
-        bootstrap,
-        _deps=FastPathDependencies(
-            feature_study_retrieval=settings.feature_study_retrieval,
-            is_meta_study=query_understand.is_meta_study,
-            rewrite_for_retrieval=_rewrite_for_retrieval,
-            scenario_supplement_docs=scenario_supplement_docs,
-            retrieve_exam=retrieve_exam,
-            cheating_docs=cheating_docs,
-            build_contract_data=build_contract_data,
-            retrieve=retrieve,
-            search_qa=ks.search_qa,
-            is_consumer_clause_scenario=is_consumer_clause_scenario,
-            consumer_clause_docs=consumer_clause_docs,
-            is_consumer_fraud_scenario=is_consumer_fraud_scenario,
-            consumer_fraud_docs=consumer_fraud_docs,
-            format_docs=format_docs,
-        ),
-    )
+    try:
+        prepared = prepare_fast_path(
+            bootstrap,
+            _deps=FastPathDependencies(
+                feature_study_retrieval=settings.feature_study_retrieval,
+                is_meta_study=query_understand.is_meta_study,
+                rewrite_for_retrieval=_rewrite_for_retrieval,
+                scenario_supplement_docs=scenario_supplement_docs,
+                retrieve_exam=retrieve_exam,
+                cheating_docs=cheating_docs,
+                build_contract_data=build_contract_data,
+                retrieve=retrieve,
+                search_qa=ks.search_qa,
+                is_consumer_clause_scenario=is_consumer_clause_scenario,
+                consumer_clause_docs=consumer_clause_docs,
+                is_consumer_fraud_scenario=is_consumer_fraud_scenario,
+                consumer_fraud_docs=consumer_fraud_docs,
+                format_docs=format_docs,
+            ),
+        )
+        if turn is not None:
+            prepared.update(turn)
+        return prepared
+    except Exception:
+        # bootstrap 已提交 user，而响应尚未构造；先完成该轮再把原异常交给入口。
+        _post_placeholder(turn if turn is not None else {"conv_id": bootstrap.conv_id})
+        raise
 
 
-def _pre(user_id: int, conversation_id, text: str, image, client_truncated: bool = False):
+def _pre(
+    user_id: int,
+    conversation_id,
+    text: str,
+    image,
+    client_truncated: bool = False,
+    law_as_of: date | None = None,
+):
     """Compatibility coordinator for committed bootstrap plus legacy fast retrieval."""
-    bootstrap = _bootstrap_only(user_id, conversation_id, text, image, client_truncated)
+    bootstrap = _bootstrap_only(user_id, conversation_id, text, image, client_truncated, law_as_of=law_as_of)
     if settings.agent_shadow_enabled:
         try:
             _run_agent_gate_shadow(bootstrap)
@@ -729,16 +792,34 @@ def _record_actual_agent_route(route: str, *, fallback_reason: str | None = None
             pass
 
 
-def fallback_to_fast_path(bootstrap: RequestBootstrap, reason_code: str) -> dict:
+def fallback_to_fast_path(bootstrap: RequestBootstrap, reason_code: str, turn: dict | None = None) -> dict:
     """Prepare Fast Path only for one allowlisted technical Agent failure."""
     if not routing_metrics.is_technical_fallback_reason(reason_code):
         raise ValueError("Agent failure is not eligible for Fast Path fallback")
-    prepared = _prepare_fast_path_only(bootstrap)
+    prepared = _prepare_fast_path_only(bootstrap) if turn is None else _prepare_fast_path_only(bootstrap, turn)
     prepared["agent_fallback_reason"] = reason_code
     return prepared
 
 
-def _resume_bootstrap(*, conversation_id: int, answer: str, state: LegalAgentState) -> RequestBootstrap:
+def _resume_law_as_of(run_law_as_of: date) -> date | None:
+    """恢复分支的基准日取舍：基准日随 run 建立即固定，本次请求带来的不同日期在 CAS 前就被拒。
+
+    run 落**当日** ⇒ 返回 None（按"未指定历史"处理）。这是个**有损代理**：`AgentRun.law_as_of`
+    非空（`create_run` 一律 `or date.today()`），分不清"用户选了今天"和"用户没选"。唯一偏差：
+    首请求显式传今天会退出直返/共享缓存/沉淀，而恢复分支技术性降级回来时不会。取这个代理是为
+    不动生产默认路径（否则每个"走 Agent 再技术性降级"的请求都白丢一次缓存命中）。要彻底消偏差
+    得给 run 加"日期是否被显式选择"的标记 —— 那是 schema 改动，不在本轮授权内。
+    """
+    return None if run_law_as_of == date.today() else run_law_as_of
+
+
+def _resume_bootstrap(
+    *,
+    conversation_id: int,
+    answer: str,
+    state: LegalAgentState,
+    law_as_of: date | None,
+) -> RequestBootstrap:
     """Build a non-persisting Planner snapshot after an owned clarification CAS."""
     issue_context = "；".join(issue.question for issue in state.issues)
     query = f"原法律争点：{issue_context}\n用户补充：{answer.strip()}"
@@ -762,6 +843,8 @@ def _resume_bootstrap(*, conversation_id: int, answer: str, state: LegalAgentSta
         client_truncated=False,
         # R1-OB：resume 场景判域元信息沿用 state（首次请求时已持久化），保证多轮一致。
         case_domain=state.case_domain,
+        # 基准日同理沿用 run（首次请求时已落库）：技术性失败降级到快车道时不得改用现行法。
+        law_as_of=law_as_of,
     )
 
 
@@ -778,10 +861,137 @@ def _agent_streaming_response(result) -> StreamingResponse:
     )
 
 
-async def _execute_agent_observing_disconnect(request: Request, **kwargs):
-    """Run one bounded service call while projecting client disconnect into a stop check."""
+async def _join_owned_task(task: asyncio.Task):
+    """Finish owned work despite repeated task cancellation; retain its result."""
+    while not task.done():
+        try:
+            await asyncio.shield(task)
+        except asyncio.CancelledError:
+            continue
+        except Exception:
+            break
+    return task.result()
+
+
+async def _execute_agent_observing_disconnect(
+    request: Request,
+    *,
+    resume: dict | None = None,
+    initial: dict | None = None,
+    fast_path_pre: dict | None = None,
+    **kwargs,
+):
+    """Own acceptance, execution and Fast Path handoff as one preparation task.
+
+    Rejected resume has no compensation. Once accepted, worker and Session must
+    outlive cancellation; clarification remains fact-only. A normal Fast Path
+    handoff carries the same storage guard to response cleanup.
+    """
     disconnected = Event()
     finished = asyncio.Event()
+    pre: dict = {}
+
+    def snapshot_turn() -> dict:
+        with SessionLocal() as db:
+            conv_id = resume["conversation_id"] if resume is not None else kwargs["bootstrap"].conv_id
+            conv = db.get(Conversation, conv_id)
+            if conv is None or conv.user_id != kwargs["user_id"]:
+                raise RuntimeError("Agent turn conversation ownership changed")
+            boundary = db.query(func.max(Message.id)).filter(Message.conversation_id == conv_id).scalar() or 0
+            return {"conv_id": conv_id, "agent_user_id": kwargs["user_id"], "agent_turn_after": boundary}
+
+    async def compensate(pre: dict) -> None:
+        try:
+            await run_in_threadpool(_post_placeholder, pre, "stopped" if disconnected.is_set() else "no_response")
+        except Exception as exc:
+            # Do not report a safe close when the only result write failed.
+            print(f"[agent-turn-compensate] failed: {type(exc).__name__}", flush=True)
+            logging.getLogger("legal.agent").error(
+                "agent_turn_compensation_failed: %s",
+                type(exc).__name__,
+                extra={"conv_id": pre.get("conv_id"), "user_id": kwargs["user_id"]},
+            )
+            raise
+
+    async def run_and_record():
+        # Acceptance is inside the owned task: cancellation must not abandon a
+        # CAS/bootstrap thread after commit but before its return is delivered.
+        resumed = None
+        if resume is not None:
+            resumed = await run_in_threadpool(resume_with_user_fact, db=kwargs["db"], **resume)
+        elif initial is not None:
+            kwargs["bootstrap"] = await run_in_threadpool(
+                _bootstrap_only,
+                kwargs["user_id"],
+                initial["conversation_id"],
+                initial["text"],
+                initial["image"],
+                initial["truncated"],
+                initial["case_domain"],
+                initial["law_as_of"],
+            )
+        pre.update(await run_in_threadpool(snapshot_turn))
+        try:
+            if resumed is not None:
+                kwargs["bootstrap"] = _resume_bootstrap(
+                    conversation_id=resume["conversation_id"],
+                    answer=resume["answer"],
+                    state=resumed.state,
+                    law_as_of=_resume_law_as_of(resumed.law_as_of),
+                )
+                kwargs["run_id"] = resumed.run_id
+            if initial is not None:
+                bootstrap = kwargs["bootstrap"]
+                correlation_id = make_agent_correlation_id(conversation_id=bootstrap.conv_id)
+                try:
+                    gate = decide_gate(bootstrap)
+                except Exception:
+                    _observe_agent_gate(correlation_id, "fast_path", [GATE_TECHNICAL_FAILURE], technical_failure=True)
+                    selected = False
+                else:
+                    _observe_agent_gate(correlation_id, gate.mode, list(gate.reason_codes), technical_failure=False)
+                    selected = (initial["force_agent"] and gate.mode != "refuse") or routing_metrics.should_route_agent(
+                        gate, settings, _stable_agent_request_seed(kwargs["user_id"], bootstrap.conv_id)
+                    )
+                if not selected:
+                    if disconnected.is_set():
+                        await compensate(pre)
+                        raise asyncio.CancelledError
+                    prepared = await run_in_threadpool(_prepare_fast_path_only, bootstrap, pre)
+                    pre.update(prepared)
+                    if disconnected.is_set():
+                        await compensate(pre)
+                        raise asyncio.CancelledError
+                    assert fast_path_pre is not None
+                    fast_path_pre.update(pre)
+                    _record_actual_agent_route("fast_path")
+                    return None
+            result = await run_in_threadpool(execute_agent_request, cancelled=disconnected.is_set, **kwargs)
+            _record_actual_agent_route("agent_path")
+            if result.outcome == "fallback":
+                await run_in_threadpool(kwargs["db"].rollback)
+                if disconnected.is_set():
+                    await compensate(pre)
+                    raise asyncio.CancelledError
+                if fast_path_pre is not None:
+                    prepared = await run_in_threadpool(
+                        fallback_to_fast_path, kwargs["bootstrap"], result.reason_code, pre
+                    )
+                    pre.update(prepared)
+                    if disconnected.is_set():
+                        await compensate(pre)
+                        raise asyncio.CancelledError
+                    fast_path_pre.update(pre)
+                    _record_actual_agent_route("fast_path", fallback_reason=result.reason_code)
+        except Exception:
+            # Release failed/unfinished SQL before a fresh session writes the result.
+            await run_in_threadpool(kwargs["db"].rollback)
+            await compensate(pre)
+            raise
+        if result.outcome == "failed":
+            await run_in_threadpool(kwargs["db"].rollback)
+            await compensate(pre)
+        return result
 
     async def watch_disconnect() -> None:
         while not finished.is_set():
@@ -794,12 +1004,24 @@ async def _execute_agent_observing_disconnect(request: Request, **kwargs):
                 continue
 
     watcher = asyncio.create_task(watch_disconnect())
+    worker = asyncio.create_task(run_and_record())
     try:
-        return await run_in_threadpool(
-            execute_agent_request,
-            cancelled=disconnected.is_set,
-            **kwargs,
-        )
+        return await asyncio.shield(worker)
+    except asyncio.CancelledError:
+        disconnected.set()
+        # A sync worker cannot be cancelled safely. Join it before the caller
+        # closes its Session or releases the conversation lock. Shield AnyIO
+        # level cancellation and tolerate repeated asyncio task.cancel().
+        with CancelScope(shield=True):
+            try:
+                result = await _join_owned_task(worker)
+                # Cancellation may win exactly as the worker returns fallback;
+                # then the caller never transfers storage to the Fast Path.
+                if pre and (result is None or result.outcome == "fallback"):
+                    await _join_owned_task(asyncio.create_task(compensate(pre)))
+            except Exception as exc:
+                print(f"[agent-turn-cancel-cleanup] failed: {type(exc).__name__}", flush=True)
+        raise
     finally:
         finished.set()
         watcher.cancel()
@@ -927,16 +1149,19 @@ def _post(pre: dict, answer: str, curate: bool = True):
             text("UPDATE conversations SET message_count = COALESCE(message_count, 0) + 1 WHERE id = :id"),
             {"id": pre["conv_id"]},
         )
-        conv.message_count = (conv.message_count or 0) + 1
         conv.last_active_at = datetime.utcnow()
         if not conv.answer:
             conv.answer = (answer or "")[:2000]
         db.commit()
+        pre["assistant_committed"] = True
 
         # 受控沉淀：高有据 + 含引用 + 非空答 → 入待审
         # 沉淀闸（决策 7）：只收真实法律咨询——study_aid 法考题错答（多选漏答）可被采纳污染
         # qa_pairs；cheating 问答本就不该沉淀；chitchat/meta 无引用本就不沉淀。
-        if curate and pre.get("intent") == "legal_query":
+        # 历史基准日的答案同样不收：它引的是该日有效、当日可能已废止的版本，而一条 qa_pairs 记录只带
+        # 一个 `law_as_of_basis`（= 答案**产出那天**的当日口径，见 `knowledge_service.add_qa_pair`），
+        # 没有版本轴 ⇒ 收下它就等于把旧版答案标成"今日之法"，现行查询会直返它。
+        if curate and pre.get("intent") == "legal_query" and not pre.get("law_as_of"):
             grounded = grounded_top_score(pre["rewritten"])
             q = pre["user_text"] or pre["rewritten"]
             if q and should_curate(grounded, answer):
@@ -952,24 +1177,46 @@ def _post(pre: dict, answer: str, curate: bool = True):
         db.close()
 
 
-def _post_placeholder(pre: dict) -> None:
+def _post_placeholder(pre: dict, reason: str = "no_response") -> None:
     """SSE 失败/空答的补偿：落一条 assistant 占位消息，保持 user/assistant 成对与 message_count 一致。
 
     _pre 已落库用户消息；若流式生成失败/空答时 _post 从未执行，会留下无答复的用户消息、
     计数永久错位（对抗审计 2026-08-07）。占位不沉淀、不压缩。
+
+    `reason`（D-23，2026-10-11）决定这条历史消息怎么说：`stopped` = 连接在产出答案前就断了
+    （用户停止 / 切换会话 / 断网），`no_response` = 服务端这一轮没给出内容。两者混成一句
+    "服务暂时无响应"，等于把用户自己的操作写成平台故障，而这条记录会留在历史里被反复读到。
     """
+    if pre.get("assistant_committed"):
+        return
+    content = _PLACEHOLDER_STOPPED if reason == "stopped" else _PLACEHOLDER_NO_RESPONSE
     db = SessionLocal()
     try:
-        db.add(Message(conversation_id=pre["conv_id"], role="assistant", content="服务暂时无响应，请稍后重试。"))
         conv = db.get(Conversation, pre["conv_id"])
+        if "agent_turn_after" in pre:
+            # The cursor is captured by the accepted, serialized request, not
+            # inferred from the last user message or a reusable run_id.
+            if conv is None or conv.user_id != pre.get("agent_user_id"):
+                raise RuntimeError("Agent compensation conversation ownership changed")
+            later_roles: list[Row[tuple[str]]] = (
+                db.query(Message.role)
+                .filter(Message.conversation_id == pre["conv_id"], Message.id > pre["agent_turn_after"])
+                .all()
+            )
+            if any(role == "assistant" for (role,) in later_roles):
+                pre["assistant_committed"] = True
+                return
+            if any(role == "user" for (role,) in later_roles):
+                raise RuntimeError("Agent compensation lost its turn ownership")
+        db.add(Message(conversation_id=pre["conv_id"], role="assistant", content=content))
         # 对抗审计 v2 #21：原子自增（与 _pre/_post 同款防竞态）
         db.execute(
             text("UPDATE conversations SET message_count = COALESCE(message_count, 0) + 1 WHERE id = :id"),
             {"id": pre["conv_id"]},
         )
-        conv.message_count = (conv.message_count or 0) + 1
         conv.last_active_at = datetime.utcnow()
         db.commit()
+        pre["assistant_committed"] = True
     finally:
         db.close()
 
@@ -1004,13 +1251,54 @@ def _safe_pick(modality: str, tier: str, *, exclude: set[str] | None = None) -> 
         return key, llm, False
     except QuotaExhausted:
         dk = registry.default_key()
-        return dk, registry.get(), registry.is_unavailable(dk)
+        # DB-17 补（2026-10-09 复核轮 B 路）：这条路绕过 `pick` 的冷却过滤，所以降级判定必须
+        # 把"该模型正在 4xx 冷却"也算进去——否则整池冷却时每个请求都会再烧一次刚被打回的
+        # 默认模型，且不标降级（冷却就只剩"少选它"没有"别打它"）。配额语义仍不参与。
+        return dk, registry.get(), registry.is_unavailable(dk) or registry.is_rejected(dk)
 
 
 # 核对/降级提示（轻量升级失败、旗舰自检失败、配额紧张共用，避免字面量重复）
 # B1（2026-08-07）：去掉"建议核对条文原文"——前端曾为清这句写 stripUnprovidedHint，后端不再制造该噪音
+# 空答兜底文案（4 处 SSE error 帧共用：轻量空答/合同空答/旗舰空答/R15 分支；Standards 轴：Duplicated Code）
+_ERROR_NO_RESPONSE = "服务暂时无响应，请稍后重试"
+# D-23（Owner 2026-10-11 裁「改」）：占位消息此前只有一句"服务暂时无响应"，连**用户自己按下的停止**
+# 也被写成平台故障——当场前端显示"已停止生成"，刷新/换设备看历史却读成"服务不可用"。
+# 故障文案复用上面那条（不抄第二份字面量，两处只允许句号不同）。
+_PLACEHOLDER_NO_RESPONSE = _ERROR_NO_RESPONSE + "。"
+_PLACEHOLDER_STOPPED = "本次回答已停止，未生成完整内容。"
+
 NOTE_COMPLEX = "\n\n> 注：该问题较复杂，本回答仅供参考。"
 NOTE_QUOTA = "\n\n> 注：模型配额紧张，本回答仅供参考。"
+# S5（2026-09-19）快车道版本绊线命中时的明说降级注记（同 NOTE_* 惯用法，不静默替换答案）。
+NOTE_LAW_VERSION = "\n\n> 注：本回答所适用的法律版本与所述事实的发生时间可能不一致，本回答仅供参考。"
+# 多选漏答症状注记（决策 8）。**全仓只此一份措辞**：流式出口（登记表 E11）与轻量缓冲出口
+# （票 J 新增，登记表 E16）共用它 —— 两处各抄一份字面量会让"同一症状两句话"漂移，
+# 而它们本该是同一条告警（票 J §J-2：「复用流式那份纯函数，不许重写规则」同理）。
+NOTE_MULTI_INCOMPLETE = "\n\n> ⚠️ 本题可能为多选题，上述回答似乎只给出了一个正确选项，请核对是否遗漏。"
+# S0-c（2026-09-26）：显式历史基准日 + 证据时效未核验 ⇒ 明说，不静默。
+# 措辞避开 `quality._HONEST_REFUSE_MARKS` 与 `VAGUE_PHRASES` 的字面（注记会进 `self_check` 的输入，
+# 撞上前者会把"无据硬答"洗成诚实拒答，撞上后者会把正常答复判成含糊）。
+NOTE_TIME_UNVERIFIED = (
+    "\n\n> 注：本回答引用的条文缺少可核验的时效信息（生效日、废止日），"
+    "在所问的历史基准日是否有效未经核验，本回答仅供参考。"
+)
+
+
+def _time_unverified_hit(pre: dict) -> bool:
+    """S0-c 注记判据，**全仓唯一一份**。两个条件缺一不可：
+
+    ① 本次答案用了**显式历史基准日** ⇒ 只认 `pre["law_as_of"]`。该键由
+    `request_bootstrap.prepare_fast_path` 在 `bootstrap.law_as_of is not None` 时才写入
+    （未指定 ⇒ 键不存在），它就是"这一答问的是过去的法"的单一源头；各出口不许再各自
+    从 body 重算（`_exit_law_as_of` 已为此立过一次前科）。
+    ⚠️ 别拿 `cutoff` 当这个条件：检索层 `cutoff = cutoff or date.today().isoformat()` 让它
+    永远非空 ⇒ "带 cutoff 才注记"是空判据。
+    ② 本轮检索证据里有 `time_validity_state == "unknown"` 的块 —— 即"没资格断言它那天有效"。
+    """
+    if not pre.get("law_as_of"):
+        return False
+    return any(time_validity_state(s) == "unknown" for s in pre.get("sources") or ())
+
 
 # 低置信反问计数（任务2）：conv_id → 已反问（最多一次，防死循环）。进程内状态，
 # 单 worker 下有效（ADR-008 单 worker 约束）；重启清零可接受——反问上限防的是同会话循环。
@@ -1024,16 +1312,33 @@ def _cutoff() -> str:
 def _cacheable(pre: dict) -> bool:
     """仅安全形态可缓存：法律咨询/法考题(study_aid) + 无图 + 首轮 + 检索命中。
 
-    study_aid 白名单由 feature_study_cache 控制（ADR-012 后法考题答案自检通过率高——
-    评测 19/20 带库内引用，写闸见 _cache_write_ok，防"引在库但答非所问"入缓存）。"""
+    study_aid 白名单由 feature_study_cache 控制；显式历史日期不进共享答案缓存。"""
     intent = pre.get("intent")
     ok_intent = intent == "legal_query" or (settings.feature_study_cache and intent == "study_aid")
-    return ok_intent and not pre.get("image") and not pre.get("recent") and bool(pre.get("sources"))
+    return (
+        ok_intent
+        and not pre.get("law_as_of")
+        and not pre.get("image")
+        and not pre.get("recent")
+        and bool(pre.get("sources"))
+    )
 
 
-def _cache_key(pre: dict) -> str:
-    ids = [f"{s.get('source', '')}|{s.get('article', '')}" for s in (pre.get("sources") or [])]
-    return answer_cache.make_key(pre.get("rewritten", ""), pre.get("intent", ""), _cutoff(), ids)
+def _cache_scope(pre: dict, cutoff: str | None = None) -> answer_cache.CacheScope:
+    ids = [
+        json.dumps(
+            [s.get(field) or "" for field in ("source", "article", "effective_from", "effective_to", "status")],
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+        for s in (pre.get("sources") or [])
+    ]
+    return answer_cache.make_scope(pre.get("intent", ""), cutoff or _cutoff(), ids)
+
+
+def _cache_key(pre: dict, cutoff: str | None = None) -> str:
+    intent, day, ids = _cache_scope(pre, cutoff)
+    return answer_cache.make_key(pre.get("rewritten", ""), intent, day, list(ids))
 
 
 def _cache_write_ok(pre: dict, answer: str) -> bool:
@@ -1041,15 +1346,21 @@ def _cache_write_ok(pre: dict, answer: str) -> bool:
 
     自检（quality.self_check）只是"无实体"门禁——查引用是否在库，不保证"引对题"
     （引在库但答非所问）。法考题答案与检索条文强绑定，故写缓存前追加确定性校验：
-    引用条号 ⊆ 检索 sources 的条号集合，防止"引对库内条但语义不对题"的坏答案被
+    引用（法名、条号）⊆ 检索 sources 的对应集合，防止跨法同条号的坏答案被
     TTL 6h 缓存放大给所有同 key 用户。legal_query 维持现状（自检已覆盖）。
     """
     if pre.get("intent") != "study_aid":
         return True
-    retrieved = {_normalize_article(s.get("article", "")) for s in (pre.get("sources") or []) if s.get("article")}
+    retrieved = {
+        (_source_key(canon_source(s["source"])), _normalize_article(s["article"]))
+        for s in (pre.get("sources") or [])
+        if s.get("source") and s.get("article")
+    }
     if not retrieved:
         return False
-    cited = {_normalize_article(a) for _, a, _ in extract_citations(answer or "")}
+    cited = {
+        (_source_key(canon_source(source)), _normalize_article(a)) for source, a, _ in extract_citations(answer or "")
+    }
     return bool(cited) and cited <= retrieved
 
 
@@ -1074,7 +1385,7 @@ def _embed_question(text: str) -> list[float] | None:
         return None
 
 
-def _similar_cache_hit(pre: dict) -> dict | None:
+def _similar_cache_hit(pre: dict, scope: answer_cache.CacheScope | None = None) -> dict | None:
     """近重复命中（feature_similar_cache，grilling 定稿）：嵌入输入 + 护栏 → get_similar。
 
     仅当精确 key miss 时调用；护栏不一致（极性/选项数/标号体系/指纹）→ miss，安全。
@@ -1084,56 +1395,67 @@ def _similar_cache_hit(pre: dict) -> dict | None:
         if not emb:
             return None
         pol, cnt, lab, fp = _cache_guards(pre.get("rewritten") or "")
-        return answer_cache.get_similar(emb, polarity=pol, option_count=cnt, label_system=lab, options_fingerprint=fp)
+        return answer_cache.get_similar(
+            emb,
+            polarity=pol,
+            option_count=cnt,
+            label_system=lab,
+            options_fingerprint=fp,
+            scope=scope if scope is not None else _cache_scope(pre),
+        )
     except Exception:
         return None
 
 
 _QA_DIRECT_RETURN_THRESHOLD = 0.92  # QA 语义直返阈值（审查护栏：低于则回落 LLM）
+# 民法典分水岭：**不另立日期**，直接别名到 `limitation_calc` 的那一个（全仓唯一真源）。
+# 票 I 的 I-2(a) 靠它判"请求的基准日与语料基准日是否分处分水岭两侧"。
+_CIVIL_WATERSHED = limitation_calc.CIVIL_CODE_EFFECTIVE
 
 
-def _qa_direct_return(pre: dict) -> str | None:
+def _qa_direct_return(pre: dict, law_as_of: date | None = None) -> str | None:
     """QA 持久语义缓存直返（8-23 智谱免费 token 预生成语料）：高阈值 + 指纹 + 时效护栏。
 
     命中返回预生成解析答案（零 LLM）；任一护栏不过 → None（回落 LLM 生成）。
     - score ≥ 0.92（search_qa 余弦，接近同一问法）
     - 选项指纹护栏（审查 C4）：选项题同题干换选项内容必须 miss
-    - evidence 时效校验：source|article 在库且仍有效（exact_article_lookup）
+    - evidence 时效校验：source|article 在库且仍有效（判据本体 `retrieval.qa_citations_in_kb`）
+    - **版本适用护栏（票 I 的 I-2(a)，2026-09-20）**：这份语料是 2026 年生成的
+      （`scripts/gen_qa_corpus.py` docstring：「智谱免费 token …（8-23 到期前消耗）」⇒ 生成日 ≤ 2026-08-23），
+      其答案反映的是**民法典时代**的法。若本次请求的 `law_as_of` 落在分水岭之前，直返就是
+      **用后法答前事** ⇒ 必须 miss 回落 LLM。判据复用 `limitation_calc.CIVIL_CODE_EFFECTIVE`
+      （**不另立第二个分水岭**）。
+
+    ⚠️ 三条既有护栏**一个字没动**（票面 I-4 明令），本节是按 I-2 要求新增的**第四**条。
+
+    **第五道（第四轮核对 §10 第 2 条，2026-09-24 由 Owner 裁决收紧）**：`retrieval_core.qa_provenance_verifiable`
+    ⇒ `evidence` 给不出可校验条文引用、或 `law_as_of_basis` 不是有效 YYYY-MM-DD 日期的记录**一律不直返**。这一道**取代**了原先
+    "语料没有该字段⇒不拦（保持旧行为）"的口径：分水岭守卫缺输入时不再放行，而是在源头就被拒。
+    同一个判据也挂在产生处（`request_bootstrap.prepare_fast_path`），所以 `_build_messages` 那条
+    "此前已确认的问答"注入通道一起被关——第 8 节②只闭了本函数，漏的就是那一条。
+    本函数**自带**这道判据（而不是只靠产生处）：有既有评测探针直接构造 `pre` 调它量直返率
+    （`dispatch-output/i1-e2-hitrate-20260920/probe_b_direct_return_rate.py`），那条路径绕过产生处。
     """
     qa = pre.get("qa_hit")
     if not qa or qa.get("score", 0) < _QA_DIRECT_RETURN_THRESHOLD:
         return None
+    if not qa_provenance_verifiable(qa):
+        return None  # 来源校验不了 ⇒ 本出口不放行（与产生处同一判据，直连调用路径也挡得住）
+    if law_as_of is not None:
+        basis = date.fromisoformat(qa["law_as_of_basis"])  # 有效日期由共享来源判据保证
+        if (basis >= _CIVIL_WATERSHED) != (law_as_of >= _CIVIL_WATERSHED):
+            return None  # 版本适用跨分水岭 → 直返必错（票 I 的 I-2(a)）
     q = pre.get("rewritten") or ""
     q_fp = query_understand._options_fingerprint(q)
     stored_fp = qa.get("fingerprint") or ""
     if q_fp and stored_fp and q_fp != stored_fp:
         return None  # 同题干换选项内容 → 直返必错（C4）
-    evidence = qa.get("evidence") or ""
-    if "|" in evidence:
-        # 种子格式：source|article
-        src, art = evidence.split("|", 1)
-        try:
-            if not exact_article_lookup(src, art):
-                return None  # 证据条文已失效/不在库 → 不直返
-        except Exception:
-            return None
-    elif evidence.lstrip().startswith("["):
-        # 自动沉淀格式：JSON 数组 [{source, article, ...}]——逐条校验，任一条失效 → 不直返
-        # （原只认 "|" 格式，自动沉淀的 JSON evidence 被静默跳过时效护栏，对抗审计 2026-08-07）
-        try:
-            refs = json.loads(evidence)
-        except Exception:
-            return None
-        for r in refs:
-            src = (r or {}).get("source", "")
-            art = (r or {}).get("article", "")
-            if src and art:
-                try:
-                    if not exact_article_lookup(src, art):
-                        return None
-                except Exception:
-                    return None
-    # feedback:... 等其他 evidence 无条文引用 → 跳过时效校验
+    # 时效护栏：逐条校验引用的条文今天是否仍在库。判据本体在 `retrieval.qa_citations_in_kb`，
+    # 与产生处（`request_bootstrap.prepare_fast_path`）调的是**同一个函数**（票 W1，2026-09-25 裁决
+    # "对称收口"）——此前这一步只写在本函数里，于是另一条出路（`_build_messages` 的
+    # "此前已确认的问答"注入）从未做过时效判定。本出口仍自带这道判据的理由见上面第五道。
+    if not qa_citations_in_kb(qa):
+        return None  # 证据条文已失效/不在库/查不动 → 不直返
     return qa.get("answer") or None
 
 
@@ -1148,48 +1470,207 @@ class _LightResult:
     usage: int
     escalated: bool
     verdict: str
+    # S5 快车道版本绊线：命中=True 时答案已追加 NOTE_LAW_VERSION，且**不得**进缓存（见调用点）。
+    # 刻意不复用 verdict 承载该信号 —— verdict 是自检归因（pass/vague/low_quota/…），覆盖它就会
+    # 丢掉"为什么降级"的那一半信息，两条降级原因得能同时出现在一张日志里。
+    law_version_hit: bool = False
+    # 票 J：**独立的降级信号**，与 verdict 分开（同 S5 那条字段注释立下的规矩）。语义严格对齐流式的
+    # `flag_degraded`（= "本来该用的模型不可用，这条答复是在降级下产出的"），**只有**
+    # `_light_buffered_locked` 里 `except QuotaExhausted` 那一支为 True（升级旗舰时配额耗尽 ⇒ 退回
+    # 轻量产物 + NOTE_QUOTA）。刻意**不含**"轻量即旗舰、无更强者可升"那一支：那是能力上限，不是降级；
+    # 也不含自检 FAIL —— 那是 verdict 的归因域。两条必须能同时出现在一张日志里（见调用点的 log_account）。
+    degraded: bool = False
 
 
-def _light_buffered(pre: dict, messages: list) -> _LightResult:
-    """轻量路径：缓冲生成 → 自检 → 至多一次升级旗舰重答。同步，线程池内跑。"""
+def _fast_path_fact_texts(pre: dict) -> list[str]:
+    """快车道的"事实文本"集 = **用户自述**（本轮问句 + 改写 + 历史里的用户消息）。
+
+    与 agent 路径 `verifier._fact_texts`（= issue.facts + unknown_facts）同语义：都是"本案事实"，
+    不是"检索到的法条"。⚠️ 刻意不含 `pre["context"]` / `pre["sources"]` —— 那里面的日期属于证据池
+    （且旧法条文本必然带分水岭前的年份），当事实用会让每条引用都点亮判定，是纯假阳性。
+    """
+    texts = [pre.get("user_text") or "", pre.get("rewritten") or ""]
+    texts += [
+        m.get("content") or "" for m in (pre.get("recent") or []) if isinstance(m, dict) and m.get("role") == "user"
+    ]
+    return [t for t in texts if t]
+
+
+def _client_law_as_of(body) -> date | None:
+    """公开历史查询；部署关闭时明确拒绝，避免静默改用当日法律。"""
+    if body.law_as_of is not None and not settings.allow_client_law_as_of:
+        raise HTTPException(status_code=503, detail="历史查询当前不可用")
+    return body.law_as_of
+
+
+def _client_case_domain(body) -> str | None:
+    """客户端传入的 `case_domain`，经评测通道闸过滤。
+
+    定位：该值决定 R1-OB 判域（劳/民/商…），是**评测/灰度输入**，不是普通用户的偏好。
+    `settings.allow_client_case_domain=False`（默认）⇒ 返回 None ⇒ 消费方落默认，
+    行为与"客户端没传"完全一致（前端从不传该字段，生产默认路径零变化）。
+
+    ⚠️ 本闸的消费点当前**只在 agent 启用分支内**（`if not settings.agent_enabled:` 之后）⇒
+    本文件无端点级用例（harness 没有 agent 路由）；已有回归守卫保证"闸外不得存在直读"
+    （`tests/test_client_case_domain_gate.py`）。
+    """
+    if not settings.allow_client_case_domain:
+        return None
+    return body.case_domain
+
+
+def _fast_path_law_as_of(body) -> date:
+    """快车道版本绊线基准日；检索 cutoff 已在 bootstrap 准备阶段接入。"""
+    return _client_law_as_of(body) or date.today()
+
+
+def _exit_law_as_of(pre: dict, body) -> date:
+    """出口（QA 直返 / 轻量缓冲 / 版本绊线）的生效基准日：以**本次取数所用**的日期为准。
+
+    各出口原先各自 `_fast_path_law_as_of(body)` 重算。正常请求上两者同值，所以看不出问题；
+    但 Agent 恢复分支技术性降级时基准日在 run 上、body 里没有 ⇒ 重算得**今日**，而
+    `pre["law_as_of"]` 是 run 的历史日，于是版本绊线拿现行法去判历史证据、日志也把
+    `law_as_of` 记成今日。故出口只认 `pre`，`pre` 没有才回落到 body 口径。
+    """
+    from_body = _fast_path_law_as_of(body)  # 无条件算：让 spy 型用例仍能观测 body 口径
+    return pre.get("law_as_of") or from_body
+
+
+# 版本绊线门的出口标签。**为什么做成参数**：S5 时期这道门只有一个消费者，日志里那句
+# "（缓冲轻量出口）"是写死的；票 C 把同一道门接到旗舰流式出口上 ⇒ 再有第二个消费者，
+# 写死就是把流式的命中记成轻量的命中（假归因）。默认值一律不给：漏传直接 TypeError，
+# 不给"静默记错出口"留路。
+EXIT_LIGHT = "缓冲轻量出口"
+EXIT_STREAM = "旗舰流式出口"
+
+
+def _law_version_gate(
+    answer: str, fact_texts: list[str], law_as_of: date | None, *, exit_label: str
+) -> tuple[str, bool]:
+    """法律版本绊线门：进出都是**答案文本**，返回 `(交付文本, 是否命中)`。
+
+    判定规则**只**在 `limitation_calc`（单一真源，票 C §5-1）。入参形态在票 C 改过一次：
+    S5 收的是 `_LightResult`，而旗舰流式出口在收口点只有 `answer` 字符串（没有配额 key、
+    档位、自检 verdict 可填）⇒ 按票 C §5-2「签名不合用就改签名、别开第二份门函数」改成收文本，
+    两个出口各自把 `(answer, hit)` 装回自己的返回形状（判定/注记/日志仍只此一份）。
+
+    开关关 ⇒ 原样返回 `(answer, False)`（行为逐字不变）。开关开而拿不到 `law_as_of` ⇒
+    fail-closed 按命中处理，口径照抄 agent 路径 `verifier.py:296-297`：开关开而基准日缺失 =
+    接线丢失 = 判定不可信，**不等于**可以放行（静默放行正是这道门要防的失败模式）。
+    """
+    if not settings.fast_path_law_version_check:
+        return answer, False
+    if law_as_of is None:
+        reason = "LAW_TRIPWIRE_NOT_WIRED"
+    elif limitation_calc.law_version_crosses_watershed(answer, fact_texts, law_as_of):
+        reason = "LAW_VERSION_WATERSHED_MISMATCH"
+    else:
+        return answer, False
+    # 落被判定原文 + 基准日：否则线上只知道"拦了"，不知道按哪版法拦了哪句（5afc8d0 的可归因教训）。
+    logging.getLogger("legal.chat").warning(
+        "快车道版本绊线命中（%s）：%s",
+        exit_label,
+        reason,
+        extra={
+            "fast_path_law_version_hit": True,
+            "fast_path_law_version_reason": reason,
+            "fast_path_law_version_detail": answer[:200],
+            "law_as_of": law_as_of.isoformat() if law_as_of else None,
+        },
+    )
+    # 空答不追加注记：两个出口都靠"空答 ⇒ error 帧"兜底（缓冲出口见调用方的 `else`，流式出口见
+    # `if not answer:`），给它加字会把"没答上来"伪装成"答了但仅供参考"。
+    return ((answer + NOTE_LAW_VERSION) if answer else ""), True
+
+
+async def _ainvoke_cancel_safe(llm, messages):
+    """Own one model task so repeated ASGI cancellation cannot interrupt SDK cleanup."""
+    task = asyncio.create_task(llm.ainvoke(messages))
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError:
+        # AnyIO uses level cancellation; gather inside LangChain would otherwise
+        # forward repeated task.cancel() calls into the HTTP transport's teardown.
+        with CancelScope(shield=True):
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
+            except Exception as exc:
+                print(f"[llm-cancel-cleanup] failed: {type(exc).__name__}", flush=True)
+        raise
+
+
+async def _light_buffered(pre: dict, messages: list, law_as_of: date | None = None) -> _LightResult:
+    """轻量路径：可取消缓冲生成 → 自检 → 至多一次升级旗舰重答。"""
     modality = "vision" if pre.get("image") else "text"
     ctx_present = bool(pre.get("sources"))
     lkey, llm, _ = _safe_pick(modality, "light")  # 轻量回退降级由下方升级 except 兜底
-    with llm_guard:  # 轻量+升级重答共占一个并发位（同一请求串行持有，突增时降级）
-        return _light_buffered_locked(pre, messages, modality, ctx_present, lkey, llm)
+    async with llm_guard:  # 轻量+升级重答共占一个并发位，取消归还同一计数源
+        return await _light_buffered_locked(pre, messages, modality, ctx_present, lkey, llm, law_as_of)
 
 
-def _light_buffered_locked(pre: dict, messages: list, modality: str, ctx_present: bool, lkey, llm) -> _LightResult:
+async def _light_buffered_locked(
+    pre: dict, messages: list, modality: str, ctx_present: bool, lkey, llm, law_as_of: date | None = None
+) -> _LightResult:
     """轻量路径主体（已持有并发位）：缓冲生成 → 自检 → 至多一次升级旗舰重答。"""
-    resp = llm.invoke(messages)
+    # 开关关 ⇒ 不做无谓的事实扫描（同 verifier.py:338 的省法）。
+    fact_texts = _fast_path_fact_texts(pre) if settings.fast_path_law_version_check else []
+
+    def _with_gate(res: _LightResult) -> _LightResult:
+        """五个 return 点共用的**装配**：过门，再把 `(answer, hit)` 装回返回结构。
+
+        判定、注记、日志全在 `_law_version_gate` 一处（票 C §5-2：只此一份门）；本闭包只是
+        把票 C 改过的门签名接回 S5 的 `_LightResult` 形状，五个 return 点的构造一字未动。
+        """
+        answer, hit = _law_version_gate(res.answer, fact_texts, law_as_of, exit_label=EXIT_LIGHT)
+        return replace(res, answer=answer, law_version_hit=hit)
+
+    resp = await _ainvoke_cancel_safe(llm, messages)
     raw = clean_answer(resp.content or "") if resp else ""
     usage = _token_charge(resp, raw)
     v = quality.self_check(raw, ctx_present)
     if v.ok:
-        return _LightResult(raw, lkey, modality, "light", usage, False, "pass")
+        return _with_gate(_LightResult(raw, lkey, modality, "light", usage, False, "pass"))
     # 升级旗舰（配额耗尽则不升级，明说降级）
     try:
         fkey, fllm = registry.pick(modality, "flag")
     except QuotaExhausted:
-        return _LightResult(
-            (raw + NOTE_QUOTA) if raw else "", lkey, modality, "light", usage, False, v.reason or "low_quota"
+        # 票 J：这是轻量路径**唯一**的降级点 ⇒ 独立信号在这里点亮（不是靠 verdict 里那个
+        # "low_quota" 字符串表达的：verdict 还同时承载自检归因，两个信号必须能分开读）。
+        return _with_gate(
+            _LightResult(
+                (raw + NOTE_QUOTA) if raw else "",
+                lkey,
+                modality,
+                "light",
+                usage,
+                False,
+                v.reason or "low_quota",
+                degraded=True,
+            )
         )
     if fkey == lkey:  # 轻量即旗舰，无更强者可升
-        return _LightResult((raw + NOTE_COMPLEX) if raw else "", lkey, modality, "light", usage, False, v.reason)
-    fresp = fllm.invoke(messages)
+        return _with_gate(
+            _LightResult((raw + NOTE_COMPLEX) if raw else "", lkey, modality, "light", usage, False, v.reason)
+        )
+    fresp = await _ainvoke_cancel_safe(fllm, messages)
     fraw = clean_answer(fresp.content or "") if fresp else ""
     fusage = _token_charge(fresp, fraw)
     fv = quality.self_check(fraw, ctx_present)
     if fv.ok:
-        return _LightResult(fraw, fkey, modality, "flag", usage + fusage, True, "pass")
-    return _LightResult((fraw + NOTE_COMPLEX) if fraw else "", fkey, modality, "flag", usage + fusage, True, fv.reason)
+        return _with_gate(_LightResult(fraw, fkey, modality, "flag", usage + fusage, True, "pass"))
+    return _with_gate(
+        _LightResult((fraw + NOTE_COMPLEX) if fraw else "", fkey, modality, "flag", usage + fusage, True, fv.reason)
+    )
 
 
-def _invoke_llm(messages, llm=None) -> str:
-    """非流式兜底：流式不兼容/空答时，用给定（或默认）模型 invoke 一次拿完整答案。"""
+async def _invoke_llm(messages, llm=None) -> str:
+    """非流式兜底：可取消地用给定（或默认）模型拿完整答案。"""
     llm = llm or registry.get()
-    with llm_guard:  # 同步兜底同样占一个并发位
-        resp = llm.invoke(messages)
+    async with llm_guard:
+        resp = await _ainvoke_cancel_safe(llm, messages)
     return resp.content if resp else ""
 
 
@@ -1296,7 +1777,13 @@ async def admin_analysis_runs(request: Request, limit: int = 50, admin: User = D
 
 @app.get("/api/law")
 @limiter.limit("60/minute")
-async def law_detail(request: Request, source: str, article: str, user: User = Depends(get_current_user)):
+async def law_detail(
+    request: Request,
+    source: str,
+    article: str,
+    run_id: str | None = None,
+    user: User = Depends(get_current_user),
+):
     """法条原文（前端法条悬浮卡 / 速查面板，P1）。复用 exact_article_lookup，未命中 404。
 
     B3（2026-08-07）：article 先 _normalize_article 归一（〇/零、阿拉伯/中文、之条），
@@ -1304,6 +1791,40 @@ async def law_detail(request: Request, source: str, article: str, user: User = D
     """
 
     def _do():
+        if run_id is not None:
+            from agent.schemas import LegalAgentState
+            from agent.writer import canonical_citations
+
+            # 同时核验 run 与会话归属；有 run 的卡片绝不回退为“当前版本”。
+            with SessionLocal() as db:
+                run = (
+                    db.query(AgentRun)
+                    .join(Conversation, AgentRun.conversation_id == Conversation.id)
+                    .filter(AgentRun.id == run_id, AgentRun.user_id == user.id, Conversation.user_id == user.id)
+                    .one_or_none()
+                )
+                if run is None:
+                    return None
+                try:
+                    state = LegalAgentState.model_validate_json(run.state_json)
+                except ValueError:
+                    return None
+                requested = canonical_citations(f"《{source}》{_normalize_article(article)}")
+                if not requested:
+                    return None
+                matched = [
+                    ev for ev in state.evidence if requested <= canonical_citations(ev.source_ref + "\n" + ev.snippet)
+                ]
+                if not matched:
+                    return None
+                return {
+                    "source": source,
+                    "article": _normalize_article(article),
+                    "content": "\n\n".join(dict.fromkeys(ev.snippet for ev in matched)),
+                    "is_snapshot": True,
+                    "law_as_of": run.law_as_of.isoformat(),
+                    "status": "答复证据快照（非完整条文）",
+                }
         docs = exact_article_lookup(source, _normalize_article(article))
         if not docs:
             return None
@@ -1352,16 +1873,33 @@ async def law_search(request: Request, q: str, user: User = Depends(get_current_
     return await run_in_threadpool(_do)
 
 
-async def _stream_with_status_preframe(gen):
-    """P0 即时首帧：先发一个占位状态帧，再委托原 stream() 生成器。
+class _ChatStreamingResponse(StreamingResponse):
+    """请求返回前关闭聊天 body，包括断开发生在阻塞的 send() 中。
 
-    浏览器首字符从"模型 prefill + RAG 检索"的秒级等待，降到 <50ms（助手气泡+提示瞬出）；
-    原 stream() 内的 _pre / RAG / 模型调用逻辑零改动，错误语义不变。前端对未知 type 帧自动忽略。
-    注：本帧只改善"首个可见字符"的体感延迟；真实首内容 token 延迟（日志 first_ms）由后续 P1/P2 优化。
+    `on_response_close` 只在 response/route 所有权边界上运行一次：断开若卡在
+    `http.response.start` 的 send 里，body 生成器从未进入，`aclose()` 不会执行它的
+    finally —— 那一段补偿只能由本响应负责，否则会留下没有答复的用户消息。
     """
-    yield f"data: {json.dumps({'type': 'status', 'msg': '正在思考…'}, ensure_ascii=False)}\n\n"
-    async for frame in gen:
-        yield frame
+
+    def __init__(self, *args, on_response_close=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._on_response_close = on_response_close
+
+    async def __call__(self, scope, receive, send):
+        try:
+            async with ClosingStream(self.body_iterator):
+                await super().__call__(scope, receive, send)
+        finally:
+            if self._on_response_close is not None:
+                with CancelScope(shield=True):
+                    await self._on_response_close()
+
+
+async def _stream_with_status_preframe(gen):
+    """显式托管原 stream；即时 status 由它在 try/finally 内发送，断开仍留失败占位。"""
+    async with ClosingStream(gen) as stream:
+        async for frame in stream:
+            yield frame
 
 
 def serialize_clarification_event(*, run_id: str, state_version: int, prompt: str, issue_id: str) -> dict[str, object]:
@@ -1375,9 +1913,142 @@ def serialize_clarification_event(*, run_id: str, state_version: int, prompt: st
     }
 
 
-@app.post("/api/chat")
+_CHAT_TURN_WAIT_SECONDS = 180.0  # 与前端既有无帧超时预算一致，排队不永久悬挂。
+# ponytail: 进程内串行边界，仅支持现有单 worker；多 worker 需持久化的轮次所有权。
+_chat_turn_locks: WeakValueDictionary[tuple[int, int], asyncio.Lock] = WeakValueDictionary()
+
+
+def _resolve_chat_conversation(
+    user: User, conversation_id: int | None, *, create_if_missing: bool = True
+) -> tuple[int, datetime | None]:
+    """确定本人会话身份；聊天保留失效编号新建语义，删除只读确认。"""
+    with SessionLocal() as db:
+        conv = db.get(Conversation, conversation_id) if conversation_id else None
+        if conv is None or conv.user_id != user.id:
+            if not create_if_missing:
+                raise HTTPException(status_code=404, detail="会话不存在")
+            conversation_id = create_conversation(user, db)["id"]
+            conv = db.get(Conversation, conversation_id)
+        if conv is None:
+            raise HTTPException(status_code=404, detail="会话不存在")
+        return conv.id, conv.created_at
+
+
+def _require_chat_conversation(user_id: int, conversation_id: int, created_at: datetime | None) -> None:
+    """排队后核对同一会话；删除及 SQLite 编号复用均不得静默换到新会话。"""
+    with SessionLocal() as db:
+        conv = db.get(Conversation, conversation_id)
+        if conv is None or conv.user_id != user_id or conv.created_at != created_at:
+            raise HTTPException(status_code=404, detail="会话不存在")
+
+
+async def _acquire_chat_turn(request: Request, user_id: int, conversation_id: int) -> asyncio.Lock:
+    lock = _chat_turn_locks.setdefault((user_id, conversation_id), asyncio.Lock())
+    deadline = time.monotonic() + _CHAT_TURN_WAIT_SECONDS
+    while True:
+        if await request.is_disconnected():
+            raise HTTPException(status_code=499, detail="请求已取消")
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise HTTPException(status_code=503, detail="上一轮请求仍在处理，请稍后重试")
+        try:
+            # 直接等待，不创建 acquire 子任务：wait_for 在授予/父取消同拍时可能吞取消。
+            async with asyncio.timeout(min(0.1, remaining)):
+                await lock.acquire()
+        except TimeoutError:
+            continue
+        try:
+            if await request.is_disconnected():
+                raise HTTPException(status_code=499, detail="请求已取消")
+            task = asyncio.current_task()
+            if task is not None and task.cancelling():
+                raise asyncio.CancelledError
+            return lock
+        except BaseException:
+            lock.release()
+            raise
+
+
+@app.post("/api/chat", name="chat")
 @limiter.limit("60/minute")
-async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
+async def _serialized_chat(request: Request, body: ChatIn, user: User = Depends(get_current_user)):
+    """同会话从 bootstrap 前持有到响应持久化结束；不同会话保持并行。"""
+    lock = None
+    response = None
+    # Populated only on an Agent preparation -> Fast Path handoff. Terminal
+    # Agent outcomes keep storage responsibility inside the preparation task.
+    agent_turn: dict = {}
+    try:
+        if body.agent_run_id is None:
+            _client_law_as_of(body)  # 拒绝门须在新会话提交前执行。
+            text = ((body.content if body.content is not None else body.question) or "").strip()
+            if (not text and not body.image) or (body.image and not registry.has_modality("vision")):
+                return await chat(request, body, user)  # 原入口负责拒绝，无需先创建空会话。
+            if body.image:
+                try:
+                    await run_in_threadpool(validate_image, body.image)
+                except ValueError as exc:
+                    raise HTTPException(status_code=400, detail=str(exc)) from exc
+            conv_id, created_at = await run_in_threadpool(_resolve_chat_conversation, user, body.conversation_id)
+            body = body.model_copy(update={"conversation_id": conv_id})
+        if body.conversation_id is not None:
+            lock = await _acquire_chat_turn(request, user.id, body.conversation_id)
+            if body.agent_run_id is None:
+                await run_in_threadpool(_require_chat_conversation, user.id, body.conversation_id, created_at)
+        response = await chat(request, body, user, accepted_agent_turn=agent_turn)
+        if isinstance(response, _ChatStreamingResponse):
+            owned_lock = lock
+            cleanup = response._on_response_close
+
+            async def finish_turn():
+                try:
+                    await cleanup()
+                finally:
+                    owned_lock.release()
+
+            response._on_response_close = finish_turn
+            lock = None  # 响应接管；不能在路由返回时释放。
+        return response
+    except BaseException as exc:
+        if isinstance(response, _ChatStreamingResponse):
+            with CancelScope(shield=True):
+                await _join_owned_task(asyncio.create_task(response._on_response_close()))
+        elif "agent_turn_after" in agent_turn:
+            # Preparation is done but no response owns cleanup yet. Keep this
+            # write inside the conversation lock, including repeated cancellation.
+            with CancelScope(shield=True):
+                cleanup_task = asyncio.create_task(
+                    run_in_threadpool(
+                        _post_placeholder,
+                        agent_turn,
+                        "stopped" if isinstance(exc, asyncio.CancelledError) else "no_response",
+                    )
+                )
+                try:
+                    await _join_owned_task(cleanup_task)
+                except Exception as cleanup_exc:
+                    logging.getLogger("legal.agent").error(
+                        "agent_response_compensation_failed: %s",
+                        type(cleanup_exc).__name__,
+                        extra={"conv_id": agent_turn["conv_id"], "user_id": user.id},
+                    )
+        raise
+    finally:
+        if lock is not None:
+            lock.release()
+
+
+async def chat(
+    request: Request,
+    body: ChatIn,
+    user: User = Depends(get_current_user),
+    *,
+    accepted_agent_turn: dict | None = None,
+):
+    # 在取证前捕获代次与日期；失效前启动的请求可以完成，但不得重新污染共享缓存。
+    cache_generation = answer_cache.generation()
+    cache_cutoff = _cutoff()
+    client_law_as_of = _client_law_as_of(body)
     text = (body.content if body.content is not None else body.question) or ""
     text = text.strip()
     image = body.image
@@ -1386,7 +2057,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
     if image and not registry.has_modality("vision"):
         raise HTTPException(status_code=501, detail="图片理解当前不可用：所配置模型无视觉能力")
     t0 = time.perf_counter()
-    pre = None
+    pre: dict | None = None
     if body.agent_run_id is not None:
         assert body.agent_state_version is not None and body.conversation_id is not None
         if not text:
@@ -1395,45 +2066,48 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             raise HTTPException(status_code=503, detail="Agent 当前已停用，请稍后重试")
         db = SessionLocal()
         try:
-            resumed = await run_in_threadpool(
-                resume_with_user_fact,
-                db=db,
-                run_locks=_DEFAULT_RUN_LOCKS,
-                run_id=str(body.agent_run_id),
-                expected_version=body.agent_state_version,
-                user_id=user.id,
-                conversation_id=body.conversation_id,
-                answer=text,
-            )
-            resume_bootstrap = _resume_bootstrap(
-                conversation_id=body.conversation_id,
-                answer=text,
-                state=resumed.state,
-            )
+            pre = accepted_agent_turn if accepted_agent_turn is not None else {}
             agent_result = await _execute_agent_observing_disconnect(
                 request,
+                resume={
+                    "run_locks": _DEFAULT_RUN_LOCKS,
+                    "run_id": str(body.agent_run_id),
+                    "expected_version": body.agent_state_version,
+                    "user_id": user.id,
+                    "conversation_id": body.conversation_id,
+                    "answer": text,
+                    "expected_law_as_of": client_law_as_of,
+                },
+                fast_path_pre=pre,
                 db=db,
                 user_id=user.id,
                 settings=settings,
-                bootstrap=resume_bootstrap,
                 finalizer=finalize_verified_agent_answer,
-                run_id=resumed.run_id,
             )
         except ResumeRunNotFound:
             raise HTTPException(status_code=404, detail=RESUME_NOT_FOUND_DETAIL) from None
-        except ResumeRunConflict:
-            raise HTTPException(status_code=409, detail=RESUME_CONFLICT_DETAIL) from None
+        except ResumeLawAsOfConflict:
+            raise HTTPException(status_code=409, detail=RESUME_LAW_AS_OF_DETAIL) from None
+        except ResumeRunConflict as _resume_exc:
+            # DB-15（2026-10-09，审查报告 B-47）：同一句 409 文案背后原本是几类完全不同的成因
+            # （版本冲突 / 持久状态读不出 / 用户这次的输入不合式 / 步数预算打满）。
+            # 成因进结构化日志字段 `agent_resume_reason`（已登记进 observability 白名单，
+            # 否则会被 JSON formatter 静默丢弃）；D-10（2026-10-11）起对外文案按成因分档，
+            # 由 `ResumeRunConflict.detail` 给出——不在这里再拼一遍，避免两处漂移。
+            logging.getLogger("legal.agent").warning(
+                "agent_resume_conflict",
+                extra={
+                    "agent_resume_reason": _resume_exc.reason_code,
+                    "agent_run_id": str(body.agent_run_id),
+                    "user_id": user.id,
+                    "conv_id": body.conversation_id,
+                },
+            )
+            raise HTTPException(status_code=409, detail=_resume_exc.detail) from None
         finally:
             db.close()
-        _record_actual_agent_route("agent_path")
         if agent_result.outcome != "fallback":
             return _agent_streaming_response(agent_result)
-        _record_actual_agent_route("fast_path", fallback_reason=agent_result.reason_code)
-        pre = await run_in_threadpool(
-            fallback_to_fast_path,
-            resume_bootstrap,
-            agent_result.reason_code,
-        )
     if not text and not image:
         raise HTTPException(status_code=400, detail="请输入问题或上传图片")
     if pre is None:
@@ -1446,70 +2120,34 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     text,
                     image,
                     body.truncated,
+                    client_law_as_of,
                 )
                 _record_actual_agent_route("fast_path")
             else:
-                bootstrap = await run_in_threadpool(
-                    _bootstrap_only,
-                    user.id,
-                    body.conversation_id,
-                    text,
-                    image,
-                    body.truncated,
-                    body.case_domain,
-                )
-                correlation_id = make_agent_correlation_id(conversation_id=bootstrap.conv_id)
+                db = SessionLocal()
+                pre = accepted_agent_turn if accepted_agent_turn is not None else {}
                 try:
-                    gate = decide_gate(bootstrap)
-                except Exception:
-                    _observe_agent_gate(
-                        correlation_id,
-                        "fast_path",
-                        [GATE_TECHNICAL_FAILURE],
-                        technical_failure=True,
+                    agent_result = await _execute_agent_observing_disconnect(
+                        request,
+                        initial={
+                            "conversation_id": body.conversation_id,
+                            "text": text,
+                            "image": image,
+                            "truncated": body.truncated,
+                            "case_domain": _client_case_domain(body),
+                            "law_as_of": client_law_as_of,
+                            "force_agent": bool(getattr(body, "force_agent", False)),
+                        },
+                        fast_path_pre=pre,
+                        db=db,
+                        user_id=user.id,
+                        settings=settings,
+                        finalizer=finalize_verified_agent_answer,
                     )
-                    selected = False
-                else:
-                    _observe_agent_gate(
-                        correlation_id,
-                        gate.mode,
-                        list(gate.reason_codes),
-                        technical_failure=False,
-                    )
-                    forced_manual = bool(getattr(body, "force_agent", False)) and gate.mode != "refuse"
-                    selected = forced_manual or routing_metrics.should_route_agent(
-                        gate,
-                        settings,
-                        _stable_agent_request_seed(user.id, bootstrap.conv_id),
-                    )
-                if selected:
-                    db = SessionLocal()
-                    try:
-                        agent_result = await _execute_agent_observing_disconnect(
-                            request,
-                            db=db,
-                            user_id=user.id,
-                            settings=settings,
-                            bootstrap=bootstrap,
-                            finalizer=finalize_verified_agent_answer,
-                        )
-                    finally:
-                        db.close()
-                    _record_actual_agent_route("agent_path")
-                    if agent_result.outcome != "fallback":
-                        return _agent_streaming_response(agent_result)
-                    _record_actual_agent_route(
-                        "fast_path",
-                        fallback_reason=agent_result.reason_code,
-                    )
-                    pre = await run_in_threadpool(
-                        fallback_to_fast_path,
-                        bootstrap,
-                        agent_result.reason_code,
-                    )
-                else:
-                    _record_actual_agent_route("fast_path")
-                    pre = await run_in_threadpool(_prepare_fast_path_only, bootstrap)
+                finally:
+                    db.close()
+                if agent_result is not None and agent_result.outcome != "fallback":
+                    return _agent_streaming_response(agent_result)
         except ValueError as ve:
             raise HTTPException(status_code=400, detail=str(ve)) from ve
         except LLMBusyError:
@@ -1550,15 +2188,28 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 bool(pre["sources"]),
                 _clarified.get(pre["conv_id"], False),
             )
-    cache_key = None if body.no_cache else (_cache_key(pre) if (use_router and _cacheable(pre)) else None)
+    cache_key = None if body.no_cache else (_cache_key(pre, cache_cutoff) if (use_router and _cacheable(pre)) else None)
+    cache_scope = _cache_scope(pre, cache_cutoff) if cache_key else None
     cache_hit = answer_cache.get(cache_key) if cache_key else None
     flag_key = flag_llm = None
     if use_router and not use_light:
         flag_key, flag_llm, flag_degraded = _safe_pick(modality, tier or "flag")
 
+    # 请求局部的所有权标记：正文生成器**是否真的进入过**。用可变对象而非 `nonlocal`
+    # 赋值，`stream()` 里的下标写入不需要声明，既有按 AST 提取 `stream` 的测试门也不受影响。
+    stream_state = {"entered": False}
+
     async def stream():
+        stream_state["entered"] = True
         _posted = False  # 本轮 assistant 消息是否已落库（对抗审计 v2 #5/#8：客户端断开时 finally 兜底占位）
+        # D-23：兜底占位要区分"连接被打断"与"这一轮服务端没给出内容"。
+        # 判据必须是**真实断开信号**，不能是"有没有走到 try 结尾"——正文里有 5 处 `return` 是
+        # 走完正常分支后主动退出的（轻量/合同/chitchat 等），用"没走到结尾"反推会把它们全判成取消。
+        # 独立复核 B（2026-10-11）就是这么打中我这版实现的：轻量分支空答走 `:2415` 的 return，
+        # 会被错写成"已停止"，而同样的空答在旗舰分支写的是"不响应"——同一症状两句话。
+        _client_gone = False
         try:
+            yield f"data: {json.dumps({'type': 'status', 'msg': '正在思考…'}, ensure_ascii=False)}\n\n"
             if pre.get("agent_fallback_reason"):
                 yield f"data: {json.dumps({'type': 'restart', 'reason_code': pre['agent_fallback_reason']}, ensure_ascii=False)}\n\n"
             # ── 分支决策总览图（零 token 优先，LLM 兜底）─────────────────────────
@@ -1572,11 +2223,11 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 分支0：缓存命中（精确 key 优先，近重复兜底 feature_similar_cache）→ 零 token 直返
             hit = cache_hit
             if not hit and cache_key and settings.feature_similar_cache:
-                hit = await run_in_threadpool(_similar_cache_hit, pre)
+                hit = await run_in_threadpool(_similar_cache_hit, pre, cache_scope)
             if hit:
                 ca = hit["answer"]
                 _f0 = time.perf_counter()  # 缓存命中：首帧≈总耗时（瞬时，用于首帧埋点分段标注）
-                yield f"data: {json.dumps({'content': ca}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'content': ca}, ensure_ascii=False)}\n\n"  # gate-exit: E1
                 routing_metrics.record("cache", False, "pass", "hit", checked=False)
                 log_account(
                     model="cache",
@@ -1601,10 +2252,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 分支0.2：QA 持久语义缓存直返（8-23 智谱免费 token 预生成语料，零 LLM）
             # 高阈值 + 选项指纹 + evidence 时效三护栏；仅命中才直返，否则回落 LLM
             # 对抗审计 v2 #20：_qa_direct_return 内 Chroma .get() 同步阻塞事件循环 → 线程池
-            qa_ans = None if body.no_cache else await run_in_threadpool(_qa_direct_return, pre)
+            qa_ans = (
+                None if body.no_cache else await run_in_threadpool(_qa_direct_return, pre, _exit_law_as_of(pre, body))
+            )
             if qa_ans:
                 _f0 = time.perf_counter()
-                yield f"data: {json.dumps({'content': qa_ans}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'content': qa_ans}, ensure_ascii=False)}\n\n"  # gate-exit: E2
                 routing_metrics.record("qa_cache", False, "pass", "hit", checked=False)
                 log_account(
                     model="qa_cache",
@@ -1633,7 +2286,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 if strategy == "clarify":
                     _clarified[pre["conv_id"]] = True  # 会话级：最多反问一次
                 _f0 = time.perf_counter()  # 反问/拒答：零 LLM，首帧≈总耗时
-                yield f"data: {json.dumps({'content': msg}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'content': msg}, ensure_ascii=False)}\n\n"  # gate-exit: E3
                 routing_metrics.record(strategy, False, "pass", "miss", checked=False)
                 log_account(
                     model="rule",
@@ -1659,10 +2312,42 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             # 分支0.3：合同 / 文书风险评估（确定性骨架，2026-08-06）
             if pre.get("contract_data"):
                 cd = pre["contract_data"]
+                if cd.get("confirm_intent"):
+                    # 口径③⑥（2026-10-13）：与案情叙述同形的输入先确认审查意图，不静默切换。
+                    # 零 LLM 反问；用户下一轮回“审合同/分析案情”即定路。会话级只问一次（request_bootstrap 记账）。
+                    _f0 = time.perf_counter()
+                    for _frame in _contract_intent_confirm_frames():
+                        yield _frame
+                    routing_metrics.record("contract_intent_confirm", False, "pass", "miss", checked=False)
+                    log_account(
+                        model="rule",
+                        tier="contract_intent_confirm",
+                        cache="miss",
+                        token_est=0,
+                        first_ms=round((_f0 - t0) * 1000, 1),
+                        ms=round((time.perf_counter() - t0) * 1000, 1),
+                        ok=True,
+                        conv_id=pre["conv_id"],
+                        user_id=user.id,
+                        q_len=len(text),
+                    )
+                    yield (
+                        "data: "
+                        + json.dumps({"conversation_id": pre["conv_id"], "sources": pre["sources"]}, ensure_ascii=False)
+                        + chr(10)
+                        + chr(10)
+                    )
+                    yield "data: [DONE]" + chr(10) + chr(10)
+                    try:
+                        await run_in_threadpool(_post, pre, CONTRACT_INTENT_CONFIRM_PROMPT, False)
+                        _posted = True
+                    except Exception as e:
+                        print(f"[chat-post] {e}", flush=True)
+                    return
                 if cd.get("need_clarify"):
                     # 信息确认闸：触发但无合同全文 → 零 LLM 反问要内容/范围/立场/类型
                     _f0 = time.perf_counter()
-                    yield f"data: {json.dumps({'content': CONTRACT_CLARIFY_PROMPT}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'content': CONTRACT_CLARIFY_PROMPT}, ensure_ascii=False)}\n\n"  # gate-exit: E4
                     routing_metrics.record("contract_clarify", False, "pass", "miss", checked=False)
                     log_account(
                         model="rule",
@@ -1720,24 +2405,32 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         # （否则 pick 会再选回同一模型 → 死循环）。
                         _ctried.add(_ccur["key"])
                         if not is_transient_error(_e):
-                            registry.mark_depleted(_ccur["key"], "model_failure")
+                            # DB-17（报告 B-48）：请求形状类 4xx（超长上下文/内容审核/模型名错/key 失效）
+                            # 走**冷却**通道，不再记进配额账；真耗尽仍走 mark_depleted。
+                            if is_request_shape_rejection(_e):
+                                registry.mark_rejected(_ccur["key"], "model_failure", status=status_of(_e))
+                            else:
+                                registry.mark_depleted(_ccur["key"], "model_failure")
                     _rstart = True
 
-                async for piece in stream_with_retry(
-                    _cmake_chain,
-                    cm,
-                    [(False, 0.0), (True, 0.5), (False, 0.5)],
-                    on_model_failure=_cfail if use_router else None,
-                ):
-                    if _rstart:
-                        _rstart = False
-                        chunks = []
-                        _f0 = None
-                        yield f"data: {json.dumps({'type': 'restart'}, ensure_ascii=False)}\n\n"
-                    if _f0 is None:
-                        _f0 = time.perf_counter()
-                    chunks.append(piece)
-                    yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"
+                async with ClosingStream(
+                    stream_with_retry(
+                        _cmake_chain,
+                        cm,
+                        [(False, 0.0), (True, 0.5), (False, 0.5)],
+                        on_model_failure=_cfail if use_router else None,
+                    )
+                ) as pieces:
+                    async for piece in pieces:
+                        if _rstart:
+                            _rstart = False
+                            chunks = []
+                            _f0 = None
+                            yield f"data: {json.dumps({'type': 'restart'}, ensure_ascii=False)}\n\n"
+                        if _f0 is None:
+                            _f0 = time.perf_counter()
+                        chunks.append(piece)
+                        yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E5
                 answer = "".join(chunks)
                 if answer:
                     _contract_reviewed_convs.add(pre["conv_id"])  # 完整报告已产出：之后续聊才算追问
@@ -1750,14 +2443,47 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         await run_in_threadpool(
                             registry.deduct, _ccur["key"], est * registry.thinking_mult(_ccur["key"])
                         )
+                    if _time_unverified_hit(pre):
+                        # 报告增量已逐段吐出 ⇒ 追加一帧（登记表 E18，与旗舰 E17 同族）。
+                        # ⚠️ 别把这里读成"注记跟着进缓存"：`_cacheable` 的 `not pre.get("law_as_of")`
+                        # 已把带基准日的请求整个挡在共享答案缓存外 ⇒ 票 H 那个"缓存掉告警"形状在此不成立。
+                        answer += NOTE_TIME_UNVERIFIED
+                        yield f"data: {json.dumps({'content': NOTE_TIME_UNVERIFIED}, ensure_ascii=False)}\n\n"  # gate-exit: E18
                     bad = citation_verify(answer)
-                    if cache_key:
-                        # 继承回答缓存（code-review #5：重复贴同一合同零重烧）
-                        answer_cache.put(cache_key, answer, pre["sources"], model="contract_review")
+                    # 降级信号（S2 同族）：`_safe_pick` 起初就落到"本身已不可用"的默认模型。
+                    # 短路保护：`flag_degraded` 只在 `use_router and not use_light` 那一支被赋过值
+                    # （合同分支里 use_router 为真 ⇒ use_light 已被强制 False ⇒ 该支必已执行），
+                    # 而本分支在 `use_router` 为假时同样会走到 ⇒ 直接把裸名读出来会 NameError。
+                    degraded = use_router and flag_degraded
+                    if cache_key and not bad and not degraded:
+                        # 继承回答缓存（code-review #5：重复贴同一合同零重烧）。
+                        # 两道闸（票 H）：**引用未收录**（bad 非空）与**降级产出**的报告都不得进缓存 ——
+                        # 写进去的是追加注记**之前**的那一份，被零 token 复播时告警/免责注会一起丢掉
+                        # （同族形状：E10 的注记也在 `put` 之后 ⇒ 该处靠"命中不入缓存"那道闸兜住）。
+                        answer_cache.put(
+                            cache_key,
+                            answer,
+                            pre["sources"],
+                            model="contract_review",
+                            scope=cache_scope,
+                            generation=cache_generation,
+                        )
                     if bad:
                         note = "\n\n> 注：报告引用 " + "、".join(bad) + " 未在知识库中检索到，建议核对。"
                         answer += note
-                        yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"  # gate-exit: E6
+                    if degraded:
+                        # 与流式出口同族的"降级明说"（登记表 E13 / S2：不静默烧耗尽模型）。
+                        # 本合同分支此前没有任何降级出口 ⇒ 用户看到一份"看起来正常"的报告。
+                        answer += NOTE_QUOTA
+                        yield f"data: {json.dumps({'content': NOTE_QUOTA}, ensure_ascii=False)}\n\n"  # gate-exit: E15
+                if not answer:
+                    # 票 H-2 尾支（Owner 2026-09-20 裁定补）：`stream_with_retry` 三次尝试全部
+                    # 「空内容、无异常」时，这里此前**既不产 content 帧也不产 error 帧**
+                    # （实测探针：`log_tiers=["contract_review"]`、帧序列无 content/error）⇒ 用户端一片空白。
+                    # 复用轻量出口（E7 空答支）的现成文案与帧形状。不写缓存（空答本来就不写）；
+                    # 之后的 conversation_id/[DONE] 帧照常发 ⇒ 流是**正常收尾**的，只是多了这条 error。
+                    yield f"data: {json.dumps({'error': _ERROR_NO_RESPONSE}, ensure_ascii=False)}\n\n"
                 routing_metrics.record("contract_review", False, "pass", "miss", checked=False)
                 log_account(
                     model="contract_review",
@@ -1765,7 +2491,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     cache="miss",
                     first_ms=round((_f0 or 0.0) * 1000, 1),
                     ms=round((time.perf_counter() - t0) * 1000, 1),
-                    ok=True,
+                    ok=bool(answer),
                     conv_id=pre["conv_id"],
                     user_id=user.id,
                     q_len=len(text),
@@ -1793,15 +2519,51 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
 
             # 分支1：轻量缓冲 + 自检 + 至多一次升级旗舰
             if use_light:
-                res = await run_in_threadpool(_light_buffered, pre, messages)
+                res = await _light_buffered(pre, messages, _exit_law_as_of(pre, body))
                 answer = res.answer
+                if answer and _time_unverified_hit(pre):
+                    # 缓冲整答还没吐出 ⇒ 注记并进 E7 那一帧（`_light_buffered_locked` 里的
+                    # NOTE_LAW_VERSION / NOTE_COMPLEX 就是同一形状）。带基准日的请求不进缓存
+                    # （`_cacheable`），所以"复播丢注记"和"未核验答复被固化 6 小时"都不会发生。
+                    # ⚠️ 但**先后与 E17 相反**：版本注记已在 `res.answer` 内部，这里只能往后贴 ⇒
+                    # 两条同时命中时 E7 是"版本在前、时效在后"，合流点那一支才是反过来。载体差异，
+                    # 不是笔误；两侧各有一条用例钉住（`test_e7_note_order_is_the_reverse_of_e17`）。
+                    answer += NOTE_TIME_UNVERIFIED
                 if answer:
                     _f0 = time.perf_counter()  # 轻量缓冲：非流式整答返回，首帧=完成时刻
-                    yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"  # gate-exit: E7
                 else:
-                    yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
-                if cache_key and res.verdict == "pass":
-                    answer_cache.put(cache_key, answer, pre["sources"])
+                    yield f"data: {json.dumps({'error': _ERROR_NO_RESPONSE}, ensure_ascii=False)}\n\n"
+                # 票 J/J-2：多选漏答症状（决策 8）——**复用**流式那份纯函数
+                # （`quality.multi_incomplete` 全仓只此一份规则，见 J-2「不许重写规则」）。
+                # 整答已在此刻发完 ⇒ 与流式同族处置：只追加确定性注记（不静默、不收回已发帧）+ 拦缓存。
+                multi_bad = bool(answer) and quality.multi_incomplete(pre.get("user_text") or "", answer)
+                if multi_bad:
+                    answer += NOTE_MULTI_INCOMPLETE
+                    yield f"data: {json.dumps({'content': NOTE_MULTI_INCOMPLETE}, ensure_ascii=False)}\n\n"  # gate-exit: E16
+                    log_account(
+                        kind="multi_incomplete",
+                        conv_id=pre["conv_id"],
+                        user_id=user.id,
+                        detail=f"len={len(pre.get('user_text') or '')}",
+                    )
+                # 写缓存闸（票 J/J-2：把轻量出口的条件集**对齐**到流式 E8 的五条件形状）：
+                #   cache_key               —— 安全形态（见 `_cacheable`）
+                #   not res.degraded        —— 降级产物不入缓存（票 J 新增的**独立**降级信号）
+                #   _cache_write_ok(pre, answer) —— 确定性写闸：study_aid 的引用必须 ⊆ 本轮检索条文
+                #   res.verdict == "pass"   —— 自检 PASS（"升级后仍 FAIL"与"配额耗尽"两支都不是 pass）
+                #   not multi_bad           —— 多选漏答不入缓存（防错答传播给近重复题）
+                #   not res.law_version_hit —— 命中版本绊线不入缓存：分支0 在本门**之前**直返 ⇒
+                #                              一条错版答复进了缓存就会被零 token 固化，门再也走不到
+                if (
+                    cache_key
+                    and not res.degraded
+                    and _cache_write_ok(pre, answer)
+                    and res.verdict == "pass"
+                    and not multi_bad
+                    and not res.law_version_hit
+                ):
+                    answer_cache.put(cache_key, answer, pre["sources"], scope=cache_scope, generation=cache_generation)
                 if res.key:
                     # 对抗审计 v2 #20：SQLite 扣减同步阻塞事件循环 → 线程池
                     await run_in_threadpool(registry.deduct, res.key, res.usage)
@@ -1811,6 +2573,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     tier=res.tier,
                     escalated=res.escalated,
                     verdict=res.verdict,
+                    degraded=res.degraded,
                     cache="miss",
                     token_est=res.usage,
                     first_ms=round((_f0 - t0) * 1000, 1) if answer else None,
@@ -1859,40 +2622,94 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 if use_router and current["key"]:
                     _tried.add(current["key"])
                     if not is_transient_error(_e):
-                        registry.mark_depleted(current["key"], "model_failure")
+                        # DB-17（报告 B-48）：同上——被拒 ≠ 没钱。见 `_cfail` 处的说明。
+                        if is_request_shape_rejection(_e):
+                            registry.mark_rejected(current["key"], "model_failure", status=status_of(_e))
+                        else:
+                            registry.mark_depleted(current["key"], "model_failure")
                 _restart_pending = True  # 下一 config 将从零重答：前端需清空半截
 
             chunks = []
             _f0 = None
-            async for piece in stream_with_retry(
-                make_chain_fn,
-                messages,
-                [(False, 0.0), (True, 0.5), (False, 0.5)],
-                on_model_failure=_on_model_failure,
-            ):
-                if _restart_pending:
-                    # 上一个模型失败、即将从零重答：先清空已发半截并通知前端（防拼接乱码）
-                    _restart_pending = False
-                    chunks = []
-                    _f0 = None
-                    yield f"data: {json.dumps({'type': 'restart'}, ensure_ascii=False)}\n\n"
-                if _f0 is None:
-                    _f0 = time.perf_counter()  # 真流式：首个 token 时刻（首帧埋点）
-                chunks.append(piece)
-                yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"
+            # 票 C/S6：法律版本绊线门的事实集（与缓冲轻量出口同一取法 `_fast_path_fact_texts`，
+            # 只含用户自述、**不含** context/sources 里的法条文本 —— 票 C §2d）。
+            # 开关关 ⇒ 不做无谓扫描（与 `_light_buffered_locked` 同一省法）。
+            fact_texts = _fast_path_fact_texts(pre) if settings.fast_path_law_version_check else []
+            async with ClosingStream(
+                stream_with_retry(
+                    make_chain_fn,
+                    messages,
+                    [(False, 0.0), (True, 0.5), (False, 0.5)],
+                    on_model_failure=_on_model_failure,
+                )
+            ) as pieces:
+                async for piece in pieces:
+                    if _restart_pending:
+                        # 上一个模型失败、即将从零重答：先清空已发半截并通知前端（防拼接乱码）
+                        _restart_pending = False
+                        chunks = []
+                        _f0 = None
+                        yield f"data: {json.dumps({'type': 'restart'}, ensure_ascii=False)}\n\n"
+                    if _f0 is None:
+                        _f0 = time.perf_counter()  # 真流式：首个 token 时刻（首帧埋点）
+                    chunks.append(piece)
+                    yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E8
             answer = "".join(chunks)
+            # 票 C/S6：把 S5 那道版本绊线门接到本条**唯一承流量**的生成出口上。三个口径照票面：
+            #   §5-4 基准日未指定时由服务端落当日；取数口径走 `_exit_law_as_of(pre, body)`
+            #     （本次请求真用来取数的那个日期优先，body 只是回落）；
+            #   §4-Q3 判定读 `clean_answer` 之后的模型原文，注记家族（引用/多选/自检/配额）在它之后；
+            #   §5-3 本出口有**两个**答案来源（流式 join / `_invoke_llm` 兜底），逐个来源各过一次性门。
+            law_version_hit = False
             if not answer:
                 try:
-                    fb = await run_in_threadpool(_invoke_llm, messages, flag_llm)
+                    fb = await _invoke_llm(messages, flag_llm)
                     answer = clean_answer(fb)
                     if answer:
                         if _f0 is None:
                             _f0 = time.perf_counter()
-                        yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'content': answer}, ensure_ascii=False)}\n\n"  # gate-exit: E9
+                        # 来源 2/2：非流式兜底整答。它与流式 join 是两个不同来源，漏接这一行 =
+                        # "流式返回空 ⇒ 走兜底时门整体消失"（票 C §2c 点名的漏 return 点换了形状），
+                        # 由变异 C-M1（删本行）+ test_fallback_answer_also_passes_the_gate 对偶钉住。
+                        answer, law_version_hit = _law_version_gate(
+                            answer, fact_texts, _exit_law_as_of(pre, body), exit_label=EXIT_STREAM
+                        )
                 except Exception:
                     answer = ""
             else:
                 answer = clean_answer(answer)
+                # 来源 1/2：流式 join。帧已逐段吐出不收回、不重放 ⇒ 命中时只追加一帧确定性注记 +
+                # 拦写缓存，与本文件既有四段同形状处置（票 C §2b「已经吐出去的帧怎么算」是已解问题）。
+                # 删本行 = 主路径没门（变异 C-M2）。
+                answer, law_version_hit = _law_version_gate(
+                    answer, fact_texts, _exit_law_as_of(pre, body), exit_label=EXIT_STREAM
+                )
+            if answer and _time_unverified_hit(pre):
+                # 两个答案来源（流式 join / `_invoke_llm` 兜底）在这一点之后合流 ⇒ 一帧覆盖 E8 与 E9，
+                # 不必各写一遍（写两遍就是第二份判据）。
+                # ⚠️ 位置在 E14 之前：两条注记同时命中时，"版本可能不一致"是更强的告警，压在最后
+                # （`test_e17_frame_precedes_the_version_note` 把顺序钉成判据）。
+                # 注记不进缓存 —— 带显式基准日的请求本来就被 `_cacheable` 挡在共享答案缓存外。
+                answer += NOTE_TIME_UNVERIFIED
+                yield f"data: {json.dumps({'content': NOTE_TIME_UNVERIFIED}, ensure_ascii=False)}\n\n"  # gate-exit: E17
+            if answer and pre["intent"] == "legal_query":
+                # 口径①（2026-10-13 裁定）：点名了、像法源、但不在库的来源要**显形**——只声明"这部分缺依据"，
+                # 不整题拒答（判据侧见 clarify.missing_sources）。合同/文书名（《房屋租赁合同》）不进清单。
+                # 位置在 E14 之前：`content_frames[-1] == NOTE_LAW_VERSION` 那条顺序判据不许被顶掉。
+                _missing_src = clarify.missing_sources(text)
+                if _missing_src:
+                    _ms_note = (
+                        "\n\n> 注：你点名的 "
+                        + "、".join(f"《{m}》" for m in _missing_src)
+                        + " 不在本库收录范围，涉及该来源的部分缺少条文依据。"
+                    )
+                    answer += _ms_note
+                    yield f"data: {json.dumps({'content': _ms_note}, ensure_ascii=False)}\n\n"  # gate-exit: E20
+            if law_version_hit and answer:
+                # 空答不注记：门已保证 `answer == ""` 时不追加，这里再挡一次 yield，
+                # 免得把下面 `if not answer:` 的"没答上来"error 帧变成"答了但仅供参考"。
+                yield f"data: {json.dumps({'content': NOTE_LAW_VERSION}, ensure_ascii=False)}\n\n"  # gate-exit: E14
             # 多选完整性症状（决策 8）：多选题型 + 回答只声明 1 个正确项 → 疑似漏答。
             # 流式已发出，只能追加确定性核对注（不静默）+ 拦缓存（防错答传播）。纯函数零成本。
             multi_bad = bool(answer) and quality.multi_incomplete(pre.get("user_text") or "", answer)
@@ -1902,7 +2719,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     # B1：中性措辞，不再"建议核对原文"（该句曾是前端 stripUnprovidedHint 要删的噪音）
                     note = "\n\n> 注：回答中引用的 " + "、".join(bad_cites) + " 未收录于本知识库。"
                     answer += note
-                    yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"  # gate-exit: E10
                     log_account(
                         kind="citation_anomaly",
                         conv_id=pre["conv_id"],
@@ -1910,9 +2727,9 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         detail=";".join(bad_cites)[:300],
                     )
                 if multi_bad:
-                    note = "\n\n> ⚠️ 本题可能为多选题，上述回答似乎只给出了一个正确选项，请核对是否遗漏。"
+                    note = NOTE_MULTI_INCOMPLETE
                     answer += note
-                    yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"
+                    yield f"data: {json.dumps({'content': note}, ensure_ascii=False)}\n\n"  # gate-exit: E11
                     log_account(
                         kind="multi_incomplete",
                         conv_id=pre["conv_id"],
@@ -1920,7 +2737,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                         detail=f"len={len(pre.get('user_text') or '')}",
                     )
             if not answer:
-                yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'error': _ERROR_NO_RESPONSE}, ensure_ascii=False)}\n\n"
                 # 空答补偿：用户消息已落库，落一条占位 assistant 消息保持成对（对抗审计 2026-08-07）
                 try:
                     await run_in_threadpool(_post_placeholder, pre)
@@ -1933,10 +2750,18 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
             if use_router and answer and pre["intent"] != "chitchat":  # 闲聊豁免质检（无检索语境）
                 sv = quality.self_check(answer, bool(pre["sources"]))
                 if sv.ok:
-                    # 写缓存三闸（审查 C2/C3）：非降级（降级答案不入缓存，防缓存用户
+                    # 写缓存闸（审查 C2/C3 + 票 C §5-6）：非降级（降级答案不入缓存，防缓存用户
                     # 看不到免责注）+ 确定性写闸（study_aid 引用 ⊆ 检索条文）
                     # + 多选漏答不入缓存（决策 8：防错答传播给近重复题）
-                    if cache_key and not flag_degraded and _cache_write_ok(pre, answer) and not multi_bad:
+                    # + 命中版本绊线不入缓存（票 C：分支0 在本门**之前**直返 ⇒ 一条错版答复进了缓存
+                    #   就会被后续同题请求零 token 固化，门再也走不到）。四条件 → 五条件。
+                    if (
+                        cache_key
+                        and not flag_degraded
+                        and _cache_write_ok(pre, answer)
+                        and not multi_bad
+                        and not law_version_hit
+                    ):
                         emb = await run_in_threadpool(_embed_question, pre.get("rewritten") or "")
                         pol, cnt, lab, fp = _cache_guards(pre.get("rewritten") or "")
                         answer_cache.put(
@@ -1949,6 +2774,8 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                             label_system=lab,
                             options_fingerprint=fp,
                             model=registry.model_of(flag_key) if use_router else "",
+                            scope=cache_scope,
+                            generation=cache_generation,
                         )
                 else:
                     verdict_flag = sv.reason
@@ -1956,12 +2783,12 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     # 常引格式条文/库外表达，注语义违和且误导；审查 I3）
                     if pre["intent"] != "study_aid":
                         answer += NOTE_COMPLEX
-                        yield f"data: {json.dumps({'content': NOTE_COMPLEX}, ensure_ascii=False)}\n\n"
+                        yield f"data: {json.dumps({'content': NOTE_COMPLEX}, ensure_ascii=False)}\n\n"  # gate-exit: E12
             # S2：回退模型本身已不可用 → 明说降级，不静默烧耗尽模型（闲聊豁免：降级注不适合闲聊语境）
             if use_router and flag_degraded and answer and pre["intent"] != "chitchat":
                 verdict_flag = "low_quota"
                 answer += NOTE_QUOTA
-                yield f"data: {json.dumps({'content': NOTE_QUOTA}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'content': NOTE_QUOTA}, ensure_ascii=False)}\n\n"  # gate-exit: E13
             # 流式无真实 usage → 按输出 + 主要输入估算扣减（补输入，避免长期低估）。
             # thinking 模型 reasoning_content 不计入估算 → ×thinking_mult 近似（审查 K1）
             # failover 后按真正回答的模型扣减（current["key"] 由 make_chain_fn 在重试时
@@ -2000,6 +2827,11 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                     _posted = True
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
+        except (GeneratorExit, asyncio.CancelledError):
+            # D-23：这两支才是"连接被打断"的真信号（用户停止 / 切换会话 / 断网）。
+            # 只置标记并原样抛出——GeneratorExit 期间不能再 yield，CancelledError 不能吞。
+            _client_gone = True
+            raise
         except LLMBusyError:
             # 并发门控降级：不占日志噪音（每次 surge 都刷不可取），仅下发繁忙提示
             yield f"data: {json.dumps({'error': '服务繁忙，请稍后重试'}, ensure_ascii=False)}\n\n"
@@ -2012,7 +2844,7 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
         except Exception as e:
             # 详情只进日志：str(e) 可能含内部 model id / 供应商错误体 / 服务器路径，不得下发普通用户
             print(f"[chat-stream] {type(e).__name__}: {e}", flush=True)
-            yield f"data: {json.dumps({'error': '服务暂时无响应，请稍后重试'}, ensure_ascii=False)}\n\n"
+            yield f"data: {json.dumps({'error': _ERROR_NO_RESPONSE}, ensure_ascii=False)}\n\n"
             # 补偿：_post 未执行 → 占位 assistant 消息保持成对（对抗审计 2026-08-07）
             try:
                 await run_in_threadpool(_post_placeholder, pre)
@@ -2021,22 +2853,40 @@ async def chat(request: Request, body: ChatIn, user: User = Depends(get_current_
                 print(f"[chat-placeholder] {e}", flush=True)
         finally:
             # 对抗审计 v2 #5/#8：客户端断开（GeneratorExit 不属 Exception）或未走任何落库分支时，
-            # 生成器在此被 close → 独立后台任务派占位 assistant，保持 user/assistant 成对与计数平衡。
-            # 不 await/yield（GeneratorExit 下不可再产出数据帧）；失败静默，下次会话自然成对。
-            if not _posted:
-                try:
-                    import asyncio
+            # close 可以 await 清理但不能 yield；等唯一占位 commit 后才结束响应所有权。
+            # _post 已 commit 后即使沉淀/压缩失败，也不能补第二条 assistant。
+            if not _posted and not pre.get("assistant_committed"):
+                # D-23：只有真断开才说"已停止"；主动 return（含轻量分支的空答）与落库失败
+                # 都归"这一轮没给出内容"，不能挂到用户操作上。
+                _reason = "stopped" if _client_gone else "no_response"
+                with CancelScope(shield=True):
+                    try:
+                        await run_in_threadpool(_post_placeholder, pre, _reason)
+                    except Exception as exc:
+                        print(f"[chat-cancel-compensate] failed: {type(exc).__name__}", flush=True)
 
-                    asyncio.get_running_loop().run_in_executor(None, _post_placeholder, pre)
-                except Exception:
-                    pass
+    async def compensate_unstarted():
+        """未进入正文生成器的请求在此补一条 assistant 占位；已进入的由 stream 的 finally 负责。
+
+        两处互斥由 `stream_state` 决定：已进入 ⇒ 这里直接返回，不会重复落库。
+        """
+        if stream_state["entered"]:
+            return
+        try:
+            # 走到这里说明响应已关闭而正文生成器从未进入 ⇒ 连接在产出任何内容前就断了（D-23）。
+            await run_in_threadpool(_post_placeholder, pre, "stopped")
+        except Exception as exc:
+            # 不吞：占位是这一轮唯一保持 user/assistant 成对的动作，静默失败正是 R1 要消除的。
+            # 只落异常类型，不落 str(exc)（可能含路径/内部标识）。门禁看这条标记判失败。
+            print(f"[chat-cancel-compensate] failed: {type(exc).__name__}", flush=True)
 
     # 反缓冲响应头：SSE 经 Cloudflare Tunnel / Nginx 等代理中转时，若上游未显式声明，
     # 代理会攒批到连接关闭才一次性下发（手机端表现为“一次性输出”）。以下头禁用代理缓冲、
     # 禁止 CDN 改写，确保逐帧流式。
-    return StreamingResponse(
+    return _ChatStreamingResponse(
         _stream_with_status_preframe(stream()),
         media_type="text/event-stream",
+        on_response_close=compensate_unstarted,
         headers={
             "Cache-Control": "no-cache, no-transform",
             "Connection": "keep-alive",
@@ -2065,7 +2915,7 @@ def my_conversations(user: User = Depends(get_current_user), db: Session = Depen
         .limit(50)
         .all()
     )
-    out = []
+    out: list[ConversationListItem] = []
     for c in convs:
         first_user = (
             db.query(Message)
@@ -2122,6 +2972,7 @@ def get_conversation(conv_id: int, user: User = Depends(get_current_user), db: S
                 image_ref=m.image_ref,
                 thumb_ref=m.thumb_ref,
                 created_at=m.created_at,
+                agent_run_id=m.agent_run_id if m.role == "assistant" else None,
                 coverage_status=coverage_status,
                 uncovered_issues=uncovered,
             )
@@ -2146,7 +2997,19 @@ def rename_conversation(
     return {"id": conv.id, "title": conv.title}
 
 
-@app.delete("/api/conversations/{conv_id}")
+@app.delete("/api/conversations/{conv_id}", name="delete_conversation")
+async def _serialized_delete_conversation(
+    request: Request, conv_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)
+):
+    _, created_at = await run_in_threadpool(_resolve_chat_conversation, user, conv_id, create_if_missing=False)
+    lock = await _acquire_chat_turn(request, user.id, conv_id)
+    try:
+        await run_in_threadpool(_require_chat_conversation, user.id, conv_id, created_at)
+        return await run_in_threadpool(delete_conversation, conv_id, user, db)
+    finally:
+        lock.release()
+
+
 def delete_conversation(conv_id: int, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     conv = db.get(Conversation, conv_id)
     if not conv or conv.user_id != user.id:
@@ -2245,7 +3108,7 @@ def admin_conversations(
     # 分页钳制（对抗审计 2026-08-07）：limit 负数被 SQLite 当作"不限"全表导出，offset 负数触发 500
     limit = max(1, min(limit, 500))
     offset = max(0, offset)
-    rows = (
+    rows: list[Row[Conversation, str]] = (
         db.query(Conversation, User.username)
         .join(User, Conversation.user_id == User.id)
         .order_by(Conversation.created_at.desc())
@@ -2276,7 +3139,7 @@ def admin_add_knowledge(body: KnowledgeAddIn, admin: User = Depends(require_admi
     extra = {
         "effective_from": body.effective_from,
         "effective_to": body.effective_to,
-        "status": body.status or "现行",
+        "status": body.status or "未验证",
         "version_id": body.version_id,
         "promulgated_at": body.promulgated_at,
         "source_url": body.source_url,
@@ -2319,7 +3182,7 @@ async def admin_upload(request: Request, file: UploadFile = File(...), admin: Us
             "uploaded_by": admin.username,
             "uploaded_at": datetime.utcnow().isoformat(),
             "version": version,
-            "status": "现行",
+            "status": "未验证",
         }
         n = ks.add_text(text, source=source, origin="upload", extra_meta=extra, file_hash_value=fh)
         first_line = next((ln.strip() for ln in text.splitlines() if ln.strip()), source)
@@ -2456,7 +3319,7 @@ async def admin_llm_quota(request: Request, body: LlmQuotaIn, _admin: User = Dep
 # ==================== 管理员：操作审计 ====================
 @app.get("/api/admin/audit")
 def admin_audit(limit: int = 100, db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
-    rows = (
+    rows: list[Row[AuditLog, str | None]] = (
         db.query(AuditLog, User.username)
         .outerjoin(User, AuditLog.admin_id == User.id)
         .order_by(AuditLog.created_at.desc())
@@ -2498,21 +3361,13 @@ def post_feedback(
     db.add(fb)
     db.commit()
     db.refresh(fb)
-    # 负反馈或带纠错 → 进受控沉淀待审，供管理员采纳"修正后的答案"（点赞不自动入库，避免污染）
-    if body.rating == "down" or (body.correction and body.correction.strip()):
-        # 去重：同一问题同一来源（feedback:down/up）已有待审候选则不再入队，防刷队列
-        dup = (
-            db.query(QaCandidate)
-            .filter(
-                QaCandidate.question == body.question,
-                QaCandidate.status == "pending",
-                QaCandidate.evidence == f"feedback:{body.rating}",
-            )
-            .first()
-        )
-        if dup is None:
-            propose = (body.correction or "").strip() or body.answer
-            ks.create_candidate(db, body.question, propose, 0.0, f"feedback:{body.rating}")
+    # 反馈不再进受控沉淀待审队列（第四轮核对 §10 第 2 条，Owner 裁决 D）。
+    # 原形状：`down` 或带纠错 → `ks.create_candidate(..., f"feedback:{rating}")`，采纳后落入
+    # **没有版本轴**的 `qa_pairs` ⇒ 按历史基准日产出的答案可被现行查询直返（第 8 节②）。
+    # 服务端追溯不到"这条答案当时用的基准日"（`FeedbackIn` 无 message_id、`Message` 无该列），
+    # 只能信客户端自报 ⇒ 闭口落在写侧。台账不丢：`feedbacks` 表独立记 question/answer/
+    # rating/correction，管理员经 `/api/admin/feedback` 仍全量可查。人工入库语料的正路是另开票
+    # （录入时要求条文引用**并**显式声明适用基准日），而不是把这里洗白。
     return {"id": fb.id}
 
 

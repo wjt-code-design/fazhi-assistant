@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+import logging
+from datetime import date
 from pathlib import Path
 from threading import Event, Thread
 from types import SimpleNamespace
@@ -13,9 +16,11 @@ from models import Base, Conversation, Message, User
 from request_bootstrap import (
     BootstrapDependencies,
     FastPathDependencies,
+    RecentMessageSnapshot,
     bootstrap_request,
     cleanup_persisted_images,
     configure_default_image_describer,
+    is_contract_exit,
     override_default_image_describer,
     prepare_fast_path,
 )
@@ -68,6 +73,7 @@ def _bootstrap_deps(store, **overrides):
         is_exam_question=lambda query: False,
         has_exam_options=lambda query: False,
         is_contract_review=lambda query: False,
+        contract_trigger_reason=lambda query: None,
         feature_multi_analyze=True,
         contract_conversations=set(),
         contract_reviewed_conversations=set(),
@@ -78,24 +84,50 @@ def _bootstrap_deps(store, **overrides):
 
 
 def _fast_deps(**overrides):
+    """快车道取数桩。检索类能力一律接受 `cutoff`（历史查询基准日），
+    与 `FastPathDependencies` 声明的接缝形状保持一致。"""
+
     values = dict(
         feature_study_retrieval=True,
         is_meta_study=lambda query: False,
         rewrite_for_retrieval=lambda raw, recent_ser, recent, has_options: raw,
-        scenario_supplement_docs=lambda query: [],
-        retrieve_exam=lambda query: [],
-        cheating_docs=lambda: [],
-        build_contract_data=lambda text: {"docs": [], "blocks": [], "level": "低", "basis": "test"},
-        retrieve=lambda query, k: [],
+        scenario_supplement_docs=lambda query, cutoff=None: [],
+        retrieve_exam=lambda query, k=6, cutoff=None: [],
+        cheating_docs=lambda cutoff=None: [],
+        build_contract_data=lambda text, cutoff=None: {"docs": [], "blocks": [], "level": "低", "basis": "test"},
+        retrieve=lambda query, k, cutoff=None: [],
         search_qa=lambda query: None,
         is_consumer_clause_scenario=lambda query: False,
-        consumer_clause_docs=lambda: [],
+        consumer_clause_docs=lambda cutoff=None: [],
         is_consumer_fraud_scenario=lambda query: False,
-        consumer_fraud_docs=lambda: [],
+        consumer_fraud_docs=lambda cutoff=None: [],
         format_docs=lambda docs: "",
     )
     values.update(overrides)
     return FastPathDependencies(**values)
+
+
+def _patch_kb(monkeypatch, docs, *, calls=None):
+    """把"条文能否在库中查到"钉成给定读数；`calls` 传入列表则顺带记录被问到的 (source, article)。
+
+    判据本体自票 W1 起住在 `retrieval.qa_citations_in_kb`，它读的是 **retrieval 的模块全局**
+    `exact_article_lookup` ⇒ 替身必须打在那一侧（打在 `request_bootstrap` 或 `main` 上都是自我安慰：
+    那两个名字根本不会被这条路径调用）。替身**签名与真函数一致**（位置参数 `src, art`）——
+    吞不下真调用形状的替身会让判据看起来"恒过"（本仓教训：替身必须像真对象）。
+
+    为什么别的用例如 `test_fast_path_legal_branch_parity_...` 也要打这一桩：
+    pytest 的默认 lane 把 `CHROMA_DIR` 隔离到进程私有**空**库（conftest.py:39），
+    不桩则"条文在库"恒为 False ⇒ 用例红在仪器上而不是红在判据上。
+    """
+
+    def _lookup(src, art):
+        if calls is not None:
+            calls.append((src, art))
+        return docs
+
+    import retrieval
+
+    monkeypatch.setattr(retrieval, "exact_article_lookup", _lookup)
 
 
 def test_bootstrap_classifies_raw_and_never_calls_fast_path_capabilities(store):
@@ -106,6 +138,24 @@ def test_bootstrap_classifies_raw_and_never_calls_fast_path_capabilities(store):
 
     assert classified == ["原始问题"]
     assert result.raw_query == "原始问题"
+
+
+def test_bootstrap_request_carries_injected_law_as_of_and_defaults_none(store):
+    injected = bootstrap_request(
+        store.user_id,
+        store.conv_id,
+        "原始问题",
+        None,
+        False,
+        law_as_of=date(2020, 12, 31),
+        _deps=_bootstrap_deps(store),
+    )
+
+    assert injected.law_as_of == date(2020, 12, 31)
+
+    default = bootstrap_request(store.user_id, store.conv_id, "原始问题", None, False, _deps=_bootstrap_deps(store))
+
+    assert default.law_as_of is None
 
 
 def test_public_bootstrap_uses_real_forbidden_call_traps(store, monkeypatch):
@@ -279,8 +329,8 @@ def test_public_api_supports_task6_bootstrap_then_fast_path_consumption(store, m
     monkeypatch.setattr(domain_rules, "is_contract_review", lambda query: False)
     monkeypatch.setattr(settings_module.settings, "feature_multi_analyze", True)
     monkeypatch.setattr(settings_module.settings, "feature_study_retrieval", True)
-    monkeypatch.setattr(retrieval, "retrieve", lambda query, k: [])
-    monkeypatch.setattr(retrieval, "scenario_supplement_docs", lambda query: [])
+    monkeypatch.setattr(retrieval, "retrieve", lambda query, k, cutoff=None: [])
+    monkeypatch.setattr(retrieval, "scenario_supplement_docs", lambda query, cutoff=None: [])
     monkeypatch.setattr(knowledge_service, "search_qa", lambda query: None)
     monkeypatch.setattr(rag_chain, "format_docs", lambda docs: "")
 
@@ -611,7 +661,10 @@ def test_fast_path_receives_detached_history_snapshot_after_bootstrap_commit(sto
     assert result["rewritten"] == "上轮问题"
 
 
-def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store):
+def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store, monkeypatch):
+    # 票 W1 之后，一条 QA 记录要在产生处活下来，除了形状判据还得**条文查得到**（时效判据）。
+    # 不钉这个桩，本用例的 qa_hit 会红在进程私有空库上而不是红在判据上（假阴性取证）。
+    _patch_kb(monkeypatch, ["doc"])
     doc = SimpleNamespace(
         metadata={
             "source": "民法典",
@@ -621,11 +674,17 @@ def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store):
             "status": "effective",
         }
     )
+    verifiable_qa = {
+        "question": "改写问题",
+        "answer": "缓存答案",
+        "evidence": "劳动合同法|第十九条",
+        "law_as_of_basis": "2026-01-01",
+    }
     bootstrap = bootstrap_request(store.user_id, store.conv_id, "借款纠纷", None, False, _deps=_bootstrap_deps(store))
     deps = _fast_deps(
         rewrite_for_retrieval=lambda raw, *_: "改写问题",
-        retrieve=lambda query, k: [doc],
-        search_qa=lambda query: {"question": query, "answer": "缓存答案"},
+        retrieve=lambda query, k, cutoff=None: [doc],
+        search_qa=lambda query: dict(verifiable_qa),
         format_docs=lambda docs: "格式化法条",
     )
 
@@ -633,7 +692,7 @@ def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store):
 
     assert result["rewritten"] == "改写问题"
     assert result["context"] == "格式化法条"
-    assert result["qa_hit"] == {"question": "改写问题", "answer": "缓存答案"}
+    assert result["qa_hit"] == verifiable_qa
     assert result["sources"] == [
         {
             "source": "民法典",
@@ -643,3 +702,690 @@ def test_fast_path_legal_branch_parity_for_context_sources_and_qa(store):
             "status": "effective",
         }
     ]
+
+
+def test_fast_path_drops_qa_hit_whose_provenance_is_not_verifiable(store):
+    """产生处接缝：来源校验不了的 QA 记录不给它 `qa_hit`，直返与 prompt 注入两个出口一起关。
+
+    旧行为：`search_qa` 返回什么就原样进 `qa_hit` ⇒ `evidence='[]'`（生效 `qa_pairs` 实测 2 条，
+    另一 lane `qa_pairs_te4` 另 2 条）和缺 `law_as_of_basis` 的记录都能被直返、并被注入 prompt。
+    判据刻意放在这一缝而不是 `search_qa` 内部：`qa_seeds.py` 与 `scripts/gen_qa_corpus.py`
+    拿 `search_qa(threshold=0.99)` 做**幂等去重**，把策略塞进去会外溢到写侧语义。
+    """
+    bootstrap = bootstrap_request(store.user_id, store.conv_id, "借款纠纷", None, False, _deps=_bootstrap_deps(store))
+
+    for label, qa in {
+        "无条文引用": {"question": "q", "answer": "a", "evidence": "[]", "law_as_of_basis": "2026-01-01"},
+        "缺版本基准日": {"question": "q", "answer": "a", "evidence": "劳动合同法|第十九条", "law_as_of_basis": ""},
+        "反馈来源": {"question": "q", "answer": "a", "evidence": "feedback:down", "law_as_of_basis": ""},
+    }.items():
+        deps = _fast_deps(search_qa=lambda query, _qa=qa: dict(_qa))
+        result = prepare_fast_path(bootstrap, _deps=deps)
+        assert result["qa_hit"] is None, label
+
+
+def test_refused_qa_hit_leaves_a_log_trace(store, monkeypatch):
+    """拦截要留痕：这道门关掉的是零 token 直返，不留日志则"语料在衰减"在线上没有一点痕迹。
+
+    三腿：① 拒一次 ⇒ 归因键 `qa_provenance_refused` 恰好出现一次；
+    ② 放行 ⇒ 不留痕（否则计数虚高，这条日志当不了指标）；
+    ③ 留痕里不许有问句原文（AUTH-3：日志不落原文；语料题干可能就是用户问句）。
+    """
+    raw_query = "借款合同纠纷怎么起诉"
+    bootstrap = bootstrap_request(store.user_id, store.conv_id, raw_query, None, False, _deps=_bootstrap_deps(store))
+    refused = {"question": raw_query, "answer": "答案", "evidence": "[]", "law_as_of_basis": ""}
+    accepted = {
+        "question": raw_query,
+        "answer": "答案",
+        "evidence": "劳动合同法|第十九条",
+        "law_as_of_basis": "2026-01-01",
+    }
+
+    chat_logger = logging.getLogger("legal.chat")
+    records: list[logging.LogRecord] = []
+
+    class _Handler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Handler(level=logging.WARNING)
+    previous_level = chat_logger.level
+    chat_logger.addHandler(handler)
+    chat_logger.setLevel(logging.WARNING)
+    try:
+        dropped = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(refused)))
+        fired = [r for r in records if getattr(r, "qa_provenance_refused", False)]
+        assert dropped["qa_hit"] is None
+        assert len(fired) == 1, "拦截未留痕 ⇒ 直返率下降在线上不可归因"
+        from observability import _JsonFormatter  # 留痕要真的能出机器（白名单外的键会被 JSON formatter 静默丢弃）
+
+        assert json.loads(_JsonFormatter().format(fired[0]))["qa_provenance_refused"] is True
+        assert raw_query not in " ".join([r.getMessage() for r in fired] + [repr(fired[0].__dict__)])
+
+        records.clear()
+        _patch_kb(monkeypatch, ["doc"])  # 票 W1：放行腿还要过时效判据，不桩就红在空库上（见 _patch_kb docstring）
+        kept = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(accepted)))
+        assert kept["qa_hit"] is not None
+        assert not [r for r in records if getattr(r, "qa_provenance_refused", False)], "放行也留痕 ⇒ 计数不可用"
+    finally:
+        chat_logger.removeHandler(handler)
+        chat_logger.setLevel(previous_level)
+
+
+# ==================== 票 W1：时效判据上提到产生处（两出口对称收口） ====================
+# 上面那组用例闭的是**形状**判据（引用给不给得出）。第 8 节② 的漏口还有另一半：
+# "引用的那条文今天还在不在库"这步只写在 `main._qa_direct_return` 里（时效护栏），
+# 产生处从来不做 ⇒ 一条引用已失效条文的记录照样进 `pre["qa_hit"]`，被
+# `main._build_messages` 以"此前已确认的问答（可优先参考）"递给模型。Owner 裁决（2026-09-25）：
+# 对称收口、判据上提到产生处，且两个出口调**同一个**函数（见
+# `tests/test_qa_citation_gate_symmetry.py` 的那条同一性断言）。
+
+_CITABLE_QA = {
+    "question": "试用期最长多久",
+    "answer": "最长六个月",
+    "score": 0.95,
+    "fingerprint": "",
+    "evidence": "劳动合同法|第十九条",
+    "law_as_of_basis": "2026-01-01",
+}
+
+
+@pytest.mark.parametrize("basis", ["not-a-date", "2026-02-30"])
+def test_invalid_qa_basis_never_reaches_prompt_or_kb(store, monkeypatch, basis):
+    from main import _build_messages
+
+    calls = []
+    _patch_kb(monkeypatch, ["doc"], calls=calls)
+    qa = dict(_CITABLE_QA, law_as_of_basis=basis)
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: qa))
+    text = "\n".join(m.content or "" for m in _build_messages(result))
+
+    assert result["qa_hit"] is None
+    assert "此前已确认的问答" not in text
+    assert qa["answer"] not in text
+    assert calls == []
+
+
+@pytest.mark.parametrize("score,expected_lookups", [(0.8, 1), (0.95, 2)])
+def test_w1_lookup_count_characterization(store, monkeypatch, score, expected_lookups):
+    """现状基线而非性能目标：完整准备→直返接缝的查条次数，不把次数冒充延迟。"""
+    from main import _build_messages, _qa_direct_return
+
+    calls = []
+    _patch_kb(monkeypatch, ["doc"], calls=calls)
+    qa = dict(_CITABLE_QA, score=score)
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: qa))
+    direct = _qa_direct_return(result, date(2026, 9, 25))
+
+    if score == 0.95:
+        assert direct == qa["answer"]
+    else:
+        assert direct is None
+        assert qa["answer"] in "\n".join(m.content or "" for m in _build_messages(result))
+    assert calls == [("劳动合同法", "第十九条")] * expected_lookups
+
+
+def _citation_bootstrap(store):
+    return bootstrap_request(store.user_id, store.conv_id, "借款纠纷", None, False, _deps=_bootstrap_deps(store))
+
+
+def test_fast_path_drops_qa_hit_whose_citation_is_not_in_kb(store, monkeypatch):
+    """先红腿：引用给得出、条文查不在库 ⇒ 产生处就不该把它交给任何一个出口。
+
+    旧行为下本用例红在**判据点**（`qa_hit` 仍是那条记录），不是红在插桩：库替身返回 `[]`
+    在旧代码里根本不会被调用，而形状判据 `qa_provenance_verifiable` 对此记录是**放行**的
+    （它只问"引用给不给得出"，不问"引用可不可核验"）。
+    """
+    _patch_kb(monkeypatch, [])
+
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: dict(_CITABLE_QA)))
+
+    assert result["qa_hit"] is None, "失效引用仍进 qa_hit ⇒ 直返之外的注入通道带着旧答案进 prompt"
+
+
+def test_fast_path_keeps_qa_hit_whose_citation_is_in_kb(store, monkeypatch):
+    """控制腿（必须两侧都绿）：条文在库 ⇒ 照常保留 qa_hit，否则这次收口等于整体关掉语料加速。"""
+    _patch_kb(monkeypatch, ["doc"])
+    from main import _build_messages
+
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: dict(_CITABLE_QA)))
+
+    assert result["qa_hit"] == _CITABLE_QA
+    assert "此前已确认的问答" in "\n".join(getattr(m, "content", "") or "" for m in _build_messages(result))
+
+
+def test_prompt_omits_stale_citation_qa_from_the_producer_result(store, monkeypatch):
+    """链条后半：喂进 `main._build_messages` 的是产生处**实际返回**的那个 `pre`，不自造。
+
+    与 `test_qa_provenance_guard.py::test_prompt_omits_note_when_the_producer_dropped_the_hit`
+    同款纪律——那条的 docstring 就写明"只测后半等于没测"。旧行为下本用例同样红：
+    `qa_hit` 非 None ⇒ 注入照旧发生。
+    """
+    _patch_kb(monkeypatch, [])
+
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: dict(_CITABLE_QA)))
+    from main import _build_messages
+
+    text = "\n".join(getattr(m, "content", "") or "" for m in _build_messages(result))
+    assert "此前已确认的问答" not in text
+    assert "最长六个月" not in text, "失效问答的答案仍进 prompt"
+
+
+def test_fast_path_drops_qa_hit_when_article_lookup_raises(store, monkeypatch):
+    """fail-closed 腿：库读不动 ⇒ 不能校验就当不校验（与直返出口既有的 `except Exception` 同口径）。
+
+    这一半是**新增面**：旧产生处压根不碰库，所以"查不动"与"查得到"在它眼里没有区别。
+    """
+
+    def _boom(src, art):
+        raise RuntimeError("chroma 读失败")
+
+    import retrieval
+
+    monkeypatch.setattr(retrieval, "exact_article_lookup", _boom)
+
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: dict(_CITABLE_QA)))
+
+    assert result["qa_hit"] is None
+
+
+def test_shape_gate_runs_before_the_kb_and_skips_the_lookup(store, monkeypatch):
+    """判据顺序腿：形状判据先拒 ⇒ **不碰库**（无效形状不该白付一次读库成本）。
+
+    见证记录刻意选"**引用给得出、缺 `law_as_of_basis`**"而不是"`evidence='[]'`"：
+    后者在 `qa_citations_in_kb` 内部因解析不出成对引用而**根本不会查库** ⇒ 拿它当见证，
+    两道门换序也照样绿（仪器看不见被检的性质）。用缺 basis 的形状，"先查库"就会留下 calls ⇒ 红。
+    旧行为下本用例也绿（产生处从不碰库），它钉的是新实现的分支可达性。
+    """
+    calls: list[tuple[str, str]] = []
+    _patch_kb(monkeypatch, ["doc"], calls=calls)
+    no_basis = {"question": "q", "answer": "a", "evidence": "劳动合同法|第十九条", "law_as_of_basis": ""}
+
+    result = prepare_fast_path(_citation_bootstrap(store), _deps=_fast_deps(search_qa=lambda query: dict(no_basis)))
+
+    assert result["qa_hit"] is None
+    assert calls == [], f"形状判据已拒仍去查库 ⇒ 每条无效记录都白付一次读库成本：{calls}"
+
+
+def test_citation_refused_qa_hit_leaves_a_log_trace(store, monkeypatch):
+    """拦截要留痕，且与形状判据**分键**：两个门是两个数，合成一个就没法归因是哪道在衰减。
+
+    腿：① 失效引用 ⇒ `qa_citation_refused` 恰好一次，且不落 `qa_provenance_refused`（形状门没参与）；
+    ② 在库 ⇒ 两个键都不落；③ 不落问句原文（AUTH-3）；④ JSON formatter 真能把这个键带出来
+    （白名单外的键会被静默丢弃 ⇒ 只在 Python 对象上断言等于没断言）。
+    """
+    _patch_kb(monkeypatch, [])
+    raw_query = "借款合同纠纷怎么起诉"
+    bootstrap = bootstrap_request(store.user_id, store.conv_id, raw_query, None, False, _deps=_bootstrap_deps(store))
+    stale = dict(_CITABLE_QA, question=raw_query)
+
+    chat_logger = logging.getLogger("legal.chat")
+    records: list[logging.LogRecord] = []
+
+    class _Handler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Handler(level=logging.WARNING)
+    previous_level = chat_logger.level
+    chat_logger.addHandler(handler)
+    chat_logger.setLevel(logging.WARNING)
+    try:
+        dropped = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(stale)))
+        fired = [r for r in records if getattr(r, "qa_citation_refused", False)]
+        assert dropped["qa_hit"] is None
+        assert len(fired) == 1, "失效引用被拦但无线上痕迹 ⇒ 直返率下降不可归因"
+        assert not [r for r in records if getattr(r, "qa_provenance_refused", False)], "两键串了 ⇒ 归因失真"
+
+        from observability import _JsonFormatter
+
+        assert json.loads(_JsonFormatter().format(fired[0]))["qa_citation_refused"] is True
+        assert raw_query not in " ".join([r.getMessage() for r in fired] + [repr(fired[0].__dict__)])
+
+        records.clear()
+        _patch_kb(monkeypatch, ["doc"])
+        kept = prepare_fast_path(bootstrap, _deps=_fast_deps(search_qa=lambda query: dict(stale)))
+        assert kept["qa_hit"] is not None
+        assert not [r for r in records if getattr(r, "qa_citation_refused", False)], "放行也留痕 ⇒ 计数不可用"
+    finally:
+        chat_logger.removeHandler(handler)
+        chat_logger.setLevel(previous_level)
+
+
+def test_historical_fast_path_uses_date_for_all_evidence_and_skips_current_qa(store):
+    old = SimpleNamespace(
+        metadata={
+            "source": "旧法",
+            "article": "第一条",
+            "effective_from": "2010-01-01",
+            "effective_to": "2020-12-31",
+            "status": "已废止",
+        }
+    )
+    new = SimpleNamespace(
+        metadata={
+            "source": "新法",
+            "article": "第一条",
+            "effective_from": "2021-01-01",
+            "effective_to": "",
+            "status": "现行",
+        }
+    )
+    seen_cutoffs = []
+    bootstrap = bootstrap_request(
+        store.user_id,
+        store.conv_id,
+        "借款纠纷",
+        None,
+        False,
+        law_as_of=date(2019, 1, 1),
+        _deps=_bootstrap_deps(store),
+    )
+    deps = _fast_deps(
+        retrieve=lambda query, k, cutoff: seen_cutoffs.append(cutoff) or [old, new],
+        scenario_supplement_docs=lambda query, cutoff: seen_cutoffs.append(cutoff) or [new],
+        search_qa=lambda query: {"question": query, "answer": "现行法答案"},
+        format_docs=lambda docs: ",".join(doc.metadata["source"] for doc in docs),
+    )
+
+    result = prepare_fast_path(bootstrap, _deps=deps)
+
+    assert len(seen_cutoffs) == 2, seen_cutoffs  # 语义检索 + 场景补充两条取数口都须带上基准日
+    assert set(seen_cutoffs) == {"2019-01-01"}, seen_cutoffs
+    assert result["context"] == "旧法"
+    assert [source["source"] for source in result["sources"]] == ["旧法"]
+    assert result["qa_hit"] is None
+    assert result["law_as_of"] == date(2019, 1, 1)
+
+    from main import _build_messages
+
+    assert "2019-01-01" in _build_messages(result)[-1].content
+
+
+# ==================== 历史查询：每条取数口都按基准日捞（AUTH-2 续） ====================
+# 只在末尾过滤是不够的：末尾过滤保证的是「不把现行法下发给历史查询」（精度），
+# 而「历史有效版本有没有被召回」（召回）取决于取数时带的 cutoff。
+# 下面逐个分支钉第二件事——缺一个分支，该分支的历史查询就会静默变薄或拿错版。
+
+HISTORICAL = date(2019, 1, 1)
+
+
+def _historical_bootstrap(store, **bootstrap_dep_overrides):
+    return bootstrap_request(
+        store.user_id,
+        store.conv_id,
+        "借款合同纠纷",
+        None,
+        False,
+        law_as_of=HISTORICAL,
+        _deps=_bootstrap_deps(store, **bootstrap_dep_overrides),
+    )
+
+
+def _pre_cutoff_doc():
+    """2021-01-01 起生效：在 2019 基准日下**不该**出现。"""
+    return SimpleNamespace(
+        metadata={
+            "source": "民法典",
+            "article": "第五百八十五条",
+            "effective_from": "2021-01-01",
+            "effective_to": "",
+            "status": "现行",
+        }
+    )
+
+
+def _historical_doc():
+    return SimpleNamespace(
+        metadata={
+            "source": "合同法",
+            "article": "第一百一十四条",
+            "effective_from": "1999-10-01",
+            "effective_to": "2021-01-01",
+            "status": "已废止",
+        }
+    )
+
+
+def _docs_by_cutoff(seen, label=None):
+    """按 cutoff 分流的取数桩：带基准日 → 旧法，不带 → 现行法。
+
+    旧实现把 cutoff 丢在调用点 ⇒ 桩只会拿到现行法 ⇒ 末尾过滤再把这唯一一条剔掉
+    ⇒ `sources` 为空。故本桩同时验「带了日期」与「带对日期（真去改了取数口径）」。
+    """
+
+    def _factory(*args, **kwargs):
+        cutoff = kwargs.get("cutoff")
+        seen.append((label, cutoff) if label is not None else cutoff)
+        return [_historical_doc() if cutoff else _pre_cutoff_doc()]
+
+    return _factory
+
+
+def test_historical_exam_branch_fetches_exam_units_at_cutoff(store):
+    seen = []
+    bootstrap = _historical_bootstrap(store, is_exam_question=lambda query: True)
+    deps = _fast_deps(
+        scenario_supplement_docs=_docs_by_cutoff(seen, "supplement"),
+        retrieve_exam=_docs_by_cutoff(seen, "exam"),
+    )
+
+    result = prepare_fast_path(bootstrap, _deps=deps)
+
+    assert [name for name, _ in seen] == ["supplement", "exam"], seen
+    assert {cutoff for _, cutoff in seen} == {HISTORICAL.isoformat()}, seen
+    assert {s["source"] for s in result["sources"]} == {"合同法"}, result["sources"]
+
+
+def test_historical_study_aid_branch_fetches_exam_units_at_cutoff(store):
+    seen = []
+    bootstrap = _historical_bootstrap(store, classify_intent=lambda query: "study_aid")
+    deps = _fast_deps(
+        scenario_supplement_docs=lambda query, cutoff=None: seen.append(("supplement", cutoff)) or [],
+        retrieve_exam=lambda query, k=6, cutoff=None: seen.append(("exam", cutoff)) or [_historical_doc()],
+    )
+
+    prepare_fast_path(bootstrap, _deps=deps)
+
+    assert [cutoff for _, cutoff in seen] == [HISTORICAL.isoformat()] * 2, seen
+
+
+def test_historical_cheating_branch_fetches_spec_docs_at_cutoff(store):
+    seen = []
+    bootstrap = _historical_bootstrap(store, classify_intent=lambda query: "cheating_request")
+    deps = _fast_deps(cheating_docs=lambda cutoff=None: seen.append(cutoff) or [_historical_doc()])
+
+    result = prepare_fast_path(bootstrap, _deps=deps)
+
+    assert seen == [HISTORICAL.isoformat()], seen
+    assert [s["source"] for s in result["sources"]] == ["合同法"], result["sources"]
+
+
+def test_historical_consumer_scenarios_fetch_spec_docs_at_cutoff(store):
+    seen = []
+    bootstrap = _historical_bootstrap(store)
+    deps = _fast_deps(
+        scenario_supplement_docs=_docs_by_cutoff(seen, "supplement"),
+        is_consumer_clause_scenario=lambda query: True,
+        consumer_clause_docs=_docs_by_cutoff(seen, "clause"),
+        is_consumer_fraud_scenario=lambda query: True,
+        consumer_fraud_docs=_docs_by_cutoff(seen, "fraud"),
+    )
+
+    result = prepare_fast_path(bootstrap, _deps=deps)
+
+    assert [name for name, _ in seen] == ["supplement", "clause", "fraud"], seen
+    assert {cutoff for _, cutoff in seen} == {HISTORICAL.isoformat()}, seen
+    assert {s["source"] for s in result["sources"]} == {"合同法"}, result["sources"]
+
+
+def test_historical_contract_branch_builds_evidence_at_cutoff(store):
+    """合同证据必须**按基准日构建**：`blocks` 与 `docs` 同源，事后重过滤改不到 blocks。"""
+    seen = []
+    bootstrap = _historical_bootstrap(store, is_contract_review=lambda query: True)
+
+    def build_contract_data(text, cutoff=None):
+        seen.append(cutoff)
+        doc = _historical_doc() if cutoff else _pre_cutoff_doc()
+        return {
+            "docs": [doc],
+            "blocks": [
+                {"n": 1, "label": "违约责任", "text": "违约金条款", "articles": [doc.metadata["article"]], "tags": []}
+            ],
+            "level": "中",
+            "basis": "test",
+        }
+
+    deps = _fast_deps(
+        build_contract_data=build_contract_data, format_docs=lambda docs: "、".join(d.metadata["source"] for d in docs)
+    )
+
+    result = prepare_fast_path(bootstrap, _deps=deps)
+
+    assert seen == [HISTORICAL.isoformat()], seen
+    assert result["contract_data"]["blocks"][0]["articles"] == ["第一百一十四条"], result["contract_data"]
+    assert [s["source"] for s in result["sources"]] == ["合同法"], result["sources"]
+
+
+def test_current_date_contract_branch_is_unchanged(store):
+    """对照组：不带基准日 ⇒ 传 None ⇒ 合同证据取现行法（生产默认路径零变化）。"""
+    seen = []
+    bootstrap = bootstrap_request(
+        store.user_id,
+        store.conv_id,
+        "借款合同纠纷",
+        None,
+        False,
+        _deps=_bootstrap_deps(store, is_contract_review=lambda query: True),
+    )
+
+    def build_contract_data(text, cutoff=None):
+        seen.append(cutoff)
+        doc = _historical_doc() if cutoff else _pre_cutoff_doc()
+        return {"docs": [doc], "blocks": [], "level": "低", "basis": "test"}
+
+    result = prepare_fast_path(bootstrap, _deps=_fast_deps(build_contract_data=build_contract_data))
+
+    assert seen == [None], seen
+    assert [s["source"] for s in result["sources"]] == ["民法典"], result["sources"]
+
+
+def test_contract_messages_mark_historical_baseline_date(store):
+    """合同链的模型可见上下文必须标出基准日，与 `_build_messages` 同口径。
+
+    不标 ⇒ 模型拿到的是一版旧法，却按现行法措辞作答（民法典时代语境）。
+    对照组（无基准日不出现该标注）防止把标注写成无条件字面量。
+    """
+    from main import _contract_messages
+
+    contract_data = {
+        "docs": [_historical_doc()],
+        "blocks": [
+            {
+                "n": 1,
+                "label": "违约责任",
+                "text": "违约金条款",
+                "articles": ["第一百一十四条"],
+                "tags": ["违约"],
+            }
+        ],
+        "level": "中",
+        "basis": "test",
+    }
+    deps = _fast_deps(build_contract_data=lambda text, cutoff=None: contract_data)
+    historical = prepare_fast_path(_historical_bootstrap(store, is_contract_review=lambda query: True), _deps=deps)
+    current = prepare_fast_path(
+        bootstrap_request(
+            store.user_id,
+            store.conv_id,
+            "借款合同纠纷",
+            None,
+            False,
+            _deps=_bootstrap_deps(store, is_contract_review=lambda query: True),
+        ),
+        _deps=deps,
+    )
+
+    assert "2019-01-01" in _contract_messages(historical, contract_data)[-1].content
+    assert "法律版本基准日" not in _contract_messages(current, contract_data)[-1].content
+
+
+# ---------------- 口径②（2026-10-13 裁定）：退出只认本轮明示短命令，贴入的合同正文不作退出指令 ----------------
+def test_contract_body_words_do_not_exit_contract_mode():
+    """合同正文里写着"合同结束""暂停履行"，那是文档内容，不是用户的退出指令。"""
+    pasted = chr(10).join(
+        [
+            "第五条 本合同结束后的三十日内，押金不予退还。",
+            "第六条 双方可协商暂停履行，暂停期间不计违约金。",
+            "第七条 一方提出终止的，应提前三十日通知；合同结束时未结算款项按下列方式处理。",
+        ]
+    )
+    assert is_contract_exit(pasted) is False
+
+
+def test_long_prose_with_exit_phrase_does_not_exit():
+    prose = "我们之前那份合同我还在考虑，不过你说如果双方协商一致的话，结束合同之后押金到底怎么退？"
+    assert len(prose) > 20
+    assert is_contract_exit(prose) is False
+
+
+def test_explicit_short_exit_commands_still_exit():
+    for t in ("结束合同", "换个话题", "退出合同。", "不审合同了"):
+        assert is_contract_exit(t) is True, t
+
+
+def test_bare_pause_and_stop_words_no_longer_exit():
+    """裸词不再算退出：含糊时交确认（裁定），不静默退出——这也是"合同正文自触发退出"的根因。"""
+    for t in ("暂停", "结束", "先暂停一下"):
+        assert is_contract_exit(t) is False, t
+
+
+def _keep_touched():
+    """把模块级时间戳表存/还原，避免用例互相污染。"""
+    import request_bootstrap as rb
+
+    before = dict(rb._contract_touched)
+    return rb, before
+
+
+def test_contract_state_expires_after_idle_ttl():
+    """口径②：状态不落盘但必须有过期边界——闲置超过 TTL 即**摘除**（不只是判 False）。"""
+    rb, before = _keep_touched()
+    active = {7}
+    rb._contract_touched[7] = 1000.0
+    try:
+        assert rb.contract_session_active(7, active, now=1000.0 + rb.CONTRACT_IDLE_TTL_S - 1) is True
+        rb._contract_touched[7] = 1000.0  # 重置时间戳：这是闲置 TTL，上一次调用已续期
+        assert rb.contract_session_active(7, active, now=1000.0 + rb.CONTRACT_IDLE_TTL_S + 1) is False
+        assert 7 not in active
+        assert 7 not in rb._contract_touched
+    finally:
+        rb._contract_touched.clear()
+        rb._contract_touched.update(before)
+
+
+def test_contract_turn_refreshes_idle_clock():
+    """本轮活跃即续期：这是闲置 TTL，不是绝对 TTL。"""
+    rb, before = _keep_touched()
+    active = {8}
+    rb._contract_touched[8] = 1000.0
+    try:
+        mid = 1000.0 + rb.CONTRACT_IDLE_TTL_S - 1
+        assert rb.contract_session_active(8, active, now=mid) is True
+        assert rb._contract_touched[8] == mid
+        assert rb.contract_session_active(8, active, now=mid + rb.CONTRACT_IDLE_TTL_S - 1) is True
+    finally:
+        rb._contract_touched.clear()
+        rb._contract_touched.update(before)
+
+
+def test_legacy_entry_without_timestamp_is_not_killed():
+    """旧路径（无时间戳）的会话当活跃并补记，避免升级瞬间把在途会话全判死。"""
+    rb, before = _keep_touched()
+    active = {9}
+    rb._contract_touched.pop(9, None)
+    try:
+        assert rb.contract_session_active(9, active) is True
+        assert 9 in rb._contract_touched
+    finally:
+        rb._contract_touched.clear()
+        rb._contract_touched.update(before)
+
+
+_CLAUSE_ONLY_TEXT = chr(10).join(
+    [
+        "服务协议正文如下：",
+        "第一条 委托方提供资料，受托方按月收取服务费与押金。",
+        "第二条 逾期付款的，按日承担违约金，并可以解除本协议。",
+        "第三条 双方签署补充协议后方可变更本协议条款。",
+    ]
+)
+
+
+def _clear_intent_asked():
+    import request_bootstrap as rb
+
+    rb._contract_intent_asked.clear()
+
+
+def test_clause_only_input_asks_before_switching(store):
+    """口径③⑥（2026-10-13 裁定）：只有"条款自指"命中时**先确认审查意图**，不静默切换；会话级只问一次。"""
+    _clear_intent_asked()
+    active = set()
+    deps = _bootstrap_deps(
+        store,
+        contract_conversations=active,
+        is_contract_review=lambda q: bool(q) and ("合同" in q),
+        contract_trigger_reason=lambda q: "clause_labels",
+    )
+    first = bootstrap_request(store.user_id, store.conv_id, _CLAUSE_ONLY_TEXT, None, False, _deps=deps)
+    assert first.intent_confirm is True
+    assert store.conv_id not in active  # 关键：先确认，不进合同态
+
+    second = bootstrap_request(store.user_id, store.conv_id, _CLAUSE_ONLY_TEXT, None, False, _deps=deps)
+    assert second.intent_confirm is False  # 已问过不再问
+    assert second.contract_mode is False  # 也不静默切换（第二遍落普通分析）
+    assert store.conv_id not in active
+    _clear_intent_asked()
+
+
+def test_explicit_and_party_triggers_still_switch_without_asking(store):
+    """口径③：能可靠区分的自动触发保留——显式请求与"甲方/乙方"两支直接切，不打扰用户。"""
+    _clear_intent_asked()
+    for reason in ("explicit", "party_labels"):
+        active = set()
+        deps = _bootstrap_deps(
+            store,
+            contract_conversations=active,
+            is_contract_review=lambda q: bool(q) and ("合同" in q),
+            contract_trigger_reason=lambda q, r=reason: r,
+        )
+        b = bootstrap_request(store.user_id, store.conv_id, "审合同", None, False, _deps=deps)
+        assert b.intent_confirm is False, reason
+        assert b.contract_mode is True, reason
+        assert store.conv_id in active, reason
+        active.discard(store.conv_id)
+    _clear_intent_asked()
+
+
+def test_comparison_turn_keeps_previous_contract(store):
+    """口径②（2026-10-13 裁定）：换合同重置，但**明确比较两份合同除外**。
+
+    现状：第二轮若又是"审查请求"（粘第二份合同也算），走 `enter` 覆盖分支 ⇒ 第一份合同从上下文消失，
+    "对比两份"根本答不了。本条先红：断言两轮文本都在 contract_text 里。
+    """
+    active = set()
+    history = [RecentMessageSnapshot(role="user", content="第一份合同：租金每月三万元。", image_desc="")]
+    deps = _bootstrap_deps(
+        store,
+        contract_conversations=active,
+        is_contract_review=lambda q: bool(q) and ("合同" in q),  # 像真判据：空串不得为 True
+        contract_trigger_reason=lambda q: "explicit",
+        load_context=lambda db, conv: ("", history),
+    )
+    first = bootstrap_request(store.user_id, store.conv_id, "第一份合同：租金每月三万元。", None, False, _deps=deps)
+    assert "第一份合同" in (first.contract_text or "")
+
+    second = bootstrap_request(
+        store.user_id, store.conv_id, "对比一下这两份合同：第二份合同租金每月五万元。", None, False, _deps=deps
+    )
+    both = second.contract_text or ""
+    assert "第一份合同" in both, f"比较轮把上一份合同丢了：{both!r}"
+    assert "第二份合同" in both, both
+
+
+def test_non_comparison_new_contract_still_resets(store):
+    """反面钉：不是比较轮时，换合同**要**重置（旧合同不得回捞）。"""
+    active = set()
+    history = [RecentMessageSnapshot(role="user", content="旧合同：租金每月三万元。", image_desc="")]
+    deps = _bootstrap_deps(
+        store,
+        contract_conversations=active,
+        is_contract_review=lambda q: bool(q) and ("合同" in q),
+        contract_trigger_reason=lambda q: "explicit",
+        load_context=lambda db, conv: ("", history),
+    )
+    bootstrap_request(store.user_id, store.conv_id, "旧合同：租金每月三万元。", None, False, _deps=deps)
+    second = bootstrap_request(store.user_id, store.conv_id, "新合同：租金每月五万元。", None, False, _deps=deps)
+    both = second.contract_text or ""
+    assert "新合同" in both and "旧合同" not in both, both

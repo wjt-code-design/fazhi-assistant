@@ -30,6 +30,7 @@ def _in_top(docs, source, article):
 def test_bridge_query_rewrites():
     assert "从建筑物中抛掷物品" in retrieval._bridge_query("高空抛物致人损害，由谁承担责任？")
     assert "申请行政复议" in retrieval._bridge_query("行政复议的受案范围包括哪些情形？")
+    assert "休息日安排劳动者工作" in retrieval._bridge_query("周末加班，加班费怎么算？")
 
 
 def test_bridge_query_passthrough():
@@ -315,40 +316,88 @@ def test_rerank_without_deadline_keeps_historical_behaviour(monkeypatch):
 
 # ---------------- 真实 KB 查准（slow：CI 跳过） ----------------
 @pytest.mark.slow
-def test_high_altitude_fall_precision():
+def test_high_altitude_fall_precision(real_kb):
     docs = retrieval.hybrid_retrieve("高空抛物致人损害，由谁承担责任？", k=6)
     assert _in_top(docs, "民法典", "第一千二百五十四条"), "高空抛物应召回 1254，而非高度危险责任噪声"
 
 
 @pytest.mark.slow
-def test_admin_reconsideration_scope():
+def test_admin_reconsideration_scope(real_kb):
     docs = retrieval.hybrid_retrieve("行政复议的受案范围包括哪些情形？", k=6)
     assert _in_top(docs, "行政复议法", "第十一条"), "受案范围应召回 11 条正面条款（措辞桥接）"
 
 
 @pytest.mark.slow
-def test_personal_info_principles():
+def test_personal_info_principles(real_kb):
     docs = retrieval.hybrid_retrieve("处理个人信息应当遵循哪些原则？", k=6)
     for art in ("第五条", "第六条", "第七条"):
         assert _in_top(docs, "个人信息保护法", art), f"个人信息原则应召回 {art}"
 
 
 @pytest.mark.slow
-def test_shareholder_capital_deadline():
+def test_shareholder_capital_deadline(real_kb):
     docs = retrieval.hybrid_retrieve("公司股东认缴出资的期限是多长？", k=6)
     assert _in_top(docs, "公司法", "第四十七条"), "出资期限应召回 47 条"
 
 
 @pytest.mark.slow
-def test_short_name_exact_lookup():
+def test_short_name_exact_lookup(real_kb):
     # 简称→全称：条号直查也应吃别名（库内 source 是全称「刑事诉讼法」）
     docs = retrieval.exact_article_lookup("刑诉法", "第八十三条")
     assert docs, "刑诉法第八十三条应命中刑事诉讼法第八十三条"
 
 
 @pytest.mark.slow
-def test_short_name_citation_verify():
+def test_short_name_citation_verify(real_kb):
     # code-review P1：引用校验（article_in_kb）也应归一——答案引《民诉法》第X条
     # 不应被判假引用（此前 source_in_kb/article_in_kb 走 _source_key 不接别名）
     bad = retrieval.citation_verify("根据《民诉法》第一百二十条，采取强制措施的决定权专属人民法院。")
     assert bad == [], f"《民诉法》应归一审诉法而非判假引用: {bad}"
+
+
+# ---------------- 口径④（2026-10-13 裁定）：分段定序 ＋ 截断要响 ----------------
+def test_cosine_rank_uses_max_over_units(monkeypatch):
+    """定序 query 逐单元取最大相似——整段单查询会把长题目的题尾稀释/截断掉。
+
+    实测背景：同一目标句放头 300 字后立刻 top-1、放进 752 字全文却跌出 top-10；
+    512 token 之外的部分根本不进向量。单元与召回侧同源（query_understand.decompose）。
+    """
+    calls: list[list[str]] = []
+
+    class _FakeEmbeddings:
+        def embed_documents(self, texts):
+            calls.append(list(texts))
+            return [[1.0, 0.0] if "时效" in t else [0.0, 1.0] for t in texts]
+
+        def embed_query(self, text):
+            raise AssertionError("不该再用整段 embed_query 定序")
+
+    monkeypatch.setattr(retrieval, "embeddings", _FakeEmbeddings())
+    monkeypatch.setattr(
+        retrieval.query_understand,
+        "decompose",
+        lambda q: [("长叙述前言" * 30, "slice"), ("诉讼时效是否届满", "slice")],
+    )
+    docs = [
+        SimpleNamespace(page_content="时效条款", metadata={"source": "民法典", "article": "第一百八十八条"}),
+        SimpleNamespace(page_content="无关条款", metadata={"source": "民法典", "article": "第一百八十九条"}),
+    ]
+    ranked = retrieval._cosine_rank("任意长题面", docs)
+    assert ranked[0].metadata["article"] == "第一百八十八条"
+    assert len(calls[0]) == 2, "单元应各自嵌入（逐单元），而不是整段一坨"
+
+
+def test_query_truncation_is_loud(monkeypatch, caplog):
+    """超窗查询必须 warning＋计数（口径④"截断失败归产品链路问题"）；不超窗不许计数。"""
+    import logging as _logging
+
+    monkeypatch.setattr(retrieval, "_query_token_len", lambda text: 900 if len(text) > 100 else 12)
+    retrieval._TRUNCATION_WARNED_LENS.clear()
+    before = retrieval._TRUNCATED_QUERY_COUNT
+    with caplog.at_level(_logging.WARNING, logger="legal.retrieval"):
+        retrieval._warn_if_query_truncates("长" * 200)
+        retrieval._warn_if_query_truncates("长" * 200)  # 同长度第二次：计数照加、提示只一条
+        retrieval._warn_if_query_truncates("短查询")
+    assert retrieval._TRUNCATED_QUERY_COUNT == before + 2
+    msgs = [r.getMessage() for r in caplog.records if "超嵌入窗口" in r.getMessage()]
+    assert len(msgs) == 1, f"同一长度的提示应去重：{msgs}"

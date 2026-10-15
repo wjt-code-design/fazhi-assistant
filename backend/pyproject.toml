@@ -4,15 +4,24 @@ target-version = "py311"
 # **冻结物**（执行书 T0 红线 + 哈希锚定物，见 dispatch-output/.../candidate-manifest-*.json
 # 的 frozen_files_sha256）一律跳过 ruff —— 对它们做任何 lint 自动修复或格式化都会改变冻结哈希，
 # 等价于"修改冻结物"，违反 docs/code-review-standard.md §2 B1。
-# 代价：这 6 个文件失去 ruff 覆盖（它们本就被冻结、不接受改动，故无实际损失）。
+# 代价：被排除文件失去 ruff 覆盖（它们本就被冻结、不接受改动，故无实际损失）。
 # 若将来 unfreeze，**必须删掉本 exclude** 并接受其 lint 修复。
 # 2026-09-16 unfreeze 记录：verifier.py（T2 渲染收窄，handoff 授权）与 chat_integration.py
 # （T1 覆盖契约；不在 1e9 候选 candidate-hashes.json 锚定内）已由用户工作流解冻并接受改动
-# ⇒ 两项从 exclude 删除（履行本注释义务，恢复 lint 覆盖）；state_machine/repository/prompts/
-# gate5_judge 仍冻结保留。
+# ⇒ 两项从 exclude 删除（履行本注释义务，恢复 lint 覆盖）。
+# 2026-10-10 unfreeze 记录：agent/state_machine.py。Owner 在非部署收尾轮对「在册仍声明冻结 vs DB-15 已改此文件」
+#   的冲突裁「按推荐」=确认解冻并保留改动。判据与前两例同式：最新锚定 candidate-hashes.json（1e9，git_head 604fa240）
+#   只含 writer.py/verifier.py/switches/prior，**不含 state_machine.py**；本轮改动（FREE_STEP_EDGES + charge 查表，+22/-1）
+#   由 tests/test_agent_budget_terminal_edges.py 钉住。履行本文件注释义务：已从 exclude 删除该行，恢复 lint 覆盖。
+#   解冻代价实测（2026-10-10）：`ruff check` 该文件 HEAD 与接收字节均 rc=0；`ruff format --check` 两者**同一条 rc=1**
+#   （`self.state = state.model_copy(...)` 那段旧语句，HEAD:37）⇒ 格式债早于本轮，本次随解冻做一次纯格式化并断言 AST 不变。
+#   prompts.py 与 scripts/gate5_judge.py 仍冻结保留（后者实测解冻要真改代码：ruff check 2 个错误）。
+# 2026-09-18 unfreeze 记录：repository.py（R15-lite：law_as_of 服务端注入管道须改 create_run；
+# Owner 于当日会话决策卡明确授权"解冻并保留改动"）。判据与 09-16 先例一致：最新 1e9 锚定
+# （candidate-hashes.json）不含 repository.py，仅 09-10 t2-persistence 老 manifest 锚定过
+# （历史状态可经 git 历史复现）。解冻代价实测：ruff check 0 issue；format 仅 1 处既有签名
+# 折叠（load_owned_run，与本批改动无关），已接受。state_machine/prompts/gate5_judge 仍冻结保留。
 exclude = [
-    "agent/state_machine.py",
-    "agent/repository.py",
     "prompts.py",
     "scripts/gate5_judge.py",
 ]
@@ -46,15 +55,22 @@ no_implicit_optional = false
 #   ② backend/ 与 scripts/ 均无 __init__.py，scripts/capture_protocol.py 被同时映射为
 #      `capture_protocol`（顶层）与 `scripts.capture_protocol`（命名空间包）⇒ 冲突。
 # 处置：explicit_package_bases + mypy_path 解决同名模块双重映射冲突；exclude 写成能匹配整条路径的形式。
-# ⚠️ 精确说明（2026-09-17 注释勘误）：**scripts/ 在 exclude 内、不参与类型检查**——其内部既有
+# ⚠️ 精确说明（2026-09-17 注释勘误）：**scripts/ 整体在 exclude 内、不参与类型检查**——其内部既有
 # 错误不会暴露（截至 2026-09-16 采集，已知 scripts/gate2_runner.py 有 4 个既有错误，见
-# docs/work-progress-20260916-session3.md；该计数随时间可能变化，以实际采集为准）；
-# 若要纳入检查需先清零这些错误（另开票据），不在本配置改动。原注释"scripts/ 视为命名空间包"
-# 与本 exclude 事实混谈，已改正。
+# docs/work-progress-20260916-session3.md；该计数随时间可能变化，以实际采集为准）。
+# 2026-09-27 票 T5 改点②：Owner 裁"选①"——批导入守门器**必须**过类型，故给 `scripts/import_laws.py`
+# **单文件豁免**（下面 exclude 的负向前瞻），其余 `scripts/*` 照旧整体排除（含 gate2_runner 那 4 条，
+# 纳入它们仍属"另开票据先清零"，不在本配置改动）。豁免只这一条，加第二条前先想清楚 gate 的作用面。
+# 实测余量 = 0：`mypy .` 在 73→74 个文件下仍 0 error；负样本（删掉 `errors: list[str]` 注解）在
+# `mypy .` 这条 CI 命令下 rc=1 报 `import_laws.py [var-annotated]`（checked 74 files）⇒ 这条腿会红，不是装饰。
+# ⚠️ 下面那条 `[^/]+\.py` 不是冗余，是必须的：mypy 的 exclude 在**目录级剪枝**，只写
+# `scripts/(?!import_laws\.py$)` 时目录串 `scripts/` 自身被匹配 ⇒ 整个目录根本不进 discovery，
+# 读数会停在 73 而不报错（假"已纳入"）。加一个必选字符后目录串不再匹配，才会下降到文件级判定。
+# 另：coverage 的 `omit` 仍含 `scripts/*`，本票只动 mypy 作用面，未一并改（选① 没要求）。
 mypy_path = "."
 explicit_package_bases = true
 # （venv 必须排除：首次修好后 mypy 连 venv\Scripts\pywin32_testall.py 都在检查）
-exclude = ["(?x)^(tests/|scripts/|venv/)"]
+exclude = ['(?x)^(tests/|scripts/(?!import_laws\.py$)[^/]+\.py|venv/)']
 
 # SQLAlchemy 2.0 用 Column 而非 Mapped 注解 → Column[T] 被当 T 的误报（框架摩擦，基线忽略）
 # 迁移到 Mapped[mapped_column] 后应移除这些 override

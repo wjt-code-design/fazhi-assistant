@@ -26,7 +26,7 @@
 | 普通法律问答（非流式/流式） | `/api/chat` fast path | LongCat-2.0 | PASS | 002 隔离预检 858 字回答 + 引用关键词（48.6s）；003 候选单测 769 通过 |
 | 多轮会话/改写/压缩/记忆 | `registry.get()` 各辅助点 | LongCat-2.0 | PASS | 代码检查：全部纯文本调用，无协议差异面 |
 | 长回答/中文标点 | 同上 | LongCat-2.0 | PASS | 002 预检输出含规范《法律名》第X条引用与中文标点 |
-| 引用输出 + 引用校验 | `citation_verify` 后端确定性 | 与模型无关 | PASS | 既有门禁（smoke_citation_fast 17 项）+ 单测 |
+| 引用输出 + 引用校验 | `citation_verify` 后端确定性 | 与模型无关 | PASS | 既有门禁（smoke_citation_fast 24 项）+ 单测 |
 | 复杂度路由/缓存/配额记账 | 本地确定性组件 | 无 LLM | PASS | 既有单测（test_complexity/test_answer_cache/quota_*） |
 | 法考题/学习模式 | `/api/chat` study_aid | LongCat-2.0 | PASS* | 纯文本链路与主问答同构；*最终以阶段 D/J 回归为准 |
 | 合同/文书分析（粘贴） | `/api/chat` contract | LongCat-2.0 | PASS* | 纯文本；*阶段 J 需端到端复核 |

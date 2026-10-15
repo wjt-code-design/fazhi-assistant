@@ -9,8 +9,10 @@
 
 import hashlib
 import io
+import logging
 import os
 import threading
+from datetime import UTC, datetime
 
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -21,7 +23,9 @@ import retrieval
 import retrieval_core as rc
 from law_versions import replaceable_version_ids, version_metadata
 from models import QaCandidate
-from rag_chain import BASE_DIR, QA_COLLECTION_NAME, embeddings, vectorstore
+from rag_chain import CHROMA_DIR, QA_COLLECTION_NAME, embeddings, vectorstore
+
+logger = logging.getLogger("legal.knowledge")
 
 _ALLOWED_EXT = {".txt", ".md", ".pdf", ".docx"}
 _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
@@ -35,7 +39,7 @@ _WRITE_LOCK = threading.RLock()
 # 受控沉淀采纳后的"已确认问答"集合：用 question 做向量，便于问题空间匹配复用。
 # collection 名随 embedding provider 派生（与主库同语义空间，见 rag_chain.QA_COLLECTION_NAME）
 _qa_store = Chroma(
-    persist_directory=os.path.join(BASE_DIR, "chroma_db"),
+    persist_directory=CHROMA_DIR,
     embedding_function=embeddings,
     collection_name=QA_COLLECTION_NAME,
 )
@@ -105,9 +109,13 @@ def parse_uploaded(filename: str, raw: bytes) -> str:
     ext = os.path.splitext(filename)[1].lower()
     if ext == ".pdf":
         from pypdf import PdfReader
+        from pypdf.errors import PyPdfError
 
-        reader = PdfReader(io.BytesIO(raw))
-        text = "\n".join((page.extract_text() or "") for page in reader.pages)
+        try:
+            reader = PdfReader(io.BytesIO(raw))
+            text = "\n".join((page.extract_text() or "") for page in reader.pages)
+        except PyPdfError:
+            raise ValueError("PDF 文件损坏或无法解析") from None
     elif ext == ".docx":
         from docx_utils import extract
 
@@ -143,7 +151,7 @@ def add_chunks(
     """写入多 chunk（每 chunk 独立 metadata，如 article/chapter），返回写入数。
 
     调用方负责幂等（查重/替换）；本函数只负责写库 + 失效缓存。
-    时效三键归一化（阶段5）在此统一处理：空值写 ""，status 缺省"现行"
+    时效三键归一化（阶段5）在此统一处理：空值写 ""，status 缺省"未验证"
     （Chroma where 对缺失键语义不可靠，缺键会破坏时效过滤）。
     """
     base = {"source": source, "origin": origin}
@@ -153,12 +161,22 @@ def add_chunks(
         base.update({k: v for k, v in extra_meta.items() if v not in (None, "")})
     base["effective_from"] = (extra_meta or {}).get("effective_from") or ""
     base["effective_to"] = (extra_meta or {}).get("effective_to") or ""
-    base["status"] = (extra_meta or {}).get("status") or "现行"
+    base["status"] = (extra_meta or {}).get("status") or "未验证"
     docs = [Document(page_content=c, metadata={**base, **m}) for c, m in pairs if (c or "").strip()]
     if not docs:
         return 0
-    vectorstore.add_documents(docs)
-    retrieval.invalidate()
+    try:
+        vectorstore.add_documents(docs)
+    except BaseException:
+        # 批量写入或中断可能已写部分；尝试失效，但清理故障不能替换原写入异常。
+        try:
+            retrieval.invalidate()
+        except Exception as exc:
+            logger.warning("知识写入失败后的缓存失效也失败 (error=%s)", type(exc).__name__)
+        raise
+    else:
+        # 写入成功时失效失败仍须向上抛出，不能报告为成功。
+        retrieval.invalidate()
     return len(docs)
 
 
@@ -174,7 +192,7 @@ def add_text(
 
     - upload：走结构化切分（条号边界/章节前缀/目录跳过，见 chunking.split_law_document）；
       同 file_hash 重传先替换旧切片。
-    - manual/import：单条条文切分；同一法名、条号、生效日视为同一版本，修订版并存。
+    - manual/import：单条条文切分；有明确生效日且同一法名、条号的重传视为同版本，修订版并存。
     - seed：knowledge_base.build 直写，不走本函数。
     """
     if origin in ("manual", "import") and article:
@@ -201,31 +219,60 @@ def add_text(
                 try:
                     version_id = str((extra_meta or {}).get("version_id") or "").strip()
                     effective_from = str((extra_meta or {}).get("effective_from") or "").strip()
+                    effective_to = str((extra_meta or {}).get("effective_to") or "").strip()
                     existing = _collection().get(
                         where={"$and": [{"source": source}, {"article": article}]},
-                        include=["metadatas"],
+                        include=["metadatas", "documents"],  # T1：判"遗留无时效块可否被取代"要看旧正文
                     )
-                    stale_ids = replaceable_version_ids(
-                        existing["ids"],
-                        existing.get("metadatas") or [],
-                        version_id=version_id,
-                        effective_from=effective_from,
+                    # 本路径只消费"可替换"：并存块**不删**是安全侧（宁可留双胞胎，不可误删条文），
+                    # "要说出来"落在预检（票 T2 的报警 + rc 分档）—— 写侧这里没有人工裁决的机会。
+                    stale_ids = list(
+                        replaceable_version_ids(
+                            existing["ids"],
+                            existing.get("metadatas") or [],
+                            version_id=version_id,
+                            effective_from=effective_from,
+                            effective_to=effective_to,
+                            documents=existing.get("documents") or [],
+                            new_content=content,
+                        ).replaceable
                     )
-                except Exception:
+                except Exception as exc:
+                    # 静默降级不可区分：判据整体失效与"判定后决定不替换"结果都是 stale_ids 空，
+                    # 只留痕才分得开（version-safety-review-findings-20260927.md 低-2）。
                     stale_ids = []
+                    # 刻意**不传 exc_info**（2026-09-27，票 T-A）：`_JsonFormatter` 会把 exc_info 的
+                    # 异常原文 + 完整 traceback 整体写进内置键 `exc`（内置键，不占 `_ACCOUNT_FIELDS`
+                    # 白名单，登记与否都拦不住），而这里被捕获的 `replaceable_version_ids(...)`
+                    # 入参含 `new_content`（条文正文）+ `documents`（旧正文）⇒ 异常消息只要复述了
+                    # 入参，正文就随 `exc` 落进 JSON 日志。诊断面保留**异常类名 + 法名 + 条号**
+                    # （下面这行的 `error=%s` 与 `source/article`），足以定位是哪一步、对哪一条塌的；
+                    # 需要原文时按同一法名/条号在本地复现即可。
+                    # 举证：tests/test_knowledge_service.py::
+                    # test_version_judgment_crash_is_visible_in_structured_log（合成敏感标记 +
+                    # 断言 `exc` 键为空 + 正文记号不落日志）。
+                    logger.warning(
+                        "法版本判定失败，按不替换处理 (source=%s article=%s error=%s)",
+                        source,
+                        article,
+                        type(exc).__name__,
+                        extra={"law_version_judgment_failed": True},
+                    )
             chunks = chunking.split_article_text(content, article=article)
             pairs = [
                 (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")})
                 for c in chunks
             ]
         n = add_chunks(pairs, source=source, origin=origin, extra_meta=extra_meta, file_hash_value=file_hash_value)
-        # 写入成功后再删旧（add_chunks 已失效检索缓存；同一 RLock 内紧凑执行）。
+        # 写入成功后再删旧；读取不持有写锁，删旧结束后还需再次失效。
         # 失败仅导致新旧短暂共存，下次重传仍会清理——可接受，优于删旧失败丢知识。
         if n and stale_ids:
             try:
                 _collection().delete(ids=stale_ids)
             except Exception:
                 pass
+            finally:
+                retrieval.invalidate()
         return n
 
 
@@ -265,16 +312,45 @@ def count_docs(status: str | None = None) -> int:
 
 
 # ==================== qa_pairs（受控沉淀采纳后） ====================
-def add_qa_pair(question: str, answer: str, evidence: str = "", fingerprint: str = "") -> None:
+def add_qa_pair(question: str, answer: str, evidence: str = "", fingerprint: str = "", basis: str = "") -> None:
     """QA 对入库（answer/evidence/options_fingerprint 存 metadata，question 作向量检索入口）。
 
     fingerprint（选项内容指纹，审查 C4 护栏）：直返前校验同题干换选项内容必须 miss。
+
+    **票 T6 写侧补口（2026-09-21）**：调用方不给指纹时**自己现算**。此前全仓只有
+    `scripts/gen_qa_corpus.py` 传指纹，而两条**生产运行时写路径**（`create_candidate`
+    有据分自动收录 / `decide_candidate` 人工采纳）与 `qa_seeds` 都不传 ⇒ 经它们进来的
+    新语料对 C4 护栏是**盲的**（T7 补采只覆盖了存量 279 条，没堵写侧）。
+    现算复用**读侧同一个** `query_understand._options_fingerprint`——不新增第二份选项提取规则；
+    调用方显式传入的值优先（`gen_qa_corpus` 路径逐字不变）。
+
+    **票 AUTH-A-2 写侧补口（2026-09-25，Owner 裁决 A 案）**：同一形状再堵一格——调用方不给
+    `law_as_of_basis` 时落**当日**。第四轮核对把"缺 basis ⇒ 来源不可校验 ⇒ 不直返也不注入"
+    上线后，全仓**没有任何生产者**写这个键（存量的值来自 09-20 一次性回填），于是新沉淀的语料
+    **永久**过不了 `retrieval_core.qa_provenance_verifiable`：零模型直返会静默衰减到那 279 条。
+    默认值对四条路径都是**真话**：`_post` 的沉淀闸明令"带历史基准日的请求不沉淀"，种子与生成
+    脚本也按当日法律现产出。唯一例外是人工采纳——答案的法律版本身份属于**产生**它的那天，
+    隔几天采纳不会让它变成今日的法 ⇒ `decide_candidate` 显式传候选 `created_at` 的日期。
+    时钟取 UTC，与 `QaCandidate.created_at`（`datetime.utcnow`）同一个钟——
+    若默认值改用本地钟，两条路径的"当日"就会差最多一天。
     """
+    if not fingerprint:
+        from query_understand import _options_fingerprint  # 局部导入：不加重模块加载
+
+        fingerprint = _options_fingerprint(question or "")
+    if not basis:
+        basis = datetime.now(UTC).date().isoformat()
     _qa_store.add_documents(
         [
             Document(
                 page_content=question,
-                metadata={"answer": answer, "evidence": evidence, "origin": "qa", "options_fingerprint": fingerprint},
+                metadata={
+                    "answer": answer,
+                    "evidence": evidence,
+                    "origin": "qa",
+                    "options_fingerprint": fingerprint,
+                    "law_as_of_basis": basis,
+                },
             )
         ]
     )
@@ -304,6 +380,9 @@ def search_qa(query: str, threshold: float = 0.7):
         "answer": res[0][0].metadata.get("answer", ""),
         "score": round(score, 4),
         "evidence": res[0][0].metadata.get("evidence", ""),
+        # 票 I 的 I-2(a)：把语料的**版本基准日**带到调用方（`main._qa_direct_return` 靠它判分水岭），
+        # 否则那道护栏没有输入。缺字段时给空串 ⇒ 调用方按"未标注"处理（不拦，保持旧行为）。
+        "law_as_of_basis": res[0][0].metadata.get("law_as_of_basis", ""),
         "fingerprint": res[0][0].metadata.get("options_fingerprint", ""),
     }
 
@@ -366,7 +445,11 @@ def decide_candidate(db: Session, cand_id: int, decision: str):
     if not r:
         return None
     if decision == "approved":
-        add_qa_pair(r.question, r.answer, r.evidence or "")
+        # 采纳≠产生：基准日取候选**产生**那天（created_at），不是此刻的今天。缺值时传空串，
+        # 由 add_qa_pair 落当日——那是它默认的"今天产生"口径，比凭空造一个旧日期诚实。
+        add_qa_pair(
+            r.question, r.answer, r.evidence or "", basis=r.created_at.date().isoformat() if r.created_at else ""
+        )
         # 纠错采纳 = 知识变更：清回答缓存，否则旧答案在 TTL 内继续命中、纠错静默失效
         import retrieval
 

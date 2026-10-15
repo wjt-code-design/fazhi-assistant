@@ -11,9 +11,10 @@ import logging
 import re
 import threading
 import time
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from concurrent.futures import ThreadPoolExecutor
 from datetime import date
+from typing import Any
 
 import httpx
 from langchain_core.documents import Document
@@ -21,7 +22,7 @@ from langchain_core.documents import Document
 import query_understand
 import quota_utils
 import retrieval_core as rc
-from domain_rules import canon_source
+from domain_rules import SOURCE_NAME_PREFIX, canon_source, norm_law_name
 from llm_errors import is_transient_error
 from rag_chain import embeddings, vectorstore
 from settings import settings
@@ -246,7 +247,7 @@ _ART_NO_BRACKET_RE = re.compile(
     r"(?<!《)([一-龥]{1,13}?(?:法|典|条例|规定|办法))"
     r"\s*(第[零〇○一二三四五六七八九十百千万0-9０-９]+条(?:之[一二三四五六七八九十百千万0-9０-９]+)?)"
 )
-_PREFIX_CN = "中华人民共和国"
+_PREFIX_CN = SOURCE_NAME_PREFIX  # DB-18：字面量真源已收进 domain_rules.SOURCE_NAME_PREFIX，此处仅留别名
 
 _CN_DIGITS = "零一二三四五六七八九"  # 下标即数字值（d=1 → 一）
 _CN_UNITS = ("", "万", "亿", "万亿")
@@ -305,6 +306,7 @@ def _num_to_cn(n: int) -> str:
 _QUERY_BRIDGE = [
     (re.compile(r"高空抛物"), "从建筑物中抛掷物品"),
     (re.compile(r"受案范围"), "申请行政复议"),
+    (re.compile(r"周末加班"), "休息日安排劳动者工作"),
 ]
 
 
@@ -337,23 +339,23 @@ def parse_article_query(query: str):
     if not m:
         return None
     name = m.group(1).strip()
-    if name.startswith(_PREFIX_CN):
-        name = name[len(_PREFIX_CN) :]
-    return name, _normalize_article(m.group(2))
+    # DB-18：原先这里内联着第二份"剥前缀"字面量，现与 `_source_key` 共用同一真源。
+    # （两个抽取正则的第 1 组都只允许汉字/书名号内容，不含括号 ⇒ 剥尾部括注这步在此恒为 no-op，
+    # 行为与改前逐字一致；留着是为了不再有第二份规则。）
+    return norm_law_name(name), _normalize_article(m.group(2))
 
 
-def exact_article_lookup(source: str, article: str, cutoff: str | None = None) -> list[Document]:
-    """精确条号查找（含时效过滤，与检索同口径）。返回匹配 Document 列表。"""
-    cutoff = cutoff or date.today().isoformat()
-    source = canon_source(source)  # 简称→全称（库内存全称，民诉法→民事诉讼法）
-    data = vectorstore._collection.get(
-        where={"$and": [{"source": source}, {"article": article}]},
-        include=["documents", "metadatas"],
-    )
-    docs = []
+def _valid_docs(data: Mapping[str, Any], cutoff: str, only: list[int] | None = None) -> list[Document]:
+    """`collection.get` 结果 → 通过时效过滤的 Document 列表（`only` 可限定行下标）。
+
+    抽出来是为了让"精确命中"与"票 I-6 的回退候选"**共用同一段取文与时效过滤**：
+    两份拷贝会让时效口径出现第二个漂移点。
+    """
     metas = data["metadatas"] or []
     documents = data["documents"] or []
-    for i in range(len(data["ids"])):
+    idxs = range(len(data["ids"])) if only is None else only
+    docs: list[Document] = []
+    for i in idxs:
         meta = metas[i]
         if not rc.is_valid_by_time(meta, cutoff):
             continue
@@ -361,19 +363,100 @@ def exact_article_lookup(source: str, article: str, cutoff: str | None = None) -
     return docs
 
 
+def exact_article_lookup(source: str, article: str, cutoff: str | None = None) -> list[Document]:
+    """精确条号查找（含时效过滤，与检索同口径）。返回匹配 Document 列表。
+
+    **票 I-6**：精确匹配取空时，按 `_source_key` 再做**一次**候选解析。
+    库内源名可能带年份/版本括注（`宪法（1982年）`），而调用方（QA 语料、模型引用）写的是简称
+    ⇒ 精确匹配会把**其实有据可查**的记录判成 miss。实测（2026-09-20，真实 KB）：
+    `宪法（1982年）` 抽样 5 个条号，`exact_article_lookup("宪法", <条号>)` **全为 0 条**，
+    而同族的 `article_in_kb("宪法", <条号>)` **全为 True**、`_source_key` 两边都归一成 `宪法`
+    ⇒ 容忍源名差异的能力本仓早有（`_source_key` 的 docstring 原文就点名了这个例子），
+    只是本函数此前是唯一没用它的读侧。
+
+    刻意**不加版本承诺**（不猜"哪个年份版本才对"），只加一次候选解析，
+    并且**复用全仓唯一的源名归一规则** `_source_key` —— 不另写一份"去括注"正则
+    （那就是第二份规则，会各自漂移）。
+    """
+    cutoff = cutoff or date.today().isoformat()
+    source = canon_source(source)  # 简称→全称（库内存全称，民诉法→民事诉讼法）
+    article = _normalize_article(article)
+    data = vectorstore._collection.get(
+        where={"$and": [{"source": source}, {"article": article}]},
+        include=["documents", "metadatas"],
+    )
+    docs = _valid_docs(data, cutoff)
+    if docs:
+        return docs
+    # —— 回退（票 I-6）：只按 article 取一遍，再用 `_source_key` 在 Python 侧筛源名。
+    # 之所以按 article 取而不是枚举全部源名：article 的过滤性足够强（同条号跨法条数量级几十），
+    # 且本仓已有同样的形态在用（`article_in_kb` 就是 `where={"article": art}` + `_source_key` 比对）。
+    data = vectorstore._collection.get(where={"article": article}, include=["documents", "metadatas"])
+    sk = _source_key(source)
+    rows = [
+        i for i, m in enumerate(data["metadatas"] or []) if _source_key(str((m or {}).get("source", "") or "")) == sk
+    ]
+    return _valid_docs(data, cutoff, only=rows)
+
+
+def qa_citations_in_kb(qa: Mapping[str, Any] | None) -> bool:
+    """这条 QA 语料记录引用的条文**是否每一条都还能在库里查到**（时效判据本体）。
+
+    票 W1（2026-09-25，Owner 裁决"对称收口，判据上提到产生处"）。此前这一步只写在
+    `main._qa_direct_return` 的时效护栏里，而一条语料命中有**两条**出路：① 零模型直返，
+    ② `main._build_messages` 以"此前已确认的问答（可优先参考）"注入 prompt。产生处只做
+    **形状**判据（`retrieval_core.qa_provenance_verifiable` 问"引用给不给得出"，不问"引用核验不核验得了"）
+    ⇒ ② 从来没经过时效判定，一条引用已删条目的旧答案照样进模型上下文。
+    现在两个出口调**同一个**本函数，不留第二份循环。
+
+    引用形状复用全仓唯一解析器 `rc.cited_articles`（另写一份"什么算引用"就是第 10 节② 的原始失效模式）。
+
+    两侧都 fail-closed：解析不出任何引用 ⇒ False（"没得核验"不等于"核验通过"）；
+    库读不动 ⇒ False（沿用直返出口既有的 `except Exception → 不直返` 口径 —— 一次 chroma 故障
+    不该把失效语料升级成可用语料）。
+
+    刻意**不带 cutoff**，与 `knowledge_service.search_qa` 同一决定（理由见
+    `request_bootstrap.FastPathDependencies` docstring：QA 语料按当日沉淀、无版本轴，
+    历史查询在产生处已把 `qa_hit` 置 None）。判据落在这里而不是产生处，也让"按**现行**日
+    核验"只有一处实现，不必在两个调用点之间保持一致。
+    """
+    if not qa:
+        return False
+    pairs = rc.cited_articles(str(qa.get("evidence") or ""))
+    if not pairs:
+        return False
+    for src, art in pairs:
+        try:
+            if not exact_article_lookup(src, art):
+                return False
+        except Exception:
+            logger.warning("QA 引用的条文核验读库失败 ⇒ 按不可核验处理 (source=%s article=%s)", src, art, exc_info=True)
+            return False
+    return True
+
+
 def _norm_source(name: str) -> str:
-    """法名归一：去「中华人民共和国」前缀，便于答案引用与 sources 对齐。"""
+    """法名归一（**弱一档**：只去「中华人民共和国」前缀，不剥尾部括注）。
+
+    ⚠️ 勿删：`tests/test_smoke_citation_assertions.py::test_full_name_normalizer_cannot_drift_from_retrieval`
+    拿它当"照抄错对象"的反面教材——那条断言要求归一对齐 `_source_key`（强一档、剥括注），
+    若有人把归一改成照抄本函数，测试当场红。生产读侧请一律用 `_source_key` / `domain_rules.norm_law_name`。
+    """
     name = (name or "").strip()
     return name[len(_PREFIX_CN) :] if name.startswith(_PREFIX_CN) else name
 
 
 def _source_key(name: str) -> str:
-    """KB 源名归一（用于存在性比对）：去「中华人民共和国」前缀 + 去尾部（年份/版本）括注。
+    """KB 源名归一（用于存在性比对）：真源在 `domain_rules.norm_law_name`，此处仅保留历史名字。
 
     必须处理「宪法（1982年）」：库存源名带括注，用户引「宪法」，不去括注会匹配不上 → 宪法引用全误报。
+    DB-18（2026-10-09，审查报告 B-49）：同一规则此前在本仓有四份字面量（本函数、
+    `parse_article_query` 内联剥前缀、`agent.writer._canonical_law_name`、
+    `scripts/smoke_citation_full.norm_law_name`），且都只认**全角**
+    括注；元典等外部权威源的法规名是 `中华人民共和国劳动合同法(2012修正)` 这类**半角**形状
+    ⇒ 不剥就会让 10 个消费点把"其实有据可查"的引用判成"库里没有"。现收成为一份，全半角都剥。
     """
-    name = _norm_source(name)
-    return re.sub(r"（[^）]*）\s*$", "", name).strip()
+    return norm_law_name(name)
 
 
 # 中文条号 → 数字条号（capture_eval._canonical_number 同口径，供 expected_laws 匹配）。
@@ -439,12 +522,14 @@ def article_in_kb(source: str, article: str) -> bool:
 _src_set_cache: set[str] | None = None
 
 
-def _ensure_src_set() -> None:
+def _ensure_src_set() -> set[str]:
     """构建源名集合（首次全量扫描约 1-3s，之后 O(1) 查；知识增删后 invalidate 重建）。"""
     global _src_set_cache
-    if _src_set_cache is None:
-        data = vectorstore._collection.get(include=["metadatas"])
-        _src_set_cache = {_source_key(str((m or {}).get("source", "") or "")) for m in (data["metadatas"] or [])}
+    with _bm25_lock:
+        if _src_set_cache is None:
+            data = vectorstore._collection.get(include=["metadatas"])
+            _src_set_cache = {_source_key(str((m or {}).get("source", "") or "")) for m in (data["metadatas"] or [])}
+        return _src_set_cache
 
 
 def source_in_kb(source: str) -> bool:
@@ -456,13 +541,10 @@ def source_in_kb(source: str) -> bool:
     源名集合全量构建一次后 O(1) 查（10266 条 metadata 首查约 1-3s，知识增删后
     invalidate() 重建）。
     """
-    global _src_set_cache
     sk = _source_key(canon_source(source))  # 简称→全称（与 article_in_kb/exact_article_lookup 同口径）
     if not sk:
         return False
-    _ensure_src_set()
-    assert _src_set_cache is not None  # _ensure_src_set 副作用保证已构建
-    return sk in _src_set_cache
+    return sk in _ensure_src_set()
 
 
 def prewarm() -> None:
@@ -596,21 +678,27 @@ _bm25_docs: list[Document] = []
 def invalidate() -> None:
     """知识增删后调用：清空 BM25 索引、结果缓存与回答缓存。"""
     global _bm25, _bm25_docs, _src_set_cache
+    import answer_cache  # 延迟 import，知识增删时同清回答缓存
+
     with _bm25_lock:
         _bm25 = None
         _bm25_docs = []
-    _src_set_cache = None
-    _cache.clear()
-    import answer_cache  # 延迟 import，知识增删时同清回答缓存
+        _src_set_cache = None
+        _cache.clear()
+        # DB-16 补（2026-10-09 复核轮 B 路）：seen 集也要跟着清。它是"同一 (stage,category)
+        # 每进程只 warn 一次"的抑制器；知识增删后写侧可能刚把 `category` 补上（或补出错值），
+        # 不清就会带着"上次见过"的记忆继续静默。清掉 ⇒ 新一轮数据允许重新留一次痕。
+        _CATEGORY_MISS_SEEN.clear()
+        # 同上理：写侧补上/改错 `category` 之后，「这个维度存不存在」的答案会变，缓存必须跟着清。
+        _CATEGORY_ADVERTISED.clear()
+        answer_cache.clear()
 
-    answer_cache.clear()
 
-
-def _ensure_bm25() -> None:
+def _ensure_bm25() -> tuple[Any, list[Document]]:
     global _bm25, _bm25_docs
     with _bm25_lock:
         if _bm25 is not None:
-            return
+            return _bm25, _bm25_docs
         data = vectorstore._collection.get(include=["documents", "metadatas"])
         documents = data["documents"] or []
         metadatas = data["metadatas"] or []
@@ -623,6 +711,7 @@ def _ensure_bm25() -> None:
         ]
         _bm25 = rc.build_bm25(docs)
         _bm25_docs = docs
+        return _bm25, _bm25_docs
 
 
 _COLLECTION_IS_COSINE: bool | None = None
@@ -648,6 +737,51 @@ def _append_unique(dst: list[str], seen: set[str], dids: list[str]) -> None:
             dst.append(did)
 
 
+# ---- 口径④（2026-10-13 裁定）：超窗截断要会响，不许静默 ----
+# 本地 BGE 的 max_seq_length=512 token（实测：纯汉字≈510 字到界、混排≈667–683 字），
+# sentence-transformers 对超长输入**不告警**（源码无该分支）⇒ 沉默是默认，得由链路自己兜。
+# 产品不限制输入长度（裁定原文："不将整套评测限制为约 500 汉字"），但截断必须可见：
+# 超窗即 warning + 计数器，按"产品链路问题"记账。取不到 tokenizer（云端嵌入）时不猜、不误报。
+_MAX_QUERY_TOKENS = 510
+_TRUNCATED_QUERY_COUNT = 0
+_TRUNCATION_WARNED_LENS: set[int] = set()
+
+
+def _query_token_len(text: str) -> int | None:
+    """尽力取本地嵌入分词长度；取不到返回 None。
+
+    ⚠️ 用 getattr 链而不是 `inner.client.tokenizer` 直取：包装对象（QuotaTrackingEmbeddings）
+    与内层类型在 mypy 眼里是 union，直取会报 union-attr；而取不到 tokenizer（云端嵌入）本来就该返回 None。
+    """
+    try:
+        inner = getattr(embeddings, "_inner", embeddings)
+        client = getattr(inner, "client", None)
+        tokenizer = getattr(client, "tokenizer", None)
+        if tokenizer is None:
+            return None
+        return len(tokenizer(text, truncation=False)["input_ids"])
+    except Exception:
+        return None
+
+
+def _warn_if_query_truncates(text: str) -> int | None:
+    """超窗查询：warning＋计数（同一 token 长度只提示一次，防刷屏）。返回 token 数或 None。"""
+    global _TRUNCATED_QUERY_COUNT
+    n = _query_token_len(text)
+    if n is not None and n > _MAX_QUERY_TOKENS:
+        _TRUNCATED_QUERY_COUNT += 1
+        if n not in _TRUNCATION_WARNED_LENS:
+            _TRUNCATION_WARNED_LENS.add(n)
+            logger.warning(
+                "检索查询超嵌入窗口：%d token 超过 %d（尾部会被静默丢弃）——按口径④记为链路缺陷，"
+                "该走子问题/分段检索；本次查询前 40 字：%s",
+                n,
+                _MAX_QUERY_TOKENS,
+                text[:40],
+            )
+    return n
+
+
 def vector_top(
     query: str,
     n: int,
@@ -659,20 +793,109 @@ def vector_top(
     # embedding_function 自动嵌入时扣减）——此处不再显式扣，防双扣（ADR-011 阶段5）。
     filt = {"category": category} if category else None
     fetch_n = max(n * VECTOR_POOL_MULT, VECTOR_POOL_MIN)
-    res = vectorstore.similarity_search_with_score(query, k=fetch_n, filter=filt)
-    out = []
-    for d, s in res:
-        if valid and not valid(d.metadata):
-            continue
-        out.append((d, float(s)))
-        if len(out) >= n:
-            break
+
+    def _collect(res: list) -> list[tuple[Document, float]]:
+        acc: list[tuple[Document, float]] = []
+        for d, s in res:
+            if valid and not valid(d.metadata):
+                continue
+            acc.append((d, float(s)))
+            if len(acc) >= n:
+                break
+        return acc
+
+    out = _collect(vectorstore.similarity_search_with_score(query, k=fetch_n, filter=filt))
+    _warn_if_query_truncates(query)
+    # DB-16（2026-10-09，审查报告 B-05）：带 category 却取零 ⇒ 回落一次无过滤，并落 warning。
+    # 现网两个条文集合的 metadata **没有 `category` 键**（实测各 10,266 行、每行 8 键，报告 §12.6），
+    # 而 Chroma 0.4.24 对"缺失键"的 `$eq` 与 `$ne` 一律**排除该行**（实测九腿，报告 §12.3）
+    # ⇒ 非空 category 把向量池与 BM25 池同时清零，改前**零日志**，Agent 只记"证据缺失"。
+    # 回落只在「这个维度在语料里根本不存在」时发生（DB-19「丁」，Owner 2026-10-10）。
+    # 维度存在而值不存在 ⇒ 是真零命中，返回空并留痕；用无过滤结果顶替会把「民法」「劳动法」
+    # 当成「行政法」的依据交下去，那是跨类冒充，比答窄更坏。
+    if not out and category:
+        if _corpus_advertises_category(vectorstore, category):
+            _note_category_filter_miss(category, stage="vector_top", outcome="filter_no_match_kept_empty")
+        else:
+            _note_category_filter_miss(category, stage="vector_top", outcome="filter_unsupported_fell_back")
+            out = _collect(vectorstore.similarity_search_with_score(query, k=fetch_n, filter=None))
     return out
 
 
 def _doc_id(d: Document) -> str:
     # 无稳定外部 id 时以内容作融合 key（chunk 内容唯一）
     return d.page_content
+
+
+# DB-16（2026-10-09，审查报告 B-05）：category 过滤落空的**进程内计数**（同值只 warn 一次，防刷屏）。
+# 现网库里没有 `category` 键，Chroma 对缺失键的 $eq/$ne 都排除该行（实测报告 §12.3）⇒
+# 任何非空 category 都会把向量池与 BM25 池同时清零，且改前零日志。回落之后必须留下痕迹，
+# 否则"检索为空"永远会被读成"库里真没有"（09-26 那次 rerank 降权被误读成召回缺口，就是同一类教训）。
+_CATEGORY_MISS_SEEN: set[str] = set()
+
+# DB-19「丁」（Owner 2026-10-10 裁「按推荐」）：回落的**前置判定**缓存，键是集合名。
+# 值为 True ⇔ 语料里至少有一条文档带 `category` 这个维度 ⇒ 该维度可过滤 ⇒ 过滤取零是真零命中，
+# 不许再用无过滤结果冒充（那是跨类borrow）；False ⇔ 这个键在语料里根本不存在（现网形状）⇒ 回落一次。
+# 判定与所问值无关（见 `_corpus_advertises_category` 的实测依据），所以可按集合名缓存；
+# 知识增删会改变答案，故 `invalidate()` 必须清它。
+_CATEGORY_ADVERTISED: dict[str, bool] = {}
+
+_PRESENCE_PROBE = "__category_presence_probe__"
+
+
+def _corpus_advertises_category(vs: Any, category: str | None = None) -> bool:
+    """向量侧判定「语料里有没有 category 这个维度」，用的是实测语义而不是我希望的语义。
+
+    chromadb 0.4.24 把 metadata 里缺该键的行在 `$eq` 与 `$ne` 下**一并排除**
+    （证据 `evidence/probe_chroma_key_presence.py`：S1 全不带键 ⇒ eq/ne 双 0；S2/S3 带键 ⇒ ne>0）。
+    于是「两条探针都取零而集合非空」⇔「没有任何文档带这个键」。判定与所问值无关 ⇒ 可按集合名缓存。
+    取不到 `_collection` 出口（别处的替身、未来换实现）⇒ 返回 False 维持「回落一次」的旧形状：
+    探测能力缺失不该变成用户侧的硬失败（那是另一种静默）。
+    """
+    col = getattr(vs, "_collection", None)
+    if col is None:
+        return False
+    probe = category or _PRESENCE_PROBE
+    try:
+        name = str(col.name)
+        total = int(col.count())
+        if total == 0:
+            return False
+        cached = _CATEGORY_ADVERTISED.get(name)
+        if cached is not None:
+            return cached
+        eq = col.get(where={"category": probe}, limit=1, include=[])
+        ne = col.get(where={"category": {"$ne": probe}}, limit=1, include=[])
+        advertised = bool((eq or {}).get("ids")) or bool((ne or {}).get("ids"))
+    except Exception:  # noqa: BLE001 - 探针失败一律退回旧形状，不在此处抛穿到用户侧
+        return False
+    _CATEGORY_ADVERTISED[name] = advertised
+    return advertised
+
+
+def _docs_advertise_category(docs: list[Document]) -> bool:
+    """BM25 侧的同一判定：文档就在手边，直接看键，结论与向量侧同一条规则。"""
+    return any("category" in (d.metadata or {}) for d in docs)
+
+
+def _note_category_filter_miss(category: str, *, stage: str, outcome: str) -> None:
+    """带 category 过滤却取零 ⇒ 落一条可归因的 warning（只含键值/阶段名/结局，不含用户文本）。
+
+    `outcome` 进抑制键是必需的：同一 (stage,category) 的两种结局（回落 vs 保持空）不能互相顶掉，
+    否则写侧补上 category 的那天，新结局会被上一轮的旧记录静默吞掉。
+    """
+    key = f"{stage}|{category}|{outcome}"
+    if key in _CATEGORY_MISS_SEEN:
+        return
+    _CATEGORY_MISS_SEEN.add(key)
+    logger.warning(
+        "retrieval_category_filter_miss",
+        extra={
+            "category_filter_value": category,
+            "category_filter_stage": stage,
+            "category_filter_outcome": outcome,
+        },
+    )
 
 
 def bm25_top(
@@ -682,22 +905,43 @@ def bm25_top(
     valid: Callable | None = None,
 ) -> list[tuple[Document, float]]:
     """BM25 召回 Top-n（可带分类过滤与有效性回调）；本地索引未构建时返回空列表。"""
-    _ensure_bm25()
-    if _bm25 is None:
+    model, docs = _ensure_bm25()
+    if model is None:
         return []
-    return rc.bm25_top(_bm25, _bm25_docs, query, n, category, valid=valid)
+    out = rc.bm25_top(model, docs, query, n, category, valid=valid)
+    # DB-16（审查报告 B-05）：BM25 侧的 category 是 Python 谓词 `d.metadata.get("category") != category`
+    # （`retrieval_core.py:228`），而 `_ensure_bm25` 的文档与向量池取自**同一个** `_collection.get()`
+    # ⇒ 缺键时这里与向量侧一起清零。同口径回落一次（无 category），并留痕。
+    if not out and category:
+        if _docs_advertise_category(docs):
+            _note_category_filter_miss(category, stage="bm25_top", outcome="filter_no_match_kept_empty")
+        else:
+            _note_category_filter_miss(category, stage="bm25_top", outcome="filter_unsupported_fell_back")
+            out = rc.bm25_top(model, docs, query, n, None, valid=valid)
+    return out
 
 
 def _cosine_rank(query: str, docs: list[Document]) -> list[Document]:
-    """余弦精排（rerank 关闭 / 失败时的回退口径，2026-08-04 恢复旧版单段行为）。
+    """余弦精排（rerank 关闭 / 失败时的回退口径）。
 
-    纯余弦（措辞桥接靠 BM25 捞进候选池 + 余弦定序——用 RRF 会改变桥接 case 排序，
-    如"行政复议受案范围"的"第十一条"靠桥接在 BM25 命中但余弦不高，纯余弦更稳，
-    实测回归后恢复旧口径）。
+    2026-08-04 恢复旧版"纯余弦"口径（措辞桥接靠 BM25 捞进池 + 余弦定序；用 RRF 会改变
+    桥接 case 排序，如实测"行政复议受案范围"的第十一条靠桥接在 BM25 命中但余弦不高）。
+
+    2026-10-13（口径④裁定）再改一处：**定序 query 从"整段"改为逐单元取最大相似**。
+    整段进 BGE 有两条实测病：① 512 token 静默截断（纯汉字≈510 字到界），题尾根本不进向量；
+    ② 长叙述稀释目标——同一目标句放在头 300 字后立刻 top-1，放进 752 字全文却跌出 top-10。
+    单元与召回侧同源（`query_understand.decompose`，含整句/锚点/切片），每条都短、不再触发截断；
+    取 max 而非平均——单元数不同不应带来系统性偏好（LlamaIndex 自己在融合里除以 num_queries 就是反例）。
     """
-    qv = embeddings.embed_query(query)
     dvs = embeddings.embed_documents([d.page_content for d in docs])
-    v_cos: dict[str, float] = {_doc_id(d): rc.cos(qv, dv) for d, dv in zip(docs, dvs, strict=True)}
+    units = [u for u, _kind in query_understand.decompose(query) if u and u.strip()]
+    if not units:
+        units = [query]
+    units = units[:8]  # 上限：单元再多也只多几次短嵌入，防异常输入把嵌入开销放大
+    qvs = embeddings.embed_documents(units)
+    v_cos: dict[str, float] = {}
+    for d, dv in zip(docs, dvs, strict=True):
+        v_cos[_doc_id(d)] = max(rc.cos(qv, dv) for qv in qvs)
     return sorted(docs, key=lambda d: v_cos[_doc_id(d)], reverse=True)
 
 
@@ -769,6 +1013,7 @@ def hybrid_retrieve(
     用于「预算不足就别开新远程调用」。仅 Agent 主链路的 retrieve_laws 传入；缺省 None
     时共享检索路径行为与历史完全一致（rerank 仍按 _RERANK_ATTEMPT_TIMEOUT_S 单次上限）。
     """
+    cache_generation = _cache.generation()
     cutoff = cutoff or date.today().isoformat()
     query = _bridge_query(query)  # 措辞桥接先于缓存 key，词表变更自动失效
     valid = lambda m: rc.is_valid_by_time(m, cutoff)  # noqa: E731
@@ -793,7 +1038,7 @@ def hybrid_retrieve(
         return hit
     if not HYBRID:
         docs = [d for d, _ in vector_top(query, k, category, valid=valid)]
-        _cache.put(key, docs)
+        _cache.put(key, docs, generation=cache_generation)
         return docs
     # ---- 候选池深度与「返回条数 k」解耦（2026-09-14，报告 §2c）----
     # 原实现：保底切片 v_ids[:k]/b_ids[:k] 与 RRF 切片 fused[:2k] 全用 k
@@ -877,9 +1122,15 @@ def hybrid_retrieve(
         anchor_guaranteed: list[str] = []
         ag_seen: set[str] = set()
         if anchor_rank_idx:
+            # 2026-10-13（口径④，实测 Q8）：**保底不得占满 k**。锚点数×（v top-3＋b top-3）
+            # 去重后可以 ≥k（Q8 有 4 条法名锚点，其中两条还是已废止法名——它们拉来的是"合同编通则"
+            # 这类不相关条文）⇒ `docs[:k]` 全被保底吃掉，精排队列连一个位置都没有
+            # （实测：目标条 188 在池内、单独检索稳进 top-10，却因保底占满 10 位而永远不出现）。
+            # 保底的本意是防"单一精准命中被挤掉"，不是把 k 全分给它 ⇒ 上限 max(2, k//2)。
+            _guarantee_cap = max(2, k // 2)
             for qi in anchor_rank_idx:
                 for did in rankings[qi][:3] + b_rankings[qi][:3]:
-                    if did not in ag_seen:
+                    if did not in ag_seen and len(anchor_guaranteed) < _guarantee_cap:
                         ag_seen.add(did)
                         anchor_guaranteed.append(did)
         rest_docs = [d for d in cand_docs if _doc_id(d) not in ag_seen]
@@ -922,7 +1173,7 @@ def hybrid_retrieve(
         # 嵌入/精排故障：回退到 RRF 序（与旧行为一致）；不写缓存，防一次瞬断长期缓存未精排结果
         docs = [pool[did] for did, _ in sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:k]]
         return docs
-    _cache.put(key, docs)
+    _cache.put(key, docs, generation=cache_generation)
     return docs
 
 
@@ -957,7 +1208,7 @@ def retrieve(
     )
 
 
-def retrieve_exam(question: str, k: int = 6) -> list[Document]:
+def retrieve_exam(question: str, k: int = 6, cutoff: str | None = None) -> list[Document]:
     """分步分析型检索（ADR-012）：拆题干+每选项 → 逐项并发检索 → 合并去重。
 
     解决"单次整题检索漏项"（死刑复核 252 漏召回）：每个选项独立召回其考点条文，
@@ -970,6 +1221,9 @@ def retrieve_exam(question: str, k: int = 6) -> list[Document]:
     - 每单元走 `hybrid_retrieve`（内部已含锚点保底 + rerank），合并后按"题干→选项"
       顺序收集（题干主锚在前），去重截 k
     - 任一单元异常 → 跳过该单元不崩（fallback 链：逐项 → 题干 → 整题）
+    - `cutoff`（历史查询）：透传给**每一个** `hybrid_retrieve` 调用点，含两处兜底。缺省 None
+      时行为与不传逐字一致。历史基准日只用于末尾过滤的话，历史有效版本从没进过候选池，
+      当日版本又被剔掉 ⇒ 表现为**静默丢证据**而不是答错版，故必须在取数层就带上。
     - **回退说明（2026-08-05 逆向）**：动态 k（h10/o4/c12）曾把 recall@6 提到 0.9625，
       但深池拉长每次检索持有 BGE/Chroma 的时间，显著加大 Windows onnxruntime 偶发原生
       segfault 的窗口（恢复 rerank/降并发/串行/嵌入锁均压不住）——**生产稳定优先回退
@@ -977,7 +1231,7 @@ def retrieve_exam(question: str, k: int = 6) -> list[Document]:
     """
     units = query_understand._split_by_choice(question)
     if len(units) <= 1:
-        return hybrid_retrieve(question, k=k)  # 无选项 → 整题检索（fallback）
+        return hybrid_retrieve(question, k=k, cutoff=cutoff)  # 无选项 → 整题检索（fallback）
     # 题干主锚 = **完整问题文本**（含选项信号——实测剥离选项的题干丢关键条：
     # 高空抛物题裸题干 top-3 全无关，整题检索 1254 排第 1）。选项单元独立补漏
     # （防"单次整题检索漏项"如死刑复核 252）。题干给足候选，选项瘦身池控总量。
@@ -988,8 +1242,8 @@ def retrieve_exam(question: str, k: int = 6) -> list[Document]:
     n = 1 + len(opt_queries)
     collected: list[list[Document]] = [None] * n  # type: ignore[list-item]
     with ThreadPoolExecutor(max_workers=min(6, n)) as ex:
-        futs = [(0, ex.submit(hybrid_retrieve, head_q, head_k))]
-        futs += [(i + 1, ex.submit(hybrid_retrieve, q, opt_k)) for i, q in enumerate(opt_queries)]
+        futs = [(0, ex.submit(hybrid_retrieve, head_q, head_k, cutoff=cutoff))]
+        futs += [(i + 1, ex.submit(hybrid_retrieve, q, opt_k, cutoff=cutoff)) for i, q in enumerate(opt_queries)]
         for i, f in futs:
             try:
                 collected[i] = f.result()
@@ -1006,7 +1260,7 @@ def retrieve_exam(question: str, k: int = 6) -> list[Document]:
                 seen.add(did)
                 out.append(d)
     if not out:
-        return hybrid_retrieve(question, k=k)  # 全失败 → 整题兜底
+        return hybrid_retrieve(question, k=k, cutoff=cutoff)  # 全失败 → 整题兜底
     return out[:k]
 
 
@@ -1068,7 +1322,7 @@ _SUPP_MAX_GROUPS = 3
 _SUPP_MAX_ARTICLES = 24
 
 
-def scenario_supplement_docs(text: str) -> list[Document]:
+def scenario_supplement_docs(text: str, cutoff: str | None = None) -> list[Document]:
     """场景定向补充（数据驱动）：命中关键词 → 前置该场景核心条文（防整题检索漏项）。
 
     复用 exact_article_lookup 精确取条（条号直查零嵌入零检索），返回的 Document 由
@@ -1092,7 +1346,7 @@ def scenario_supplement_docs(text: str) -> list[Document]:
             if len(out) >= _SUPP_MAX_ARTICLES:
                 break
             try:
-                docs = exact_article_lookup(a.get("source", ""), a.get("article", ""))
+                docs = exact_article_lookup(a.get("source", ""), a.get("article", ""), cutoff=cutoff)
             except Exception:
                 docs = []
             for d in docs:
@@ -1106,7 +1360,7 @@ def scenario_supplement_docs(text: str) -> list[Document]:
             if len(out) >= _SUPP_MAX_ARTICLES:
                 break
             try:
-                docs = exact_article_lookup(src, art)
+                docs = exact_article_lookup(src, art, cutoff=cutoff)
             except Exception:
                 docs = []
             for d in docs:
@@ -1124,10 +1378,22 @@ def grounded_top_score(query: str, category: str | None = None, cutoff: str | No
     """
     cutoff = cutoff or date.today().isoformat()
     valid = lambda m: rc.is_valid_by_time(m, cutoff)  # noqa: E731
-    res = vectorstore.similarity_search_with_score(
-        query, k=max(VECTOR_POOL_MIN, 8), filter=({"category": category} if category else None)
-    )
+    fetch_k = max(VECTOR_POOL_MIN, 8)
+    filt = {"category": category} if category else None
+    res = vectorstore.similarity_search_with_score(query, k=fetch_k, filter=filt)
     res = [(d, s) for d, s in res if valid(d.metadata)]
+    # DB-16（审查报告 B-05）：沉淀打分侧同一条 where 形状，同口径回落一次。
+    # 不回落的后果是"带 category 的问句永远打 0 分 ⇒ 永不进待审队列"，而且是**静默**的。
+    if not res and category:
+        if _corpus_advertises_category(vectorstore, category):
+            _note_category_filter_miss(category, stage="grounded_top_score", outcome="filter_no_match_kept_empty")
+        else:
+            _note_category_filter_miss(category, stage="grounded_top_score", outcome="filter_unsupported_fell_back")
+            res = [
+                (d, s)
+                for d, s in vectorstore.similarity_search_with_score(query, k=fetch_k, filter=None)
+                if valid(d.metadata)
+            ]
     if not res:
         return 0.0
     if _collection_is_cosine():
@@ -1148,7 +1414,7 @@ def _hit_dict(d: Document, score: float) -> dict:
         "source": d.metadata.get("source", ""),
         "article": d.metadata.get("article", ""),
         "origin": d.metadata.get("origin", ""),
-        "status": d.metadata.get("status", "现行"),
+        "status": d.metadata.get("status", "未验证"),
         "effective_from": d.metadata.get("effective_from", ""),
         "effective_to": d.metadata.get("effective_to", ""),
         "score": round(float(score), 4),

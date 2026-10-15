@@ -30,6 +30,7 @@ export function ChatImage({
   }, [dataURL, imgRef, thumbRef]);
   if (!src) return null;
   return (
+    // eslint-disable-next-line @next/next/no-img-element -- src 为 data:/blob: URL（本地预览或经 loadMediaSrc 带鉴权取的 blob），next/image 不支持且其服务端优化器不带令牌会 401。详见 T12-D 报告。
     <img
       src={src}
       alt="附图"

@@ -23,6 +23,19 @@ class InvalidTransition(ValueError):
     pass
 
 
+# 不计步的"记账边"（DB-15 / 报告 B-01+B-47）：**扩集合是一次产品决定**，
+# 判据只有一条——该边是否发起模型或工具调用。加了边就等于加了预算，等于削弱防循环上界，
+# 所以这里逐条注明各自的替代上界在哪。`tests/test_agent_budget_terminal_edges.py` 钉住本集合。
+FREE_STEP_EDGES: frozenset[tuple[AgentStatus, AgentStatus]] = frozenset(
+    {
+        # 落库终稿：COMPLETED 无出边（见 ALLOWED），只会发生一次，无需预算约束。
+        (AgentStatus.DRAFTING, AgentStatus.COMPLETED),
+        # 接受用户对自己追问的回答：轮数由 register_clarification / max_clarifications 单独封顶。
+        (AgentStatus.WAITING_USER, AgentStatus.PLANNING),
+    }
+)
+
+
 class DuplicateAction(ValueError):
     """A duplicate request whose incremented per-issue state must be persisted."""
 
@@ -34,9 +47,7 @@ class DuplicateAction(ValueError):
 class BudgetExceeded(RuntimeError):
     def __init__(self, state: LegalAgentState, reason: str) -> None:
         self.decision = StopDecision(reason=f"budget_exceeded:{reason}")
-        self.state = state.model_copy(
-            update={"status": AgentStatus.STOPPED, "terminal_decision": self.decision}
-        )
+        self.state = state.model_copy(update={"status": AgentStatus.STOPPED, "terminal_decision": self.decision})
         super().__init__(self.decision.reason)
 
 
@@ -53,7 +64,15 @@ def _limit(state: LegalAgentState, counter: str, attempted_value: int, maximum: 
 def transition(state: LegalAgentState, target: AgentStatus) -> LegalAgentState:
     if target not in ALLOWED.get(state.status, set()):
         raise InvalidTransition(f"cannot transition from {state.status.value} to {target.value}")
-    next_steps = state.steps + 1
+    # DB-15（2026-10-09，审查报告 B-01/B-47）：两条"不发起任何模型/工具调用"的记账边不计步。
+    # 改前每条边都 +1，而 `steps + 3 > max_steps` 那两处预检只挡**工具**路径，挡不住 1 步边
+    # ⇒ 状态可以合法地停在 `steps == max_steps` 上，此后
+    #   ① DRAFTING→COMPLETED：已 PASS 校验的终稿在落库瞬间被自己的预算炸掉（B-01，实测四腿）；
+    #   ② WAITING_USER→PLANNING：用户对追问的回答被拒（409），该 run **永久不可恢复**（B-47，真数据 16/47）。
+    # 免计费不等于不设界：越界仍由 `_limit` fail-closed；而这两条边各自的循环上界另有真源——
+    # 澄清轮数由 `register_clarification`/`max_clarifications` 钉，终稿只发生一次（COMPLETED 无出边）。
+    charge = 0 if (state.status, target) in FREE_STEP_EDGES else 1
+    next_steps = state.steps + charge
     _limit(state, "steps", next_steps, state.budgets.max_steps)
     return state.model_copy(update={"status": target, "steps": next_steps})
 

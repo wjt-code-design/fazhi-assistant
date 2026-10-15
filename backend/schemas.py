@@ -1,5 +1,5 @@
 import re
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 from uuid import UUID
 
@@ -12,6 +12,8 @@ from pydantic import (
     field_validator,
     model_validator,
 )
+
+from retrieval_core import STATUS_WHITELIST  # status 合法值的唯一真源，别在这里再抄一份
 
 
 # ===== 认证 =====
@@ -63,6 +65,9 @@ class ChatIn(BaseModel):
     # 评测/灰度通道案例域码（tier-1 判域直判源）。生产客户端不传 → None（恒不触发）。
     # 非法值拒绝（422 契约）；合法值 = agent/r1ob.VALID_CASE_DOMAINS。
     case_domain: str | None = Field(default=None, max_length=32)
+    # 公开历史查询基准日（ISO 日期）；省略时落当日。该值进入检索 cutoff，
+    # 模型输出不能自行改写 Agent run 内的 server-owned 日期。
+    law_as_of: date | None = None
 
     @model_validator(mode="after")
     def validate_case_domain(self) -> "ChatIn":
@@ -100,6 +105,7 @@ class MessageOut(BaseModel):
     image_ref: str | None = None
     thumb_ref: str | None = None
     created_at: datetime
+    agent_run_id: str | None = None
     # T1（2026-09-16）覆盖投影：full/partial（Agent 消息且 run 有结构化覆盖）、
     # unknown（旧 assistant 消息或 run 缺结构化信息——不得推断 full）、
     # None（用户消息，覆盖不适用）。
@@ -149,7 +155,7 @@ class KnowledgeAddIn(BaseModel):
     title: str = Field(..., min_length=1)
     article: str = ""
     content: str = Field(..., min_length=1)
-    # 时效字段（阶段5）：日期必须为 YYYY-MM-DD 或空，保证字典序比较可靠
+    # 时效字段（阶段5）：日期必须为 YYYY-MM-DD 或空；填写条号时施行日期必填。
     effective_from: str | None = None
     effective_to: str | None = None
     status: str | None = None
@@ -165,17 +171,28 @@ class KnowledgeAddIn(BaseModel):
     def _date_or_empty(cls, v: str | None) -> str | None:
         if v and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", v):
             raise ValueError("日期格式必须为 YYYY-MM-DD")
+        if v:
+            try:
+                date.fromisoformat(v)
+            except ValueError as exc:
+                raise ValueError("日期必须是有效的 YYYY-MM-DD 日历日期") from exc
         return v
 
     @field_validator("status")
     @classmethod
     def _known_status(cls, v: str | None) -> str | None:
-        if v and v not in {"现行", "已修改", "已废止", "即将施行", "未生效"}:
-            raise ValueError("status 必须为现行/已修改/已废止/即将施行/未生效")
+        if v and v not in set(STATUS_WHITELIST):
+            raise ValueError(f"status 必须为 {'/'.join(STATUS_WHITELIST)}")
         return v
 
     @model_validator(mode="after")
     def _valid_version_period(self):
+        # 谓词必须与写库侧一致：`knowledge_service.add_text` 判裸真值 `and article`
+        # （knowledge_service.py:184/:204）。这里若用 `.strip()`，`article=" "` 会在端点算
+        # "没填条号"而被放行、在写库算"填了"而派生 version_id ⇒ 两次无日期重传即造出
+        # 无日期可判的双胞胎块，事后清不掉（version-safety-review-findings-20260927.md §2 中-1）。
+        if self.article and not self.effective_from:
+            raise ValueError("填写条文时必须提供施行日期")
         if self.effective_from and self.effective_to and self.effective_to < self.effective_from:
             raise ValueError("effective_to 不能早于 effective_from")
         if self.version_id and self.supersedes_version_id == self.version_id:

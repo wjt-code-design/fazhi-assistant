@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build && node scripts/write-build-id.mjs",
+    "build:check": "npm run build && node scripts/assert-badge-classes.mjs",
     "start": "next start",
     "lint": "next lint --dir app --dir components --dir lib",
     "format:check": "prettier --check \"app/**/*.{ts,tsx,css}\" \"components/**/*.tsx\" \"lib/**/*.ts\"",

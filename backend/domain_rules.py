@@ -15,13 +15,17 @@ import re
 from settings import settings
 
 
-def _lookup_all(specs: list[tuple[str, str]]):
-    """按 (source, article) 精确查找，返回 Document 列表（顺序 = 传入顺序）。"""
+def _lookup_all(specs: list[tuple[str, str]], cutoff: str | None = None):
+    """按 (source, article) 精确查找，返回 Document 列表（顺序 = 传入顺序）。
+
+    `cutoff`：历史查询基准日（ISO 串），透传给 `exact_article_lookup` 的时效判定；
+    缺省 None ⇒ 落当日，与历史行为逐字一致。
+    """
     from retrieval import exact_article_lookup  # noqa: PLC0415
 
     docs = []
     for source, article in specs:
-        docs += exact_article_lookup(source, article)
+        docs += exact_article_lookup(source, article, cutoff=cutoff)
     return docs
 
 
@@ -33,8 +37,8 @@ CHEATING_DOCS_SPEC = [
 ]
 
 
-def cheating_docs():
-    return _lookup_all(CHEATING_DOCS_SPEC)
+def cheating_docs(cutoff: str | None = None):
+    return _lookup_all(CHEATING_DOCS_SPEC, cutoff=cutoff)
 
 
 # ==================== 消费者格式条款场景 ====================
@@ -63,8 +67,8 @@ CONSUMER_CLAUSE_DOCS_SPEC = [
 ]
 
 
-def consumer_clause_docs():
-    return _lookup_all(CONSUMER_CLAUSE_DOCS_SPEC)
+def consumer_clause_docs(cutoff: str | None = None):
+    return _lookup_all(CONSUMER_CLAUSE_DOCS_SPEC, cutoff=cutoff)
 
 
 # ==================== 消费欺诈 / 退一赔三场景 ====================
@@ -97,8 +101,8 @@ CONSUMER_FRAUD_DOCS_SPEC = [
 ]
 
 
-def consumer_fraud_docs():
-    return _lookup_all(CONSUMER_FRAUD_DOCS_SPEC)
+def consumer_fraud_docs(cutoff: str | None = None):
+    return _lookup_all(CONSUMER_FRAUD_DOCS_SPEC, cutoff=cutoff)
 
 
 # ==================== 要件法条确定性补充（writer 轴立项，2026-09-10）【暂存未接线】 ====================
@@ -314,6 +318,41 @@ def canon_source(name: str) -> str:
     return SOURCE_ALIAS.get(name, name)
 
 
+# ==================== 法名归一（唯一真源，DB-18 / 审查报告 B-49，2026-10-09） ====================
+# 库存 `source` 是裸名（`劳动合同法`），而外部权威源与模型输出常写成
+# `中华人民共和国劳动合同法(2012修正)`——元典智库返回的法规名**正是这个形状**
+# （实测 docs/backend-readonly-audit-20260929.md §12.6：劳动合同法/消费者权益保护法都带
+# 半角修正括注）。此前"去前缀 + 剥尾部括注"这条规则有**三份**实现
+# （`retrieval._source_key`、`retrieval.parse_article_query` 内联剥前缀、
+# `agent.writer._canonical_law_name`）加脚本里一份副本，且**全部只认全角 `（…）`**
+# ⇒ 半角版本括注不被容忍，10 个引用校验消费点会把"其实有据可查"的引用判成"库里没有"
+# （引用校验假阴性，比拦下更坏）。
+# 本函数把**生产读侧那四份**收成一份（`_source_key`、`parse_article_query` 内联、
+# `agent.writer._canonical_law_name`、`scripts/smoke_citation_full.norm_law_name`）。
+# ⚠️ 射程要说清楚：还有几份**没并进来**，别把这里读成"全仓只剩一份"——
+#   写侧 `scripts/import_docs.py:36` + `:53-54`（决定库存 `source` 长什么样）、
+#   `scripts/capture_eval.py:56`、`scripts/gen_qwen_cases.py:61`；
+#   以及"弱一档那一族"（只剥前缀、不剥括注）的两份 `retrieval._norm_source:438-446` 与
+#   `agent/dept_guard.py:42` + `:45-52`——并进来会**变宽**它们的语义，属另两票（报告 DB-20/DB-21）。
+# `gate_exit_registry.py:280` 的在册纪律是"不另写第二份去括注正则"——本票是**收口**，未新增第二份。
+SOURCE_NAME_PREFIX = "中华人民共和国"
+# 尾部版本/年份括注：全角 `（…）` 与半角 `(…)` 都剥（历史只认全角即 B-49 根因）。
+# 只剥**尾部**一个，不动中段——与既有 `_source_key` 的行为同界，避免顺手改宽语义。
+_SOURCE_TAIL_PAREN_RE = re.compile(r"[（(][^（）()]*[）)][\s]*$")
+
+
+def norm_law_name(name: str) -> str:
+    """法名归一：去「中华人民共和国」前缀 + 剥**尾部**版本/年份括注（全角与半角都剥）。
+
+    空值安全（None/空串 → 空串）。前缀剥离后立即 strip，不留前导空格
+    （旧 `_norm_source` 单独用会返回 `" 民法典"`，靠调用方末尾 `.strip()` 兜住）。
+    """
+    out = (name or "").strip()
+    if out.startswith(SOURCE_NAME_PREFIX):
+        out = out[len(SOURCE_NAME_PREFIX) :].strip()
+    return _SOURCE_TAIL_PAREN_RE.sub("", out).strip()
+
+
 # ==================== 提示词规则 ====================
 # 引用选择规则（所有意图统一，治"选引不准"）：优先引最具体直接的条款，严禁含糊替代。
 # 原 FORMAT_CLAUSE_RULE 已并入本规则——涉及商家单方限制消费者权利时，
@@ -402,6 +441,46 @@ _CONTRACT_LABEL_RE = re.compile(
 )
 _MIN_CONTRACT_LEN = 80  # 触发下限（短合同 ~100 字含 2+ 合同名词也应触发；口语短句如"违约金怎么算"仍不触发）
 
+# 任务形态轴（2026-10-13）：争议分析题必须复述合同条款，于是"长文本＋条款/当事人字样"
+# 对这类题常常成立——光靠"像不像合同"分不开"待审合同"与"已涉诉的争点分析"。
+# 只否决第二支（自动触发），显式审查请求走上面那支不受影响。
+# 阈值取 ≥2 个不同标记：单个"代理人""管辖"也出现在真合同的委托/争议解决条款里，
+# 命中 1 个就否决会误杀；争议分析题几乎必然同时出现多个。
+# 只收**诉讼程序专属**词。不收"代理人／管辖／被告／原告"——真合同的委托签署条款与
+# 争议解决条款本来就写这些字，收了会把待审合同误判成非合同（差分实测：含"委托代理人"
+# ＋"管辖法院"的真合同在通用词版下被判 False，属误杀）。
+# 请求主语：动词命中必须来自"用户在提请求"，不是案情叙述里的"不予审核""未经审查"。
+# 不收裸"请求"——争议题正文常写"诉讼请求"，收了第一支又被叙述触发（C 正是为治它）。
+_REQUEST_SUBJECTS = ("帮我", "请帮", "麻烦", "帮忙", "我需要", "想请", "请求审查")
+_REQUESTIVE_VERBS = ("帮我审", "审一下", "帮忙看看", "帮我看看")
+
+
+_LITIGATION_MARKERS = (
+    "诉讼请求",
+    "起诉",
+    "抗辩",
+    "答辩",
+    "举证责任",
+    "法院应否",
+    "应否受理",
+    "首次开庭",
+    "驳回起诉",
+    "仲裁协议",
+)
+
+# 条款结构轴（2026-10-13 在这同一支上收过两次）。
+# 病灶第一层：`'条' in t` 太松——案情叙述会行内引法条（《合同法》第二百零六条）、还会写"借条"，
+# 一个字就够咬住；只加"诉讼语汇 <2"那道闸压不住（出题人 Q8 全文只命中"起诉"一个，纯树实测仍 True）。
+# 第二层是我第一次的修法带出来的：收成"行首 第X条"确实治好了 Q8，但复核腿量出它**顺带砍掉一整类真合同**
+# ——聊天框粘贴／PDF 抽取／移动端输入会把换行吃掉，行锚点在那些文本里根本不存在
+# （23 只不含"甲方/乙方"字样的合同形状里漏 10 只，含"整份合同挤成一行"那一型）。
+# 现在按一条语言事实来分：**紧跟在 》 之后的"第X条"是在引用某部法，否则是文本自己的条款**。
+# 同一份语料上的读数：真题 8/8、在册 trigger 用例 11/11、合同形状漏判 10→4；
+# 误放面与旧判据持平——本判据认的合同集合是旧版的子集，不会因为这次改动新引入误放。
+# 还漏的两只是"1、/一、编号且通篇不写第X条"的合同；要兜回来就得认行首中文编号，
+# 而那会放进"一、二、三、"分段、又不引法条的案情叙述（实测多 1 只误放），是代价题不是技术题。
+_CLAUSE_LABEL = re.compile(r"(?<!》)第\s*[一二三四五六七八九十百千零〇0-9]+\s*条")
+
 
 def is_contract_review(text: str) -> bool:
     """触发判定：显式审查请求 + 合同名词，或长文本 + 合同当事人/条款结构。
@@ -410,15 +489,35 @@ def is_contract_review(text: str) -> bool:
     2026-08-07 收紧长文本自动触发：原"≥2 合同名词"太宽，法律情景题（含"买卖/借款"
     等词）被误判进合同评估、物权/刑法条文不进上下文。现需"甲方/乙方"字样或
     "第X条结构 + ≥3 合同名词"——即文本真像合同而非案情叙述。
+    2026-10-13 再加任务形态轴：上述两支只治"文本像不像合同"，治不了"这是不是待审合同"；
+    已涉诉的争议分析题同样像合同，故长文本支额外要求诉讼语汇命中 <2。
+    2026-10-13 再收紧条款支："第X条"必须是**条款自指**（不被 》 引导），行内引法条不算，
+    见 _CLAUSE_LABEL；"甲方/乙方"支不动，它本身就是合同草稿的称呼方式。
     """
     t = text or ""
-    if any(v in t for v in _REVIEW_VERBS) and any(n in t for n in _CONTRACT_NOUNS):
-        return True
-    if len(t) >= _MIN_CONTRACT_LEN and (
-        "甲方" in t or "乙方" in t or ("条" in t and sum(1 for n in _CONTRACT_NOUNS if n in t) >= 3)
-    ):
-        return True
-    return False
+    return contract_trigger_reason(t) is not None
+
+
+def contract_trigger_reason(text: str) -> str | None:
+    """**为什么**会被判进合同支——`is_contract_review` 与它同源（单一真源，防两处判据漂移）。
+
+    口径③⑥（2026-10-13 裁定）：三条支路的可信度不同，调用方要区别对待——
+      · `explicit`：用户这一轮就是要求审合同（请求词＋审查动词＋合同名词）⇒ 可靠信号，直接切；
+      · `party_labels`：文本用"甲方/乙方"称呼当事人 ⇒ 合同草稿的常规称呼，可靠信号，直接切；
+      · `clause_labels`：**只有**"条款自指"这一支命中（≥2 条自指条款＋≥3 合同名词）——
+        这一支已证实与"逐字复述自己条款的案情叙述"同形（见测试里的 A9/A10 语料），
+        **不得静默切换**，调用方应先确认审查意图（本函数只负责报出理由，不做策略）。
+    """
+    t = text or ""
+    requestive = any(v in t for v in _REQUESTIVE_VERBS) or any(s in t for s in _REQUEST_SUBJECTS)
+    if requestive and any(v in t for v in _REVIEW_VERBS) and any(n in t for n in _CONTRACT_NOUNS):
+        return "explicit"
+    if len(t) >= _MIN_CONTRACT_LEN and sum(1 for m in _LITIGATION_MARKERS if m in t) < 2:
+        if "甲方" in t or "乙方" in t:
+            return "party_labels"
+        if len(_CLAUSE_LABEL.findall(t)) >= 2 and sum(1 for n in _CONTRACT_NOUNS if n in t) >= 3:
+            return "clause_labels"
+    return None
 
 
 def contract_split(text: str) -> list[tuple[str, str]]:
@@ -521,12 +620,14 @@ def is_labor_clause(clause_text: str) -> bool:
     return any(k in (clause_text or "") for k in _LABOR_KEYWORDS)
 
 
-def contract_supplement_docs(clause_text: str) -> list:
+def contract_supplement_docs(clause_text: str, cutoff: str | None = None) -> list:
     """条款 → 数据驱动法条（contract_clause_supplements.json 精确直查）；未命中回落一次检索。
 
     - 合同类型→法域杜绝错绑：劳动条款只引劳动法，不命中民法典通用条款（含"解除"——
       劳动解除走劳动合同法36/39/46/47/87，不引民法典563）
     - 时效别名：json 键"诉讼时效"同时匹配含"时效"的条款
+    - `cutoff`：历史查询基准日，两条取数通道（精确直查、语义回落）都必须带上，
+      否则历史日期下的合同证据会静默变薄。
     """
     from retrieval import exact_article_lookup, retrieve  # noqa: PLC0415
 
@@ -543,14 +644,18 @@ def contract_supplement_docs(clause_text: str) -> list:
         if labor and kw in _CIVIL_GENERIC:
             continue  # 劳动合同条款不命中民事通用条款（杜绝错绑）
         for s in specs:
-            matched += exact_article_lookup(s.get("source", ""), s.get("article", ""))
+            matched += exact_article_lookup(s.get("source", ""), s.get("article", ""), cutoff=cutoff)
     if not matched:
-        matched = retrieve(clause_text, k=3)  # 未命中回落语义检索
+        matched = retrieve(clause_text, k=3, cutoff=cutoff)  # 未命中回落语义检索
     return matched
 
 
-def build_contract_data(text: str) -> dict:
-    """确定性骨架：切分条款 → 每条款配法条 → 证据块 + rubric 风险等级。"""
+def build_contract_data(text: str, cutoff: str | None = None) -> dict:
+    """确定性骨架：切分条款 → 每条款配法条 → 证据块 + rubric 风险等级。
+
+    `cutoff`（历史查询基准日）：必须在**构建时**传给每条款配法条，而不是构建完再过滤结果——
+    `blocks[*]["articles"]` 与 `docs` 同源，`main._contract_messages` 读的是前者。
+    """
     t = (text or "").strip()
     truncated = len(t) > settings.contract_max_chars
     if truncated:
@@ -559,7 +664,7 @@ def build_contract_data(text: str) -> dict:
     blocks = []
     all_docs: list = []
     for idx, (label, seg) in enumerate(clauses, 1):
-        docs = contract_supplement_docs(seg)
+        docs = contract_supplement_docs(seg, cutoff=cutoff)
         all_docs += docs
         blocks.append(
             {

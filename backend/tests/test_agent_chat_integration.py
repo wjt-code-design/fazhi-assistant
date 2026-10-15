@@ -3,8 +3,8 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
-from datetime import datetime
+from dataclasses import dataclass, replace
+from datetime import date, datetime
 from types import SimpleNamespace
 
 import pytest
@@ -459,6 +459,31 @@ def test_real_agent_service_returns_clarification_without_assistant_message(db):
     assert result.prompt == "工资支付日是什么？"
     assert result.issue_id is not None
     assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+
+
+def test_agent_service_propagates_bootstrap_law_as_of_to_run_record(db):
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    injected = date(2020, 12, 31)
+    bootstrap = replace(_bootstrap(conversation.id), law_as_of=injected)
+
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=bootstrap,
+        finalizer=_finalize,
+        llm=_AgentTransport(
+            issue_payload=_issue_payload(unknown=True),
+            planner_payload={"kind": "finish_research", "summary": "交给确定性评估"},
+        ),
+        gateway=_law_gateway(),
+    )
+
+    assert result.outcome == "clarification"
+    record = db.query(AgentRun).filter_by(conversation_id=conversation.id).one()
+    assert record.law_as_of == injected
 
 
 def test_real_agent_service_requests_scope_selection_for_six_issues(db):
@@ -919,6 +944,28 @@ class _SerialWriterTransport:
             # T3 补测（code-review 2026-09-17）：持续零 claim——重试一次后仍空 → 落 uncovered；
             # 全部争点如此 → 整轮失败（无内容可交付，不得伪造部分交付）。
             return SimpleNamespace(content=json.dumps({"claims": [], "missing_information": []}, ensure_ascii=False))
+        if self.mode == "unknown_fact_first_issue_then_ok" and writer_index == 0:
+            # T-H 反例（2026-09-18，P5 两轮盲评）：首次生成引用**不存在**的 fact_id
+            # → writer UNKNOWN_FACT_ID（确定性校验失败）⇒ 核心争点整体落入 uncovered。
+            # 此后所有调用正常（重采样可改变结果：校验确定性，但生成对象变了）。
+            return SimpleNamespace(
+                content=json.dumps(
+                    {
+                        "claims": [
+                            {
+                                "local_id": f"claim-{issue['issue_id']}",
+                                "issue_id": issue["issue_id"],
+                                "text": f"依据《{source}》{article}，应当依法履行相应义务。",
+                                "evidence_ids": evidence_ids,
+                                "fact_ids": ["fact-ghost-does-not-exist"],
+                                "section": "conclusion",
+                            }
+                        ],
+                        "missing_information": [],
+                    },
+                    ensure_ascii=False,
+                )
+            )
         claims = [
             {
                 "local_id": f"claim-{issue['issue_id']}",
@@ -1130,6 +1177,70 @@ def test_writer_persistent_zero_claims_fails_whole_run(db):
     assert [k for k, _ in transport.calls if k == "writer"] == ["writer", "writer", "writer", "writer"]
     # 不得生成 completed assistant 消息（无内容可交付）
     assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+
+
+def test_corrective_retry_rescues_unknown_fact_issue(db):
+    """T-H（2026-09-18，P5 两轮盲评）：修正性失败（UNKNOWN_FACT_ID）在开关开启下重试一次。
+
+    反例：writer 首次生成引用**不存在**的 fact_id → 确定性校验 UNKNOWN_FACT_ID
+    ⇒ 核心争点整体落入 uncovered（P5 两轮盲评均点名 on 臂「过度排除/过度保守」）。
+    与 T3 同理：校验是确定性的，但**生成是采样的**（1e9 实证同输入两次结果不同）——
+    同输入重试**可能**改变结果。改动后期望：重试成功 → coverage=full、writer 恰 3 次。
+    """
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    transport = _SerialWriterTransport(_two_issue_payload(), mode="unknown_fact_first_issue_then_ok")
+    settings_stub = _settings()
+    settings_stub.agent_partial_delivery_enabled = True
+    settings_stub.agent_writer_corrective_retry_enabled = True  # 本测试的被测开关
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=settings_stub,
+        bootstrap=_two_issue_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+
+    assert result.outcome == "completed", f"unexpected failure: {result.reason_code}"
+    assert result.coverage_status == "full"
+    assert result.uncovered_issues == []
+    # 争点1 首次（UNKNOWN_FACT_ID）+ 重试（成功）+ 争点2（一次）= 3 次
+    assert [k for k, _ in transport.calls if k == "writer"] == ["writer", "writer", "writer"]
+    answer = result.answer or ""
+    assert "未能覆盖的争点" not in answer
+
+
+def test_corrective_retry_disabled_keeps_old_behavior(db):
+    """T-H 开关**关**（默认）：确定性校验失败不重试 ⇒ 争点落 uncovered，行为与现状逐字一致。
+
+    锁定边界：writer 恰 2 次（无重试）；issue1 uncovered、issue2 正常交付
+    ⇒ partial 交付 completed、coverage=partial。
+    """
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    transport = _SerialWriterTransport(_two_issue_payload(), mode="unknown_fact_first_issue_then_ok")
+    settings_stub = _settings()
+    settings_stub.agent_partial_delivery_enabled = True
+    # 不设置 agent_writer_corrective_retry_enabled ⇒ getattr 兜底为关
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=settings_stub,
+        bootstrap=_two_issue_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_TwoIssueLawGateway().as_gateway(),
+    )
+
+    assert result.outcome == "completed"
+    assert result.coverage_status == "partial"
+    assert len(result.uncovered_issues) == 1
+    # 无重试：争点1 一次 + 争点2 一次 = 2 次
+    assert [k for k, _ in transport.calls if k == "writer"] == ["writer", "writer"]
 
 
 def test_partial_delivery_off_keeps_fail_fast(db):

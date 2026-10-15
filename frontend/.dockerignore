@@ -1,0 +1,13 @@
+# 构建上下文卫生（2026-09-22，票 T12-A 跟进）：缩小传给 docker 的上下文。
+#
+# ⚠️ 这里**故意不排除 `.env`**：排除它等价于清掉 NEXT_PUBLIC_API_URL（都让产物回归同源 /api/*），
+#    会**静默切换生产路径** ⇒ 属"部署形态"决策，须与「清不清 .env 的值」同一批做。
+#    详见 dispatch-output/t12a-deploy-base-20260922/report.md §4.5。
+# ⚠️ 注意：根目录的 `.dockerignore` 对本服务**不生效**（compose 的 build context 是 ./frontend）。
+node_modules
+.next
+.git
+.gitignore
+coverage
+*.log
+.DS_Store

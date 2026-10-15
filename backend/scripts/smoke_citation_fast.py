@@ -2,10 +2,12 @@
 
 守确定性部分（不调 LLM）：
 - 意图分类正确（classify_intent）
-- 检索是否召回期望条文（选引的地基——召回不到，生成阶段就不可能引到）
+- 检索是否召回期望条文（选引的地基——召回不到，生成阶段就不可能引到）。判据是 `(法名, 条号)` 联合：
+  主集合 `legal_provisions_cos` 里 第十九条 被 97 部法共用、第四十四条 87 部，只看条号等于没判。
 - 引用校验逻辑（citation_verify 对编造条文应报、对在库条文不报）
 
 含 LLM 生成的部分在 smoke_citation_full.py（release 门禁）。
+判据本体由 `tests/test_smoke_citation_assertions.py` 用假召回结果钉住（不连真实 Chroma/模型）。
 
 用法：cd backend && python scripts/smoke_citation_fast.py（退出码非 0 = 失败）
 """
@@ -15,17 +17,44 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 BACKEND = os.path.dirname(HERE)
-sys.path.insert(0, BACKEND)
-os.chdir(BACKEND)
 
-from dotenv import load_dotenv
 
-load_dotenv(".env")
+def source_key(name: str) -> str:
+    """法名归一：走 `retrieval._source_key` 这唯一口径（去"中华人民共和国"前缀 + 剥尾部年份括注）。
 
-import complexity  # noqa: E402
-import quality  # noqa: E402
-from intent import classify_intent  # noqa: E402
-from retrieval import citation_verify, retrieve  # noqa: E402
+    刻意不叫 `norm_source`：`retrieval._norm_source` 已有一个同名但更弱的函数（只去前缀、不剥括注），
+    近名异义会把后来人引到错的那一份上。
+    延迟到调用时 import：`retrieval` 在 import 期就建 Chroma 客户端并加载 BGE，
+    而本文件的判据用例必须在无模型的环境下跑得动。
+    """
+    from retrieval import _source_key
+
+    return _source_key(name)
+
+
+def normalize_article(art: str) -> str:
+    """条号归一：走 `retrieval._normalize_article`（〇→零、阿拉伯数字→中文数字）。同上延迟 import。"""
+    from retrieval import _normalize_article
+
+    return _normalize_article(art)
+
+
+def recall_hit(docs, expected_sources, expected_articles, norm_source=source_key, norm_article=normalize_article):
+    """召回结果里是否存在**同一条**文档同时满足：法名在期望集合内、条号在期望列表内。
+
+    "任中一条"语义保留（期望列表给多条时，命中任意一条即算召回）。
+    法名与条号分别落在两条不同文档上不算命中——`any(src...) and any(art...)` 的写法在 k=6 的池子里几乎恒绿。
+    """
+    want_sources = {norm_source(str(s)) for s in expected_sources}
+    want_articles = {norm_article(str(a)) for a in expected_articles}
+    for doc in docs:
+        meta = getattr(doc, "metadata", None) or {}
+        src = norm_source(str(meta.get("source") or ""))
+        art = norm_article(str(meta.get("article") or ""))
+        if src in want_sources and art in want_articles:
+            return True
+    return False
+
 
 # (query, expected_sources, expected_articles, expected_intent)
 # 检索层直接能召回的用例（不依赖 _pre 的定向补充逻辑）
@@ -49,6 +78,19 @@ VERIFY_CASES = [
 
 
 def main():
+    # 重依赖全部留在 main() 里：`tests/test_smoke_citation_assertions.py` 要 import 本文件测判据本体，
+    # import 期加载 BGE / 改 cwd / 读 .env 都会把那条路堵死（CI 上没有 .env）。
+    sys.path.insert(0, BACKEND)
+    os.chdir(BACKEND)
+    from dotenv import load_dotenv
+
+    load_dotenv(".env")
+
+    import complexity
+    import quality
+    from intent import classify_intent
+    from retrieval import citation_verify, retrieve
+
     n = fail = 0
 
     def check(ok, label):
@@ -65,18 +107,16 @@ def main():
         got = classify_intent(q)
         check(got == exp, f"intent({q[:18]}) = {got}, 期望 {exp}")
 
-    print("=== 检索召回期望条文（选引地基）===")
-    for q, _es, ea, _i in RETRIEVAL_CASES:
+    print("=== 检索召回期望条文（按 法名×条号 配对）===")
+    for q, es, ea, _i in RETRIEVAL_CASES:
         docs = retrieve(q, k=6)
-        arts = {d.metadata.get("article", "") for d in docs}
-        ok = any(a in arts for a in ea)
-        check(ok, f"retrieve({q[:18]}) 召回 {ea}")
+        check(recall_hit(docs, es, ea), f"retrieve({q[:18]}) 召回 {es}×{ea}")
 
     print("=== 引用校验（罐头）===")
     for answer, in_kb_arts, expected in VERIFY_CASES:
 
         def in_kb(name, art, arts=in_kb_arts):
-            return __import__("retrieval", fromlist=["_normalize_article"])._normalize_article(art) in arts
+            return normalize_article(art) in arts
 
         got = citation_verify(answer, in_kb)
         check(got == expected, f"citation_verify({answer[:18]}...) = {got}, 期望 {expected}")

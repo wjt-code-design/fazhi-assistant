@@ -97,7 +97,7 @@ def test_table_integrity_and_no_degenerate_keywords():
 
 
 @pytest.mark.slow
-def test_all_supplement_articles_exist_in_kb():
+def test_all_supplement_articles_exist_in_kb(real_kb):
     """KB 级验证（需真实 chroma 索引，故标 slow）：表内每条 (source, article) 必须能精确查到。
 
     若查不到，`_lookup_all` 会**静默返回空** ⇒ 补充悄悄失效、且没有任何报错 —— 这比报错更危险。

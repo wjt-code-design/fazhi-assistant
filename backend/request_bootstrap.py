@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
+import logging
+import time
+from collections.abc import Callable, Iterator, MutableSet
 from contextlib import contextmanager
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from pathlib import Path
 from threading import RLock
-from typing import Any
+from typing import Any, Protocol
 
 from sqlalchemy import func
 
@@ -42,6 +44,11 @@ class RequestBootstrap:
     # R1-OB（2026-09-16 预注册）：评测/灰度通道案例域码（tier-1 判域直判源）。
     # 生产链路缺省 None（代码路径存在但恒不触发）；合法值见 agent/r1ob.VALID_CASE_DOMAINS。
     case_domain: str | None = None
+    # 公开历史查询基准日；Agent run 和快车道检索均使用该值。省略时取当日。
+    # Agent runtime/gateway 拒收模型自行改写的 server-owned 日期。
+    law_as_of: date | None = None
+    # 口径③⑥（2026-10-13）：只有「条款自指」支命中时先确认审查意图；True 表示本轮应发确认提示词
+    intent_confirm: bool = False
 
 
 @dataclass(frozen=True)
@@ -56,27 +63,59 @@ class BootstrapDependencies:
     is_exam_question: Callable[[str], bool]
     has_exam_options: Callable[[str], bool]
     is_contract_review: Callable[[str], bool]
+    contract_trigger_reason: Callable[[str], str | None]
     feature_multi_analyze: bool
     contract_conversations: set[int]
     contract_reviewed_conversations: set[int]
     is_contract_exit: Callable[[str], bool]
 
 
+class _CutoffTextDocsFn(Protocol):
+    """按基准日取条文的接缝形状（text → docs）。`cutoff` 是**必传关键字**。"""
+
+    def __call__(self, text: str, /, *, cutoff: str | None) -> list[Any]: ...
+
+
+class _CutoffDocsFn(Protocol):
+    """无入参的静态条文集（作弊/格式条款/消费欺诈）。`cutoff` 同样必传。"""
+
+    def __call__(self, *, cutoff: str | None) -> list[Any]: ...
+
+
+class _CutoffQueryKDocsFn(Protocol):
+    """语义检索与考试分步检索：query 必给、k 可省（两边默认值不同）、cutoff 必传关键字。"""
+
+    def __call__(self, query: str, /, k: int = ..., *, cutoff: str | None) -> list[Any]: ...
+
+
+class _CutoffContractFn(Protocol):
+    def __call__(self, text: str, /, *, cutoff: str | None) -> dict[str, Any]: ...
+
+
 @dataclass(frozen=True)
 class FastPathDependencies:
+    """快车道取数接缝。
+
+    每条"去库里捞条文"的能力都用 `Protocol` 钉成 **cutoff 必传关键字**：新增取数口若忘了带
+    基准日，mypy 直接在调用点报错，而不是运行时静默按现行法取数（历史查询因此变成"证据变少"
+    这种没人报的错）。缺省语义仍在实现侧（`cutoff=None` 落当日），所以收紧的只是调用点。
+    `search_qa` 刻意不带 cutoff：QA 语料按当日沉淀、无版本轴，历史查询靠 `prepare_fast_path`
+    显式置 `qa_hit=None` 绕开它。
+    """
+
     feature_study_retrieval: bool
     is_meta_study: Callable[[str], bool]
     rewrite_for_retrieval: Callable[[str, list[dict[str, str]], list[Any], bool], str]
-    scenario_supplement_docs: Callable[[str], list[Any]]
-    retrieve_exam: Callable[[str], list[Any]]
-    cheating_docs: Callable[[], list[Any]]
-    build_contract_data: Callable[[str], dict[str, Any]]
-    retrieve: Callable[..., list[Any]]
+    scenario_supplement_docs: _CutoffTextDocsFn
+    retrieve_exam: _CutoffQueryKDocsFn
+    cheating_docs: _CutoffDocsFn
+    build_contract_data: _CutoffContractFn
+    retrieve: _CutoffQueryKDocsFn
     search_qa: Callable[[str], Any]
     is_consumer_clause_scenario: Callable[[str], bool]
-    consumer_clause_docs: Callable[[], list[Any]]
+    consumer_clause_docs: _CutoffDocsFn
     is_consumer_fraud_scenario: Callable[[str], bool]
-    consumer_fraud_docs: Callable[[], list[Any]]
+    consumer_fraud_docs: _CutoffDocsFn
     format_docs: Callable[[list[Any]], str]
 
 
@@ -125,6 +164,13 @@ def override_default_image_describer(describer: ImageDescriber) -> Iterator[None
                 _configured_image_describer = previous
 
 
+# 口径②（2026-10-13）：退出只认用户**本轮**的明示短命令。
+# 旧实现是纯子串匹配、且标记表里带裸词"暂停/结束"——于是贴进来的合同正文自己写着
+# "本合同结束后押金不予退还""双方可协商暂停履行"时，会话会被**文档内容**踢出合同模式
+# （该退的不退、不该退的退）。现在两条约束：
+#   1) 删除裸词，只留带宾语的短语；
+#   2) 去空白与结句标点后，只有整条消息本身够短才认标记——长文里嵌着这些词一律不算。
+# 含糊的（"先暂停一下""先不聊这份合同了"）不静默退出，交确认路径，见 CONTRACT_CLARIFY_PROMPT。
 CONTRACT_EXIT_MARKS = (
     "退出合同",
     "不审合同",
@@ -134,14 +180,64 @@ CONTRACT_EXIT_MARKS = (
     "结束评估",
     "换个话题",
     "换一个问题",
-    "暂停",
-    "结束",
 )
+
+_CONTRACT_EXIT_MAX_CHARS = 20
+# 口径②（2026-10-13 裁定）：换合同重置，**明确比较两份合同除外**——比较轮不得把上一份挤掉。
+_CONTRACT_COMPARE_MARKS = ("对比", "比较", "两份", "异同", "两个版本", "各自")
+
+
+def _previous_contract_text(recent: list[dict[str, str]], deps: BootstrapDependencies) -> str:
+    """从历史里回捞最近一条"用户发来的合同/文书"原文——追问轮与比较轮共用同一把尺。"""
+    for message in reversed(recent):
+        content = message["content"]
+        description = message["image_desc"]
+        is_contract_message = deps.is_contract_review(content) or (
+            content == "[图片]" and deps.is_contract_review(description)
+        )
+        if message["role"] == "user" and is_contract_message:
+            return description if deps.is_contract_review(description) else content
+    return ""
+
+
+_EXIT_PUNCT = "，。！？、；：,.!?　（）"
 
 
 def is_contract_exit(text: str) -> bool:
-    normalized = (text or "").strip().lower()
+    normalized = "".join(ch for ch in (text or "").lower() if not ch.isspace() and ch not in _EXIT_PUNCT)
+    if not normalized or len(normalized) > _CONTRACT_EXIT_MAX_CHARS:
+        return False
     return any(mark in normalized for mark in CONTRACT_EXIT_MARKS)
+
+
+# 口径②（2026-10-13）：状态暂不落盘，但**必须有过期边界**——不活跃超过 TTL 即视为未激活。
+# 过期要**连着派生状态一起失效**：合同态不只是模板开关，它还牵着"逐条证据集"与上一轮合同文本回捞
+# （LangGraph 的 prune 教训：只清一个集合、派生状态会静默重建出旧东西），所以这里摘除时同步清时间戳。
+CONTRACT_IDLE_TTL_S = 30 * 60
+_contract_touched: dict[int, float] = {}
+# 口径③⑥：“先确认”每会话只问一次（二段式澄清的“问两次上限”形状）；问过之后同形输入按普通分析走
+_contract_intent_asked: set[int] = set()
+
+
+def mark_contract_turn(conv_id: int, *, now: float | None = None) -> None:
+    _contract_touched[conv_id] = now if now is not None else time.monotonic()
+
+
+def contract_session_active(conv_id: int, active: MutableSet[int], *, now: float | None = None) -> bool:
+    """合同态是否仍激活：在集合里 且 未闲置过期；过期即**摘除**而不是只判 False。"""
+    if conv_id not in active:
+        return False
+    t = now if now is not None else time.monotonic()
+    stamp = _contract_touched.get(conv_id)
+    if stamp is None:  # 旧路径进来的会话没有时间戳：当活跃并补记，不误杀在途会话
+        _contract_touched[conv_id] = t
+        return True
+    if t - stamp > CONTRACT_IDLE_TTL_S:
+        active.discard(conv_id)
+        _contract_touched.pop(conv_id, None)
+        return False
+    _contract_touched[conv_id] = t  # 本轮活跃 ⇒ 续期（闲置 TTL，不是绝对 TTL）
+    return True
 
 
 def cleanup_persisted_images(
@@ -220,6 +316,7 @@ def _default_bootstrap_dependencies() -> BootstrapDependencies:
         is_exam_question=query_understand._is_exam_question,
         has_exam_options=query_understand.has_exam_options,
         is_contract_review=domain_rules.is_contract_review,
+        contract_trigger_reason=domain_rules.contract_trigger_reason,
         feature_multi_analyze=settings.feature_multi_analyze,
         contract_conversations=DEFAULT_CONTRACT_STATE.active,
         contract_reviewed_conversations=DEFAULT_CONTRACT_STATE.reviewed,
@@ -261,6 +358,7 @@ def bootstrap_request(
     client_truncated: bool,
     *,
     case_domain: str | None = None,
+    law_as_of: date | None = None,
     _deps: BootstrapDependencies | None = None,
 ) -> RequestBootstrap:
     """Validate and persist an accepted request without invoking retrieval or routing."""
@@ -306,33 +404,39 @@ def bootstrap_request(
         is_exam = deps.is_exam_question(text or raw_query)
         has_options = deps.has_exam_options(text or raw_query)
         contract_query = text or raw_query
-        exiting_contract = conv_id in deps.contract_conversations and deps.is_contract_exit(contract_query)
-        active_contract = conv_id in deps.contract_conversations and not exiting_contract
+        in_contract_mode = contract_session_active(conv_id, deps.contract_conversations)
+        exiting_contract = in_contract_mode and deps.is_contract_exit(contract_query)
+        active_contract = in_contract_mode and not exiting_contract
+        # 口径③⑥：只有“条款自指”这一支与案情叙述同形——先确认审查意图，不静默切换。
+        # 会话级只问一次；问过之后同形输入按普通分析走（既不反复追问，也不偷偷切换）。
+        fresh_reason = None if in_contract_mode else deps.contract_trigger_reason(contract_query)
+        ambiguous_fresh = fresh_reason == "clause_labels"
+        intent_confirm = ambiguous_fresh and conv_id not in _contract_intent_asked
+        if intent_confirm:
+            _contract_intent_asked.add(conv_id)
+        clause_only_settled = ambiguous_fresh and not intent_confirm
         contract_mode = (
             deps.feature_multi_analyze
             and intent == "legal_query"
-            and (deps.is_contract_review(contract_query) or active_contract)
+            and ((deps.is_contract_review(contract_query) and not clause_only_settled) or active_contract)
         )
 
         contract_text = None
         if contract_mode:
             if deps.is_contract_review(contract_query):
-                state_action = "enter"
+                state_action = "confirm" if intent_confirm else "enter"
+                # 口径②：明确要求"对比两份"时不重置——上一份从历史回捞、与本轮一起带上；
+                # 其余情况（换合同）维持覆盖语义（旧合同不回捞）。
+                comparing = any(mark in (text or "") for mark in _CONTRACT_COMPARE_MARKS)
+                previous_contract = _previous_contract_text(recent, deps) if comparing else ""
                 if image and image_description and deps.is_contract_review(image_description):
                     contract_text = image_description
                 else:
                     contract_text = text or raw_query
+                if previous_contract:
+                    contract_text = (previous_contract + chr(10) + contract_text).strip()
             else:
-                previous_contract = ""
-                for message in reversed(recent):
-                    content = message["content"]
-                    description = message["image_desc"]
-                    is_contract_message = deps.is_contract_review(content) or (
-                        content == "[图片]" and deps.is_contract_review(description)
-                    )
-                    if message["role"] == "user" and is_contract_message:
-                        previous_contract = description if deps.is_contract_review(description) else content
-                        break
+                previous_contract = _previous_contract_text(recent, deps)
                 contract_text = (
                     (previous_contract + "\n" + (text or "")) if previous_contract else (text or raw_query)
                 ).strip()
@@ -364,9 +468,11 @@ def bootstrap_request(
 
         if state_action == "enter":
             deps.contract_conversations.add(conv_id)
+            mark_contract_turn(conv_id)
         elif state_action == "exit":
             deps.contract_conversations.discard(conv_id)
             deps.contract_reviewed_conversations.discard(conv_id)
+            _contract_touched.pop(conv_id, None)
 
         return RequestBootstrap(
             conv_id=conv_id,
@@ -385,8 +491,10 @@ def bootstrap_request(
             has_options=has_options,
             contract_mode=contract_mode,
             contract_text=contract_text,
+            intent_confirm=intent_confirm,
             client_truncated=client_truncated,
             case_domain=case_domain,
+            law_as_of=law_as_of,
         )
     except Exception:
         try:
@@ -414,20 +522,23 @@ def prepare_fast_path(
     deps = _deps or _default_fast_path_dependencies()
     raw_query = bootstrap.raw_query
     contract_data = None
+    cutoff = bootstrap.law_as_of.isoformat() if bootstrap.law_as_of is not None else None
 
     if bootstrap.intent == "study_aid":
         if deps.feature_study_retrieval and not deps.is_meta_study(bootstrap.user_text or raw_query):
             rewritten = deps.rewrite_for_retrieval(
                 raw_query, bootstrap.recent, bootstrap.recent_messages, bootstrap.has_options
             )
-            docs = deps.scenario_supplement_docs(bootstrap.supplement_text) + deps.retrieve_exam(rewritten)
+            docs = deps.scenario_supplement_docs(bootstrap.supplement_text, cutoff=cutoff) + deps.retrieve_exam(
+                rewritten, cutoff=cutoff
+            )
         else:
             rewritten = raw_query
             docs = []
         qa_hit = None
     elif bootstrap.intent == "cheating_request":
         rewritten = raw_query
-        docs = deps.cheating_docs()
+        docs = deps.cheating_docs(cutoff=cutoff)
         qa_hit = None
     elif bootstrap.intent == "chitchat":
         rewritten = raw_query
@@ -435,9 +546,12 @@ def prepare_fast_path(
         qa_hit = None
     elif bootstrap.contract_mode:
         rewritten = raw_query
-        contract_data = deps.build_contract_data(bootstrap.contract_text or raw_query)
+        contract_data = deps.build_contract_data(bootstrap.contract_text or raw_query, cutoff=cutoff)
         if bootstrap.client_truncated:
             contract_data["truncated"] = True
+        if bootstrap.intent_confirm:
+            # 口径③⑥：与 need_clarify 同一条通道（contract_data 内字段）——pre 的键集被用例钉死，不能加新键
+            contract_data["confirm_intent"] = True
         docs = contract_data["docs"]
         qa_hit = None
     else:
@@ -445,17 +559,56 @@ def prepare_fast_path(
             raw_query, bootstrap.recent, bootstrap.recent_messages, bootstrap.has_options
         )
         if bootstrap.is_exam:
-            docs = deps.scenario_supplement_docs(bootstrap.supplement_text) + deps.retrieve_exam(rewritten)
+            docs = deps.scenario_supplement_docs(bootstrap.supplement_text, cutoff=cutoff) + deps.retrieve_exam(
+                rewritten, cutoff=cutoff
+            )
         else:
-            docs = deps.retrieve(rewritten, k=10)
-        qa_hit = deps.search_qa(rewritten)
+            docs = deps.retrieve(rewritten, k=10, cutoff=cutoff)
+        # QA 语料按**当日**沉淀，无版本轴 ⇒ 历史查询不可直返（见 main._qa_direct_return 分水岭守卫）。
+        from retrieval import qa_citations_in_kb
+        from retrieval_core import qa_provenance_verifiable
+
+        qa_hit = None if cutoff else deps.search_qa(rewritten)
+        if qa_hit is not None and not qa_provenance_verifiable(qa_hit):
+            # 拦了要留痕：这道门关掉的是**零 token 直返**，静默拒绝的话"语料在衰减"线上没有任何痕迹
+            # （形状同 `main._law_version_gate` 的绊线日志）。刻意只落一个归因键、不落判据分解——
+            # 把"缺 basis 还是缺引用"抄进日志等于放第二份判据，改那道门时它会开始说谎。
+            # 也不落问题原文（AUTH-3）：语料题干可能就是用户问句。
+            logging.getLogger("legal.chat").warning(
+                "QA 语料命中但来源不可校验 ⇒ 不参与生成",
+                extra={"qa_provenance_refused": True},
+            )
+            # 来源校验不了的记录不给它进 `pre["qa_hit"]`：直返（main._qa_direct_return）与
+            # prompt 注入（main._build_messages 的"此前已确认的问答"）两个出口共用这一处判定。
+            qa_hit = None
+        if qa_hit is not None and not qa_citations_in_kb(qa_hit):
+            # 票 W1（2026-09-25，Owner 裁决"对称收口，判据上提到产生处"）：上面那道只问"引用给不给得出"，
+            # 这一道问"引用核验不核验得了"。此前时效判定**只写在** `main._qa_direct_return` 里，于是引用了
+            # 已删条目的记录照样进 `pre["qa_hit"]`，被 `_build_messages` 以"此前已确认的问答（可优先参考）"
+            # 递给模型——那是第 8 节② 漏口的后一半。判据本体住在 `retrieval.qa_citations_in_kb`，
+            # 两个出口调**同一个对象**（不许各抄一份循环；`tests/test_qa_citation_gate_symmetry.py` 钉这条同一性）。
+            # 刻意放在形状判据**之后**：无效形状不付读库成本（`test_shape_gate_runs_before_the_kb_and_skips_the_lookup`）。
+            # 归因**分键不分门**：这是第二道门，与 `qa_provenance_refused` 各一个读数——
+            # 合成一键就只知道"语料被拦了"而不知道是哪道门在衰减。
+            logging.getLogger("legal.chat").warning(
+                "QA 语料引用的条文不在库 ⇒ 不参与生成",
+                extra={"qa_citation_refused": True},
+            )
+            qa_hit = None
         if not bootstrap.is_exam:
-            docs = deps.scenario_supplement_docs(bootstrap.supplement_text) + docs
+            docs = deps.scenario_supplement_docs(bootstrap.supplement_text, cutoff=cutoff) + docs
             query = bootstrap.user_text or raw_query
             if deps.is_consumer_clause_scenario(query):
-                docs = deps.consumer_clause_docs() + docs
+                docs = deps.consumer_clause_docs(cutoff=cutoff) + docs
             if deps.is_consumer_fraud_scenario(query):
-                docs = deps.consumer_fraud_docs() + docs
+                docs = deps.consumer_fraud_docs(cutoff=cutoff) + docs
+
+    if cutoff:
+        from retrieval_core import is_valid_by_time
+
+        # 各取数口已按同一 cutoff 过滤，这里仍复筛一遍：谓词唯一（`retrieval_core.is_valid_by_time`），
+        # 漏传 cutoff 的代价是**把当日版本下发给历史查询**（静默改用现行法），比丢证据更坏。
+        docs = [doc for doc in docs if is_valid_by_time(doc.metadata, cutoff)]
 
     context = deps.format_docs(docs)
     sources = [
@@ -468,7 +621,7 @@ def prepare_fast_path(
         }
         for document in docs
     ]
-    return {
+    prepared = {
         "conv_id": bootstrap.conv_id,
         "summary": bootstrap.summary,
         "recent": bootstrap.recent,
@@ -485,3 +638,6 @@ def prepare_fast_path(
         "has_options": bootstrap.has_options,
         "contract_data": contract_data,
     }
+    if cutoff:
+        prepared["law_as_of"] = bootstrap.law_as_of
+    return prepared

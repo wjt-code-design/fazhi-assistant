@@ -27,6 +27,7 @@ import re
 
 SLICE_MIN_CHARS = 60  # 超过该长度才做位置切片（短查询切片无收益且增开销）
 SLICE_MAX = 5  # 切片段数上限（不含整句/锚点）
+QUESTION_MAX = 6  # 子问题单元上限（口径④：独立的法律问题，各自成查询）
 
 # 单元类型：强锚点（保底进结果）vs 弱单元（只扩大候选池）
 KIND_ORIGINAL = "original"  # 整句
@@ -237,10 +238,46 @@ def question_type(text: str) -> str:
 
 
 def _split_by_sentence(text: str) -> list[str]:
-    """按中文标点切句，取较长句（保留有信息量的），上限 SLICE_MAX。"""
+    """按中文标点切句，取较长句（保留有信息量的），上限 SLICE_MAX。
+
+    2026-10-13（口径④）：超限时**首尾都要**——原实现 `out[:SLICE_MAX]` 只取开头 5 句，
+    而长题面的子问题清单/结论段在**题尾**，被整段吃掉 ⇒ 题尾永远成不了查询单元
+    （实测 Q8 752 字：10 个单元里没有一条指向"诉讼时效是否届满"，目标条文连候选池都进不去）。
+    """
     parts = [s.strip() for s in _SENT_SPLIT_RE.split(text)]
     out = [s for s in parts if len(s) >= 6]
-    return out[:SLICE_MAX] if out else [text]
+    if len(out) <= SLICE_MAX:
+        return out or [text]
+    head = out[: SLICE_MAX - 2]
+    tail = out[-(SLICE_MAX - len(head)) :]
+    merged: list[str] = []
+    for s in head + tail:
+        if s not in merged:
+            merged.append(s)
+    return merged or [text]
+
+
+# 口径④（2026-10-13）：**按子问题检索**。题集/用户长题面的子问题有两种现实写法——
+# ① 带编号的清单行（"1) 本案应适用的诉讼时效期间与起算日"）；② 以问号结句的问句。
+# 两者都各自成一个查询单元：它们是"独立的法律问题"，与叙述句不同，混在切片里会被上限挤掉。
+_QA_LINE_RE = re.compile(r"(?m)^\s*[0-9]{1,2}\s*[\)）、.．]\s*(.+?)\s*$")
+
+
+def _question_units(text: str) -> list[str]:
+    out: list[str] = []
+    for m in _QA_LINE_RE.finditer(text):
+        line = m.group(1).strip()
+        if len(line) >= 8:
+            out.append(line)
+    # ⚠️ 曾收"问号结句"的句子，实测有副作用：Q5（296 字、无编号清单、只有问句）被加进来后
+    # 同题"劳动合同法第十四条"从 #7 掉出 top-10，而收益（Q3 第十九条、Q8 675）全部来自
+    # **带编号的清单行** ⇒ 只留编号行这一条更窄的规则（少一个单元源＝少一份噪声）。
+
+    deduped: list[str] = []
+    for s in out:
+        if s not in deduped:
+            deduped.append(s)
+    return deduped[:QUESTION_MAX]
 
 
 def decompose(query: str, concept_keywords: tuple = ()) -> list[tuple[str, str]]:
@@ -250,6 +287,7 @@ def decompose(query: str, concept_keywords: tuple = ()) -> list[tuple[str, str]]
       original — 整句保底（永远首位）
       anchor   — 法条引用/罪名：强锚点，独立检索且 top-3 命中保底进结果
       slice    — 长文本切片段：只扩大候选池，不保底（避免单元过多稀释锚点保底）
+                 （2026-10-13 起还含**子问题单元**：编号行/问句各成一条，防题尾被切片上限吃掉）
 
     顺序：整句 → 法条引用 → 罪名 → 长文本切片。
     注意：不用概念词表做锚点（泛主题词独立检索会稀释整句桥接，见模块 docstring）。
@@ -277,5 +315,11 @@ def decompose(query: str, concept_keywords: tuple = ()) -> list[tuple[str, str]]
         else:
             segs = _split_by_sentence(query)
         for s in segs:
+            add(s, KIND_SLICE)
+        # 5. 子问题（口径④）：编号清单行与问句各自成单元——它们指向独立法律问题，
+        #    混在叙述切片里会被 SLICE_MAX 挤掉（实测：Q8 的题尾四问全被吃掉，目标条文进不了池）。
+        #    **必须在长度闸内**：短查询的单元集合是契约（"短查询无锚点 → 仅整句"由用例钉住），
+        #    一条短问句自己就是整句单元，再拆只会白增开销。
+        for s in _question_units(query):
             add(s, KIND_SLICE)
     return units

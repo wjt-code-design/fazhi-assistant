@@ -1,5 +1,5 @@
 "use client";
-// T2.2 自 chat/page.tsx 原样搬移（输入区区块提取为组件），零行为变更。
+// 输入区沿用原样式；生成期间同一位置提供主动停止入口。
 // hidden file input 与触发它的按钮同属本组件，refs 随迁（点击自身隐藏 input 的行为不变）。
 import { useRef, type FormEvent, type ClipboardEvent } from "react";
 import { Spinner } from "@/components/ui";
@@ -22,6 +22,7 @@ export function InputBar({
   onPickFile,
   onPaste,
   onSubmit,
+  onStop,
 }: {
   input: string;
   onInputChange: (v: string) => void;
@@ -39,6 +40,7 @@ export function InputBar({
   onPickFile: (f: File) => void;
   onPaste: (e: ClipboardEvent) => void;
   onSubmit: (e?: FormEvent) => void;
+  onStop: () => void;
 }) {
   const imageInputRef = useRef<HTMLInputElement>(null); // 图片选择
   const fileInputRef = useRef<HTMLInputElement>(null); // 文件（txt/pdf/docx）选择
@@ -50,6 +52,7 @@ export function InputBar({
       <div className="mx-auto max-w-[44rem]">
         {pendingImage && (
           <div className="mb-2 inline-flex items-center gap-2 rounded-lg border border-mist bg-parchment p-1.5">
+            {/* eslint-disable-next-line @next/next/no-img-element -- pendingImage 是本地 data:/blob: 预览，next/image 不支持该形态。详见 T12-D 报告。 */}
             <img src={pendingImage} alt="待发送" className="h-12 w-12 rounded object-cover" />
             <button
               type="button"
@@ -78,7 +81,12 @@ export function InputBar({
             </button>
           </div>
         )}
-        <div className="flex items-center gap-1.5 md:gap-2">
+        {/* G1：390px 视口下 44px 定宽钮吃掉近半行宽，textarea 被挤到 158px（compose 部署态实测）。
+            <md：允许换行（flex-wrap），输入框用 basis-full 独占一行、order-first 提到行首。
+            ≥md：md:flex-nowrap 恢复单行、md:basis-0 配 grow/shrink 等价于改前的 flex-1、
+            md:order-none 恢复源码顺序 ⇒ 桌面端计算样式逐项与改前一致。
+            已知代价：<md 视觉顺序与 DOM 顺序不一致（DOM 先钮后框，视觉上框在上），键盘焦点按 DOM 走。 */}
+        <div className="flex flex-wrap items-center gap-1.5 md:flex-nowrap md:gap-2">
           {caps?.image_chat !== false && (
             <>
               <input
@@ -185,7 +193,7 @@ export function InputBar({
             </button>
           )}
           <textarea
-            className="input min-w-0 flex-1 !rounded-[6px] !py-2 !text-[15px] resize-none max-h-[120px] md:!text-base"
+            className="input min-w-0 order-first grow shrink basis-full md:order-none md:basis-0 !rounded-[6px] !py-2 !text-[16px] resize-none max-h-[120px] md:!text-base"
             rows={2}
             value={input}
             onChange={(e) => onInputChange(e.target.value)}
@@ -201,14 +209,15 @@ export function InputBar({
             disabled={streaming}
           />
           <button
-            type="submit"
-            disabled={streaming || (!input.trim() && !pendingImage && !fileContent)}
+            type={streaming ? "button" : "submit"}
+            onClick={streaming ? onStop : undefined}
+            disabled={!streaming && !input.trim() && !pendingImage && !fileContent}
             className="btn btn-primary h-11 w-11 shrink-0 !rounded-[6px] !p-0 shadow-md shadow-accent/25"
-            aria-label="发送"
-            title="发送（Enter）"
+            aria-label={streaming ? "停止生成" : "发送"}
+            title={streaming ? "停止生成" : "发送（Enter）"}
           >
             {streaming ? (
-              <Spinner />
+              <span aria-hidden="true" className="h-3.5 w-3.5 rounded-sm bg-current" />
             ) : (
               <svg
                 className="h-4 w-4 md:h-[17px] md:w-[17px]"

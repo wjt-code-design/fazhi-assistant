@@ -11,6 +11,8 @@ export function buildLawCardHtml(exp: {
   article: string;
   content: string;
   status?: string;
+  isSnapshot?: boolean;
+  lawAsOf?: string;
   found: boolean;
 }): string {
   const title = `<p class="law-title font-serif text-sm">《${escapeHtmlText(exp.source)}》${escapeHtmlText(exp.article)}</p>`;
@@ -19,11 +21,16 @@ export function buildLawCardHtml(exp: {
     return (
       `<div class="law-glass law-inline-card rounded-xl px-4 py-4">` +
       title +
-      `<p class="mt-2 text-[0.85rem] leading-relaxed text-slate/85">知识库暂未收录该条文原文。</p>` +
+      `<p class="mt-2 text-[0.85rem] leading-relaxed text-slate/85">${exp.isSnapshot
+        ? "本次答复的证据快照不可用，未改用当前版本。"
+        : "知识库暂未收录该条文原文。"}</p>` +
       `</div>`
     );
   }
   const content = escapeHtmlText(exp.content).replace(/\n/g, "<br/>");
+  const version = `<p class="mt-2 text-xs text-slate">${exp.isSnapshot
+    ? `本次答复证据快照（非完整条文），法律基准日：${escapeHtmlText(exp.lawAsOf || "未知")}`
+    : "当前知识库条文，未关联该次答复的历史版本"}</p>`;
   const status = exp.status
     ? `<p class="mt-2 text-xs text-slate">状态：${escapeHtmlText(exp.status)}</p>`
     : "";
@@ -31,7 +38,7 @@ export function buildLawCardHtml(exp: {
     `<div class="law-glass law-inline-card rounded-xl px-4 py-4">` +
     title +
     `<p class="mt-2 whitespace-pre-wrap text-[0.85rem] leading-relaxed text-ink/90 font-normal">${content}</p>` +
-    `${status}</div>`
+    `${version}${status}</div>`
   );
 }
 
@@ -43,6 +50,8 @@ export function injectLawCardHtml(
     article: string;
     content: string;
     status?: string;
+    isSnapshot?: boolean;
+    lawAsOf?: string;
     found: boolean;
   },
   occurrence = 0

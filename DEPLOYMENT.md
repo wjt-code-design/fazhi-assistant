@@ -170,3 +170,14 @@ npm run start                    # 监听 0.0.0.0:3000
 | 手机 `failed to fetch` | 前端 `NEXT_PUBLIC_API_URL` 是否指向可访问的后端地址；是否 build 时内联了 `localhost` |
 | 健康检查 `db:false` | 检查数据卷权限、SQLite 路径 |
 | 回答 500 | 检查 `.env` 里 LLM 配置是否完整（缺 key 的 provider 会被跳过） |
+
+## 7. 事件响应：出现什么信号、谁、看哪个计数器
+
+三条都读同一个只读端点 `GET /api/admin/llm-status`（需管理员身份；普通用户接口不返回模型信息）。
+`models[].quota_left` 是**本地估算**，只用于看趋势与定位是哪个模型，真值以供应商控制台为准。
+
+| 信号 | 看哪个计数器 | 读到之后做什么 |
+|------|------|------|
+| 回答里"仅供参考"类注记变多、Agent 路径回落 | `metrics.agent_route.fallback_count` 及 `.fallback_reason_code_counts`（技术降级码在白名单内，`TOOL_BUSY` 与 `TOOL_UNAVAILABLE` 分列，不混计） | 按码定位：工具忙＝并发挤压，通常自愈；工具不可用/网关拒绝＝看下一行 |
+| 某个模型一段时间持续不可用，但配额还有剩余 | `models[].rejected_remaining_s` + `models[].rejected_kind` | `kind=config`（401/403/404：key/端点/模型名错）改配置才有效，冷却 1 小时，反复重试不会自愈；`kind=shape`（400/422：本次请求被拒）短冷却 5 分钟，可再试 |
+| 全线变慢或直接拒答、疑似额度打光 | `models[].depleted` + `models[].quota_left` + `utility_quota`（embedding/rerank） | 先用控制台核对真实剩余量再决定是否充值/换 key；`depleted` 与 `below_threshold` 都是本地判定，控制台读数优先 |

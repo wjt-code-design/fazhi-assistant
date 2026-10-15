@@ -119,6 +119,7 @@ def test_technical_fallback_allowlist_is_immutable_and_complete():
             "PLANNER_PARSE_ERROR",
             "TOOL_TIMEOUT",
             "TOOL_UNAVAILABLE",
+            "TOOL_BUSY",
             "AGENT_BUDGET_EXCEEDED",
             "VERIFIER_TECHNICAL_FAILURE",
         }
@@ -226,3 +227,12 @@ def test_concurrent_actual_route_records_do_not_lose_counts():
         "fallback_count": 500,
         "fallback_reason_code_counts": {"TOOL_TIMEOUT": 500},
     }
+
+
+def test_tool_busy_is_counted_separately_from_tool_unavailable():
+    """D-15 的「单列」：容量背压与依赖不可见是两个数，不能并进同一个桶。"""
+    rm.record_agent_route("fast_path", fallback_reason="TOOL_UNAVAILABLE")
+    rm.record_agent_route("fast_path", fallback_reason="TOOL_BUSY")
+    counts = rm.snapshot()["agent_route"]["fallback_reason_code_counts"]
+    assert counts.get("TOOL_BUSY", 0) >= 1 and counts.get("TOOL_UNAVAILABLE", 0) >= 1
+    assert sorted(counts) == ["TOOL_BUSY", "TOOL_UNAVAILABLE"], "两因必须各一 key"

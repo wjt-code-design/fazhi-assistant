@@ -23,6 +23,10 @@
       {"upto": 200000, "rate": 0.02},
       {"upto": 500000, "rate": 0.015},
       {"upto": 1000000, "rate": 0.01},
+      {"upto": 2000000, "rate": 0.009},
+      {"upto": 5000000, "rate": 0.008},
+      {"upto": 10000000, "rate": 0.007},
+      {"upto": 20000000, "rate": 0.006},
       {"upto": null, "rate": 0.005}
     ],
     "simplified_half": true

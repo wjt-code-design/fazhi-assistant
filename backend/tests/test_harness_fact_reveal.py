@@ -26,6 +26,42 @@ HIDDEN = _load_module("hidden_runner_mod", REPO / "dispatch-output/task1/hidden_
 
 C05_PROMPT_HITS_R12 = "我转账后对方退款退回，合同约定每月5日付款，押金怎么算"
 
+# H01 侧的最小脱敏夹具体（**假数据**，非真实盲测集）。
+# 为什么必须自带：hidden_runner 的事实表只在**运行期**从 hidden-round-protocol-v1.json 读取
+# （该 JSON 不入库，`.gitignore:77` 整目录忽略 dispatch-output/task1/，见 hidden_runner._read_json），
+# 干净检出里它不存在——测试若去读真值，就又把"未入库资产"变成依赖。
+# schema 与真题集协议逐字段一致（fact_units → roundN → {fact_id, text, match_keywords}），
+# 由 hidden_runner 自己的 `facts_meta_from_protocol` 解析 ⇒ 被锁的是"两个 runner 共用同一投放语义"，
+# 与具体题目无关。r1 关键词对下面的 T8 探针 prompt 命中、r2 刻意不命中 ⇒ 该断言不再空转。
+HIDDEN_FIXTURE_PROTOCOL = {
+    "schema_version": "hidden-round-protocol-fixture-v1",
+    "purpose": "tests/test_harness_fact_reveal.py 自带的脱敏夹具（假数据；不含任何真实盲测内容）",
+    "no_match_reply": "我没有保留这方面的信息。",
+    "fact_units": {
+        "H01": {
+            "round1": [
+                {
+                    "fact_id": "H01-r1-f1",
+                    "text": "夹具事实（假）：押金与付款时间已在书面合同中约定。",
+                    "match_keywords": ["押金", "付款", "约定"],
+                },
+                {
+                    "fact_id": "H01-r1-f2",
+                    "text": "夹具事实（假）：双方另有一份口头补充说明。",
+                    "match_keywords": ["口头", "补充"],
+                },
+            ],
+            "round2": [
+                {
+                    "fact_id": "H01-r2-f1",
+                    "text": "夹具事实（假）：第二轮的退回记录。",
+                    "match_keywords": ["押金", "退回"],
+                },
+            ],
+        }
+    },
+}
+
 
 @pytest.fixture()
 def shared_module():
@@ -114,29 +150,24 @@ def _c05_facts():
 
 
 def _h01_facts():
-    return _facts_from_protocol("H01", HIDDEN)
+    """隐藏侧 facts：由**自带脱敏夹具**经 hidden_runner 自己的解析函数构建（不读未入库真值）。"""
+    return HIDDEN.facts_meta_from_protocol(HIDDEN_FIXTURE_PROTOCOL)
 
 
 def _facts_from_protocol(case_id: str, mod) -> dict:
-    """从两个 runner 各自冻结协议构建 facts: fid -> FactData(round, keywords, text)。"""
+    """从 runner 自带的**冻结关键词表**构建 facts: fid -> FactData(round, keywords, text)。
+
+    只适用于把关键词表写在源码里的 runner（gate2_runner）；hidden_runner 的关键词表来自不入库的
+    真协议，故其 H01 侧改走 `_h01_facts()` 的夹具路径。
+    """
     facts: dict = {}
-    if hasattr(mod, "KEYWORDS") and hasattr(mod, "FACT_TEXT"):
-        for fid, kws in mod.KEYWORDS.items():
-            if not fid.startswith(case_id + "-"):
-                continue
-            import re as _re
+    for fid, kws in mod.KEYWORDS.items():
+        if not fid.startswith(case_id + "-"):
+            continue
+        import re as _re
 
-            m = _re.search(r"-r(\d+)-f", fid)
-            rnd = int(m.group(1)) if m else 99
-            facts[fid] = {"round": rnd, "keywords": list(kws), "text": mod.FACT_TEXT.get(fid, "")}
-    elif hasattr(mod, "KEYWORDS"):
-        for fid, kws in mod.KEYWORDS.items():
-            if not fid.startswith(case_id + "-"):
-                continue
-            import re as _re
-
-            m = _re.search(r"-r(\d+)-f", fid)
-            rnd = int(m.group(1)) if m else 99
-            facts[fid] = {"round": rnd, "keywords": list(kws), "text": mod.FACT_TEXT.get(fid, "")}
+        m = _re.search(r"-r(\d+)-f", fid)
+        rnd = int(m.group(1)) if m else 99
+        facts[fid] = {"round": rnd, "keywords": list(kws), "text": mod.FACT_TEXT.get(fid, "")}
     assert facts, f"{case_id} 无可用事实"
     return facts

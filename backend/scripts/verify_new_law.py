@@ -12,21 +12,17 @@
 注意：条号必须用中文数字（"第二十五条"）——真实上传经 split_law_document 提取中文
 条号，与 parse_article_query 归一化口径一致；用阿拉伯数字（"第25条"）会查不到。
 
-用法：cd backend && python scripts/verify_new_law.py（结束后自动清理验证法）
+用法：python scripts/verify_new_law.py（独立临时库；合成条文验证，不读取实际配置文件）
 结果：print 逐项 PASS/FAIL，全部通过 exit 0。
 """
 
+import argparse
 import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from dotenv import load_dotenv
-
-load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
-
-from knowledge_service import _collection, add_text  # noqa: E402
-from retrieval import bm25_top, retrieve, source_in_kb  # noqa: E402
+from scripts import chroma_dir_guard  # noqa: E402
 
 SRC = "验证法"
 passes = 0
@@ -44,6 +40,8 @@ def check(name: str, cond: bool, detail: str = "") -> None:
 
 
 def cleanup() -> None:
+    from knowledge_service import _collection
+
     col = _collection()
     ids = col.get(where={"source": SRC})["ids"] or []
     for did in ids:
@@ -54,7 +52,10 @@ def cleanup() -> None:
     print(f"  清理验证法：删除 {len(ids)} 条")
 
 
-def main() -> None:
+def _verify() -> None:
+    from knowledge_service import _collection, add_text
+    from retrieval import bm25_top, retrieve, source_in_kb
+
     # 1. 普通条文（企业破产重整）
     add_text(
         "第三十条　人民法院裁定受理破产重整申请的，重整期间债务人可以申请管理人许可后继续营业。",
@@ -84,7 +85,7 @@ def main() -> None:
         "第二十五条",
         origin="manual",
     )
-    print("=== 新增验证法（3 条）完成 ===\n")
+    print("=== 新增验证法（4 条）完成 ===\n")
 
     print("=== 1. 普通条文检索 ===")
     docs = retrieve("企业破产重整期间能否继续营业？", k=4)
@@ -157,8 +158,20 @@ def main() -> None:
     check(f"问验证法（在库）→ direct（非 refuse），got={got}", got == "direct")
 
     print(f"\n=== 结果：{passes} PASS / {fails} FAIL ===")
-    cleanup()
     sys.exit(1 if fails else 0)
+
+
+def main() -> None:
+    global passes, fails
+    argparse.ArgumentParser(description="在临时库验证新增合成条文的检索与幂等").parse_args()
+    with chroma_dir_guard.isolated_chroma("verify_new_law"):
+        import knowledge_service  # noqa: F401
+
+        passes = fails = 0
+        try:
+            _verify()
+        finally:
+            cleanup()
 
 
 if __name__ == "__main__":

@@ -101,6 +101,11 @@
   2. 若事件含 `{"type":"clarification","prompt":...}`：把 prompt 与 `hidden-round-protocol` 的 fact 做关键词匹配；命中→用户回答返回该 fact 正文；未命中→返回"我没有保留这方面的信息。"（推进条件化，不泄露其他事实）。
   3. 每次 resume 请求 body：`{"content": "<回答>", "no_cache": true, "conversation_id": <澄清事件里的 conversation_id>, "agent_run_id": <run_id>, "agent_state_version": <state_version>}`。
   4. 最多两轮；若两轮后仍出现 clarification 事件，记为**红线候选**（over2）。
+     > ⚠️ **口径订正（2026-09-18，P1-7）**：本句字面读是"看末尾是否仍为澄清"，**现行权威口径不按末尾
+     > 快照判定**，而是按**服务端发起的澄清次数**计（scope 菜单与事实追问同计，出现第 3 次追问即红线）。
+     > 权威定义见 `docs/execution-plan-entity-precision-20260917.md` 派生⑩；实现见
+     > `backend/scripts/gate2_runner.py:569-571`。本文件是 2026-09-08 的历史任务书，**原句不改写**；
+     > 同文件「第 5 步：逐题判定的完整闭环」第 3 条「最多两轮，无 over2」口径同此。
   5. 保存每次请求的：状态码、事件列表、最终 content 全文。
 - 两次运行完全独立（不同 conversation），使用相同冻结文件与协议，**禁止重试失败题后仅保留成功结果**。
 - 输出保存到 `<repo>/dispatch-output/task1/run-a.json` 与 `run-b.json`，结构：

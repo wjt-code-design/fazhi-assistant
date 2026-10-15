@@ -177,6 +177,47 @@ _DEFAULT_RUN_LOCKS = InMemoryRunLockRegistry()
 
 RESUME_NOT_FOUND_DETAIL = "未找到可恢复的 Agent 任务"
 RESUME_CONFLICT_DETAIL = "Agent 任务已变化，无法恢复"
+RESUME_LAW_AS_OF_DETAIL = "Agent 追问回答沿用该任务建立时的法律基准日，不能中途更改"
+
+# D-10（Owner 2026-10-11 裁「拆」）：409 的对外文案按成因分档。
+# 分档轴 = **用户下一步动作不同**，不是内部状态机有多少个状态：
+#   已经处理过 → 回去看结果；回答不合式 → 再答一次；预算打满 → 重新发起；接不上 → 重新发起。
+# 仍不泄漏状态机名、版本号、run 标识。
+RESUME_DETAIL_ALREADY_ADVANCED = "这条任务已经处理过了，请回到对话查看最新结果。"
+RESUME_DETAIL_ANSWER_INVALID = "这个回答和当前的问题对不上，请重新回答一次。"
+RESUME_DETAIL_STEP_BUDGET = "这次任务可用的处理步骤已经用完了，请重新发起一次咨询。"
+RESUME_DETAIL_UNRECOVERABLE = "这条任务接不上了，请重新发起一次咨询。"
+
+RESUME_CONFLICT_DETAILS: dict[str, str] = {
+    "state_stale": RESUME_DETAIL_ALREADY_ADVANCED,
+    "cas_conflict": RESUME_DETAIL_ALREADY_ADVANCED,
+    "answer_invalid": RESUME_DETAIL_ANSWER_INVALID,
+    "step_budget": RESUME_DETAIL_STEP_BUDGET,
+    # ⚠️ 这档今天走不到：DB-15 起 (WAITING_USER→PLANNING) 在 `FREE_STEP_EDGES` 里不计步，
+    # `transition` 的 `_limit(steps)` 因此不会在这两个 raise 站点炸。保留是因为站点仍在
+    # （预算被调小或持久状态越界时仍可能命中）；处置选择登记在台账 D-33。
+    # 本文件的 AST 判据只保证"每个成因码有一档"，**不保证成因码可达**——这是它量不到的那一面。
+    "state_unreadable": RESUME_DETAIL_UNRECOVERABLE,
+    "pending_anchor_mismatch": RESUME_DETAIL_UNRECOVERABLE,
+    "issue_missing": RESUME_DETAIL_UNRECOVERABLE,
+}
+
+
+def resume_conflict_detail(reason_code: str) -> str:
+    """成因码 → 对外文案。未登记的成因回落到旧那句通用文案（宁可笼统，不可 500）。"""
+    return RESUME_CONFLICT_DETAILS.get(reason_code, RESUME_CONFLICT_DETAIL)
+
+
+class ResumeLawAsOfConflict(RuntimeError):
+    """客户端试图在恢复请求里改本 run 的法律基准日。
+
+    基准日是 run 建立时定下的契约（`create_run` 落库、工具 cutoff 与证据有效性都消费它）。
+    中途改 ⇒ 同一个 run 的已生成证据按 A 版法、新回答按 B 版法。单列异常而非复用
+    `ResumeRunConflict`，是为了给用户可理解的措辞，而不是泛化的"任务已变化"。
+    """
+
+    def __init__(self) -> None:
+        super().__init__(RESUME_LAW_AS_OF_DETAIL)
 
 
 class ResumeRunNotFound(LookupError):
@@ -225,10 +266,20 @@ def _find_pending_unknown(state: LegalAgentState, pending: str | None) -> tuple[
 
 
 class ResumeRunConflict(RuntimeError):
-    """A stale, already-resumed, or structurally inconsistent resume."""
+    """A stale, already-resumed, or structurally inconsistent resume.
 
-    def __init__(self) -> None:
-        super().__init__(RESUME_CONFLICT_DETAIL)
+    DB-15（2026-10-09，审查报告 B-47）：这个异常原先被**几类完全不同的成因**共用同一句
+    「Agent 任务已变化，无法恢复」⇒ 用户与运维都分不清到底是"版本冲突""状态读不出"，
+    还是"这条 run 的步数预算已打满"（后者正是 B-47 的形状；本轮起该边不再计步，见
+    `state_machine.FREE_STEP_EDGES`）。现每个抛点带一个 `reason_code`：成因进结构化日志字段
+    `agent_resume_reason`，对外文案按 `RESUME_CONFLICT_DETAILS` 分档（D-10，2026-10-11 Owner 裁「拆」）——
+    分档只按"用户下一步该做什么"，仍不泄漏状态机名与版本号。
+    """
+
+    def __init__(self, reason_code: str = "state_stale") -> None:
+        self.reason_code = reason_code
+        self.detail = resume_conflict_detail(reason_code)
+        super().__init__(self.detail)
 
 
 # Ticket 1（2026-09-12）：争点范围选择（产品约束，非法律事实澄清）。
@@ -242,17 +293,17 @@ def _parse_scope_selection(answer: str, issue_count: int) -> list[int]:
     """确定性解析范围选择：仅接受 1..issue_count 中 1–5 个唯一 ASCII 编号，其余一律拒绝。"""
     tokens = [token for token in _SCOPE_SELECTION_SEPARATORS.split(answer.strip()) if token]
     if not 1 <= len(tokens) <= _SCOPE_MAX_SELECTION:
-        raise ResumeRunConflict()
+        raise ResumeRunConflict("answer_invalid")
     numbers: list[int] = []
     for token in tokens:
         if not (token.isascii() and token.isdigit()):
-            raise ResumeRunConflict()
+            raise ResumeRunConflict("answer_invalid")
         number = int(token)
         if not 1 <= number <= issue_count:
-            raise ResumeRunConflict()
+            raise ResumeRunConflict("answer_invalid")
         numbers.append(number)
     if len(set(numbers)) != len(numbers):
-        raise ResumeRunConflict()
+        raise ResumeRunConflict("answer_invalid")
     return sorted(numbers)
 
 
@@ -281,7 +332,7 @@ def _resume_with_scope_selection(
     try:
         next_state = transition(next_state, AgentStatus.PLANNING)
     except BudgetExceeded as exc:
-        raise ResumeRunConflict() from exc
+        raise ResumeRunConflict("step_budget") from exc
     try:
         saved = compare_and_save(
             db,
@@ -297,13 +348,14 @@ def _resume_with_scope_selection(
             ),
         )
     except RunVersionConflict as exc:
-        raise ResumeRunConflict() from exc
+        raise ResumeRunConflict("cas_conflict") from exc
     return ResumeResult(
         run_id=cast(str, saved.id),
         issue_id="scope",
         old_state_version=expected_version,
         new_state_version=cast(int, saved.state_version),
         state=LegalAgentState.model_validate_json(cast(str, saved.state_json)),
+        law_as_of=cast(date, saved.law_as_of),
     )
 
 
@@ -315,6 +367,8 @@ class ResumeResult(BaseModel):
     old_state_version: int
     new_state_version: int
     state: LegalAgentState
+    # 该 run 建立时定下的法律基准日（必传：漏接线会让"Agent 失败降级到快车道"悄悄改用现行法）。
+    law_as_of: date
 
 
 def resume_with_user_fact(
@@ -327,12 +381,18 @@ def resume_with_user_fact(
     conversation_id: int,
     answer: str,
     evaluator: EvidenceEvaluator | None = None,
+    expected_law_as_of: date | None = None,
 ) -> ResumeResult:
-    """Atomically record one owned clarification answer without executing the Agent."""
+    """Atomically record one owned clarification answer without executing the Agent.
+
+    `expected_law_as_of`：客户端本次带来的法律基准日。与 run 已存的日期不一致时在 **CAS 之前**
+    拒绝（`ResumeLawAsOfConflict`）——放在 CAS 之后会先把用户事实写进去再报错，等于收了改动又不认。
+    None = 客户端没传，不参与比对（缺省路径零变化）。
+    """
     normalized_answer = answer.strip()
     if not normalized_answer:
         # 对抗审查 fx4（2026-09-13）：空输入按非法回答拒绝（409），而非 ValueError→500。
-        raise ResumeRunConflict()
+        raise ResumeRunConflict("answer_invalid")
 
     evidence_evaluator = evaluator or EvidenceEvaluator()
     with run_locks.acquire(run_id):
@@ -345,14 +405,16 @@ def resume_with_user_fact(
         if run is None:
             raise ResumeRunNotFound()
         if run.state_version != expected_version or run.status != AgentStatus.WAITING_USER.value:
-            raise ResumeRunConflict()
+            raise ResumeRunConflict("state_stale")
+        if expected_law_as_of is not None and expected_law_as_of != run.law_as_of:
+            raise ResumeLawAsOfConflict()
 
         try:
             persisted_state = LegalAgentState.model_validate_json(cast(str, run.state_json))
         except ValueError as exc:
-            raise ResumeRunConflict() from exc
+            raise ResumeRunConflict("state_unreadable") from exc
         if persisted_state.status is not AgentStatus.WAITING_USER:
-            raise ResumeRunConflict()
+            raise ResumeRunConflict("state_stale")
 
         if persisted_state.pending_scope_issue_ids:
             # Ticket 1：范围选择待决——先于普通事实澄清逻辑处理（纯确定性，不调 LLM）。
@@ -374,7 +436,7 @@ def resume_with_user_fact(
                 or evaluation.clarification is None
                 or run.pending_question != evaluation.clarification.statement
             ):
-                raise ResumeRunConflict()
+                raise ResumeRunConflict("pending_anchor_mismatch")
             resume_issue_id: str = evaluation.issue_id
             resume_fact = evaluation.clarification
         else:
@@ -387,13 +449,13 @@ def resume_with_user_fact(
             None,
         )
         if issue is None:
-            raise ResumeRunConflict()
+            raise ResumeRunConflict("issue_missing")
         selected_index = next(
             (index for index, item in enumerate(issue.unknown_facts) if item == resume_fact),
             None,
         )
         if selected_index is None:
-            raise ResumeRunConflict()
+            raise ResumeRunConflict("pending_anchor_mismatch")
 
         if _is_explicit_unknown(normalized_answer):
             # 用户确认无法提供该事实：acknowledge 并转入条件化（不写入已确认事实，不 409）
@@ -411,7 +473,7 @@ def resume_with_user_fact(
         try:
             next_state = transition(next_state, AgentStatus.PLANNING)
         except BudgetExceeded as exc:
-            raise ResumeRunConflict() from exc
+            raise ResumeRunConflict("step_budget") from exc
 
         try:
             saved = compare_and_save(
@@ -428,7 +490,7 @@ def resume_with_user_fact(
                 ),
             )
         except RunVersionConflict as exc:
-            raise ResumeRunConflict() from exc
+            raise ResumeRunConflict("cas_conflict") from exc
 
         return ResumeResult(
             run_id=cast(str, saved.id),
@@ -436,6 +498,7 @@ def resume_with_user_fact(
             old_state_version=expected_version,
             new_state_version=cast(int, saved.state_version),
             state=LegalAgentState.model_validate_json(cast(str, saved.state_json)),
+            law_as_of=cast(date, saved.law_as_of),
         )
 
 

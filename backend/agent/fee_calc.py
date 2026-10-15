@@ -13,14 +13,11 @@
 from __future__ import annotations
 
 import json
-import re
 from decimal import ROUND_HALF_UP, Decimal
 from functools import lru_cache
 from pathlib import Path
 
 _FORMULAS_PATH = Path(__file__).resolve().parent.parent / "knowledge_base" / "fee_formulas.json"
-
-_YUAN_RE = re.compile(r"(?:人民币\s*)?(\d[\d,]*(?:\.\d+)?|[零〇○一二两三四五六七八九十]+)\s*万?元")
 
 
 @lru_cache(maxsize=1)
@@ -65,18 +62,18 @@ def case_acceptance_fee(amount_yuan: Decimal) -> dict[str, int] | None:
 def largest_amount_yuan(texts: list[str]) -> Decimal | None:
     """一组文本中的最大货币金额（元）；无货币金额 → None。
 
-    仅匹配「N元 / N万元」形态（受控口径）；口语「N万块」由调用方先经归一文本进入。
+    复用数字校验的唯一解析真源，包含中文数字及口语金额。
     """
+    # 延迟导入：writer 的消费路径也调用本模块，模块初始化时不得反向加载 writer。
+    from .writer import numeric_tokens
+
     best: Decimal | None = None
     for text in texts or []:
-        for m in _YUAN_RE.finditer(text):
-            raw = m.group(1).replace(",", "")
-            try:
-                value = Decimal(raw)
-            except Exception:  # noqa: BLE001 — 中文数字兜底
+        for token in numeric_tokens(text, loose_amounts=True):
+            if not token.startswith("amount:"):
                 continue
-            if "万" in m.group(0):
-                value *= Decimal(10000)
+            _, raw, unit = token.split(":")
+            value = Decimal(raw) * {"元": 1, "万": 10000, "亿": 100000000}[unit]
             if best is None or value > best:
                 best = value
     return best

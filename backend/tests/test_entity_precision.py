@@ -189,13 +189,40 @@ def test_direction_reversed_blocks_e03(monkeypatch):
 
 
 @pytest.mark.parametrize("ref", ACCEPTED_REFS)
-def test_no_false_kill_on_accepted(ref, monkeypatch):
+def test_unknown_subject_context_fails_open(ref, monkeypatch):
     monkeypatch.setattr(settings, "entity_precision_check", True)
     state = _neut_state(ref)
     law, _, art = ref.lstrip("《").partition("》")
     text = f"根据{ref}，本案可依法主张相关权利。"
     result = render(state, [claim("ev-1", text)])
     assert result.reason_code not in NEW_CODES, f"误杀 {ref}: {result.reason_code}"
+
+
+@pytest.mark.parametrize(
+    "ref,fact",
+    [
+        ("《个人独资企业法》第四十二条", "本案债务人是个人独资企业。"),
+        ("《合伙企业法》第一百零二条", "本案债务人是合伙企业。"),
+    ],
+)
+def test_matching_subject_really_ready(ref, fact, monkeypatch):
+    monkeypatch.setattr(settings, "entity_precision_check", True)
+    state = make_state(
+        question="债务如何清偿？", facts=[fact], evidence_specs=[("ev-1", ref, f"{ref} 相关责任由清算人承担。")]
+    )
+    result = render(state, [claim("ev-1", f"根据{ref}，需要审查清算人的责任。")])
+    assert result.status.name == "READY", result.reason_code
+
+
+def test_correct_duty_direction_really_ready(monkeypatch):
+    monkeypatch.setattr(settings, "entity_precision_check", True)
+    state = make_state(
+        question="能否要求发包人赔偿损失？",
+        facts=["发包人造成工程停工。"],
+        evidence_specs=[("ev-804", "《民法典》第八百零四条", "《民法典》第八百零四条 发包人应当赔偿承包人的损失。")],
+    )
+    result = render(state, [claim("ev-804", "根据《民法典》第八百零四条，发包人应当赔偿损失。")])
+    assert result.status.name == "READY", result.reason_code
 
 
 def test_no_false_kill_within_e03_accepted_cluster(monkeypatch):
