@@ -18,6 +18,7 @@ from agent.verifier import (
     DeterministicVerifier,
     VerificationResult,
     VerificationVerdict,
+    _is_overconfident,
     draft_digest,
 )
 from agent.writer import (
@@ -183,6 +184,108 @@ def test_wording_only_overconfidence_returns_rewrite():
     result = DeterministicVerifier().verify(grounded_state(), draft_for_both(overconfident=True))
     assert result.verdict is VerificationVerdict.REWRITE
     assert result.unsupported_claim_ids
+    # 2026-09-18：失败路径**必须**带出被判定 claim 的原文。原先 claim_checks 仅 PASS 填充
+    # ⇒ 像「绝对免赔额」被字面命中的误伤事后无从定位，只能靠猜（E04 归因教训）。
+    assert result.claim_checks, "失败路径 claim_checks 不应为空，否则误伤无法归因"
+    assert all(c.supported is False for c in result.claim_checks)
+    assert all(c.rationale == "OVERCONFIDENT_WORDING" for c in result.claim_checks)
+    assert any(c.claim for c in result.claim_checks), "被判定 claim 的原文应落库"
+
+
+# 法律/保险/合同领域高频专有名词：含「绝对」「一定」「必然」等构词成分，但**不是**过度承诺。
+_LEGAL_TERMS = (
+    "绝对免赔额",
+    "绝对免赔率",
+    "绝对权",
+    "绝对法律关系",
+    "绝对责任",
+    "一定期限",
+    "一定比例",
+    "一定的",
+    "一定范围",
+    "一定影响",
+    "必然因果关系",
+    "必然结果",
+    "保证责任",
+    "保证人",
+    "绝对豁免",
+    "绝对不能",
+    "绝对无效",
+    "不可抗力",
+    "免责条款",
+    "免赔额",
+    "绝对责任限额",
+)
+# 真正的过度承诺：必须仍然被拦住（防矫枉过正）。
+_TRUE_OVERCONFIDENCE = (
+    "一定能胜诉",
+    "必然获得赔偿",
+    "百分之百胜诉",
+    "绝对会赢",
+    "法院一定会支持你的诉求",
+    "我方必然得到支持",
+    "100%能赔",
+    # 断言助动词类（集成测试的 REWRITE 负例形态：把裁量空间说死）
+    "依据《民法典》第675条，一定应当依法履行相应义务。",
+)
+# 术语与断言**同时命中**的句子——只有这类形态才走到 `_is_overconfident` 的优先级仲裁。
+# 与 `_LEGAL_TERMS` 的分工：后者只命中术语、根本不触发断言正则，故对分支顺序**不敏感**。
+# 2026-09-18 实测（`dispatch-output/ta5-arms-20260917/` 下三个探针，均在 `backend/` 跑：
+# `_p15_probe.py` 静态枚举 / `_p15_watch_it_fail.py` 定向删分支 / `_p15_literal_sweep.py` 全库扫
+# 156 文件 17636 个字面量）：删掉术语优先分支后 `_LEGAL_TERMS` 21 例全部仍绿，全库唯一能发现该
+# 删除的是本组 2 例 + 下面的 `_ACCEPTED_RISK_MISSES` 1 例（合计 3 例变红）。
+_LEGAL_SENTENCES_COMPETING_WITH_ASSERTION = (
+    # 第一句是 `_is_overconfident` docstring 亲自举的原文例子，此前无测试锁定；
+    # 第二句按同形态构造（docstring 术语列举里的「必然因果关系」+ 断言动词「承担」）。
+    "在一定期限内适用该规定",
+    "必然因果关系是承担责任的要件",
+)
+
+
+@pytest.mark.parametrize("term", _LEGAL_TERMS)
+def test_overconfident_check_does_not_hit_legal_terminology(term):
+    """专有名词不得被判过度承诺（E04 根因：'绝对免赔额' 被字面命中 → 整轮 fail-closed）。
+
+    watch-it-fail（2026-09-18 复测）：判定回滚为 `any(m in text for m in _OVERCONFIDENT_MARKERS)`
+    后，本组 21 例里有 **16** 例变红。
+    """
+    assert _is_overconfident(term) is False, f"专有名词 {term!r} 被误判为过度承诺"
+
+
+@pytest.mark.parametrize("text", _TRUE_OVERCONFIDENCE)
+def test_overconfident_check_still_catches_real_overpromises(text):
+    """反例护栏：真过度承诺仍必须被拦（否则前一组可用"永不命中"的恒假谓词通过）。"""
+    assert _is_overconfident(text) is True, f"过度承诺 {text!r} 未被拦住"
+
+
+@pytest.mark.parametrize("text", _LEGAL_SENTENCES_COMPETING_WITH_ASSERTION)
+def test_terminology_priority_wins_when_assertion_also_matches(text):
+    """术语优先是**有意的保守取舍**：弱标记+术语后缀一律放行，即使同句还带断言动词。
+
+    watch-it-fail（2026-09-18）：删掉 `verifier.py` 的术语优先分支后本组变红；把两条正则
+    的判定顺序调过来同样变红。理由见 `_is_overconfident` docstring——误杀会让整轮
+    fail-closed（用户看到失败），漏判最多让一句措辞过关。
+    """
+    assert _is_overconfident(text) is False, f"含术语的合法陈述被误判为过度承诺：{text!r}"
+
+
+# 术语优先的**已知代价**：术语与断言挤在同一句时整段放行，于是一句真过度承诺过关。
+# 下列句子确实该被判过度承诺，但按现行判定**不会**——这是自认的出口，不是待修的 bug。
+_ACCEPTED_RISK_MISSES = ("在一定期限内必然胜诉",)
+
+
+@pytest.mark.parametrize("text", _ACCEPTED_RISK_MISSES)
+def test_terminology_priority_admits_missing_a_real_overpromise(text):
+    """接受风险留痕：术语优先会放过「术语 + 打包票」同句的**真**过度承诺。
+
+    「一定期限」命中术语后缀 ⇒ 整段放行，尽管同句的「必然…胜诉」独立命中断言正则。收紧它
+    = 改生产语义（词表判定），须 Owner 裁决；本测试的作用是：**判定形态一变就在此暴露**，
+    而不是让人以为白名单没有代价。
+
+    watch-it-fail（2026-09-18）：删掉术语优先分支（`_p15_watch_it_fail.py`）本测试变红；把两条
+    正则的判定顺序调过来（`_p15_order_swap.py`）同样变红。
+    """
+    assert _is_overconfident(text) is False, f"术语优先的接受风险形态已改变，需重开裁决：{text!r}"
 
 
 def test_only_pass_can_render():

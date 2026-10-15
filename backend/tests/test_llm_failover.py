@@ -16,7 +16,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from types import SimpleNamespace
 
 import httpx
 import pytest
@@ -101,6 +100,10 @@ class ScriptedRegistry:
     seq: list[tuple[str, object]]
     picks: list[frozenset[str]] = field(default_factory=list)
     marked: list[tuple[str, str]] = field(default_factory=list)
+    # DB-17（2026-10-09）：permanent 现在分两条通道，替身必须**两条都记**。
+    # 只记 `mark_depleted` 的替身会让"改走冷却通道"这件事被**真 registry 的方法**静默接住
+    # （本文件那 3 只 permanent 用例就是这样先漏的：断言读到 `marked == []`，而调用打在了未被打补丁的真对象上）。
+    rejected: list[tuple[str, str]] = field(default_factory=list)
 
     def pick(self, modality: str, tier: str, *, exclude: set[str] | None = None) -> tuple[str, object]:
         skipped = set(exclude or set())
@@ -113,15 +116,19 @@ class ScriptedRegistry:
     def mark_depleted(self, key: str, reason: str) -> None:
         self.marked.append((key, reason))
 
+    def mark_rejected(self, key: str, reason: str, *, status: int | None = None) -> None:
+        self.rejected.append((key, reason))
+
 
 @pytest.fixture
 def install_registry(monkeypatch):
-    """把全局 registry 的 pick / mark_depleted 替换为脚本化实现（monkeypatch 自动还原）。"""
+    """把全局 registry 的 pick / mark_depleted / mark_rejected 替换为脚本化实现（monkeypatch 自动还原）。"""
 
     def _install(seq: list[tuple[str, object]]) -> ScriptedRegistry:
         reg = ScriptedRegistry(seq=seq)
         monkeypatch.setattr(llm_registry.registry, "pick", reg.pick)
         monkeypatch.setattr(llm_registry.registry, "mark_depleted", reg.mark_depleted)
+        monkeypatch.setattr(llm_registry.registry, "mark_rejected", reg.mark_rejected)
         return reg
 
     return _install
@@ -250,21 +257,33 @@ def test_retrieval_shares_one_transient_decision():
 # ---------------------------------------------------------------------------
 
 
-def _entry(key: str, *, priority: int = 1, quota_left: int = 100, unavailable: bool = False) -> SimpleNamespace:
-    return SimpleNamespace(
+def _entry(key: str, *, priority: int = 1, quota_left: int = 100, unavailable: bool = False) -> llm_registry.ModelEntry:
+    """造**真** `ModelEntry`，不用 SimpleNamespace（DB-17 的教训）。
+
+    改前这里是手抄字段的 SimpleNamespace；`pick` 新增 `rejected_now` 那一维后，
+    手抄的替身漏字段 ⇒ 4 只 pick 用例 AttributeError。派生属性也一并由真类算：
+    `quota_left` 由 `quota_total` 给，`unavailable`（= depleted 或 below_threshold）由 `runtime_used` 反推。
+    """
+    entry = llm_registry.ModelEntry(
         key=key,
+        model=f"model-{key}",
         modality="text",
         tier="flag",
         priority=priority,
-        quota_left=quota_left,
-        unavailable=unavailable,
-        llm=object(),
+        capabilities=set(),
+        cfg={},
+        quota_total=quota_left,
+        initial_used=0,
+        llm=object(),  # type: ignore[arg-type]
     )
+    if unavailable:
+        entry.runtime_used = quota_left  # 剩余额度归零 → depleted → unavailable
+    return entry
 
 
 @pytest.fixture
 def install_entries(monkeypatch):
-    def _install(entries: list[SimpleNamespace]) -> None:
+    def _install(entries: list[llm_registry.ModelEntry]) -> None:
         monkeypatch.setattr(llm_registry.registry, "_entries", {e.key: e for e in entries})
 
     return _install
@@ -311,6 +330,7 @@ def test_transient_429_switches_model_without_marking(install_registry):
 
     assert _invoke() == "k2-ok"
     assert reg.marked == [], "瞬时故障不应把模型标记为耗尽"
+    assert reg.rejected == [], "瞬时故障也不进 4xx 冷却（DB-17 只改 permanent 的通道）"
     assert reg.picks == [frozenset(), frozenset({"k1"})], "exclude 必须推进到下一个 key"
     assert (t1.calls, t2.calls) == (1, 1)
 
@@ -322,6 +342,7 @@ def test_connection_error_switches_model_without_marking(install_registry):
 
     assert _invoke() == "k2-ok"
     assert reg.marked == []
+    assert reg.rejected == []
     assert (t1.calls, t2.calls) == (1, 1)
 
 
@@ -339,12 +360,19 @@ def test_all_transient_statuses_are_switchable_without_marking(install_registry,
 # ---------------------------------------------------------------------------
 
 
-def test_permanent_400_switches_and_marks_depleted(install_registry):
+def test_permanent_400_switches_and_cools_down(install_registry):
+    """DB-17 改判（原名 `test_permanent_400_switches_and_marks_depleted`）。
+
+    分类口径**未动**（400 仍非瞬时，见上面 `test_permanent_status_is_not_transient_in_both_sdk_shapes`），
+    改的是**处理通道**：请求形状类 4xx 走冷却通道，不再记进配额账（`mark_depleted` 的实现是
+    `runtime_used += quota_left`，会把"被拒"记成"积分用完"——即 B-48）。换模型这件事不变。
+    """
     t1, t2 = _RaisingTransport(_http_status(400)), _OkTransport("k2-ok")
     reg = install_registry([("k1", t1), ("k2", t2)])
 
     assert _invoke() == "k2-ok"
-    assert reg.marked == [("k1", "model_failure")]
+    assert reg.rejected == [("k1", "model_failure")], "400 走冷却通道"
+    assert reg.marked == [], "400 不得再记成配额耗尽（B-48 的归因面）"
     assert (t1.calls, t2.calls) == (1, 1)
 
 
@@ -354,7 +382,8 @@ def test_permanent_statuses_all_mark_before_switching(install_registry, status):
     reg = install_registry([("k1", t1), ("k2", t2)])
 
     assert _invoke() == "k2-ok"
-    assert reg.marked == [("k1", "model_failure")]
+    assert reg.rejected == [("k1", "model_failure")], "状态码网格逐格都走冷却通道"
+    assert reg.marked == []
 
 
 def test_plain_400_without_schema_marker_is_permanent(install_registry):
@@ -365,7 +394,21 @@ def test_plain_400_without_schema_marker_is_permanent(install_registry):
 
     reg = install_registry([("k1", _RaisingTransport(exc)), ("k2", _OkTransport("k2-ok"))])
     assert _invoke() == "k2-ok"
-    assert reg.marked == [("k1", "model_failure")]
+    assert reg.rejected == [("k1", "model_failure")]
+    assert reg.marked == []
+
+
+def test_permanent_without_status_code_stays_on_quota_channel(install_registry):
+    """控制腿（DB-17 的反面）：**无状态码**的永久失败（本地 bug、真配额耗尽）仍走 `mark_depleted`。
+
+    少了这条，"两通道拆分"只证了一半——把路由写成"凡 permanent 都冷却"也能过上面三只。
+    """
+    t1, t2 = _RaisingTransport(ValueError("local bug")), _OkTransport("k2-ok")
+    reg = install_registry([("k1", t1), ("k2", t2)])
+
+    assert _invoke() == "k2-ok"
+    assert reg.marked == [("k1", "model_failure")], "无状态码的永久失败仍记配额通道"
+    assert reg.rejected == []
 
 
 # ---------------------------------------------------------------------------
@@ -386,6 +429,7 @@ def test_all_models_failed_raises_last_exception_and_is_bounded(install_registry
     assert len(reg.picks) == 3, "k1/k2 各 pick 一次，第 3 次无未尝试模型即终止 → 循环有界"
     assert reg.picks[-1] == frozenset({"k1", "k2"})
     assert reg.marked == [], "429/500 均为瞬时 → 都不标记"
+    assert reg.rejected == [], "429/500 也不进冷却通道"
 
     stages = [(r.llm_adapter_stage, r.llm_invoke_mode) for r in adapter_records]
     assert ("failover_switch", "transient") in stages
@@ -425,6 +469,7 @@ def test_schema_rejection_passes_through_without_switch_or_mark(install_registry
 
     assert ei.value is exc
     assert reg.marked == []
+    assert reg.rejected == [], "schema 拒绝也是 400，但 F3 分支在 DB-17 的冷却分支**之前**——不得被冷却"
     assert reg.picks == [frozenset()], "pick 仅 1 次 → 未换模型"
     assert (t1.calls, t2.calls) == (1, 0), "不得因 schema 拒绝而切到下一个模型"
 

@@ -19,7 +19,7 @@ from typing import Any, Protocol, cast
 from langchain_core.messages import HumanMessage, SystemMessage
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
-from llm_errors import is_transient_error
+from llm_errors import is_request_shape_rejection, is_transient_error, status_of
 from llm_guard import llm_guard
 from request_bootstrap import RequestBootstrap
 from tools.gateway import ToolGateway
@@ -82,7 +82,7 @@ _PLANNER_SYSTEM_PROMPT = (
     '{"kind":"tool_call","issue_id":"…","tool_name":"…","args":{…}}；'
     "issue_id 只能原样复制输入 issues 中的 issue_id。tool_name 只能是 retrieve_laws、"
     "lookup_article、analyze_contract、retrieve_memory，对应 args 严格为："
-    'retrieve_laws {"query":"检索词","k":4}（k 可选 1-20，默认 4；category 可选）；'
+    'retrieve_laws {"query":"检索词","k":4}（k 可选 1-20，默认 4）；'
     'lookup_article {"source":"法律名称","article":"条文号"}；'
     'analyze_contract {"text":"合同原文"}；'
     'retrieve_memory {"limit":6}（可选 1-20，默认 6）。'
@@ -353,7 +353,15 @@ class RegistryFailoverTransport:
                 last_exc = exc
                 transient = is_transient_error(exc)
                 if not transient:
-                    registry.mark_depleted(key, "model_failure")
+                    # DB-17（2026-10-09，审查报告 B-48）：permanent 里再分两类——
+                    # **请求形状类 4xx**（400/401/403/404/422，同一份 payload 换谁都会再吃一次）
+                    # 走 `mark_rejected` 冷却，不动配额账；其余（真耗尽、无状态码的本地异常）
+                    # 仍走 `mark_depleted`。改前两者共用 `mark_depleted`，其实现是
+                    # `runtime_used += quota_left` 且把 `reason` 丢弃 ⇒ 一次 400 在管理台读成"积分用完"。
+                    if is_request_shape_rejection(exc):
+                        registry.mark_rejected(key, "model_failure", status=status_of(exc))
+                    else:
+                        registry.mark_depleted(key, "model_failure")
                 _log_adapter_invoke(
                     "failover_switch",
                     "transient" if transient else "permanent",

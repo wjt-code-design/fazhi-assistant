@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 import copy
 import logging
+from dataclasses import replace
+from datetime import date
 from pathlib import Path
 
 import pytest
@@ -296,6 +298,29 @@ def main_module():
     return main
 
 
+def test_bootstrap_only_passes_law_as_of_and_case_domain_through(monkeypatch, main_module):
+    captured: dict[str, object] = {}
+    # 替身要长成被消费的样子：`_bootstrap_only` 除透传外还读 `law_as_of`/`conv_id` 记历史查询审计。
+    # 此前返回裸字符串 ⇒ 用例炸在属性上，判据（透传）与故障原因（替身形状）错位。
+    snapshot = replace(_bootstrap("问题"), law_as_of=date(2020, 12, 31), case_domain="civil")
+    logged: list[dict] = []
+
+    def fake_bootstrap(*args, **kwargs):
+        captured.update(kwargs)
+        return snapshot
+
+    monkeypatch.setattr(main_module, "bootstrap_request", fake_bootstrap)
+    monkeypatch.setattr(main_module, "log_account", lambda **kwargs: logged.append(kwargs))
+
+    result = main_module._bootstrap_only(1, 17, "问题", None, False, "civil", date(2020, 12, 31))
+
+    assert result is snapshot
+    assert captured["case_domain"] == "civil"
+    assert captured["law_as_of"] == date(2020, 12, 31)
+    # 逐字段钉死审计形状：多记一个字段（例如问题原文）即红——产品契约只允许用户/会话/日期。
+    assert logged == [{"kind": "historical_law_query", "user_id": 1, "conv_id": 17, "law_as_of": "2020-12-31"}]
+
+
 def _wire_pre_without_io(monkeypatch, main_module, *, events, fast_result):
     bootstrap = _bootstrap("民法典第679条是什么")
 
@@ -428,7 +453,7 @@ def test_metric_failure_is_logged_and_fails_open(monkeypatch, main_module):
     ]
 
 
-def test_logging_failure_is_counted_and_fails_open(monkeypatch, main_module, caplog):
+def test_logging_failure_is_counted_and_fails_open(monkeypatch, main_module):
     events: list[str] = []
     metric_calls = []
     expected = {"answer": "fast only"}
@@ -442,15 +467,32 @@ def test_logging_failure_is_counted_and_fails_open(monkeypatch, main_module, cap
     monkeypatch.setattr(main_module.routing_metrics, "record_agent_gate", lambda *a, **kw: metric_calls.append((a, kw)))
     monkeypatch.setattr(main_module, "log_account", lambda **kw: (_ for _ in ()).throw(RuntimeError("log")))
 
-    with caplog.at_level(logging.ERROR):
+    # 观测记录直挂 `legal.chat` 抓，不用 caplog：`setup_logging` 把该 logger 的 propagate 关成 False，
+    # 于是任何先跑过完整请求链路的用例都会让 caplog 收不到 —— 本用例只在"前面没人碰过日志配置"时绿，
+    # 属顺序依赖的假绿（同 `test_llm_failover.adapter_records` 的处置理由）。
+    chat_logger = logging.getLogger("legal.chat")
+    records: list[logging.LogRecord] = []
+
+    class _Handler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Handler(level=logging.ERROR)
+    previous_level = chat_logger.level
+    chat_logger.addHandler(handler)
+    chat_logger.setLevel(logging.ERROR)
+    try:
         assert main_module._pre(1, 17, "question", None) is expected
+    finally:
+        chat_logger.removeHandler(handler)
+        chat_logger.setLevel(previous_level)
 
     assert events == ["bootstrap", "fast_path"]
     assert metric_calls[-1] == (
         ("fast_path", ["GATE_TECHNICAL_FAILURE"], "corr-1"),
         {"technical_failure": True},
     )
-    assert "GATE_TECHNICAL_FAILURE" in caplog.text
+    assert [record.getMessage() for record in records] == ["GATE_TECHNICAL_FAILURE"]
 
 
 def test_account_and_fallback_logger_failures_do_not_block_or_repeat_prepare(monkeypatch, main_module):

@@ -95,8 +95,9 @@ def test_decide_refuse_out_of_kb_source():
     assert clarify.decide("legal_query", "婚姻法规定的夫妻共同财产怎么分割？", False) == "refuse"
     # 有据 → 不因裸名不在库拒答（根治：有据尽力回答，杜绝误拒答）
     assert clarify.decide("legal_query", "工伤保险条例里规定的工伤认定标准是什么？", True) == "direct"
-    # 书引《X法》确凿点名：即使有据也不硬答（用户明确指名该部法）
-    assert clarify.decide("legal_query", "《工伤保险条例》里的认定标准", True) == "refuse"
+    # 书引《X法》：**2026-10-13 口径①裁定后此行已改**——旧版"即使有据也不硬答"作废；
+    # 现状＝有据时不再整题拒答，缺的依据由 missing_sources 交调用方声明（无据时仍拒，见下一条用例）。
+    assert clarify.decide("legal_query", "《工伤保险条例》里的认定标准", True) == "direct"
 
 
 def test_decide_no_false_refuse_from_mis_extracted_law():
@@ -183,3 +184,44 @@ def test_refuse_prompt_passes_self_check():
     # 若编排路径意外触发 self_check，拒答模板措辞必须命中诚实拒答标记
     v = quality.self_check(clarify.REFUSE_PROMPT, context_present=False)
     assert v.ok, v.reason
+
+
+# ---------------- 口径①（2026-10-13 裁定）：书名号只触发法源核查，不整题拒答 ----------------
+def test_quoted_contract_name_is_not_a_named_law():
+    """书名号里是合同/文书名（《房屋租赁合同》《解除通知》）时，它不是"点名某部法"，不触发任何拒答。"""
+    assert clarify.decide("legal_query", "《房屋租赁合同》第五条把维修义务全给了乙方，怎么破？", True) == "direct"
+
+
+def test_quoted_missing_law_no_longer_refuses_the_whole_answer():
+    """真点名、确实不在库：有检索依据时不再整题拒答——缺的依据交调用方声明（missing_sources）。"""
+    text = "《工伤保险条例》里的认定标准是什么？"
+    assert clarify.decide("legal_query", text, True) == "direct"
+    assert clarify.missing_sources(text) == ["工伤保险条例"]
+
+
+def test_quoted_missing_law_still_refuses_without_any_sources():
+    """零检索命中时才维持诚实拒答——那才是"确实缺少必要依据"。"""
+    assert clarify.decide("legal_query", "《工伤保险条例》里的认定标准是什么？", False) == "refuse"
+
+
+def test_missing_sources_ignores_non_law_quotes():
+    assert clarify.missing_sources("《房屋买卖合同》和《解除通知》都在附件里，争议怎么写？") == []
+
+
+def test_missing_sources_flags_official_full_name_and_judicial_interpretation():
+    """口径①：官方全称（12 字）与司法解释名（带（一）后缀）都算"点名了法源"——
+    裸名判据 `_plausible_law` 限长 2–8 且只认 法/条例/法典，套到书引上会把这两种静默放过。"""
+    assert clarify.missing_sources("《中华人民共和国合同法》还有效吗？") == ["中华人民共和国合同法"]
+    assert clarify.missing_sources(
+        "按《最高人民法院关于审理民间借贷案件适用法律若干问题的规定》处理，《工伤保险条例》也有规定。"
+    ) == ["最高人民法院关于审理民间借贷案件适用法律若干问题的规定", "工伤保险条例"]
+
+
+def test_missing_sources_lists_each_spelling_separately_documented_limit():
+    """已知边界（不是断言"应该如此"）：`canon_source` 不去"中华人民共和国"前缀，
+    所以同一部法的全称与简称会各报一次。对"缺依据声明"只是措辞重复，不影响判定；
+    若将来要让声明去重，改的是 canon（共享函数，改前先查全部消费面）。"""
+    assert clarify.missing_sources("《中华人民共和国合同法》第二百零六条与《合同法》第一百零七条冲突吗？") == [
+        "中华人民共和国合同法",
+        "合同法",
+    ]

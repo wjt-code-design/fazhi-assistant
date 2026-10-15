@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import Callable, Sequence
+from datetime import date
 from typing import Any, Protocol, cast
 
 from request_bootstrap import RequestBootstrap
@@ -166,6 +167,9 @@ _UNCOVERED_REASON_TEXT = {
     # T-A2（entity_precision_check 开关开启时才可能出现）：
     "SUBJECT_TYPE_MISMATCH": "所引法条与本案主体类型不符",
     "CLAIM_DIRECTION_REVERSED": "所引法条的责任方向颠倒",
+    # R12（phantom_tool_check 开关开启时才可能出现）：
+    "PHANTOM_TOOL_CLAIM": "答复中声称执行了实际未发生的检索或确认动作",
+    "FACT_CONTRADICTION": "答复的清偿状态与本争点已确认事实相反",
 }
 
 
@@ -289,6 +293,7 @@ def execute_agent_request(
                 user_id=user_id,
                 conversation_id=bootstrap.conv_id,
                 state=initial_state,
+                law_as_of=bootstrap.law_as_of,
             )
         except (PermissionError, ValueError):
             return _failure_or_fallback("OWNERSHIP_FAILURE", conversation_id=bootstrap.conv_id)
@@ -398,6 +403,26 @@ def execute_agent_request(
     # 经**函数参数** settings 读取（与既有模式一致：service 不用全局单例）；
     # getattr 兜底兼容未带该字段的注入替身（缺省 = 关 = 行为逐字不变）。
     partial = bool(getattr(settings, "agent_partial_delivery_enabled", False))
+    # T-H（2026-09-18）：修正性失败的至多一次重试（开关默认关 = 行为逐字不变）。
+    # 旧注释「UNKNOWN_*_ID / UNSUPPORTED_* 同输入同校验，重试无意义」不成立：
+    # 校验是确定性的，但**生成是采样的**（T3 的 1e9 实证：同分布输入两次结果不同），
+    # 重试**可能**改变结果。P5 两轮独立盲评均点名 on 臂把核心争点整块排除
+    # （案例1·乙 UNKNOWN_FACT_ID / 案例5·乙 UNSUPPORTED_CITATION）。
+    # 边界：仅 writer 自身可避免的失误（引用错 id / 引用未检索法条 / 数字无来源），
+    # 至多一次；GENERATOR_FAILURE / MALFORMED_* 等技术失败与 ISSUE_CLAIMS_MISSING（已有 T3）不在此列。
+    corrective_enabled = bool(getattr(settings, "agent_writer_corrective_retry_enabled", False))
+    CORRECTIVE_RETRY_CODES = frozenset(
+        {
+            "UNKNOWN_FACT_ID",
+            "UNKNOWN_EVIDENCE_ID",
+            "UNSUPPORTED_CITATION",
+            "UNSUPPORTED_NUMERIC_TOKEN",
+            "NON_CANONICAL_CITATION",
+            # R12（phantom_tool_check 开启时才可能出现）：不写"谎称执行过"的短语
+            # 同样是 writer 自身可避免的失误（换措辞即可）。
+            "PHANTOM_TOOL_CLAIM",
+        }
+    )
     uncovered: list[tuple[str, str]] = []
     for issue in state.issues:
         if cancelled is not None and cancelled():
@@ -408,17 +433,16 @@ def execute_agent_request(
                 state_version=state_version,
             )
         issue_result = runtime.writer.render_issue(state, issue.issue_id)
-        if (
-            partial
-            and issue_result.status is not WriterStatus.READY
-            and issue_result.reason_code == "ISSUE_CLAIMS_MISSING"
-        ):
+        retryable = issue_result.reason_code == "ISSUE_CLAIMS_MISSING" or (
+            corrective_enabled and issue_result.reason_code in CORRECTIVE_RETRY_CODES
+        )
+        if partial and issue_result.status is not WriterStatus.READY and retryable:
             # T3（2026-09-16）：零 claim 是 writer 单次生成的**非确定性抖动**——
             # 1e9 实证同分布输入 r1 写满 5 claim、r2 漏产 2/4 争点（required 条文
             # 87 条已检索归位仍丢失确定性结论）。对 ISSUE_CLAIMS_MISSING 重试**至多一次**
-            # （重采样可改变结果）；确定性校验失败（UNKNOWN_*_ID / CROSS_ISSUE_* /
-            # UNSUPPORTED_* 等）同输入同校验，重试无意义，不在此列。
-            # 重试仍失败 → 落入下方既有 uncovered 兜底，行为不劣于现状。
+            # （重采样可改变结果）；重试仍失败 → 落入下方既有 uncovered 兜底，行为不劣于现状。
+            # T-H（2026-09-18）：同机制扩展到修正性失败（见上方 CORRECTIVE_RETRY_CODES 注释），
+            # 由 agent_writer_corrective_retry_enabled 独立开关控制。
             issue_result = runtime.writer.render_issue(state, issue.issue_id)
         if issue_result.status is not WriterStatus.READY or issue_result.draft is None:
             if not partial:
@@ -451,6 +475,9 @@ def execute_agent_request(
             state,
             draft,
             covered_issues_exempt=frozenset(issue_id for issue_id, _ in uncovered),
+            # models.py 用 legacy Column(Date) 声明 ⇒ 属性静态类型是 Column[date]，
+            # 运行时经 SQLAlchemy instrument 才是 date（同 :122 对 last_error_code 的 cast）。
+            law_as_of=cast(date | None, saved_record.law_as_of),
         )
     except Exception:
         return _persist_drafting_failure(
@@ -467,6 +494,18 @@ def execute_agent_request(
         # 保留逐争点可归因诊断：DB 里只留 verdict 与原因码，两种缺口（无 claim / 有 claim
         # 未绑生效成文法）同形。这里把逐争点事实写进结构化日志；字段已在 observability 白名单登记。
         facts = _coverage_issue_facts(state, draft)
+        # 2026-09-18：失败路径补落**被判定 claim 的原文（截断）**。此前非 PASS 时
+        # claim_checks 恒为空 ⇒ 像「绝对免赔额」被字面命中的误伤只能靠猜（E04 归因教训）。
+        # 只落草稿文本（非用户输入原文），截断 120 字符；先例见 agent_planner_raw_tail。
+        claim_checks = [
+            {
+                "claim": str(getattr(c, "claim", ""))[:120],
+                "supported": bool(getattr(c, "supported", False)),
+                "evidence_ids": list(getattr(c, "evidence_ids", ()) or ()),
+                "rationale": str(getattr(c, "rationale", "")),
+            }
+            for c in (getattr(verification, "claim_checks", ()) or ())
+        ]
         logging.getLogger("legal.agent").warning(
             "coverage_gate_terminal_failure",
             extra={
@@ -476,6 +515,7 @@ def execute_agent_request(
                 "agent_issue_count": len(state.issues),
                 "agent_coverage_gap_count": sum(1 for row in facts if row["deficient"]),
                 "agent_coverage_issues": facts,
+                "agent_claim_checks": claim_checks,
             },
         )
         return _persist_drafting_failure(
@@ -588,6 +628,26 @@ def execute_agent_request(
     except AgentFinalizationConflict:
         return _failure_or_fallback(
             "AGENT_FINALIZATION_CONFLICT",
+            run_id=active_run_id,
+            conversation_id=bootstrap.conv_id,
+            state_version=state_version,
+        )
+    except BudgetExceeded as exc:
+        # DB-15（2026-10-09，报告 B-01）：终稿边 `DRAFTING→COMPLETED` 自本轮起**不计步**，
+        # 所以这条只在"state 已经越界的坏形状"下到达。此前它被下面的 `except Exception`
+        # 折成 `AGENT_STORAGE_FAILURE`——那是**不在** `routing_metrics.TECHNICAL_FALLBACK_REASON_CODES`
+        # 里的码（白名单有 `AGENT_BUDGET_EXCEEDED`、没有它），于是用户拿到硬错误而不是
+        # 本该有的快车道兜底答案，且 run 永卡 drafting。归到正确的那一档。
+        logging.getLogger("legal.agent").warning(
+            "agent_finalize_budget_exceeded",
+            extra={
+                "agent_run_id": active_run_id,
+                "agent_conversation_id": bootstrap.conv_id,
+                "agent_failure_detail": str(exc)[:200],
+            },
+        )
+        return _failure_or_fallback(
+            "AGENT_BUDGET_EXCEEDED",
             run_id=active_run_id,
             conversation_id=bootstrap.conv_id,
             state_version=state_version,

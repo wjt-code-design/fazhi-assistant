@@ -10,6 +10,25 @@ from langchain_core.documents import Document
 import retrieval_core as rc
 
 
+def test_valid_by_time_amended_window_pin_per_owner_ruling():
+    """钉住 2026-09-25 Owner 裁决"给 `已修改` 的旧版补 `effective_to`"所依赖的两件事。
+
+    用真实数据（劳动合同法 2008 原文 / (2012修正) 施行 2013-07-01，见
+    docs/corpus-time-meta-ticket-20260925.md §4b）而非抽象日期：那条裁决说"旧版填
+    替代版施行日**前一天**"，而它成立的前提正是本谓词的边界语义是"最后有效日**含**当日"——
+    差一天就会造成两版重叠（同问题两版同命中）或有一天无版本可答。
+    """
+    # ① 今天这个洞是真的：`已修改` 不在任何 fail-closed 分支里 ⇒ 缺日期时任何查询日都算有效。
+    #    （若将来把它也判死，这条会红——红了说明**改了口径**，要去数据票 §3-A/G 同步。）
+    assert rc.is_valid_by_time({"status": "已修改"}, "2026-08-01") is True
+    assert rc.is_valid_by_time({"status": "已修改"}, "1990-01-01") is True
+    amended = {"status": "已修改", "effective_from": "2008-01-01", "effective_to": "2013-06-30"}
+    # ② 补了日期之后，"前一天"这个算法刚好让新旧两版不重叠也不留缝。
+    assert rc.is_valid_by_time(amended, "2013-06-30") is True  # 最后有效日含当日
+    assert rc.is_valid_by_time(amended, "2013-07-01") is False  # 修正版施行日当天旧版退场
+    assert rc.is_valid_by_time(amended, "2007-12-31") is False  # 未施行
+
+
 # ---------- is_valid_by_time 纯函数矩阵 ----------
 def test_valid_by_time_matrix():
     assert rc.is_valid_by_time({"status": "现行"}, "2026-08-01") is True  # 无日期限制
@@ -168,3 +187,150 @@ def test_retrieval_excludes_expired_but_admin_test_sees_it():
         if ids:
             vectorstore._collection.delete(ids=ids)
         retrieval.invalidate()
+
+
+# ---------- W1 端点契约：有条号缺生效日 ⇒ 先拒绝、后写库（零新增块） ----------
+def test_admin_knowledge_rejects_undated_article_before_writing_any_chunk(monkeypatch):
+    """钉住"**先拒绝再写库**"这个顺序，而不只是"会返回校验错误"。
+
+    判据本身由 `test_law_versions.py` 与 schema 单测覆盖；本条补的是它们都够不到的
+    端点层（`version-safety-review-findings-20260927.md` §2 中-1 点名"没有任何测试覆盖
+    端点这一层"）。只断言 422 是不够的——那既可能是"校验前拦下"，也可能是"写完了才报错"，
+    而后者正是会造成**无日期双胞胎块永久并存**的那条路径。所以关键断言是拒绝之后
+    该 source 下**一个块都没有**。
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    import database
+    import main
+    from auth import hash_password
+    from models import Base, User
+
+    eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(eng)
+    sm = sessionmaker(bind=eng, autoflush=False, autocommit=False)
+    monkeypatch.setattr(database, "SessionLocal", sm)
+    monkeypatch.setattr(main, "SessionLocal", sm)
+    from fastapi.testclient import TestClient
+
+    db = sm()
+    db.add(User(username="adminw1", password_hash=hash_password("password123"), role="admin"))
+    db.commit()
+    db.close()
+
+    from rag_chain import vectorstore
+
+    def blocks(source: str) -> list:
+        return vectorstore._collection.get(where={"source": source})["ids"]
+
+    src_undated = "test_phase5_w1_undated"
+    src_general = "test_phase5_w1_general"
+    with TestClient(main.app) as c:
+        tok = c.post("/api/auth/login", json={"username": "adminw1", "password": "password123"}).json()["token"]
+        headers = {"Authorization": f"Bearer {tok}"}
+        try:
+            assert blocks(src_undated) == [], "夹具不干净：起点就该是零块"
+
+            r = c.post(
+                "/api/admin/knowledge",
+                json={
+                    "title": src_undated,
+                    "article": "第一〇一条",
+                    "content": "W1 端点契约：有条号但不给施行日期，应在写库前被拒。",
+                },
+                headers=headers,
+            )
+            assert r.status_code == 422, r.text
+            # 断言"是哪条规则红的"：钉 施行日期 这条判据，而不是任何一次 422
+            # （否则 title/content 之类的校验失败会替它把这条用例做绿）。
+            assert "施行日期" in r.text, r.text
+            assert blocks(src_undated) == [], f"校验错误必须发生在写库之前，实际留下 {len(blocks(src_undated))} 块"
+
+            # 边界不变：无条号的一般知识仍允许不填日期——
+            # 若哪天把"缺日期"一刀切到所有输入，这条会红。
+            r2 = c.post(
+                "/api/admin/knowledge",
+                json={
+                    "title": src_general,
+                    "article": "",
+                    "content": "W1 端点契约：无条号的一般知识，不填生效日仍应可存。",
+                },
+                headers=headers,
+            )
+            assert r2.status_code == 200, r2.text
+            assert r2.json()["added_chunks"] >= 1
+            assert len(blocks(src_general)) >= 1
+        finally:
+            for src in (src_undated, src_general):
+                ids = vectorstore._collection.get(where={"source": src})["ids"]
+                if ids:
+                    vectorstore._collection.delete(ids=ids)
+
+
+# ---------- W1 补漏：条号只填空格 ⇒ 端点与写库谓词不一致，曾被放行 ----------
+def test_admin_knowledge_rejects_whitespace_only_article_without_date(monkeypatch):
+    """钉住端点与写库对"算不算填了条号"用同一个谓词。
+
+    原先 `KnowledgeAddIn._valid_version_period` 判 `self.article.strip()`（schemas.py:185），
+    写库侧 `add_text` 判裸真值 `and article`（knowledge_service.py:184/:204）⇒ `article=" "`
+    在端点算"没填"（放行）、在写库算"填了"（走版本判定并派生 version_id）；两次无日期重传即
+    造出同一 version_id 的双胞胎，且无日期可判 ⇒ 事后清不掉，与
+    `version-safety-review-findings-20260927.md` §2 中-1 是**同一个终态**（W1 的①封不住）。
+
+    判据是"同一 payload 只改日期一栏"：缺日期必 422 且零块，补日期必 200——对照腿用来证明
+    那条 422 的成因是缺日期，而不是端点对这条 payload 一律拒绝。
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    import database
+    import main
+    from auth import hash_password
+    from models import Base, User
+
+    eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(eng)
+    sm = sessionmaker(bind=eng, autoflush=False, autocommit=False)
+    monkeypatch.setattr(database, "SessionLocal", sm)
+    monkeypatch.setattr(main, "SessionLocal", sm)
+    from fastapi.testclient import TestClient
+
+    db = sm()
+    db.add(User(username="adminw1blank", password_hash=hash_password("password123"), role="admin"))
+    db.commit()
+    db.close()
+
+    from rag_chain import vectorstore
+
+    def blocks(source: str) -> list:
+        return vectorstore._collection.get(where={"source": source})["ids"]
+
+    src = "test_phase5_w1_blank"
+    body = {
+        "title": src,
+        "article": " ",
+        "content": "W1 补漏：条号只填空格且不给施行日期，应在写库前被拒。",
+    }
+    with TestClient(main.app) as c:
+        tok = c.post("/api/auth/login", json={"username": "adminw1blank", "password": "password123"}).json()["token"]
+        headers = {"Authorization": f"Bearer {tok}"}
+        try:
+            assert blocks(src) == [], "夹具不干净：起点就该是零块"
+
+            r = c.post("/api/admin/knowledge", json=body, headers=headers)
+            assert r.status_code == 422, f"条号只填空格且无生效日应被拒，实际 {r.status_code}：{r.text}"
+            # 钉"是哪条规则红的"，而不是"随便一次 422"（title/content 的校验失败会替它做绿）。
+            assert "施行日期" in r.text, r.text
+            assert blocks(src) == [], f"校验错误必须发生在写库之前，实际留下 {len(blocks(src))} 块"
+
+            # 对照腿：同一 payload 只补日期一栏 ⇒ 200。证明那条 422 的成因是缺日期本身。
+            r2 = c.post("/api/admin/knowledge", json={**body, "effective_from": "2026-01-01"}, headers=headers)
+            assert r2.status_code == 200, r2.text
+            assert len(blocks(src)) >= 1
+        finally:
+            ids = vectorstore._collection.get(where={"source": src})["ids"]
+            if ids:
+                vectorstore._collection.delete(ids=ids)

@@ -153,7 +153,7 @@ def test_split_by_choice_exam_long():
     assert "甲负责携带" in parts[0]  # 题干保留完整
 
 
-def test_hybrid_retrieve_exam_long_recalls_core_articles():
+def test_hybrid_retrieve_exam_long_recalls_core_articles(real_kb):
     """T1 核心回归：长题干法考题必须召回刑法 347（运输毒品罪）/348（非法持有毒品罪）。"""
     from retrieval import hybrid_retrieve  # 延迟 import（会加载 BGE）
 
@@ -163,7 +163,7 @@ def test_hybrid_retrieve_exam_long_recalls_core_articles():
     assert "第三百四十八条" in arts, f"应召回刑法348，实际无：{arts}"
 
 
-def test_hybrid_retrieve_short_crime_query():
+def test_hybrid_retrieve_short_crime_query(real_kb):
     """T4 核心回归：短罪名查询"非法持有毒品罪"独立检索召回 348（不靠整句余弦）。"""
     from retrieval import hybrid_retrieve  # 延迟 import
 
@@ -172,7 +172,7 @@ def test_hybrid_retrieve_short_crime_query():
     assert "第三百四十八条" in arts, f"短罪名查询应召回刑法348，实际无：{arts}"
 
 
-def test_hybrid_retrieve_plain_long_text():
+def test_hybrid_retrieve_plain_long_text(real_kb):
     """T3 核心回归：口语长描述（借车出事故）召回出借车辆/逃逸条文。"""
     from retrieval import hybrid_retrieve  # 延迟 import
 
@@ -219,7 +219,7 @@ def test_question_type_unknown_defaults():
     assert query_understand.question_type("试用期最长多久") == "unknown"
 
 
-def test_retrieve_exam_default_cap():
+def test_retrieve_exam_default_cap(real_kb):
     """k=6 默认（2026-08-05 逆向回退动态 k，稳定性优先）→ 截断 ≤6。"""
     from retrieval import retrieve_exam  # 延迟 import（会加载 BGE）
 
@@ -227,9 +227,9 @@ def test_retrieve_exam_default_cap():
     assert 0 < len(docs) <= 6, f"默认 k=6 应截断 ≤6，实际 {len(docs)}"
 
 
-def test_retrieve_exam_explicit_k_preserves_old_cap():
+def test_retrieve_exam_explicit_k_preserves_old_cap(real_kb):
     """显式传 k=6 → cap=6（兼容调用方）。"""
     from retrieval import retrieve_exam  # 延迟 import（会加载 BGE）
 
     docs = retrieve_exam(_EXAM_LONG_Q, k=6)
-    assert len(docs) <= 6, f"显式 k=6 应截断 ≤6，实际 {len(docs)}"
+    assert 0 < len(docs) <= 6, f"显式 k=6 应截断 ≤6，实际 {len(docs)}"

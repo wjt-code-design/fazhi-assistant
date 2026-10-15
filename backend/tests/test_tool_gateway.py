@@ -298,6 +298,33 @@ def test_map_document_explicit_chunk_id_still_takes_priority():
     assert map_document(raw_id, date(2026, 8, 1)).source_id == "db_id_9"
 
 
+def test_unverified_status_without_dates_maps_to_unknown_validity():
+    """S0-b 的连带后果，钉成"故意的"：`未验证` + 无日期 ⇒ 时效未知，不再声称在某基准日有效。
+
+    `map_document` 的第四分支原本是"status 说 现行 且没有日期 ⇒ effective"，
+    那是 fail-open 在 agent 路径上的第二个身体。S0-b 把写侧默认值改成 `未验证` 后它对新块不再触发，
+    下游 `writer.usable_statute_evidence`（只认 EFFECTIVE）与 `verifier`（引非 EFFECTIVE 法条 ⇒ FAIL_SAFE）
+    因此会拒答，而不是硬答一条没人核过的法条。
+    ⇒ 谁哪天把 `未验证` 也塞进那条兜底分支，本用例必须红。
+    """
+    unverified = SimpleNamespace(page_content="条文内容", metadata={"source": "测试法", "status": "未验证"})
+    assert map_document(unverified, date(2026, 8, 1)).legal_validity == "unknown"
+
+    # 对照组一：存量块仍是 现行 + 无日期 ⇒ 行为逐字不变（动它的是 E7，不是本票）
+    legacy = SimpleNamespace(page_content="条文内容", metadata={"source": "测试法", "status": "现行"})
+    assert map_document(legacy, date(2026, 8, 1)).legal_validity == "effective"
+
+    # 对照组二：有日期就按日期判，`未验证` 不覆盖日期证据
+    # （注意这与 retrieval_core.time_validity_state 的口径**不同**：那边管"我们有没有资格断言"，
+    #  这里管"该条在基准日是否有效"，两个概念别互相冒充。）
+    dated = SimpleNamespace(
+        page_content="条文内容",
+        metadata={"source": "测试法", "status": "未验证", "effective_from": "2008-05-01"},
+    )
+    assert map_document(dated, date(2026, 8, 1)).legal_validity == "effective"
+    assert map_document(dated, date(2007, 1, 1)).legal_validity == "unknown"
+
+
 def test_contract_output_maps_documents_and_does_not_expose_raw_objects(monkeypatch):
     from tools import contract
 
@@ -305,7 +332,7 @@ def test_contract_output_maps_documents_and_does_not_expose_raw_objects(monkeypa
     monkeypatch.setattr(
         contract,
         "_build_contract_data",
-        lambda _text: {
+        lambda _text, cutoff=None: {
             "truncated": False,
             "need_clarify": False,
             "blocks": [{"n": 1, "label": "第一条", "text": "工资", "articles": ["第十条"], "tags": []}],
@@ -323,6 +350,48 @@ def test_contract_output_maps_documents_and_does_not_expose_raw_objects(monkeypa
     assert result.evidence[0].source == "劳动合同法"
     assert result.model_dump(mode="json")["blocks"][0]["text"] == "工资"
     assert all(not hasattr(item, "page_content") for item in result.evidence)
+
+
+# ==================== 合同工具的历史基准日（AUTH-2 续） ====================
+# 同包 `lookup_article` 早就按 `context.law_as_of` 取数（tools/exact_article.py），
+# 合同口漏这一步 ⇒ 历史 run 拿到的是现行条文，且历史有效条文从未进候选（不是"版本错了"而是"证据没了"）。
+
+
+def test_contract_tool_passes_run_baseline_into_evidence_build(monkeypatch):
+    from tools import contract
+
+    seen: dict = {}
+
+    def probe(_text, cutoff=None):
+        seen["cutoff"] = cutoff
+        return {"truncated": False, "need_clarify": False, "blocks": [], "docs": [], "level": "低", "basis": []}
+
+    monkeypatch.setattr(contract, "_build_contract_data", probe)
+
+    contract.analyze_contract(
+        ToolContext(user_id=1, conversation_id=2, run_id="r", law_as_of=date(2019, 1, 1)),
+        ContractInput(text="违约金条款"),
+    )
+
+    assert seen["cutoff"] == "2019-01-01", "合同证据未按 run 基准日构建（漏了 cutoff 透传）"
+
+
+def test_contract_adapter_forwards_cutoff_into_domain_rules(monkeypatch):
+    """适配器这一腿也要真转发：只改调用点而 `_build_contract_data` 内部丢掉 cutoff，等于没修。"""
+    import domain_rules
+    from tools import contract
+
+    seen: dict = {}
+
+    def fake_build(text, cutoff=None):
+        seen["cutoff"] = cutoff
+        return {"docs": [], "blocks": []}
+
+    monkeypatch.setattr(domain_rules, "build_contract_data", fake_build)
+
+    contract._build_contract_data("违约金条款", cutoff="2019-01-01")
+
+    assert seen["cutoff"] == "2019-01-01"
 
 
 def test_memory_is_user_conversation_scoped_and_closes_session_on_success_and_failure(monkeypatch, context):

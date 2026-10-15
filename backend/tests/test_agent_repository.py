@@ -134,6 +134,31 @@ def test_create_run_persists_serialized_state_and_defaults(db, owner, conversati
     assert run.law_as_of == date.today()
 
 
+def test_create_run_persists_injected_law_as_of_for_run_and_evidence(db, owner, conversation):
+    injected = date(2020, 12, 31)
+    run = create_run(
+        db,
+        user_id=owner.id,
+        conversation_id=conversation.id,
+        state=bootstrap_state(),
+        law_as_of=injected,
+    )
+    item = canonical_evidence()
+
+    compare_and_save(
+        db,
+        run=run,
+        expected_version=0,
+        state=planning_state().model_copy(update={"evidence": [item]}),
+        status="planning",
+        new_evidence_by_issue={"issue-a": [item]},
+    )
+
+    assert run.law_as_of == injected
+    audit = db.query(AgentEvidence).filter_by(agent_run_id=run.id).one()
+    assert audit.law_as_of == injected
+
+
 def canonical_evidence() -> Evidence:
     return Evidence(
         evidence_id="evidence-internal-1",

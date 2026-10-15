@@ -1,0 +1,13 @@
+# 文本文件的行尾：index 与 checkout 一律 LF。
+# 为什么要显式钉：本机 `core.autocrlf=true` 会 smudge 出 CRLF 工作副本（实量：1429 个 w/crlf +
+# 15 个 w/mixed，而 index 侧 2345 个全是 i/lf），于是 `ruff format --check` 之类工具在本地看到的
+# 字节 ≠ CI（一个真实事故：把 CI 视角的"5 个不合规"读成了 6 个，`agent/writer.py` 只是行尾噪音）。
+# eol=lf 只改 checkout 形状；checkin 仍按 text=auto 归一 ⇒ 现有 index 内容零变化、不产生 mass diff。
+* text=auto eol=lf
+
+# 这几类 git 当前自动判为二进制（实量：58 .bin / 13 .png / 10 .pickle / 7 .coverage）。
+# 显式钉住，防止以后某个文件内容变化让启发式改判、进而被行尾过滤器改写坏。
+*.bin -text
+*.png -text
+*.pickle -text
+*.coverage -text

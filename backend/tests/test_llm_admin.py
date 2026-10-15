@@ -15,26 +15,27 @@ from types import SimpleNamespace
 
 import pytest
 
-from llm_registry import registry
+from llm_registry import ModelEntry, registry
 
 
-def _entry(key: str, *, priority: int, model: str = "m", quota_total: int = 1000) -> SimpleNamespace:
-    """模拟 pick 所需的最小 entry 面（tests/test_tiering.py 同模式）。"""
-    return SimpleNamespace(
+def _entry(key: str, *, priority: int, model: str = "m", quota_total: int = 1000) -> ModelEntry:
+    """造**真** `ModelEntry`（改前是手抄字段的 SimpleNamespace）。
+
+    归因：DB-17 给 `pick` 的过滤式加了 `rejected_now` 一维后，本文件 6 只用例 AttributeError——
+    手抄的替身**结构上追不上**真类的字段面（`tests/test_llm_failover.py` 同一天红了 4 只）。
+    改用真类后 `quota_left`/`depleted`/`below_threshold`/`unavailable` 全走真属性，不再由用例自证。
+    """
+    return ModelEntry(
         key=key,
         model=model,
         modality="text",
         tier="flag",
         priority=priority,
         capabilities={"text"},
+        cfg={},
         quota_total=quota_total,
         initial_used=0,
-        runtime_used=0,
-        llm=object(),
-        quota_left=quota_total,
-        depleted=False,
-        below_threshold=False,
-        unavailable=False,
+        llm=object(),  # type: ignore[arg-type]
     )
 
 

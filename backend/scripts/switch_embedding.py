@@ -20,6 +20,8 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv  # noqa: E402
 
+from scripts import chroma_dir_guard  # noqa: E402
+
 BACKEND = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 ENV = os.path.join(BACKEND, ".env")
 load_dotenv(ENV)
@@ -136,6 +138,11 @@ def _restart_backend() -> None:
     print("  后端已启动（日志在独立进程；8000 端口访问）。")
 
 
+def _check_env_contract() -> None:
+    """CLI 前置守卫：CHROMA_DIR 与本脚本固定目标分歧时拒绝跑（切嵌入会重建整个库）。"""
+    chroma_dir_guard.assert_matches(os.path.join(BACKEND, "chroma_db"), "switch_embedding")
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="embedding 换班：切备用模型并重建向量库")
     ap.add_argument("model", help="目标 embedding 模型名（换班序列之一）")
@@ -220,4 +227,5 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    _check_env_contract()
     main()

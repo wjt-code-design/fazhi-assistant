@@ -52,7 +52,10 @@ def test_chat_streams_persists_and_request_id(client, monkeypatch):
                 yield p
 
     monkeypatch.setattr(main, "make_chain", lambda llm: FakeChain())
-    monkeypatch.setattr(main, "_qa_direct_return", lambda pre: None)  # 隔离 QA 直返，测 LLM 流式路径
+    monkeypatch.setattr(main, "_qa_direct_return", lambda pre, law_as_of=None: None)  # 隔离 QA 直返，测 LLM 流式路径
+    # ⚠️ 形参须与真签名同步（票 I-2(a) 加了第二参）：桩是 1 参时，stream() 以 2 参调用会
+    # TypeError ⇒ 被 [chat-stream] 的 except 吞掉 ⇒ 用例表现为"收不到任何 content"。
+    # 教训：改函数签名/调用元数时，必须全仓清点该名字的**测试桩**（monkeypatch 桩不在导入期暴露）。
     tok = _login(client)
     headers = {"Authorization": f"Bearer {tok}"}
 
@@ -115,7 +118,15 @@ def test_admin_audit_records_action_and_forbids_user(client):
     assert client.get("/api/admin/audit", headers={"Authorization": f"Bearer {ntok}"}).status_code == 403
 
 
-def test_feedback_down_creates_candidate_up_does_not(client):
+def test_feedback_never_becomes_qa_candidate_but_is_still_recorded(client):
+    """反馈不再进 QA 沉淀队列（Owner 裁决 D：来源不可追溯的记录下游永远不生效）。
+
+    旧行为：`rating == "down"` 或带 `correction` → `create_candidate(..., "feedback:<rating>")`，
+    采纳后落入**没有版本轴**的 `qa_pairs` ⇒ 按历史基准日产出的答案可被现行查询直返（第 8 节②）。
+    服务端拿不到"这条答案当时用的基准日"（`FeedbackIn` 无 message_id、`Message` 无该列），
+    所以闭口只能落在写侧：不再产候选。反馈台账本身不受影响——`feedbacks` 表独立记
+    question/answer/rating/correction，管理员仍经 `/api/admin/feedback` 全量可查。
+    """
     from auth import hash_password
     from database import SessionLocal
     from models import User
@@ -133,25 +144,20 @@ def test_feedback_down_creates_candidate_up_does_not(client):
     atok = client.post("/api/auth/login", json={"username": "adminfb", "password": "password123"}).json()["token"]
     ah = {"Authorization": f"Bearer {atok}"}
 
-    before = len(client.get("/api/admin/qa/candidates", params={"status": "pending"}, headers=ah).json())
-    r = client.post(
-        "/api/feedback",
-        headers=headers,
-        json={"question": "试用期多久", "answer": "错误的回答", "rating": "down", "correction": "应为六个月"},
-    )
-    assert r.status_code == 200
-    after = client.get("/api/admin/qa/candidates", params={"status": "pending"}, headers=ah).json()
-    assert len(after) == before + 1
-    assert after[0]["answer"] == "应为六个月"
+    def pending():
+        return client.get("/api/admin/qa/candidates", params={"status": "pending"}, headers=ah).json()
 
-    b2 = len(client.get("/api/admin/qa/candidates", params={"status": "pending"}, headers=ah).json())
-    assert (
-        client.post("/api/feedback", headers=headers, json={"question": "x", "answer": "y", "rating": "up"}).status_code
-        == 200
-    )
-    assert len(client.get("/api/admin/qa/candidates", params={"status": "pending"}, headers=ah).json()) == b2
+    before = len(pending())
+    for payload in (
+        {"question": "试用期多久", "answer": "错误的回答", "rating": "down", "correction": "应为六个月"},
+        {"question": "另一个问题", "answer": "回答", "rating": "down"},
+        {"question": "x", "answer": "y", "rating": "up", "correction": "纠错文本"},
+        {"question": "z", "answer": "w", "rating": "up"},
+    ):
+        assert client.post("/api/feedback", headers=headers, json=payload).status_code == 200
+    assert len(pending()) == before, "反馈不应再进受控沉淀待审队列"
 
     fbs = client.get("/api/admin/feedback", headers=ah).json()
-    assert any(f["rating"] == "down" and f["correction"] == "应为六个月" for f in fbs)
+    assert any(f["rating"] == "down" and f["correction"] == "应为六个月" for f in fbs), "台账不能丢"
 
     assert client.post("/api/feedback", json={"question": "a", "answer": "b", "rating": "up"}).status_code in (401, 403)

@@ -1,5 +1,9 @@
-// 同源部署（2026-08-08，手机端上线）：生产走相对路径 /api/*，由 Caddy 反代到 backend:8000
-// （免跨域、免 CORS、免注入 NEXT_PUBLIC_API_URL）；开发（next dev）仍直连 localhost:8000。
+// 生产基址**取决于部署形态**（同源反代 / 前后端异域），以部署配置为准，勿以本注释为事实：
+//   · 同源反代：不设 NEXT_PUBLIC_API_URL，走相对 /api/*（当前仓库按此设计：Caddyfile + next rewrites）
+//   · 异域直连：设 NEXT_PUBLIC_API_URL 为**域名**（别写裸 IP），并在后端配 CORS
+//   · 开发（next dev）：未设该变量时回落到 http://localhost:8000
+// 线上跑哪套尚未定（2026-09-22），三种机制的并存与影响见
+// dispatch-output/t12a-deploy-base-20260922/report.md。
 import { parseSSEFrames } from "./sse";
 import { coverageFromFinalEvent } from "./coverage";
 import type {
@@ -144,8 +148,10 @@ export async function streamChat(
   onMeta: (meta: ChatMeta) => void,
   onError: (msg: string) => void,
   onSteps?: (steps: AnalysisStep[]) => void,
-  onRestart?: () => void
+  onRestart?: () => void,
+  signal?: AbortSignal
 ): Promise<void> {
+  if (signal?.aborted) return;
   const token = getToken();
   const body: Record<string, unknown> = {};
   if (payload.content !== undefined) body.content = payload.content;
@@ -162,6 +168,12 @@ export async function streamChat(
   const controller = new AbortController();
   const IDLE_TIMEOUT = 180_000;
   let idle: ReturnType<typeof setTimeout> | null = null;
+  const abort = () => {
+    if (idle) clearTimeout(idle);
+    controller.abort();
+  };
+  signal?.addEventListener("abort", abort, { once: true });
+  let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
   const kick = () => {
     if (idle) clearTimeout(idle);
     idle = setTimeout(() => {
@@ -169,114 +181,126 @@ export async function streamChat(
       onError("连接超时，已中断");
     }, IDLE_TIMEOUT);
   };
-  kick();
-
-  let res: Response;
   try {
-    res = await fetch(`${API_URL}/api/chat`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
-  } catch (err) {
-    if (controller.signal.aborted) return; // 看门狗已 abort 并回调 onError
-    throw err;
-  }
+    kick();
 
-  if (!res.ok || !res.body) {
-    if (idle) clearTimeout(idle);
-    if (res.status === 401) {
-      // token 过期/失效：清凭据并回登录页（对抗审计 2026-08-07）
-      setToken(null);
-      if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
-        window.location.href = "/login";
-      }
-      onError("登录已过期，请重新登录");
-      return;
-    }
-    let detail = `请求失败（HTTP ${res.status}）`;
+    let res: Response;
     try {
-      const d = await res.json();
-      if (d.detail) detail = d.detail;
-    } catch {
-      /* ignore */
-    }
-    onError(detail);
-    return;
-  }
-
-  const reader = res.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-  while (true) {
-    let r: ReadableStreamReadResult<Uint8Array>;
-    try {
-      r = await reader.read();
+      res = await fetch(`${API_URL}/api/chat`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
     } catch (err) {
-      if (controller.signal.aborted) break; // 看门狗已 abort 并回调 onError，正常退出
+      if (controller.signal.aborted) return; // 主动取消不报错；超时由看门狗报告
       throw err;
     }
-    if (r.done) break;
-    kick(); // 收到数据帧，重置无数据看门狗
-    buffer += decoder.decode(r.value, { stream: true });
-    // 帧切分与过滤逻辑抽为纯函数 lib/sse.ts（T0.3 单测锁定，行为零变更）
-    const { frames, rest } = parseSSEFrames(buffer);
-    buffer = rest;
-    for (const raw of frames) {
+
+    if (controller.signal.aborted) return;
+    if (!res.ok || !res.body) {
+      if (idle) clearTimeout(idle);
+      if (res.status === 401) {
+        // token 过期/失效：清凭据并回登录页（对抗审计 2026-08-07）
+        setToken(null);
+        if (typeof window !== "undefined" && !window.location.pathname.startsWith("/login")) {
+          window.location.href = "/login";
+        }
+        onError("登录已过期，请重新登录");
+        return;
+      }
+      let detail = `请求失败（HTTP ${res.status}）`;
       try {
-        const p = JSON.parse(raw);
-        if (p.error) onError(p.error);
-        else if (p.type === "error") {
-          onError(p.message || "Agent 无法安全完成本次请求");
-          onMeta({
-            conversation_id: p.conversation_id,
-            sources: p.sources,
-            agent_event: "error",
-            error_code: typeof p.code === "string" ? p.code : undefined,
-          });
-        }
-        else if (p.type === "clarification" && typeof p.prompt === "string") {
-          onChunk(p.prompt);
-          onMeta({
-            conversation_id: p.conversation_id,
-            agent_run_id: p.run_id,
-            agent_state_version: p.state_version,
-            agent_event: "clarification",
-            prompt: p.prompt, // B1：候选解析源（纯透传，前端 scope.ts 决定是否用）
-          });
-        }
-        else if (p.type === "final") {
-          onMeta({
-            conversation_id: p.conversation_id,
-            agent_event: "final",
-            // T1：结构化覆盖（full/partial + 未覆盖列表），随 token 一起驱动顶部提示；
-            // 未知形态归 undefined 的判定收口在 coverage.coverageFromFinalEvent（纯函数可测）
-            ...coverageFromFinalEvent(p),
-          });
-        }
-        else if (typeof p.content === "string") onChunk(p.content);
-        else if (p.type === "step" && Array.isArray(p.steps) && onSteps) onSteps(p.steps);
-        else if (p.type === "restart" && onRestart) onRestart();
-        if (p.conversation_id !== undefined || p.sources !== undefined) {
-          onMeta({ conversation_id: p.conversation_id, sources: p.sources });
-        }
+        const d = await res.json();
+        if (d.detail) detail = d.detail;
       } catch {
-        /* ignore malformed chunk */
+        /* ignore */
+      }
+      onError(detail);
+      return;
+    }
+
+    reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    while (true) {
+      let r: ReadableStreamReadResult<Uint8Array>;
+      try {
+        r = await reader.read();
+      } catch (err) {
+        if (controller.signal.aborted) break;
+        throw err;
+      }
+      if (r.done || controller.signal.aborted) break;
+      kick(); // 收到数据帧，重置无数据看门狗
+      buffer += decoder.decode(r.value, { stream: true });
+      // 帧切分与过滤逻辑抽为纯函数 lib/sse.ts（T0.3 单测锁定，行为零变更）
+      const { frames, rest } = parseSSEFrames(buffer);
+      buffer = rest;
+      for (const raw of frames) {
+        if (controller.signal.aborted) break;
+        try {
+          const p = JSON.parse(raw);
+          if (p.error) onError(p.error);
+          else if (p.type === "error") {
+            onError(p.message || "Agent 无法安全完成本次请求");
+            onMeta({
+              conversation_id: p.conversation_id,
+              sources: p.sources,
+              agent_event: "error",
+              error_code: typeof p.code === "string" ? p.code : undefined,
+            });
+          }
+          else if (p.type === "clarification" && typeof p.prompt === "string") {
+            onChunk(p.prompt);
+            onMeta({
+              conversation_id: p.conversation_id,
+              agent_run_id: p.run_id,
+              agent_state_version: p.state_version,
+              agent_event: "clarification",
+              prompt: p.prompt, // B1：候选解析源（纯透传，前端 scope.ts 决定是否用）
+            });
+          }
+          else if (p.type === "final") {
+            onMeta({
+              conversation_id: p.conversation_id,
+              agent_run_id: typeof p.run_id === "string" ? p.run_id : undefined,
+              agent_event: "final",
+              // T1：结构化覆盖（full/partial + 未覆盖列表），随 token 一起驱动顶部提示；
+              // 未知形态归 undefined 的判定收口在 coverage.coverageFromFinalEvent（纯函数可测）
+              ...coverageFromFinalEvent(p),
+            });
+          }
+          else if (typeof p.content === "string") onChunk(p.content);
+          else if (p.type === "step" && Array.isArray(p.steps) && onSteps) onSteps(p.steps);
+          else if (p.type === "restart" && onRestart) onRestart();
+          if (!controller.signal.aborted && (p.conversation_id !== undefined || p.sources !== undefined)) {
+            onMeta({ conversation_id: p.conversation_id, sources: p.sources });
+          }
+        } catch {
+          /* ignore malformed chunk */
+        }
       }
     }
+  } finally {
+    if (idle) clearTimeout(idle);
+    signal?.removeEventListener("abort", abort);
+    if (reader) {
+      if (controller.signal.aborted) await reader.cancel().catch(() => {});
+      reader.releaseLock();
+    }
   }
-  if (idle) clearTimeout(idle);
 }
 
 // ==================== 会话 ====================
 export const convApi = {
   list: () => api.get<ConversationItem[]>("/api/conversations"),
   detail: (id: number) => api.get<ConversationDetail>(`/api/conversations/${id}`),
-  create: () => api.post<{ id: number }>("/api/conversations"),
+  create: (signal?: AbortSignal) =>
+    request<{ id: number }>("/api/conversations", { method: "POST", signal }),
   rename: (id: number, title: string) =>
     api.patch<ConversationItem>(`/api/conversations/${id}?title=${encodeURIComponent(title)}`),
   remove: (id: number) => api.delete<{ ok?: boolean }>(`/api/conversations/${id}`),
@@ -331,6 +355,8 @@ export const feedbackApi = {
 
 // ==================== 法条（法条悬浮卡 / 速查面板，P1） ====================
 export interface LawDetail {
+  is_snapshot?: boolean;
+  law_as_of?: string;
   source: string;
   article: string;
   content: string;
@@ -346,8 +372,8 @@ export interface LawItem {
   status?: string;
 }
 export const lawApi = {
-  detail: (source: string, article: string) =>
-    api.get<LawDetail>(`/api/law?source=${encodeURIComponent(source)}&article=${encodeURIComponent(article)}`),
+  detail: (source: string, article: string, runId?: string) =>
+    api.get<LawDetail>(`/api/law?source=${encodeURIComponent(source)}&article=${encodeURIComponent(article)}${runId ? `&run_id=${encodeURIComponent(runId)}` : ""}`),
   search: (q: string) => api.get<LawItem[]>(`/api/law/search?q=${encodeURIComponent(q)}`),
 };
 

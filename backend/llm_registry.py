@@ -1,19 +1,21 @@
 """多模型分级路由注册表 + token 配额监控（保留旧单模型兼容接口）。
 
-代表模型 8 个（按 modality × tier 分层），配额一次性、用完即止、剩余 <5% 自动跳过：
-- 纯文本旗舰 qwen3.7-plus / 轻量 deepseek-r1-distill-qwen-7b / 备用 qwen-plus
-- 全模态旗舰 qwen3.5-omni-plus-2026-03-15 + qwen3-vl-235b / 中端 qwen3-vl-32b /
-  轻量 qwen3.5-omni-flash + qwen2.5-omni-7b
+代表模型按 modality × tier 分层，条目见 `DEFAULT_ROLES`（单一真源；这里不抄条数也不举模型名——
+DB-24 的成因就是注释抄过"8 个"和一批模型名，而表已换成 27 条、举的名字大半不在表里）。
+配额一次性、用完即止、剩余 <5% 自动跳过。
 
-兼容：`get()` 仍返回旧默认全模态旗舰（omni-plus），现有 6 个辅助调用点（描述/改写/
+兼容：`get()` 仍返回旧默认全模态旗舰（omni-plus），现有辅助调用点（描述/改写/
 压缩/兜底/流式首配置）行为不变；主回答路由用 `pick(modality, tier)`。
 
 配额运行态经 quota_store（独立 SQLite）持久化，重启不丢。
 探针结论沿用：langchain 流式无 stream_options 400；接受 extra_body 关思考（variant）。
 """
 
+import inspect
 import json
+import logging
 import threading
+import time
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -25,6 +27,32 @@ from domain_rules import QUOTA_THRESHOLD
 from settings import settings
 
 DEFAULT_QUOTA = 1_000_000
+
+# DB-17（2026-10-09，审查报告 B-48）：**请求形状类 4xx** 的冷却时长（秒）。
+# 判据来自 `llm_errors.is_request_shape_rejection`——400/401/403/404/422 是「这一发请求本身不被接受」
+# （超长上下文、内容审核、模型名写错、key 失效、端点点错），**不是**「这个模型的积分用完了」。
+# 改前两证已钉：分类口径由 `tests/test_llm_failover.py::test_permanent_status_is_not_transient_in_both_sdk_shapes`
+# 钉成 permanent（本轮不动它；按名字引，行号会随该文件加腿而漂），
+# 但 permanent 的处理通道只有一条 `mark_depleted`，其实现是 `runtime_used += quota_left`，
+# 且 `reason` 参数被**整个丢弃** ⇒ 一次 400 在管理台/配额库里的读数是"该模型配额耗尽"，
+# 运维据此去加积分、调 calibrate，而真病因（payload/配置）永远不出现在任何一张表里。
+REJECT_COOLDOWN_S = 300
+
+# D-9（Owner 2026-10-11 裁「分两档」）：401/403/404 是**配置性拒绝**——不改配置就不会好，
+# 300 秒后重试等于反复打同一个坏端点；400/422 才是请求形状问题，短冷却合理。
+# 两档在管理台也必须分得开，故 `rejected_kind` 进 `status()` 每一行。
+REJECT_COOLDOWN_BY_STATUS = {401: 3600, 403: 3600, 404: 3600}
+REJECT_CONFIG_STATUSES = frozenset(REJECT_COOLDOWN_BY_STATUS)
+
+
+def reject_cooldown_s(status: int | None) -> int:
+    """按状态码取冷却秒数；未知或无状态 ⇒ 短档（保守，不误升级成长冷却）。"""
+    return REJECT_COOLDOWN_BY_STATUS.get(status if isinstance(status, int) else -1, REJECT_COOLDOWN_S)
+
+
+def reject_kind(status: int | None) -> str:
+    return "config" if isinstance(status, int) and status in REJECT_CONFIG_STATUSES else "shape"
+
 
 # 默认代表模型表：key / model / modality / tier / capabilities / initial_used（截图已用量）
 # base_url / api_key 复用 settings；可在 .env 用 LLM_MODELS_JSON 整体覆盖。
@@ -311,6 +339,11 @@ class ModelEntry:
     quota_total: int
     initial_used: int
     runtime_used: int = 0
+    # DB-17：请求形状类 4xx 的**冷却到期时刻**（`time.monotonic()` 基准，0 = 未处于冷却）。
+    # 刻意不写进配额账（`runtime_used`/`initial_used` 一字不动），也刻意不落库：
+    # 耗尽是运行期事实可持久校准，拒绝是**瞬时事实**，过期即自愈（重启自然清零）。
+    rejected_until: float = 0.0
+    rejected_kind: str | None = None  # D-9：config（改配置才好）与 shape（本次请求的问题）分档
     llm: ChatOpenAI | None = field(default=None, repr=False)
 
     @property
@@ -328,11 +361,23 @@ class ModelEntry:
         return self.quota_left / self.quota_total < QUOTA_THRESHOLD
 
     @property
+    def rejected_now(self) -> bool:
+        """是否处于 4xx 冷却中（DB-17）。与配额语义**无关**。"""
+        return self.rejected_until > time.monotonic()
+
+    @property
     def unavailable(self) -> bool:
+        # DB-17：`unavailable` 的**配额语义**（depleted/below_threshold）保持不变——它被管理台、
+        # `pick_by_key`（judge 等显式指定）与配额快照消费，把冷却混进去会让"显式指定被拒的模型"
+        # 变成 KeyError，那超出本票范围。冷却只作用于**自动路由**（见 `pick` 的过滤式）。
         return self.depleted or self.below_threshold
 
 
-def _build(cfg: dict[str, Any]) -> ChatOpenAI:
+def _build(
+    cfg: dict[str, Any],
+    share_llm: "ChatOpenAI | None" = None,
+    share_cfg: dict[str, Any] | None = None,
+) -> ChatOpenAI:
     if not cfg.get("api_key") or not cfg.get("base_url"):
         raise RuntimeError("缺少 LLM_API_KEY / LLM_BASE_URL，请在 backend/.env 配置")
     extra_body: dict[str, Any] = {}
@@ -345,7 +390,7 @@ def _build(cfg: dict[str, Any]) -> ChatOpenAI:
     if cfg.get("translation_options"):
         extra_body["translation_options"] = cfg["translation_options"]
     model_kwargs: dict[str, Any] = {"extra_body": extra_body} if extra_body else {}
-    return ChatOpenAI(
+    kwargs: dict[str, Any] = dict(
         model=cfg["model"],
         api_key=cfg["api_key"],
         base_url=cfg["base_url"],
@@ -354,6 +399,19 @@ def _build(cfg: dict[str, Any]) -> ChatOpenAI:
         timeout=cfg.get("timeout", 120),
         max_retries=3,
     )
+    if share_llm is not None:
+        # 传输层复用（生命周期收尾）：仅改 model/思考参数时经已验证的 client/async_client
+        # 注入字段共用原 entry 的 SDK 根客户端，避免每次 variant/reload 新建连接池；
+        # 请求参数语义仍由新 ChatOpenAI 自身的 model/model_kwargs 决定。
+        # 传输参数（端点/凭据/超时）不同不得共用同一客户端——显式失败而不是静默新建池。
+        if share_cfg is None or any(share_cfg.get(k) != cfg.get(k) for k in ("base_url", "api_key", "timeout")):
+            raise RuntimeError(
+                "传输参数(base_url/api_key/timeout)变化时禁止共用 SDK 客户端；"
+                "如确需新建连接池，须同步扩展 LLMRegistry 的资源归属与 aclose 覆盖"
+            )
+        kwargs["client"] = share_llm.client
+        kwargs["async_client"] = share_llm.async_client
+    return ChatOpenAI(**kwargs)
 
 
 def estimate_tokens(text: str) -> int:
@@ -377,6 +435,7 @@ class LLMRegistry:
         self._lock = threading.RLock()
         self._entries: dict[str, ModelEntry] = {}
         self._admin_disabled: set[str] = set()  # 管理员禁用开关：只影响 pick 自动路由
+        self._aclose_done = False  # 应用退出收尾一次性标记（aclose 幂等）
         self._load()
 
     def _load(self) -> None:
@@ -446,7 +505,7 @@ class LLMRegistry:
             assert e is not None, "LLM 未初始化"
             cfg = dict(e.cfg)
             cfg["disable_thinking"] = disable_thinking
-            return _build(cfg)
+            return _build(cfg, share_llm=e.llm, share_cfg=e.cfg)
 
     def variant_of(self, key: str, disable_thinking: bool) -> ChatOpenAI:
         """按指定 entry 的 cfg 临时构建关/开思考实例（旗舰流式重试用）。"""
@@ -455,7 +514,7 @@ class LLMRegistry:
             assert e is not None, "LLM 未初始化"
             cfg = dict(e.cfg)
             cfg["disable_thinking"] = disable_thinking
-            return _build(cfg)
+            return _build(cfg, share_llm=e.llm, share_cfg=e.cfg)
 
     def config(self) -> dict[str, Any]:
         with self._lock:
@@ -470,14 +529,54 @@ class LLMRegistry:
             return any(e.modality == modality and e.llm is not None for e in self._entries.values())
 
     def reload(self, model: str | None = None) -> dict[str, Any]:
-        """兼容：仅重建默认 entry（旧单模型热切换语义）。多模型整体重载用 _load。"""
+        """兼容：仅重建默认 entry（旧单模型热切换语义）。多模型整体重载用 _load。
+
+        仅改 model（传输参数不变）→ 新实例复用原 entry 的 SDK 根客户端，
+        旧连接池不再被丢弃成孤儿。
+        """
         with self._lock:
             e = self._entries.get(DEFAULT_KEY)
             if e and model:
+                previous = e.llm
                 e.cfg["model"] = model
                 e.model = model
-                e.llm = _build(e.cfg)
+                e.llm = _build(e.cfg, share_llm=previous, share_cfg=e.cfg)
             return self.config()
+
+    # ---------- 应用退出收尾 ----------
+    async def aclose(self) -> None:
+        """关闭 registry 实际拥有的 SDK 根客户端（同步+异步），由 main.lifespan 在
+        事件循环仍运行时调用。
+
+        - 幂等：重复调用不再重复关闭（一次性标记）。
+        - 锁只保护快照与标记，不跨 await 持有。
+        - 失败隔离：单个根关闭失败记录"资源类别:模型key + 异常类型"（不含
+          URL/凭据/异常消息），继续尝试其余，最终显式 raise 供上层判定门禁失败。
+        - 覆盖范围：当前 entries 可达的唯一根（variant/reload 复用同一对根）。
+        """
+        with self._lock:
+            if self._aclose_done:
+                return
+            self._aclose_done = True
+            roots: dict[int, tuple[str, Any]] = {}
+            for e in self._entries.values():
+                llm = e.llm
+                if llm is None:
+                    continue
+                for attr, kind in (("client", "sync"), ("async_client", "async")):
+                    root = getattr(getattr(llm, attr, None), "_client", None)
+                    if root is not None and id(root) not in roots:
+                        roots[id(root)] = (f"{kind}:{e.key}", root)
+        failures: list[dict[str, str]] = []
+        for label, root in roots.values():
+            try:
+                outcome = root.close()
+                if inspect.isawaitable(outcome):
+                    await outcome
+            except Exception as error:  # noqa: BLE001 - 失败隔离后统一显式上抛
+                failures.append({"resource": label, "error_type": type(error).__name__})
+        if failures:
+            raise RuntimeError("LLMRegistry.aclose 存在未关闭的 SDK 资源: " + json.dumps(failures, ensure_ascii=False))
 
     # ---------- 路由接口（主回答用） ----------
     def pick_by_key(self, key: str) -> ChatOpenAI:
@@ -515,6 +614,8 @@ class LLMRegistry:
                 for e in candidates:
                     if e.key in skipped:
                         continue
+                    if e.rejected_now:
+                        continue  # DB-17：4xx 冷却期内退出自动路由，过期自愈（不动配额账）
                     if not e.unavailable and e.key not in self._admin_disabled:
                         assert e.llm is not None
                         return e.key, e.llm
@@ -541,6 +642,18 @@ class LLMRegistry:
         with self._lock:
             e = self._entries.get(key)
             return e.unavailable if e else True
+
+    def is_rejected(self, key: str) -> bool:
+        """该 key 是否处于 4xx **冷却**中（DB-17，2026-10-09 复核轮 B 路补）。
+
+        为什么单独要这个口子：`_safe_pick` 在 `QuotaExhausted` 时直接回落 `registry.get()`，
+        那条路**绕过了 `pick` 的冷却过滤**。若只看配额（`is_unavailable`），"整池都在冷却"
+        会被读成"默认模型健康"，于是每个请求都再烧一次刚被打回的调用、还不标降级——
+        冷却就只剩"少选它"没有"别打它"。语义与 `unavailable` 严格分开：这里不涉配额。
+        """
+        with self._lock:
+            e = self._entries.get(key)
+            return bool(e and e.rejected_now)
 
     def default_key(self) -> str:
         """默认/兜底模型 key（_safe_pick 回退用，使回退路径也能扣配额）。"""
@@ -578,6 +691,38 @@ class LLMRegistry:
             if not e or e.depleted:
                 return
             e.runtime_used += max(0, e.quota_left)
+        # DB-17：`reason` 参数此前**被整个丢弃**（连日志都不落）。保留原有幂等早退语义
+        # （已 depleted 不重复记账、不重复落日志），只在真正置尽的那一次落一条。
+        logging.getLogger("legal.llm").warning(
+            "llm_model_depleted",
+            extra={"model": self.model_of(key), "model_failure_channel": "exhausted", "model_failure_reason": reason},
+        )
+
+    def mark_rejected(self, key: str, reason: str, *, status: int | None = None) -> None:
+        """请求形状类 4xx ⇒ **短期冷却**，不改任何配额数字（DB-17 / 报告 B-48）。
+
+        与 `mark_depleted` 的分工：耗尽→配额账 + 直到重启或人工校准；拒绝→只进冷却 + 自动到期。
+        `reason`/`status` 进结构化日志（`model_failure_channel` 等字段已登记白名单），
+        因为"被拒"与"没钱"在管理台上必须一眼分得开——这是本票的全部动机。
+        """
+        with self._lock:
+            e = self._entries.get(key)
+            if not e:
+                return
+            cooldown = reject_cooldown_s(status)
+            e.rejected_kind = reject_kind(status)
+            e.rejected_until = time.monotonic() + cooldown
+        logging.getLogger("legal.llm").warning(
+            "llm_request_rejected",
+            extra={
+                "model": self.model_of(key),
+                "model_failure_channel": "rejected",
+                "model_failure_reason": reason,
+                "llm_error_status_code": status,
+                "llm_reject_cooldown_s": cooldown,
+                "llm_reject_kind": e.rejected_kind,
+            },
+        )
 
     def calibrate(self, key: str, remaining: int) -> dict[str, Any]:
         """配额校准（块 3）：按控制台真实剩余值回写 initial_used，看门狗对齐真实值。
@@ -640,6 +785,9 @@ class LLMRegistry:
                     "quota_total": e.quota_total,
                     "quota_left": e.quota_left,
                     "depleted": e.depleted,
+                    # DB-17：冷却是**另一个通道**，管理台要看得见，否则会把它误读成配额耗尽
+                    "rejected_remaining_s": round(max(0.0, e.rejected_until - time.monotonic()), 1),
+                    "rejected_kind": e.rejected_kind if e.rejected_now else None,
                     "below_threshold": e.below_threshold,
                     "admin_disabled": e.key in self._admin_disabled,
                 }

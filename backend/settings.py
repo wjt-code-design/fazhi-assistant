@@ -12,6 +12,28 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(case_sensitive=False, extra="ignore")
 
+    # 敏感字段名标记（大小写不敏感的子串匹配）：命中即打码。
+    _SECRET_NAME_MARKERS = ("api_key", "password", "secret", "token")
+
+    def __repr__(self) -> str:
+        """掩盖敏感字段值（2026-09-22 安全修复）。
+
+        为什么必须修：`AttributeError`/断言失败会把 **Settings 的 repr 整段打进日志**——
+        实测在 pytest 失败输出里泄漏过明文 `dashscope_api_key`/`zhipuai_api_key`/
+        `siliconflow_api_key` 与 `admin_password`。任何 CI 日志收集都会把它带走。
+        注意：`model_dump()` **不在**本修复范围内（未观察到它进入日志路径）；
+        若将来有接口输出配置，仍需另行脱敏。
+        """
+        parts: list[str] = []
+        for name, value in self:
+            if (
+                name == "llm_models_json" or any(marker in name.lower() for marker in self._SECRET_NAME_MARKERS)
+            ) and value:
+                parts.append(f"{name}='<masked:len={len(str(value))}>'")
+            else:
+                parts.append(f"{name}={value!r}")
+        return f"Settings({', '.join(parts)})"
+
     # ---- LLM ----
     llm_api_key: str = ""
     llm_base_url: str = ""
@@ -41,6 +63,20 @@ class Settings(BaseSettings):
         False  # 方案C（2026-08-08）：默认关闭公开注册，仅管理员开户；.env FEATURE_SELF_REGISTER=true 重开
     )
     feature_router: bool = True  # 多模型分级路由总开关；False 时主回答退化为旧单模型（get()）
+    # 公开历史查询（Owner 2026-09-23 决定，取代 09-21 的"评测通道"定位）：默认可用；
+    # 部署显式关闭时带日期的请求返回 503，不静默改用当日。`case_domain` 仍是评测专用控制量。
+    # ⚠️ 09-21 裁定里的成本事实**没有被公开化消除**：显式基准日会退出零-token 直返与共享答案缓存
+    #   （`prepare_fast_path` 置 `qa_hit=None`、`main._cacheable` 排除），分水岭前的值还触发版本
+    #   绊线回落 LLM ⇒ 客户端可用一个日期把"命中"打成"未命中"。现状有界（单请求、60/分钟、
+    #   最贵等于一次未命中），但调用者已从评测通道变成任意已认证用户，成本口径需按新前提复评。
+    allow_client_law_as_of: bool = True
+
+    # 同款的另一半（Owner 2026-09-21 裁定的 `case_domain` 侧，2026-09-22 落地）：
+    # False（默认）⇒ 客户端传的 `case_domain` 被忽略（各消费方落 None，行为与"没传"一致）；
+    # True ⇒ 评测/灰度放行。理由：该值决定 R1-OB 判域，属评测输入而非用户偏好；
+    # 前端实测**从不传**该字段 ⇒ 默认关在生产**零行为变化**。
+    allow_client_case_domain: bool = False
+
     feature_study_retrieval: bool = True  # ADR-012：study_aid 具体题分步检索（False 一键回滚"不检索"）
     feature_study_cache: bool = True  # 法考题(study_aid)进回答缓存白名单（False 回滚=仅 legal_query 可缓存）
     feature_similar_cache: bool = True  # BGE 近重复命中（结构护栏防错答；False 只精确 key 命中）
@@ -72,6 +108,37 @@ class Settings(BaseSettings):
     # 默认关 = writer/verifier 数字校验行为逐字不变。设计依据 T-A0
     # （dispatch-output/ta0-numeric-trace-20260917/report.md）。
     numeric_matching_v2: bool = False
+    # R12 伪调用检测（2026-09-18，外部 harness 方案差距分析 P0-3）：writer/verifier 对
+    # claim 文本做「声称执行过某动作（检索/合同分析/调取历史/用户确认）而 state 无真实
+    # 执行记录」的确定性比对——对应已知缺陷 deepseek-v4-flash"伪调用"（工具调用被渲染
+    # 为文本而非执行）。判定真源 agent/phantom_check.py；默认关 = writer/verifier 行为
+    # 逐字不变（与 entity_precision_check / numeric_matching_v2 同一开关惯例）。
+    phantom_tool_check: bool = False
+    # R15 法律版本适用绊线（2026-09-18，外部 harness 方案差距分析 P0-2 的评测侧配套）：
+    # claim 按 law_as_of 版本的法回答 2021-01-01（《民法典》1260 条）分水岭前的事实 →
+    # verifier 终态拒答（LAW_VERSION_WATERSHED_MISMATCH）。判定真源
+    # agent/limitation_calc.law_version_crosses_watershed；基准日由 service 从 AgentRun 透传，
+    # 开关开而未透传 = 接线丢失，同样终态失败（LAW_TRIPWIRE_NOT_WIRED）。
+    # 默认关 = verifier 行为逐字不变（与 phantom_tool_check / entity_precision_check 同一
+    # 开关惯例；开启属评测批预登记事项，见 docs/handoff-external-harness-20260918.md §2.2）。
+    law_version_tripwire_check: bool = False
+    # S5（2026-09-19）：把上面那道绊线**扩展到快车道**。`agent_enabled=False` 时线上流量走快车道，
+    # 而版本判定只挂在 agent 路径（verifier）上 ⇒ 快车道当时**没有任何版本判定**（R15 收口量出的缺口）。
+    # 票 C/S6（2026-09-20）订正范围：**本开关覆盖快车道的两条「生成型」答复出口**——
+    #   ① 缓冲轻量出口 `main._light_buffered_locked`（S5；⚠️ 当前部署配置下**零流量**，
+    #      因为 `llm_registry` 没配 `('text','light')` 角色 ⇒ `use_light` 恒假）；
+    #   ② 旗舰流式出口 `main.stream()` 分支2 的**两个**答案来源（流式 join 与 `_invoke_llm` 兜底，
+    #      票 C；这条才是默认配置下真正承接流量的出口）。
+    # **不覆盖**缓存复用型直返：登记表 E1（`answer_cache` 精确/近重复）与 E2（`_qa_direct_return`
+    # QA 持久语料）在收口点之前就 return ⇒ 挂在收口的门永远走不到它们；那是票 I 的量级。
+    # ⇒ 准确的句子是「快车道的生成型答复已受保护；缓存复用型答复未受保护」，
+    #   "快车道已受保护"这句在票 I 落地前**不成立**。合同流式出口（E5/E6）按票 C §4-Q1 裁定不接
+    #   （合同事实日期来自上传文本而非用户自述，`_fast_path_fact_texts` 那套取法在那分支不成立）。
+    # 判定真源仍是 agent/limitation_calc.law_version_crosses_watershed（单一真源，快车道只消费）；
+    # 开关开而未拿到 law_as_of = 接线丢失，同 agent 路径 verifier.py 口径 fail-closed（不当作不拦）——
+    # 正常请求路径不会走到这一支：两个出口都传 `main._fast_path_law_as_of(body)`（缺省落当日）。
+    # 默认关 = 快车道行为逐字不变；开启属评测批预登记事项。范围沿革见 docs/handoff-s6-stream-exit-version-gate-20260920.md §5-8。
+    fast_path_law_version_check: bool = False
 
     # ---- 部门法守卫（R1/R1b，预注册 docs/preregistration-dept-law-filter-r1-20260913.md）----
     # R1：Agent 检索后剔除「他域专属程序法」条文（证据池防跨部门法混入；实体法永不过滤）。
@@ -106,8 +173,20 @@ class Settings(BaseSettings):
     # 只是把交付形态从"空"改为"部分内容 + 显式说明"。默认关 = 行为逐字不变。
     agent_partial_delivery_enabled: bool = False
 
+    # T-H（2026-09-18）：**修正性失败**的至多一次重试（仅在 agent_partial_delivery_enabled 下生效）。
+    # P5 两轮独立盲评均点名 on 臂「过度排除/过度保守」：writer 一次生成引用了 payload 外的
+    # fact_id（UNKNOWN_FACT_ID）或未检索到的法条（UNSUPPORTED_CITATION）→ 该**核心争点整体**
+    # 落入 uncovered（案例1·乙「能否起诉」、案例5·乙「退一赔十」）。
+    # 此前的注释主张「同输入同校验，重试无意义」——不成立：**校验确定性 ≠ 生成确定性**，
+    # 生成是采样的（T3 的 1e9 实证：同分布输入两次结果不同），重试**可能**改变结果。
+    # 边界：仅限 writer 自身可避免的失误（引用错 id / 引用未检索法条 / 数字无来源），
+    # 至多一次；GENERATOR_FAILURE / MALFORMED_* 等技术失败与 ISSUE_CLAIMS_MISSING（已有 T3）不在此列。
+    # 默认关 = 行为逐字不变。
+    agent_writer_corrective_retry_enabled: bool = False
+
     # ---- 多模型配置（可选整体覆盖默认代表表；JSON 数组，元素见 llm_registry.DEFAULT_ROLES 字段） ----
-    # 留空则用 llm_registry 内置的 8 代表模型默认表（base_url/api_key 复用上面的 LLM_*）
+    # 留空则用 llm_registry 内置的代表模型默认表（条数以 `DEFAULT_ROLES` 为准，这里不抄数＝DB-24；
+    # base_url/api_key 复用上面的 LLM_*）
     llm_models_json: str = ""
 
     # ---- 向量嵌入（local=本地 BGE CPU；aliyun=阿里云 text-embedding-v4，需配 key）----

@@ -204,6 +204,40 @@ def test_post_curation_guard(env, monkeypatch):
     assert created[0][1].startswith("依据《劳动合同法》")
 
 
+# ---------------- 沉淀闸：历史基准日的答案不沉淀（AUTH-2 续） ----------------
+def test_post_skips_curation_for_historical_answer(env, monkeypatch):
+    """带显式基准日的答案**不进**受控沉淀。
+
+    它引的是该日有效、当日可能已废止的版本，而 qa_pairs 没有版本轴（`law_as_of_basis`
+    只由 seeds/生成脚本写入，沉淀链不写）⇒ 一旦被采纳，**现行**查询会直返这条旧版答案。
+    与"历史答案不进共享答案缓存"同一条理由，两个出口都要堵。
+    """
+    from datetime import date
+
+    main, conv_id, _ = env
+    created = []
+    monkeypatch.setattr(main, "grounded_top_score", lambda *a, **k: 0.9)
+    monkeypatch.setattr(main, "should_curate", lambda *a, **k: True)
+    monkeypatch.setattr(main, "needs_compress", lambda *a, **k: False)
+    monkeypatch.setattr(main.ks, "create_candidate", lambda db, q, a, g, ev: created.append((q, a)))
+
+    def pre(**extra):
+        return {
+            "conv_id": conv_id,
+            "intent": "legal_query",
+            "rewritten": "问",
+            "user_text": "问",
+            "sources": [{"source": "合同法", "article": "第一百一十四条"}],
+            **extra,
+        }
+
+    main._post(pre(law_as_of=date(2019, 1, 1)), "依据《合同法》第一百一十四条，违约金可调减。")
+    assert created == [], "历史基准日的答案进了待审沉淀（现行查询会被旧版答案污染）"
+
+    main._post(pre(), "依据《合同法》第一百一十四条，违约金可调减。")
+    assert len(created) == 1, "对照组失效：无基准日的 legal_query 也不沉淀了"
+
+
 # ---------------- 题型接线：_build_messages 动态追加 ----------------
 def test_build_messages_exam_type_suffix(env):
     main, conv_id, _ = env
