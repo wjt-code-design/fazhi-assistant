@@ -25,6 +25,7 @@ import inspect
 import json
 import os
 import sys
+from pathlib import Path
 
 import pytest
 
@@ -121,27 +122,44 @@ def test_there_is_no_revoked_state_at_all(db, double_embeddings):
 
 
 def test_no_production_path_can_delete_a_written_qa_record():
-    """③ QA 侧没有删除入口：对 `_qa_store` 的属性访问按 **AST 穷举**，不是按肉眼 grep。
+    """③ QA 侧没有删除入口：按 **AST 全仓穷举**（backend 下除 tests 之外的每一只 .py）。
 
-    为什么不用 `hasattr` 或"我找了半天没有"：那种"没有 X"的断言只覆盖我想到要去看的名字。
-    这里把整只模块的语法树扫一遍，收集所有以 `_qa_store` 为接受者的属性访问；
-    将来谁加了 `ks._qa_store.delete(...)`，这个集合就会多一项，本条当场变红，
-    逼实现者**显式承认**"我加了 QA 删除入口"（而不是让判据悄悄过期）。
+    为什么不是只扫 `knowledge_service` 一只文件：独立复核指出——只在一只文件里穷举时，
+    在 `main.py` 加一句 `ks._qa_store.delete(...)` 本条仍会绿，那是"没有 X"最坏的假阴性形状。
+    现在按 `ast.unparse(node.value).endswith("_qa_store")` 收属性访问，点号别名形式（`ks._qa_store.X`）
+    也能撞到。
+    正对照（同一台机器现量）：全仓 `delete/deletes` 调用 14 处、QA 侧 0 处——
+    没有这半条，"0 处"会因为"扫描器根本没在找东西"而恒真。
 
-    第二半把"模块里确实存在 delete"这件事钉在**条文库**那一侧：两处 delete 的接受者必须逐字是
-    `_collection()`（knowledge_service.py:55 绑的是 `vectorstore`，不是 QA 集合）。
-    没有这半条，第一条断言会因为"整只模块根本没有 delete"而恒真——那是假阴性机器。
+    第二半把"确实存在 delete"钉在**条文库**那一侧：两处 delete 的接受者必须逐字是 `_collection()`
+    （knowledge_service.py:55 绑的是 `vectorstore`，不是 QA 集合）。
     """
-    tree = ast.parse(inspect.getsource(ks))
-    accessed = {
-        n.attr
-        for node in ast.walk(tree)
-        for n in ast.walk(node)
-        if isinstance(n, ast.Attribute) and isinstance(n.value, ast.Name) and n.value.id == "_qa_store"
-    }
+    root = Path(__file__).resolve().parents[1]
+    accessed, qa_deletes, total_deletes = set(), [], 0
+    for py in sorted(root.rglob("*.py")):
+        if "tests" in py.parts or "__pycache__" in py.parts:
+            continue
+        tree = ast.parse(py.read_text(encoding="utf-8"))
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute) and ast.unparse(node.value).endswith("_qa_store"):
+                accessed.add(node.attr)
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr
+                in (
+                    "delete",
+                    "deletes",
+                )
+            ):
+                total_deletes += 1
+                if "_qa_store" in ast.unparse(node.func.value):
+                    qa_deletes.append(f"{py.name}:{node.lineno}")
     assert accessed == {"_collection", "add_documents", "similarity_search_with_score"}, sorted(accessed)
-    assert not {a for a in accessed if a in ("delete", "deletes", "update", "upsert")}
+    assert qa_deletes == [], qa_deletes
+    assert total_deletes >= 10, f"全仓 delete 调用只数到 {total_deletes} 条 ⇒ 扫描器打空了，本条不可信"
 
+    tree = ast.parse(inspect.getsource(ks))
     receivers = sorted(
         {
             ast.unparse(c.func.value)
@@ -151,6 +169,39 @@ def test_no_production_path_can_delete_a_written_qa_record():
     )
     assert receivers == ["_collection()"], f"条文库/QA 两侧的 delete 接受者形状变了（现量 {receivers}）"
     # 功能面的同一件事在第①条里已经跑过：拒绝之后 QA 记录仍在且仍被两条出口服务。
+
+
+def test_rejecting_does_not_clear_the_answer_cache_while_approving_does(db, double_embeddings, monkeypatch):
+    """① 漏掉的**第三份拷贝**：票面 `:350` 点名「已写 QA、**回答缓存**及进程缓存」要一起失效——现在少一份。
+
+    `knowledge_service` 只在自动收录（:410）与人工采纳（:463）两条分支调 `retrieval.invalidate()`，
+    拒绝分支（:465-466）两个都不碰；而 `retrieval.invalidate()` 内部会延迟 import `answer_cache` 一起清
+    （retrieval.py:765-774）。
+    后果：这条问句在 TTL 内已落进回答缓存的那份答案**不会因为拒绝而消失**，
+    而 `main.py:2193` 的 `answer_cache.get(cache_key)` 正是产品每次答复先问的那道出口。
+    ⇒ 本票前面测的是两条**语料**出口，这第三条此前没有判据（独立复核打出来的漏项）。
+    """
+    import answer_cache
+    import retrieval
+
+    # 先取**原件**源码：一旦下面把 `retrieval.invalidate` 换成替身，`inspect.getsource` 读到的就是
+    # 我这条测试里的 lambda（本条第一版就是这么红的）。判据要看的是生产函数，不是我的替身。
+    invalidate_src = inspect.getsource(retrieval.invalidate)
+    assert "answer_cache" in invalidate_src, "invalidate 不再连带清回答缓存 ⇒ 下面那句因果推理失去依据"
+
+    calls: list[str] = []
+    monkeypatch.setattr(retrieval, "invalidate", lambda: calls.append("invalidate"))
+
+    q = "撤回生命周期庚：自动收录后又被拒绝，回答缓存会跟着失效吗？"
+    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    assert calls == ["invalidate"], "自动收录那一步本来就该清一次缓存；它不清的话本条失去对照基准"
+
+    calls.clear()
+    ks.decide_candidate(db, row.id, "rejected")
+    assert calls == [], "拒绝路径开始清缓存了 ⇒ 本条特征化要改写成新契约断言（不要删）"
+
+    # 正对照：读侧入口确实存在（所以"回答缓存留着"是可服务的状态，不是一只空模块）
+    assert hasattr(answer_cache, "get"), "回答缓存的读侧入口不见了 ⇒ 上面那句因果不成立"
 
 
 def test_sql_commit_failure_leaves_an_orphan_vector_record(db, double_embeddings, monkeypatch):

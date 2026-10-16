@@ -84,7 +84,9 @@ def test_unknown_cfg_keys_are_dropped_without_any_signal():
     assert "extra_body" not in (llm.model_kwargs or {}), llm.model_kwargs or {}
     body = getattr(llm, "extra_body", None) or {}
     assert body.get("translation_options") == {"source_lang": "zh", "target_lang": "zh"}
-    assert "transport" not in body and getattr(llm, "transport", None) is None
+    # 请求体键集也钉成闭集：只断言 `getattr(llm,"transport",None) is None` 是装饰性的
+    # （这个属性本来就不可能出现在 ChatOpenAI 上），"body 里没有它"才是要害。
+    assert set(body) == {"translation_options"}, sorted(body)
     # 构造期也不报错——所以"配置写了但没人读"这条没有任何失败信号，只能靠判据拦
     assert type(llm).__name__ == "ChatOpenAI"
 

@@ -155,5 +155,29 @@ def test_empty_description_continues_the_turn_as_if_the_image_were_read(store):
     assert _DESCRIPTION in ok.raw_query
 
     # 契约面上没有失败位：按 dataclass 字段**穷举**（"没有 X"的断言不许靠肉眼扫）
+    # **闭集**而不是关键词筛（独立复核打出来的）：加一个 `no_image_reason: str` 就造出了失败位，
+    # 而 "fail|error|degraded|warn" 这种词表拦不住换个名字的字段——"换个名字就当已经修好"
+    # 正是票面 :346 禁的形状。
     fields = {f.name for f in dataclasses.fields(RequestBootstrap)}
-    assert not {f for f in fields if "fail" in f or "error" in f or "degraded" in f or "warn" in f}, sorted(fields)
+    assert fields == {
+        "conv_id",
+        "summary",
+        "recent",
+        "recent_messages",
+        "image",
+        "user_text",
+        "image_rel",
+        "thumb_rel",
+        "image_description",
+        "raw_query",
+        "supplement_text",
+        "intent",
+        "is_exam",
+        "has_options",
+        "contract_mode",
+        "contract_text",
+        "client_truncated",
+        "case_domain",
+        "law_as_of",
+        "intent_confirm",
+    }, sorted(fields)

@@ -89,8 +89,9 @@ def test_auto_approve_marks_the_row_approved_but_records_nobody_approved_it(db, 
     assert set(meta) == META_KEYS, f"向量侧键集变了（现量 {sorted(set(meta))}）"
 
     cols = {c.name for c in QaCandidate.__table__.columns}
-    provenance = {n for n in cols if any(k in n for k in ("review", "approv", "source", "origin", "curator"))}
-    assert provenance == set(), f"表里已经出现了审批来源列（{sorted(provenance)}），本条特征化要改写"
+    # **闭集**而不是关键词筛（独立复核打出来的）：`review*/approv*/source*` 这种词表拦不住
+    # `machine_made` / `curated_on` 这类换个名字的列，而"换名字就说审批来源已存在"正是票面 :346 禁的形状。
+    assert cols == {"id", "question", "answer", "grounded_score", "evidence", "status", "created_at"}, sorted(cols)
 
     # 这条记录**不是**被既有护栏拦着的状态：读侧真判据判它"来源可校验"，两条出口都放行。
     hit = ks.search_qa(q)
@@ -145,5 +146,10 @@ def test_the_two_exits_already_share_one_eligibility_predicate_and_never_read_th
     assert main.qa_citations_in_kb is retrieval.qa_citations_in_kb
 
     for fn in (main._qa_direct_return, main._build_messages):
-        names = set(inspect.signature(fn).parameters)
-        assert not names & {"db", "session", "candidate", "state"}, (fn.__name__, sorted(names))
+        # 闭集而不是"名字里不许出现 db/session/candidate"（独立复核打出来的）：
+        # 加一个 `eligibility` 参数就把"出口不看审批状态"这件事证伪了，而旧断言会照样绿。
+        expected = {"pre", "law_as_of"} if fn is main._qa_direct_return else {"pre"}
+        assert set(inspect.signature(fn).parameters) == expected, (
+            fn.__name__,
+            sorted(set(inspect.signature(fn).parameters)),
+        )
