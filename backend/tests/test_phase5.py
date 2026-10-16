@@ -5,6 +5,7 @@
 - 端到端排除：真实 vectorstore，唯一 source="test_phase5_tmp"，断言后按 source 删除（不依赖 add_text 返回 ids）。
 """
 
+import pytest
 from langchain_core.documents import Document
 
 import retrieval_core as rc
@@ -83,7 +84,7 @@ def test_bm25_top_valid_predicate_all_invalid_returns_empty():
 
 
 # ---------- API 契约：手动添加条文（含时效字段） ----------
-def test_admin_knowledge_add_contract_with_time_fields(monkeypatch):
+def test_admin_knowledge_add_contract_with_time_fields(monkeypatch, double_embeddings):
     from sqlalchemy import create_engine
     from sqlalchemy.orm import sessionmaker
     from sqlalchemy.pool import StaticPool
@@ -138,7 +139,13 @@ def test_admin_knowledge_add_contract_with_time_fields(monkeypatch):
 
 
 # ---------- 检索端到端：当前排除失效版本 / 历史 cutoff 恢复当时有效版本 / 管理端可见 ----------
+@pytest.mark.slow
 def test_retrieval_excludes_expired_but_admin_test_sees_it():
+    """⚠️ C15 分流（2026-10-16）：本条走 `slow` 是**因为它的判据本身依赖真实语义排序**——
+    它断言 `retrieval.retrieve(...)` 在 cutoff 分支上正向命中第九条。换成伪向量
+    （`_fake_embeddings` 按文本哈希造随机向量）后相似度毫无意义，那条正向断言会退化成
+    "看运气"，那是把判据删掉换一面绿旗，不是修用例。
+    """
     import retrieval
     from rag_chain import vectorstore
 
@@ -189,8 +196,81 @@ def test_retrieval_excludes_expired_but_admin_test_sees_it():
         retrieval.invalidate()
 
 
+def test_admin_knowledge_test_endpoint_contract_shape(monkeypatch, double_embeddings):
+    """把 `/api/admin/knowledge/test` 的**端点契约**留在 CI 里（C15 分流的收尾，2026-10-16）。
+
+    上面那条真实检索用例被标了 slow（它的判据是排序与召回，替身证不了），于是这个端点在 CI 里
+    一度完全没有覆盖。本条只钉四件与排序无关的事：未授权进不来、授权后 200、返回是 list、
+    每个条目带 article/status/effective_to/source 四个键。
+
+    ⚠️ 它**不**证明"该命中的条文命中了"——那一半仍只在 slow lane，写在这里免得被误读成已覆盖。
+    也不能写成"返回 list"就算覆盖：库空时 `[]` 会让形状断言整段空转（第一版就是这样，被复核打回）。
+    所以本条先塞一条自己的条文进去，再要求 `1 <= len(rows) <= 5`：端点若返回空或超限都会红。
+    """
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import sessionmaker
+    from sqlalchemy.pool import StaticPool
+
+    import database
+    import main
+    from auth import hash_password
+    from models import Base, User
+
+    eng = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(eng)
+    sm = sessionmaker(bind=eng, autoflush=False, autocommit=False)
+    monkeypatch.setattr(database, "SessionLocal", sm)
+    monkeypatch.setattr(main, "SessionLocal", sm)
+    from fastapi.testclient import TestClient
+
+    db = sm()
+    db.add(User(username="adminkt", password_hash=hash_password("password123"), role="admin"))
+    db.commit()
+    db.close()
+
+    with TestClient(main.app) as c:
+        monkeypatch.setattr(main.limiter, "enabled", False, raising=False)
+        denied = c.post("/api/admin/knowledge/test", json={"query": "试用期最长多久"})
+        assert denied.status_code in (401, 403), f"未授权应被挡，实测 {denied.status_code}"
+
+        tok = c.post("/api/auth/login", json={"username": "adminkt", "password": "password123"}).json()["token"]
+        headers = {"Authorization": f"Bearer {tok}"}
+
+        # 先写一条自己的条文：没有这一步，替身库里可能是空的，`rows=[]` 会让下面所有形状断言空转
+        seeded = c.post(
+            "/api/admin/knowledge",
+            json={
+                "title": "test_phase5_kt_contract",
+                "article": "第一条",
+                "content": "端点契约用例自带条文，仅用于让返回集非空。",
+                "effective_from": "2020-01-01",
+                "status": "现行",
+            },
+            headers=headers,
+        )
+        assert seeded.status_code == 200, f"前置写入失败：{seeded.status_code} {seeded.text[:120]}"
+        try:
+            resp = c.post("/api/admin/knowledge/test", json={"query": "试用期最长多久"}, headers=headers)
+            assert resp.status_code == 200, f"实测 {resp.status_code}：{resp.text[:160]}"
+            rows = resp.json()
+            assert isinstance(rows, list), f"应返回 list，实际 {type(rows).__name__}"
+            assert 1 <= len(rows) <= 5, f"库里已有至少一条，端点却返回 {len(rows)} 条；上限 5 是 main.py 里写死的 k"
+            for row in rows[:3]:
+                assert {"article", "status", "effective_to", "source"} <= set(row), f"字段形状漂移：{sorted(row)}"
+        finally:
+            ids = [
+                d["id"]
+                for d in c.get("/api/admin/knowledge?source=test_phase5_kt_contract", headers=headers).json()["items"]
+            ]
+            for rid in ids:
+                c.delete(f"/api/admin/knowledge/{rid}", headers=headers)
+            import retrieval
+
+            retrieval.invalidate()
+
+
 # ---------- W1 端点契约：有条号缺生效日 ⇒ 先拒绝、后写库（零新增块） ----------
-def test_admin_knowledge_rejects_undated_article_before_writing_any_chunk(monkeypatch):
+def test_admin_knowledge_rejects_undated_article_before_writing_any_chunk(monkeypatch, double_embeddings):
     """钉住"**先拒绝再写库**"这个顺序，而不只是"会返回校验错误"。
 
     判据本身由 `test_law_versions.py` 与 schema 单测覆盖；本条补的是它们都够不到的
@@ -270,7 +350,7 @@ def test_admin_knowledge_rejects_undated_article_before_writing_any_chunk(monkey
 
 
 # ---------- W1 补漏：条号只填空格 ⇒ 端点与写库谓词不一致，曾被放行 ----------
-def test_admin_knowledge_rejects_whitespace_only_article_without_date(monkeypatch):
+def test_admin_knowledge_rejects_whitespace_only_article_without_date(monkeypatch, double_embeddings):
     """钉住端点与写库对"算不算填了条号"用同一个谓词。
 
     原先 `KnowledgeAddIn._valid_version_period` 判 `self.article.strip()`（schemas.py:185），

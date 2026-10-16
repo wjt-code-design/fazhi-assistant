@@ -4,22 +4,28 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-from auth import hash_password
+from auth import hash_password, is_public_default_password
 from database import SessionLocal, init_db
 from models import User
 
 
 def seed():
+    # 口令校验排在 `init_db()` 之前（独立复核 B 路 2026-10-16）：原先先建表再拒，
+    # 于是一次"拒绝"照样留下一个建好的库文件——拒绝应当什么都不产生，而不是只什么都不写。
+    username = os.getenv("ADMIN_USERNAME", "admin")
+    password = os.getenv("ADMIN_PASSWORD", "")
+    if not password:
+        print("错误：未设置 ADMIN_PASSWORD，拒绝创建管理员（禁止公知默认口令 admin12345 上线，对抗审计 2026-08-07）")
+        raise SystemExit(1)
+    if is_public_default_password(password):
+        # 让代码与上面那句报错文案一致：显式写了 admin12345 同样不许种进库
+        # （判据与 reset_admin_password 共用 auth.PUBLIC_DEFAULT_PASSWORD，不再两份拷贝）
+        print("错误：ADMIN_PASSWORD 是公知默认口令，拒绝创建管理员。")
+        raise SystemExit(1)
+
     init_db()  # 幂等建表
     db = SessionLocal()
     try:
-        username = os.getenv("ADMIN_USERNAME", "admin")
-        password = os.getenv("ADMIN_PASSWORD", "")
-        if not password:
-            print(
-                "错误：未设置 ADMIN_PASSWORD，拒绝创建管理员（禁止公知默认口令 admin12345 上线，对抗审计 2026-08-07）"
-            )
-            raise SystemExit(1)
         existing = db.query(User).filter(User.username == username).first()
         if existing:
             if existing.role == "admin":

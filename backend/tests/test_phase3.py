@@ -41,7 +41,7 @@ def test_healthz_components(client):
     assert j["status"] == "ok"
 
 
-def test_chat_streams_persists_and_request_id(client, monkeypatch):
+def test_chat_streams_persists_and_request_id(client, monkeypatch, double_embeddings):
     import main
     from database import SessionLocal
     from models import Conversation, Message

@@ -30,6 +30,15 @@ def _jwt_secret() -> str:
 # auto_error=False：未带令牌时返回 None，由我们自行抛出统一的 401
 _bearer = HTTPBearer(auto_error=False)
 
+# 公知默认口令的**唯一真源**（对抗审计 2026-08-07）。原来只有 `scripts/reset_admin_password.py`
+# 认得这个值，而 `seed_admin.py` 的报错文案承诺"禁止 admin12345 上线"却只校了"空" ⇒
+# 同一事实两份拷贝、改一处漏一处（显式公知值仍会被种进库里）。
+PUBLIC_DEFAULT_PASSWORD = "admin12345"
+
+
+def is_public_default_password(password: str) -> bool:
+    return password == PUBLIC_DEFAULT_PASSWORD
+
 
 def hash_password(password: str) -> str:
     return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")

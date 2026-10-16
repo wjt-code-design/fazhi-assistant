@@ -46,7 +46,9 @@ def test_quota_tracking_embeddings(monkeypatch):
     from tests._fake_embeddings import FakeEmbeddings
 
     inner = FakeEmbeddings()
-    wrapped = QuotaTrackingEmbeddings(inner)
+    # 契约同步（D-52，2026-10-16）：QuotaTrackingEmbeddings 现在收**工厂**，
+    # 内层推迟到第一次 embed 才构造。这里仍用同一个 FakeEmbeddings 实例，语义不变。
+    wrapped = QuotaTrackingEmbeddings(lambda: inner)
     calls: list[tuple[str, int]] = []
     monkeypatch.setattr(quota_store, "record_delta", lambda key, delta: calls.append((key, delta)))
     monkeypatch.setattr(quota_store, "get_used", lambda key: 0)

@@ -30,13 +30,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from audit import log_audit
-from auth import hash_password
+from auth import PUBLIC_DEFAULT_PASSWORD, hash_password
 from database import SessionLocal, init_db
 from models import User
 
 AUDIT_ACTION = "admin.password_reset"
-# 对抗审计 2026-08-07 点名的公知默认口令：不允许被"重置"回去
-PUBLIC_DEFAULT = "admin12345"
+# 对抗审计 2026-08-07 点名的公知默认口令：不允许被"重置"回去。
+# 值本身不再在本文件里各存一份——`seed_admin.py` 也要用同一判据（见 auth.PUBLIC_DEFAULT_PASSWORD）。
+PUBLIC_DEFAULT = PUBLIC_DEFAULT_PASSWORD
 
 
 def _read_new_password() -> str | None:

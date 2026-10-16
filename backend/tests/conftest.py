@@ -48,11 +48,11 @@ os.environ["CHROMA_DIR"] = _TEST_CHROMA
 def _prepare_test_chroma() -> None:
     """预建主集合为 **cosine**，保持与生产同一条分数口径分支。
 
-    rag_chain 的 Chroma(...) 在 **import 期** 建集合，而 langchain_chroma 把
-    collection_metadata=None 原样传给 get_or_create_collection ⇒ 空目录里新建的集合是
-    chromadb 0.4.24 默认的 **l2**；真实 legal_provisions_cos 是 cosine。若不预建，
-    retrieval._collection_is_cosine() 会在测试 lane 读到 False，整轮跑在生产**不走**的
-    那条分支上（静默失真，比写错库更坏）。qa_pairs 故意不预建：真实库它就是 {}→l2。
+    rag_chain 的 Chroma(...) 已改为**首次使用才构造**（D-52，2026-10-16），但预建仍然必需：
+    langchain_chroma 把 collection_metadata=None 原样传给 get_or_create_collection ⇒ 空目录里
+    新建的集合是 chromadb 0.4.24 默认的 **l2**；真实 legal_provisions_cos 是 cosine。若不预建，
+    第一个解析 vectorstore 的用例会让 retrieval._collection_is_cosine() 读到 False，
+    整轮跑在生产**不走**的那条分支上（静默失真，比写错库更坏）。qa_pairs 故意不预建：真实库它就是 {}→l2。
     集合名与 rag_chain._COLLECTION_LOCAL 是两处字面量，由
     test_chroma_isolation.py::test_default_lane_keeps_cosine_fidelity 钉住——名字一旦分叉
     该测试直接红，不会退化成"跑在错分支上还以为过了"。
@@ -116,6 +116,54 @@ def db(tmp_path, monkeypatch):
         engine.dispose()
 
 
+def embeddings_double():
+    """替身内层的唯一构造处（实现放在 `tests/_fake_embeddings.py`，此处只转发）。
+
+    转发而不是重写一遍：模块级 fixture（如 `test_knowledge_service.w2_crash_run`）与函数级
+    fixture 必须装到**同一个**对象上，两处各写一遍就会漂移。
+    """
+    from tests._fake_embeddings import embeddings_double as _build  # noqa: PLC0415
+
+    return _build()
+
+
+@pytest.fixture
+def double_embeddings(monkeypatch):
+    """把共享包装对象的**内层**换成确定性伪向量（C15 分流，2026-10-16）。
+
+    为什么换内层、而不是换某一只 store：`vectorstore` 与 `_qa_store` 绑的都是
+    `rag_chain.embeddings` 这个包装对象本身（模块级 `from rag_chain import embeddings`
+    有 10 处拷贝），换 store 只能盖住其中一条路径，剩下几条仍会去加载真实 BGE；
+    换内层工厂则所有 store 一起走替身，生产代码一行都不动。
+
+    适用面（必须逐条判，不许整文件 autouse）：**断言元数据/状态/落库语义**的用例才用它。
+    真在测向量语义或质量排序的用例不许用它——那类要么走 `real_kb`（真实语料），
+    要么留在 `slow` 的真实权重 lane 里。把一条测向量的用例偷偷换成伪向量来凑绿，
+    等于把判据本身删掉（本轮就是这么把 `test_retrieval_excludes_expired_but_admin_test_sees_it`
+    留在 slow 的，理由与逐条分流记录见
+    `reports/execution-runs/fazhi-full-closeout-20261016-*/tickets/c15-triage.json`）。
+
+    自带阳性自证：装完必须确认内层**确实是替身对象**，否则这条腿是空跑的，当场失败。
+    """
+    import rag_chain
+    from tests._fake_embeddings import FakeEmbeddings, embeddings_double  # noqa: PLC0415
+
+    monkeypatch.setattr(rag_chain.embeddings, "_inner_resource", embeddings_double())
+    # 先确认内层类型，再触发一次 embed_query：顺序反过来的话，一旦替换没生效，
+    # 探测本身就会去构造真实模型（开发机上是 409 MB 的静默加载，冷缓存机器上直接红）。
+    # 写成显式 raise 而不是 assert：这条是整条替身腿的阳性自证，不该依赖 pytest 的
+    # 断言重写或运行时的 -O 标志——判据本身要无条件生效。
+    inner = rag_chain.embeddings._inner
+    if not isinstance(inner, FakeEmbeddings):
+        raise AssertionError(f"double_embeddings 未生效，内层实际类型={type(inner).__name__}")
+    probe = rag_chain.embeddings.embed_query("替身自证")
+    # 比**整条向量**而不是只比长度：只比长度的话，任何 768 维返回都能过（包括真 BGE 的输出，
+    # 那正是这条自证要排除的情形）。替身按 sha256 播种，同文本必得同向量，所以恒等是可判的。
+    if probe != FakeEmbeddings()._vec("替身自证"):
+        raise AssertionError("embed_query 回来的不是替身的确定性向量 ⇒ 这条腿根本没换上替身")
+    return rag_chain.embeddings
+
+
 @pytest.fixture
 def real_kb(monkeypatch):
     """**显式 opt-in** 真实语料（T-E，2026-09-18）：把 retrieval 的库引用指回真实 chroma_db。
@@ -123,9 +171,12 @@ def real_kb(monkeypatch):
     默认层已把 CHROMA_DIR 隔离到进程私有临时库，所以「判据必须来自真实知识库」的用例
     只能靠把本 fixture 写进签名才拿得到真实内容——谁依赖真实语料，从此可读、可数。
 
-    构造与 rag_chain.py:119-123 逐字相同（同 collection 名、同嵌入函数），只差
-    persist_directory：这样这些用例走的仍是生产那条分支（cosine 口径 + 真实 1024 维向量），
-    而不是假向量的近似物。BGE 在 rag_chain import 期就已加载，这里不额外付模型成本。
+    构造与 rag_chain.py 的 store 定义逐字相同（同 collection 名、同嵌入函数），只差
+    persist_directory：这样这些用例走的仍是生产那条分支（cosine 口径 + 真实 **768** 维向量，
+    本机实测 `embed_query` 长度=768，2026-10-16；旧注释写的"1024 维"是错的），
+    而不是假向量的近似物。⚠️ D-52 之后 BGE **不再在 import 期加载**——它由
+    `QuotaTrackingEmbeddings` 的惰性内层在第一次真嵌入时构造，所以本 fixture 才是
+    第一个付模型成本的地方（旧注释"这里不额外付模型成本"已失效）。
     只读约定：用例只做检索/按元数据 get，不 add/delete ⇒ 不写真实库。
 
     两个缓存必须处理，否则跨库串味：
@@ -149,6 +200,7 @@ def real_kb(monkeypatch):
 
     import rag_chain
     import retrieval
+    from tests._fences import ReadOnlyStore  # noqa: PLC0415
 
     vs = Chroma(
         persist_directory=rag_chain.DEFAULT_CHROMA_DIR,
@@ -158,10 +210,11 @@ def real_kb(monkeypatch):
     n = vs._collection.count()
     if n < 1000:
         pytest.skip(f"真实语料不可用（{rag_chain.DEFAULT_CHROMA_DIR} 主库仅 {n} 条）——不得在空库上假绿")
+    fenced = ReadOnlyStore(vs)
     retrieval.invalidate()
-    monkeypatch.setattr(retrieval, "vectorstore", vs)
+    monkeypatch.setattr(retrieval, "vectorstore", fenced)
     monkeypatch.setattr(retrieval, "_COLLECTION_IS_COSINE", None)
     try:
-        yield vs
+        yield fenced
     finally:
         retrieval.invalidate()

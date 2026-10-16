@@ -19,6 +19,8 @@
 import os
 from pathlib import Path
 
+import pytest
+
 
 def test_chroma_dir_constant_exists():
     """出口必须存在——否则测试 lane 没有任何手段避开真实 backend/chroma_db。"""
@@ -95,12 +97,19 @@ def test_default_lane_keeps_cosine_fidelity():
     assert rc.is_cosine_space(knowledge_service._qa_store._collection) is False
 
 
+@pytest.mark.slow
 def test_temp_store_actually_accepts_writes():
     """证明上面"真实库零字节变化"不是因为测试根本没用到向量库。
 
     写一条→查得到→删掉。走 add_documents（真实嵌入路径）而不是 _collection.add(伪向量)，
     是为了顺带确认 QuotaTrackingEmbeddings/维度与生产一致；临时库允许任何维度组合，
     但同库内必须一致，故删净不留。
+
+    ⚠️ C15 分流（2026-10-16）：本条**故意**保留真实权重路径（上面那句"维度与生产一致"就是它的
+    判据），所以它必须进 `slow`——无权重缓存的 runner 上它注定 OSError。同文件下方的
+    `test_temp_store_accepts_writes_with_doubles` 走替身，保证 CI 仍能证明"写得进去"这件事本身。
+    诚实标注：**维度与生产一致这一条现在只有 slow lane 覆盖，CI 里没有**（替身那条显式放弃维度
+    判据，见 `tests/test_fake_embeddings_properties.py` 只钉替身自身的性质，不钉真实维度）。
     """
     from langchain_core.documents import Document
 
@@ -114,6 +123,33 @@ def test_temp_store_actually_accepts_writes():
     )
     try:
         assert col.count() == before + 1, "临时库条目数未增加 ⇒ 写入没落到 CHROMA_DIR"
+        assert col.get(where=marker)["ids"], "写入后按 metadata 查不到 ⇒ 写到了别处"
+    finally:
+        if col_ids:
+            col.delete(ids=col_ids)
+        assert col.get(where=marker)["ids"] == []
+
+
+def test_temp_store_accepts_writes_with_doubles(double_embeddings):
+    """C15 分流（2026-10-16）：上一条标了 slow，但"默认层确实写得进去"这件事不能跟着没人管。
+
+    这条走 `double_embeddings` 替身，因此在无权重缓存的 runner（= CI 形状）上也能跑，
+    判据仍是"计数增加 + 按 metadata 查得到 + 删净"——它证明的是**写入通路本身**，
+    不证明维度与生产一致（那半归 slow 那条）。两条各管一半，谁也不许顶替谁。
+    """
+    from langchain_core.documents import Document
+
+    import rag_chain
+
+    col = rag_chain.vectorstore._collection
+    marker = {"source": "test_chroma_isolation_probe_double"}
+    before = col.count()
+
+    col_ids = rag_chain.vectorstore.add_documents(
+        [Document(page_content="替身写入探针：本条不属于任何真实法条。", metadata=marker)]
+    )
+    try:
+        assert col.count() == before + 1, "替身 lane 写入没落到 CHROMA_DIR ⇒ 默认层隔离现场是空的"
         assert col.get(where=marker)["ids"], "写入后按 metadata 查不到 ⇒ 写到了别处"
     finally:
         if col_ids:

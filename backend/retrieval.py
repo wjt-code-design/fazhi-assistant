@@ -548,7 +548,16 @@ def source_in_kb(source: str) -> bool:
 
 
 def prewarm() -> None:
-    """启动预热（lifespan 调用）：BM25 索引 + 源名集合，避免重启后首问 3s+ 冷启动。"""
+    """启动预热（lifespan 调用）：嵌入模型 + BM25 索引 + 源名集合。
+
+    ⚠️ 嵌入这一项是 D-52 惰性化之后**必须补回来**的：模型不再在 import 期构造，代价就跑到
+    第一次真嵌入上了——本机实测（暖缓存、CPU、venv-new 闭包）解析内层 = **45.76 s**
+    （同一次探测里 import 仅 3.18 s、解析后首次 embed 仅 0.28 s），而
+    `tools/gateway.py:136` 给检索工具的超时是 15.0 s、`lookup_article` 只有 5.0 s。
+    挪回启动期＝恢复修前的时序包络（修前是 import 期付这笔），且 `main.py:258-260` 已把本函数
+    整段包在 try 里：预热失败只降级为惰性构建 + 一条 warning，不让应用拒绝启动。
+    """
+    embeddings.warm()  # 具名预热；读 `embeddings._inner` 只对包装类成立，裸壳会抛 AttributeError
     _ensure_bm25()
     _ensure_src_set()
 
@@ -747,20 +756,35 @@ _TRUNCATED_QUERY_COUNT = 0
 _TRUNCATION_WARNED_LENS: set[int] = set()
 
 
-def _query_token_len(text: str) -> int | None:
-    """尽力取本地嵌入分词长度；取不到返回 None。
+def _embed_client() -> object | None:
+    """尽力取内层 SentenceTransformer（只有本地嵌入有）；取不到返回 None，不猜。
 
-    ⚠️ 用 getattr 链而不是 `inner.client.tokenizer` 直取：包装对象（QuotaTrackingEmbeddings）
-    与内层类型在 mypy 眼里是 union，直取会报 union-attr；而取不到 tokenizer（云端嵌入）本来就该返回 None。
+    ⚠️ N01 根因：产品原来只探 `client`，而 langchain_huggingface 现役版本把模型挂在
+    `_client`（venv-new 的 langchain_huggingface/embeddings/huggingface.py:79 `self._client = ...`），
+    于是 `_query_token_len` 恒返回 None，超窗告警一次都没触发过。两个名字都探。
+    ⚠️ 读 `_inner` 会触发惰性构造（D-52 之后内层模型是首次使用才建的）——这是有意的：
+    没有内层就没有分词器可量，且同一批调用紧接着就要真的 embed，构造早晚要发生。
     """
     try:
         inner = getattr(embeddings, "_inner", embeddings)
-        client = getattr(inner, "client", None)
-        tokenizer = getattr(client, "tokenizer", None)
-        if tokenizer is None:
-            return None
+    except Exception as exc:
+        # 内层构造失败（例如冷缓存 + 离线）——记一条 warning，别把"坏了"伪装成"不可测"
+        logger.warning("嵌入对象未能构造，token 观测跳过：%r", exc)
+        return None
+    return getattr(inner, "client", None) or getattr(inner, "_client", None)
+
+
+def _query_token_len(text: str) -> int | None:
+    """本地嵌入的真实分词长度；确实取不到 tokenizer 才返回 None（不拿字符估算冒充）。"""
+    client = _embed_client()
+    tokenizer = getattr(client, "tokenizer", None)
+    if tokenizer is None:
+        return None
+    try:
         return len(tokenizer(text, truncation=False)["input_ids"])
-    except Exception:
+    except Exception as exc:
+        # 取数抛错与"没有分词器"是两件事：前者必须留痕，否则缺陷会静默变成恒 None
+        logger.warning("token 观测失败（tokenizer 抛错）：%r", exc)
         return None
 
 

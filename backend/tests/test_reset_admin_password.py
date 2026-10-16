@@ -14,12 +14,16 @@ from types import SimpleNamespace
 
 import pytest
 
+from auth import PUBLIC_DEFAULT_PASSWORD as PUBLIC_DEFAULT
+
 BACKEND = Path(__file__).resolve().parents[1]
 SCRIPT_PATH = BACKEND / "scripts" / "reset_admin_password.py"
 
 OLD_PASSWORD = "old-value-being-retired"
 NEW_PASSWORD = "new-value-after-reset"
-PUBLIC_DEFAULT = "admin12345"
+# PUBLIC_DEFAULT 与产品判据同源（独立复核 B 路 2026-10-16 抓到这里原本是第三份手抄拷贝）。
+# "它仍然是仓库里泄漏的那个值"由
+# test_admin_credential_guards.py::test_public_default_constant_is_the_known_leaked_value 钉住。
 
 _counter = iter(range(1, 10_000))
 
