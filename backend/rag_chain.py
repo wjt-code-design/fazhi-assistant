@@ -121,11 +121,30 @@ def lazy_store(factory, name: str = "vector store") -> _LazyResource:
 #    ⚠ 必须 check_embedding_ctx_length=False：langchain 默认本地 token 化长度检查会把文本
 #    转成 token 数组发给 DashScope，触发 400 InvalidParameter（"input.contents is neither
 #    str nor list of str"，grilling 实测）。
+# plan:433「未知权重不加载」——与 `trust_remote_code` 那根轴（`tests/test_loader_trust_gate.py`）分开：
+# 那道门问"要不要执行模型目录里的自定义代码"，这道门问"要不要加载**这一份**权重"。
+# 本地权重只有一个受信来源，所以册子从构造点用的那个常量导出（单一真源，防第二份清单漂移），
+# 加宽册子必须显式改这里。
+LOCAL_EMBEDDING_MODEL = "BAAI/bge-base-zh-v1.5"
+TRUSTED_LOCAL_EMBEDDING_MODELS: tuple[str, ...] = (LOCAL_EMBEDDING_MODEL,)
+
+
+def ensure_trusted_local_embedding_model(model_name: str) -> str:
+    """构造本地嵌入前核名字：不在册就拒，而不是"先加载再看看像不像"。"""
+    if model_name not in TRUSTED_LOCAL_EMBEDDING_MODELS:
+        raise RuntimeError(
+            f"嵌入模型 {model_name!r} 未在册（plan:433 未知权重不加载）；"
+            f"在册＝{TRUSTED_LOCAL_EMBEDDING_MODELS}。"
+            "要新增受信权重请先核官方来源、许可与已有摘要，别在这里直接放宽"
+        )
+    return model_name
+
+
 def _build_embeddings():
     provider = settings.embedding_provider
     if provider != "aliyun":
         return HuggingFaceEmbeddings(
-            model_name="BAAI/bge-base-zh-v1.5",
+            model_name=ensure_trusted_local_embedding_model(LOCAL_EMBEDDING_MODEL),
             model_kwargs={"device": "cpu"},
         )
     from langchain_openai import OpenAIEmbeddings
