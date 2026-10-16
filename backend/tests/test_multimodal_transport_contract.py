@@ -1,6 +1,6 @@
 """W07 特征化（零外发半，票面 `:360-362`）：语音**只有一种传输形状**，而 cfg 白名单会把新键**静默丢掉**。
 
-C04（图片失败可见性）与 C09（非文本能力额度）都还没裁，所以本文件**不改任何行为**，只把三件事钉成现量：
+C04（图片失败可见性）与 C09（非文本能力额度）都还没裁，所以本文件**不改任何行为**，只把四件事钉成现量：
 
 ① 语音→文字在产品里只有一条路：`multimodal.transcribe_audio` 用 `HumanMessage(content=[input_audio, text])`
    调 `invoke()`（multimodal.py:115-130）——也就是 **chat/completions 形状**。
@@ -12,7 +12,8 @@ C04（图片失败可见性）与 C09（非文本能力额度）都还没裁，�
    ⇒ 将来加 `transport` 标记时，"配置写了但没人读"这件事**不会有任何信号**（正是票面 `:361`
    「设置不丢」要防的失效）。同一条 cfg 里 `translation_options` 确实会落到 extra_body，
    所以这条断言不是"我传了个空 dict"造成的空转。
-③ 语音条目建出来的对象类型就是 `ChatOpenAI`（llm_registry.py:376-414 唯一出口）——
+④ 前端产出的音频 MIME 必须落在后端白名单里（第 4 条）——这条是复核指出我「推迟给 W11 却没有 C 格理由」之后补的跨面判据。
+   ③ 语音条目建出来的对象类型就是 `ChatOpenAI`（llm_registry.py:376-414 唯一出口）——
    传输层的**唯一**可变点是 extra_body 与 client 复用，没有端点分派。
 
 真端点/真音频样本腿（票面 `:363`）不在本轮：本机进程没有凭据，且没有既定中文音频样本 ⇒
@@ -22,8 +23,12 @@ C04（图片失败可见性）与 C09（非文本能力额度）都还没裁，�
 import ast
 import inspect
 import os
+import re
 import sys
+from pathlib import Path
 from types import SimpleNamespace
+
+import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -33,6 +38,10 @@ load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file_
 
 import llm_registry  # noqa: E402
 import multimodal  # noqa: E402
+
+# 跨面契约：前端录出来的音频 MIME 必须是后端白名单里的成员
+RECORDER_TS = Path(__file__).resolve().parents[2] / "frontend" / "lib" / "recorder.ts"
+FRONTEND_DIR = RECORDER_TS.parents[1]
 
 # 假值：不写成任何像真凭据的形状（base_url 指回环死端口，绝不打出去）
 _FAKE_CFG = {"api_key": "fake-value-not-a-secret", "base_url": "http://127.0.0.1:9/v1"}
@@ -125,3 +134,23 @@ def test_build_reads_exactly_this_closed_set_of_cfg_keys():
     # 已知未覆盖点（写清楚，不留给下一轮猜）：share 分支里 `cfg.get(k)` 的 k 是
     # ("base_url", "api_key", "timeout") 循环里的**变量**，AST 收不到常量；
     # 那三个键已在集合内，所以覆盖面对得上，但本条穷举不覆盖"将来新增变量键循环"。
+
+
+def test_frontend_audio_mime_is_inside_the_backend_whitelist():
+    """④ 跨面契约钉子（复核指出我"推迟给 W11"没有理由之后补的）。
+
+    后端只收 `wav/mp3/m4a/flac/ogg`（multimodal.py:112，`main.py:1722-1723` 处直接 400），
+    而前端 `lib/recorder.ts:72` 自己抓 PCM 编码成 `audio/wav`（:2 的注释就写着这层原因）。
+    两边各有一句注释 ⇒ 今天对得上，**但没有任何判据**：前端一旦换回 MediaRecorder 默认产物（webm/opus），
+    后端会 400 而全部门禁仍绿。这里把"注释里的约定"变成判据。
+
+    skip 只在整只 `frontend/` 不在场时发生（快照 lane 的树形状）；
+    **在场而读不到 recorder 一律算红**——"扫不到就当通过"是我这一轮反复钉的假阴性机器，不能自己再造一台。
+    """
+    if not FRONTEND_DIR.is_dir():
+        pytest.skip(f"整只 frontend 不在场（{FRONTEND_DIR}）⇒ 这条跨面判据无对象，跳；在场时不会跳")
+    src = RECORDER_TS.read_text(encoding="utf-8")
+    mimes = set(re.findall(r'type:\s*"audio/([A-Za-z0-9+\-.]+)"', src))
+    assert mimes, "recorder.ts 里读不到任何 audio MIME 字面量 ⇒ 判据打空，不许当成通过"
+    unsupported = {m for m in mimes if m not in multimodal.AUDIO_EXTS}
+    assert not unsupported, f"前端产出 {sorted(unsupported)} 不在后端白名单 {list(multimodal.AUDIO_EXTS)} 内 ⇒ 真机 400"

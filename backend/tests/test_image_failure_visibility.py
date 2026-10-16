@@ -1,7 +1,7 @@
 """W07 特征化（零外发半，票面 `:365`）：**识图失败与"图里没内容"在产品里是同一个返回值**。
 
 `multimodal.describe_image` 用 `except Exception: return ""` 把所有失败收敛成空串
-（multimodal.py:149-151），而下游 `request_bootstrap.bootstrap_request` 只看字符串是否为空
+（multimodal.py:150-151），而下游 `request_bootstrap.bootstrap_request` 只看字符串是否为空
 （request_bootstrap.py:389-396）⇒ 三种完全不同的事——① 模型调用炸了（鉴权/额度/端点/形状）、
 ② 模型正常返回但内容为空、③ 用户传的图本来就没字——**在契约里长成一个样**。
 本轮 C04（失败可见 vs 明确降级）未裁，所以这里**只钉现状不选边**，但把三件事分开量出来：
