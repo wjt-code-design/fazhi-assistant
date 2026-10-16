@@ -1,20 +1,20 @@
-"""W10 / D-45 / C08：把「只支持已测闭包」变成**机器判据**，而不是一句注释。
+"""W10 / D-45 / C08：把「只支持已测闭包」变成**机器判据**，且追踪名单**从文件导出**。
 
-Owner 2026-10-17 裁 C08＝**固定闭包**（plan:204 推荐原文：「精确可复现闭包与诚实支持边界；
-兼容性未证不称全窗支持」）。所以本票不许做两件事：不许写「其他合规版本也支持」这种注释当契约
-（plan:408 明令），也不许用 `try/except ImportError` 或 `skip` 把私有 SDK 面失效遮过去。
+Owner 2026-10-17 裁 C08＝固定闭包（plan:204：精确可复现闭包与诚实支持边界；兼容性未证不称全窗支持）。
+plan:408 同时禁两件事：不许把「其他合规版本属边界外」这种**注释**当契约，
+也不许用 `except ImportError`/`skip` 把私有面失效遮成绿。
 
-三条判据，每条都能红：
+四条判据，每条都能红，且互相不遮蔽：
 
-1. `test_windowed_requirements_are_exact_pins`——碰过私有 SDK 面的包必须 `==` 精确 pin。
-   今天它们是 `>=x,<y` 这种**窗**，而窗内只有装的那一版被跑过 ⇒ 这条现在就是红的，
-   红得很诚实：声明面比验证面宽，正是 D-45 的原话。
-2. `test_installed_matches_the_declared_closure`——`requirements.txt` 的 pin 必须等于**当前解释器**
-   实际安装版本。CI 装到别的版本时这里红，而不是等到某个私有函数不见了才红。
-3. `test_private_sdk_symbols_are_reachable_and_not_guarded`——本仓依赖 `langchain_openai` 的两个
-   **私有**函数（`_client_utils._cached_sync_httpx_client` / `_cached_async_httpx_client`）。
-   这里直接导入并断言可调用；**不套 try/except**：版本换了就该收集期炸，而不是静默 skip。
-   另钉一条源码事实：`test_llm_lifecycle.py` 里那段私有 import 不许被包进异常处理。
+1. `test_every_direct_requirement_is_an_exact_pin`——每一条直接依赖必须 `==`。
+2. `test_parser_claims_every_substantive_line`——**覆盖率钉子**：解析器认领的行数必须等于文件里
+   真实的有效行数。这条存在的理由是防一类具体事故：名单若手抄或解析器漏了一种形状（extras、marker、
+   续行），被漏掉的包会**静默逃过判据**，于是"闭包已被钉住"变成假话（第 1 条照样绿）。
+3. `test_installed_matches_the_declared_closure`——声明必须等于当前解释器的装机版本。
+   含一条**显式的 local 版本段规则**：`torch` 在 CPU 索引下装机是 `2.13.0+cpu`，
+   声明 `2.13.0` 才是对的形状（PEP 440 的 local 段由安装源决定）。
+   这不是例外通道——走这条路必须**点名是哪个包**，且不许把"版本不同"混进来。
+4. `test_private_sdk_symbols_are_reachable_and_not_guarded`——私有 SDK 面失效要硬显现。
 """
 
 from __future__ import annotations
@@ -27,71 +27,101 @@ from pathlib import Path
 BACKEND = Path(__file__).resolve().parents[1]
 REQ = BACKEND / "requirements.txt"
 
-# 只列**私有面相关**的包：这几家的次版本改动打过我们的脸（D-45 的成因就是 langchain-openai
-# 从 0.1.7 换到 1.7.0 时私有工具面变了；sentence-transformers/chromadb 同理影响嵌入与向量面）。
-CLOSURE_PACKAGES = (
-    "langchain-openai",
-    "langchain-core",
-    "langchain-chroma",
-    "chromadb",
-    "sentence-transformers",
-)
-
-_PIN_RE = re.compile(rf"^(?P<name>{'|'.join(re.escape(p) for p in CLOSURE_PACKAGES)})\s*(?P<spec>.+)$")
+# `name[extras] ==version`；比较符这里只接受 `==`（其余一律算未固定）
+ENTRY = re.compile(r"^(?P<name>[A-Za-z0-9_.-]+)(?P<extras>\[[^\]]+\])?\s*==\s*(?P<version>[A-Za-z0-9_.+!-]+)\s*$")
+ANY_NAME = re.compile(r"^(?P<name>[A-Za-z0-9_.-]+)(?P<extras>\[[^\]]+\])?\s*(?P<spec>.*)$")
 
 
-def _declared() -> dict[str, str]:
-    out: dict[str, str] = {}
-    for line in REQ.read_text(encoding="utf-8").splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
+def _lines():
+    """产出 (行号, 原文, 是否有效依赖行)。注释与 `-r`/`--flag` 行不算有效。"""
+    out = []
+    for no, raw in enumerate(REQ.read_text(encoding="utf-8").splitlines(), 1):
+        s = raw.strip()
+        if not s or s.startswith("#") or s.startswith("-"):
             continue
-        m = _PIN_RE.match(line)
-        if m:
-            out[m.group("name").lower()] = m.group("spec").strip()
+        out.append((no, s))
     return out
 
 
-def test_windowed_requirements_are_exact_pins():
-    """C08 的字面效果：闭包内的包一律 `==`，不再声明未验证的窗。"""
-    declared = _declared()
-    assert declared, "requirements.txt 里找不到被追踪的包——追踪名单和文件脱节了，这条判据已失效"
-    windowed = {k: v for k, v in declared.items() if not v.startswith("==")}
-    assert not windowed, (
-        f"这些包仍声明为窗而非已测闭包：{windowed}；C08 已裁「固定闭包」⇒ 未验证的版本区间不得写成支持面"
+def _parsed():
+    parsed = {}
+    for no, s in _lines():
+        m = ANY_NAME.match(s)
+        if not m:
+            continue
+        parsed[m.group("name").lower()] = (no, s, m.group("spec") or "")
+    return parsed
+
+
+def test_every_direct_requirement_is_an_exact_pin():
+    bad = {n: s for n, (_no, s, spec) in _parsed().items() if not ENTRY.match(s)}
+    assert not bad, f"这些直接依赖不是精确 pin（C08 已裁固定闭包）：{bad}"
+
+
+def test_parser_claims_every_substantive_line():
+    """覆盖率钉子：漏一个包就等于给判据开了一个静默后门。
+
+    这里刻意用**两条独立路径**数同一件事：`_lines()`/`_parsed()` 是判据自己的解析器，
+    而 oracle 直接对着原始字节走一条**不同的**正则。只用解析器自证的话，
+    它少认一行时两边同时变少，比较照样相等——那种"钉子"是恒绿的废尺（M4 变异就是打这个）。
+    """
+    raw = REQ.read_bytes().decode("utf-8")
+    oracle = set()
+    for line in raw.splitlines():
+        s = line.strip()
+        if not s or s.startswith("#") or s.startswith("-"):
+            continue
+        m = re.match(r"^([A-Za-z0-9_.-]+)", s)
+        if m:
+            oracle.add(m.group(1).lower())
+    claimed = set(_parsed())
+    assert claimed == oracle, (
+        f"判据的解析器只认领了 {sorted(claimed)[:3]}…共 {len(claimed)} 个，文件里实际有 {len(oracle)} 个；"
+        f"漏网＝{sorted(oracle - claimed)}，多余＝{sorted(claimed - oracle)} ⇒ 漏掉的那些没有任何判据在管"
+    )
+    # extras 必须原样保留：CI 与本机都靠 `[standard]` 装到同一组 uvicorn 可选依赖
+    assert any("[standard]" in s for _n, (_no, s, _spec) in _parsed().items()), (
+        "`uvicorn[standard]` 的 extras 丢了——丢 extras 会让声明与实际安装面不一致"
     )
 
 
 def test_installed_matches_the_declared_closure():
-    """声明等于装机：CI/本机装歪一版就该在这里红。
-
-    第一版这里直接 `spec.split("==", 1)[1]`，在窗声明（`>=0.4,<0.5`）上抛 `IndexError`——
-    **崩掉的判据不叫判据**，读的人看不到"哪里不一致"。改成先收集精确 pin，
-    缺 pin 的包点名报出来（它同时也是第 1 条要修的东西），有 pin 的才比装机版本。
-    """
-    declared = _declared()
-    exact = {k: v.split("==", 1)[1].strip() for k, v in declared.items() if v.startswith("==")}
-    unpinned = sorted(set(declared) - set(exact))
-    assert not unpinned, f"这些包还是窗声明、无从核对装机版本：{unpinned}（C08 要求先固定闭包）"
-
-    bad = {}
-    for name, want in exact.items():
+    """声明＝装机；local 版本段（`+cpu`）走显式点名规则，不当通用后门。"""
+    local_segment_packages = {"torch"}
+    bad, via_local = [], []
+    for name, (_no, _s, _spec) in _parsed().items():
+        m = ENTRY.match(_s)
+        if not m:
+            continue
+        want = m.group("version")
         try:
             got = importlib.metadata.version(name)
         except importlib.metadata.PackageNotFoundError:
-            got = "MISSING"
-        if got != want:
-            bad[name] = {"declared": want, "installed": got}
-    assert not bad, f"当前解释器与在册闭包不一致：{bad}"
+            bad.append((name, want, "MISSING"))
+            continue
+        if got == want:
+            continue
+        base, plus, local = got.partition("+")
+        if plus and base == want and name in local_segment_packages and local:
+            via_local.append((name, want, got))
+            continue
+        bad.append((name, want, got))
+    assert not bad, (
+        f"当前解释器与在册闭包不一致：{bad}；"
+        f"（走 local 版本段的只有这些：{sorted(x[0] for x in via_local)}——"
+        "名单外的一律算不一致，这条不是例外通道）"
+    )
+    assert sorted(x[0] for x in via_local) == sorted(local_segment_packages), (
+        f"local 版本段的包名单变了：{via_local}——变了就要改这条测试，别让它悄悄扩大"
+    )
 
 
 def test_private_sdk_symbols_are_reachable_and_not_guarded():
-    """私有面失效要**硬显现**：直接导入、直接断言，不 catch、不 skip。"""
+    """私有面失效要硬显现：直接导入、直接断言，不 catch、不 skip。"""
     mod = importlib.import_module("langchain_openai.chat_models._client_utils")
     for attr in ("_cached_sync_httpx_client", "_cached_async_httpx_client"):
         assert callable(getattr(mod, attr)), f"私有 SDK 符号 {attr} 不在或不可调用 ⇒ 依赖闭包变了"
 
     src = (BACKEND / "tests" / "test_llm_lifecycle.py").read_text(encoding="utf-8")
-    # 钉"没被包进异常处理"：这段私有 import 一旦被 try/except 兜住，版本漂移就会变成静默 skip
     head = src.split("import pytest", 1)[-1][:400]
     assert "try:" not in head, "私有 import 被包进了 try ⇒ D-45 要求的『硬显现』被破坏"

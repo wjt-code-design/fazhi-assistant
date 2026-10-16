@@ -1,7 +1,7 @@
 # CPU 版 torch 请单独安装，避免误装数 GB 的 CUDA 版：
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 fastapi==0.141.1
-uvicorn[standard]>=0.27,<0.28
+uvicorn[standard]==0.27.1
 langchain-core==1.6.9
 langchain-openai==1.7.0
 # 已测组合（干净安装实测）：langchain-core 1.6.9 / langchain-openai 1.7.0 / langsmith 0.14.7 / openai SDK 2.54.0。
@@ -13,31 +13,31 @@ langchain-openai==1.7.0
 # ⚠️ 本轮是**部分闭包**：其余包仍是窗声明，已登记为下一轮项（整份精确闭包＝lock 式冻结），
 # 不把它们写成"已支持"。若有人换版本：解析后核对红、或收集期硬炸——**不通过吞 ImportError 或加 skip 让它变绿**。
 langchain-chroma==0.2.3
-langchain-huggingface>=1,<2
-langchain-text-splitters>=1,<2
+langchain-huggingface==1.2.3
+langchain-text-splitters==1.1.3
 chromadb==0.4.24
 sentence-transformers==6.1.0
-pydantic>=2.6,<3.0
-python-dotenv>=1.0,<2.0
-slowapi>=0.1.9,<0.2
-rank-bm25>=0.2.2,<0.3
-jieba>=0.42,<0.43
-pydantic-settings>=2.2,<3
+pydantic==2.14.1
+python-dotenv==1.2.4
+slowapi==0.1.10
+rank-bm25==0.2.2
+jieba==0.42.1
+pydantic-settings==2.15.0
 # 认证 / 数据库 / 文件上传
-pyjwt>=2.8,<3.0
-bcrypt>=4.0,<6.0
+pyjwt==2.15.1
+bcrypt==5.0.0
 # sqlalchemy 下限 2026-10-10 由 2.0 提到 2.1（实测归因）：main.py 的 `Row[Conversation, str]` / `Row[AuditLog, str | None]`
 # 两处注解在 2.0.x（`Generic[_T]`，只收 1 个类型参数）下 mypy 报 `type-arg` 红，在 2.1.x（变分 Generic）下绿。
 # 同树单变量实测：候选闭包（SQLAlchemy 2.1.4）里 mypy 2.3.0 与 2.4.0 **都是 Success**；旧 venv（2.0.51）报 2 条。
 # ⇒ 红绿由 SQLAlchemy 版本决定，不是 mypy 版本决定，也不是本轮改动引入（注解在 HEAD 就在那儿）。
-sqlalchemy>=2.1,<3.0
-python-multipart>=0.0.9
+sqlalchemy==2.1.4
+python-multipart==0.0.32
 pypdf==6.19.0
 # pillow：multimodal.py:14 `from PIL import Image` 直接导入，但从未在此声明；
 # 联合基线里它靠 sentence-transformers 2.7.0 的无条件 Requires-Dist: Pillow 传递带上，
 # ST 6.0.0 起 Pillow 只在 extra 里 ⇒ 升级后收集期 ModuleNotFoundError: No module named 'PIL'。
 # 版本窗口对齐 transformers 5.17.0 的声明（>=10.0.1,<=15.0），与联合在册实装 12.3.0 一致。
-pillow>=10.0.1,<15.1
+pillow==12.3.0
 
 # torch 必须在此**显式声明并钉版**（C 单，2026-10-10）：
 # 以前 torch 不在册，只由 sentence-transformers 的 `torch>=2.2` 传递带上 ⇒ 三条面各装各的：
@@ -55,7 +55,7 @@ torch==2.13.0
 
 # D-3 迁移（B+ 路线，2026-10-11 报告 §1.1）：langchain 族抬 1.x 必须同时**新钉 openai**——
 # langchain-openai>=1.1.14 起把 openai 钉在 >=2.26（PYSEC-2026-76 的修复线即 1.1.14），不写出来就等于把选择权交给解析器。
-openai>=2.26,<3
+openai==2.54.0
 # numpy 上限是**干净安装面的缺口**（10-12 复核 §5.1）：chromadb 0.4.24 在 api/types.py:102 的 import 期用 `np.float_`，
 # 而 NumPy 2.0 已移除该属性 ⇒ 不写上限时一次全新解析会拿到 numpy 2.4.6 并当场 ImportError（旧环境里 1.26.4 是靠分层安装带进来的，不能当证据）。
-numpy>=1.26.4,<2
+numpy==1.26.4
