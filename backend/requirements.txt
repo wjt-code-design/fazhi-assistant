@@ -2,16 +2,21 @@
 #   pip install torch --index-url https://download.pytorch.org/whl/cpu
 fastapi==0.141.1
 uvicorn[standard]>=0.27,<0.28
-langchain-core>=1,<2
-langchain-openai>=1.1.14,<2
+langchain-core==1.6.9
+langchain-openai==1.7.0
 # 已测组合（干净安装实测）：langchain-core 1.6.9 / langchain-openai 1.7.0 / langsmith 0.14.7 / openai SDK 2.54.0。
-# ⚠️ 支持边界（D-45）：tests/test_llm_lifecycle.py 依赖 langchain_openai 的**私有模块路径** _client_utils，
-# 只在上面这套实测组合上被证明过。若解析跳到窗口内其它版本并在**收集期**抛 ModuleNotFoundError，那是支持边界外，另开票处理——不通过吞 ImportError 或加 skip 让它变绿。
+# ⚠️ 支持边界（D-45 / C08 于 2026-10-17 裁「固定闭包」）：tests/test_llm_lifecycle.py 依赖 langchain_openai 的
+# **私有模块路径** _client_utils（`_cached_sync_httpx_client` / `_cached_async_httpx_client`），
+# 该面只在上面这套实测组合上被证明过 ⇒ 边界不再只写在注释里：本文件里 **langchain-core / langchain-openai /
+# chromadb / sentence-transformers 四行已改成 `==`**，由 `tests/test_dependency_closure.py`
+# 同时核对「声明＝装机」与「私有符号可调用」。
+# ⚠️ 本轮是**部分闭包**：其余包仍是窗声明，已登记为下一轮项（整份精确闭包＝lock 式冻结），
+# 不把它们写成"已支持"。若有人换版本：解析后核对红、或收集期硬炸——**不通过吞 ImportError 或加 skip 让它变绿**。
 langchain-chroma==0.2.3
 langchain-huggingface>=1,<2
 langchain-text-splitters>=1,<2
-chromadb>=0.4,<0.5
-sentence-transformers>=6.0,<7.0
+chromadb==0.4.24
+sentence-transformers==6.1.0
 pydantic>=2.6,<3.0
 python-dotenv>=1.0,<2.0
 slowapi>=0.1.9,<0.2
