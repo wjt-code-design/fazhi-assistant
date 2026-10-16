@@ -4,11 +4,14 @@
 企业阶段再上 Alembic。
 
 - 新表：依赖 Base.metadata.create_all（幂等）。
-- 已有表新增列：用 PRAGMA table_info 检测，缺则 ALTER TABLE ADD COLUMN（try/except 兜底）。
+- 已有表新增列：用 PRAGMA table_info 检测，缺则 ALTER TABLE ADD COLUMN。
+  只有 `duplicate column name`（并发启动真幂等场景）被容忍，其余 SQLite 错误**照抛**——
+  吞掉的后果是升级库悄悄少一列（`tests/test_migration_schema_parity.py` 钉这条）。
   注意 SQLite 的 ADD COLUMN 对默认值有限制，last_active_at 用无默认(NULL)，排序时用 COALESCE 兜底。
 """
 
 from sqlalchemy import text
+from sqlalchemy.exc import OperationalError
 
 from database import Base, engine
 
@@ -51,6 +54,11 @@ def run_migrations() -> None:
             try:
                 conn.execute(text(stmt))
                 conn.commit()
-            except Exception as e:
-                # 列已存在等情况下 SQLite 会抛错，忽略以保证幂等
+            except OperationalError as e:
+                # 只容忍真·幂等那一类：并发启动时另一个进程已经加过这列。
+                # 原先是 `except Exception` 一律 print 继续——可上面已经用 PRAGMA 判过"列已存在"，
+                # 走到这里的绝大多数是**别的错**（表名打错、DDL 写错、锁冲突），
+                # 吞掉的后果是升级库悄悄少一列，要到第一次读写才炸。失败必须响。
+                if "duplicate column name" not in str(e).lower():
+                    raise
                 print(f"[migrations] skip {table}.{col}: {e}")
