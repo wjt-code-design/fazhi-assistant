@@ -2,12 +2,12 @@
 
 钉的是「QA 的读取资格今天到底看了什么」这一组现状事实，四条都有直接读数：
 
-① 收录闸 `curation.should_curate(grounded, answer)` 的**签名里没有题干**（curation.py:19）
+① 收录闸 `curation.should_curate(grounded, answer)` 的**签名里没有题干**（curation.py:18）
    ⇒ 结构上就不可能判「答非所问」。票面要求保留 Q 的反例：高相关分＋带引用＋长文本仍然可能
    答的是另一道题，今天照样收录。这里用题干问试用期、答案讲违约金的合成语料把它跑出来。
    ⚠️ 票面明令「不得把 grounded_top_score 改个名字就当审批正确性已修」⇒ 本文件量的不是分数名字，
    是**判定函数的输入面**。
-② 自动收录（≥0.89）在 SQL 侧落 `status="approved"`（knowledge_service.py:402-424），
+② 自动收录（≥0.89）在 SQL 侧落 `status="approved"`（knowledge_service.py:402-428），
    而向量侧那条记录只有 `answer/evidence/origin/options_fingerprint/law_as_of_basis` 五个键
    ⇒ **没有任何字段记录"这条是谁批准的、什么时候、依据什么"**，也没有候选行的 ID，
    两份拷贝之间没有可追踪的连接。
@@ -44,7 +44,7 @@ import retrieval_core as rc  # noqa: E402
 from models import QaCandidate  # noqa: E402
 from retrieval_core import qa_provenance_verifiable  # noqa: E402
 
-# 可校验引用：`rc.cited_articles` 认 JSON list[{source,article}] 形状（retrieval_core.py:100-124）
+# 可校验引用：`rc.cited_articles` 认 JSON list[{source,article}] 形状（retrieval_core.py:91-125）
 EVIDENCE = json.dumps([{"source": "中华人民共和国劳动合同法", "article": "第十九条"}], ensure_ascii=False)
 # 向量侧 metadata 的**全部**现量键（写侧本体 knowledge_service.py:350-363）
 META_KEYS = {"answer", "evidence", "origin", "options_fingerprint", "law_as_of_basis"}
