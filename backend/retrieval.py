@@ -1361,16 +1361,39 @@ def retrieve_exam(question: str, k: int = 6, cutoff: str | None = None) -> list[
                 collected[i] = f.result()
             except Exception:
                 collected[i] = []  # 该单元失败 → 跳过，不崩
-    out: list[Document] = []
+    head_docs = collected[0] or []
+    option_docs = [d for docs in collected[1:] for d in docs or []]
     seen: set[str] = set()
-    for docs in collected:  # 按题干→选项顺序（题干主锚优先）
-        if not docs:
-            continue
-        for d in docs:
+
+    def _take(seq: list[Document], limit: int) -> list[Document]:
+        kept: list[Document] = []
+        for d in seq:
+            if len(kept) >= limit:
+                break
             did = _doc_id(d)
-            if did not in seen:
-                seen.add(did)
-                out.append(d)
+            if did in seen:
+                continue
+            seen.add(did)
+            kept.append(d)
+        return kept
+
+    # W05 第 3 条：旧写法是"题干→选项"顺序拼完再 `[:k]`，于是主锚填满 k 时
+    # **选项补充一条都进不来**——分步检索的补漏作用等于零（D-50 那族"目标在合并处丢失"的同族）。
+    # 这里只在**同一个 k 内**重新分配，不加深任何池：加深池（h10/o4/c12）是 2026-08-05
+    # 为压 Windows onnxruntime 偶发原生 segfault 而回退掉的，`tests/test_exam_unit_allocation.py`
+    # 的 `test_pool_sizes_not_deepened` 钉着这条边界。
+    seen_opt: set[str] = set()
+    unique_options: list[Document] = []
+    for d in option_docs:
+        did = _doc_id(d)
+        if did in seen_opt:
+            continue
+        seen_opt.add(did)
+        unique_options.append(d)
+    reserve = min(len(unique_options), max(1, k // 3)) if unique_options else 0
+    out = _take(head_docs, max(1, k - reserve))
+    out += _take(unique_options, k - len(out))
+    out += _take(head_docs, k - len(out))  # 主锚不满时把剩余名额还给它，不留洞
     if not out:
         return hybrid_retrieve(question, k=k, cutoff=cutoff)  # 全失败 → 整题兜底
     return out[:k]
