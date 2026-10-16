@@ -513,6 +513,38 @@ def bootstrap_request(
             pass
 
 
+def article_miss_note(report: dict[str, Any]) -> str:
+    """把条号对账结果渲染成递给模型的一句说明；没有未命中就返回空串。
+
+    措辞按 C02 裁定的两半写（plan:198「显式未命中，**允许说明性旁引**」）：
+    - 说清"所问条号本轮未被直接命中"，并且**按态分措辞**——`version_uncertain` 不能说成"未收录"
+      （plan W04 第 2 条：查不到不证明法律不存在）；
+    - 引用别的条文是被允许的，只要求说明它与所问条号的关系。
+      这里**刻意不写**「只能引用所问条号」那类禁语：`tests/test_explicit_article_answer_contract.py`
+      的 `test_explanatory_side_citation_is_allowed_not_banned` 就是钉这个反向的——把"别旁条冒充"
+      修成"禁止任何旁引"恰好撞上裁定明令禁止的方向。
+
+    文案只在这一处生成；出口必须调这个函数，别处不许再抄一份（哨兵用例钉同一性）。
+    """
+    missing = report.get("missing") or []
+    if not missing:
+        return ""
+    listed = "、".join(f"《{s}》{a}" for s, a in missing)
+    state = report.get("state")
+    if state == "version_uncertain":
+        head = f"以下条文在本库中存在，但按本次查询时点版本不确定：{listed}。"
+    elif state == "not_in_library":
+        head = f"以下条文未在本知识库中直接命中：{listed}。"
+    else:  # mixed：两种同时出现，分开说才不是假陈述
+        absent = "、".join(f"《{s}》{a}" for s, a in (report.get("missing_absent") or []))
+        unsure = "、".join(f"《{s}》{a}" for s, a in (report.get("missing_version_uncertain") or []))
+        head = f"以下条文未在本知识库中直接命中：{absent}；以下条文存在但按查询时点版本不确定：{unsure}。"
+    return (
+        f"【条号对账】{head}"
+        "若你改用其他条文作答，请先向用户说明它与所问条文的关系；不要把替代条文当作对所问条号的直接回答。"
+    )
+
+
 def prepare_fast_path(
     bootstrap: RequestBootstrap,
     *,
@@ -611,6 +643,21 @@ def prepare_fast_path(
         docs = [doc for doc in docs if is_valid_by_time(doc.metadata, cutoff)]
 
     context = deps.format_docs(docs)
+    # D-50 / C02：问题里点名的条号若未直接命中，**先明说**再放补充条文——不能丢了标记只剩别的 docs
+    # 递给模型（那正是"旁条冒充主条"的成因）。判定与文案都只有一份真源：
+    # `retrieval.article_lookup_report` 判态、本模块 `article_miss_note` 出文。
+    from retrieval import article_lookup_report, exact_article_lookup
+
+    miss_note = article_miss_note(
+        article_lookup_report(
+            raw_query,
+            docs,
+            lookup_with_cutoff=lambda s, a: exact_article_lookup(s, a, cutoff),
+            lookup_any_time=exact_article_lookup,
+        )
+    )
+    if miss_note:
+        context = f"{miss_note}\n\n{context}" if context else miss_note
     sources = [
         {
             "source": document.metadata.get("source", ""),

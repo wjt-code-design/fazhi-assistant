@@ -927,7 +927,20 @@ def test_d2_disconnect_during_pre_window_hands_over_at_the_response_boundary():
         # neither is called when search_qa yields None; the real modules build a Chroma
         # client and load BGE weights, which a unit gate must never do.
         dummies = {
-            "retrieval": SimpleNamespace(qa_citations_in_kb=lambda hit: True),
+            "retrieval": SimpleNamespace(
+                qa_citations_in_kb=lambda hit: True,
+                # W04/C02 之后 `prepare_fast_path` 还从 retrieval 取这两个符号做条号对账。
+                # 假模块面必须跟着补齐，否则这条用例红的是"接线没补"而不是"取消行为变了"。
+                article_lookup_report=lambda query, docs, **kw: {
+                    "asked": [],
+                    "found": [],
+                    "missing": [],
+                    "missing_absent": [],
+                    "missing_version_uncertain": [],
+                    "state": "no_explicit_reference",
+                },
+                exact_article_lookup=lambda source, article, cutoff=None: [],
+            ),
             "retrieval_core": SimpleNamespace(
                 qa_provenance_verifiable=lambda hit: True, is_valid_by_time=lambda meta, cutoff: True
             ),

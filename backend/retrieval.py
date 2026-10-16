@@ -345,6 +345,84 @@ def parse_article_query(query: str):
     return norm_law_name(name), _normalize_article(m.group(2))
 
 
+def parse_article_queries(query: str) -> list[tuple[str, str]]:
+    """识别问题里**全部**明确点名的（法名, 条号），按出现顺序、去重。
+
+    与单数版 `parse_article_query` 的差别正是 D-50 的要害：那个用 `.search` 只回第一对，
+    于是「《劳动法》第九十九条、《劳动合同法》第八十七条」里第二条**从未被条号直查过**——
+    C02 在册句「不把 parse_article_query 首个匹配当所有多引用意图」点的就是这里。
+
+    两条正则都 `finditer` 后按位置合并：同起点取更长者（书名号式吃掉无书名号式），
+    被占住的区间跳过，避免裸「第九十九条」被当成一条独立引用。
+    单数版原样保留：所有旧调用点与 `tests/test_law_name_normalization.py` 的逐字相等断言不动。
+    """
+    hits: list[tuple[int, int, str, str]] = []
+    for rx in (_ART_FULL_RE, _ART_NO_BRACKET_RE):
+        for m in rx.finditer(query):
+            hits.append((m.start(), m.end(), norm_law_name(m.group(1).strip()), _normalize_article(m.group(2))))
+    hits.sort(key=lambda t: (t[0], -(t[1] - t[0])))
+    out: list[tuple[str, str]] = []
+    taken: list[tuple[int, int]] = []
+    for start, end, source, article in hits:
+        if any(s <= start < e for s, e in taken):
+            continue
+        taken.append((start, end))
+        if (source, article) not in out:
+            out.append((source, article))
+    return out
+
+
+def article_lookup_report(
+    query: str,
+    docs: Sequence[Document],
+    *,
+    lookup_with_cutoff: Callable[[str, str], Sequence[Document]],
+    lookup_any_time: Callable[[str, str], Sequence[Document]],
+) -> dict[str, Any]:
+    """把「用户点名的条文」与「本轮拿到的条文」对账，产出可传到回答出口的三态。
+
+    三态分开是有原因的（plan W04 第 2 条：「查不到不证明法律不存在」）：
+    - `not_in_library`——库里任何时点都没有这条；
+    - `version_uncertain`——库里有，但按本次 as-of 时点取不到（版本轴不确定）；
+    - `mixed`——两种同时出现。**不许**把 mixed 说成"全部未收录"，那是假陈述。
+
+    `docs` 只是省一次重复直查的快路（名字逐字相等才用）；**判定权威是那两个探针**，
+    因为条号直查的源名容错（票 I-6 括注那套）住在 `exact_article_lookup` 里，
+    在报告侧再实现一遍就是第二份规则、迟早和主路径漂移。
+    """
+    asked = parse_article_queries(query)
+    got = {(str(d.metadata.get("source", "")), str(d.metadata.get("article", ""))) for d in docs}
+    found: list[tuple[str, str]] = []
+    missing: list[tuple[str, str]] = []
+    absent: list[tuple[str, str]] = []
+    expired: list[tuple[str, str]] = []
+    for pair in asked:
+        if pair in got or lookup_with_cutoff(*pair):
+            found.append(pair)
+            continue
+        missing.append(pair)
+        (expired if lookup_any_time(*pair) else absent).append(pair)
+
+    if not asked:
+        state = "no_explicit_reference"
+    elif not missing:
+        state = "all_found"
+    elif absent and expired:
+        state = "mixed"
+    elif absent:
+        state = "not_in_library"
+    else:
+        state = "version_uncertain"
+    return {
+        "asked": asked,
+        "found": found,
+        "missing": missing,
+        "missing_absent": absent,
+        "missing_version_uncertain": expired,
+        "state": state,
+    }
+
+
 def _valid_docs(data: Mapping[str, Any], cutoff: str, only: list[int] | None = None) -> list[Document]:
     """`collection.get` 结果 → 通过时效过滤的 Document 列表（`only` 可限定行下标）。
 
@@ -1219,14 +1297,24 @@ def retrieve(
     deadline_monotonic（可选）：透传给 hybrid_retrieve 的外层等待截止点（见其 docstring）；
     缺省 None 时行为与历史完全一致。条号直查命中不涉远程调用，无需预算检查。
     """
-    parsed = parse_article_query(query)
-    if parsed:
-        source, article = parsed
-        exact = exact_article_lookup(source, article, cutoff)
-        if exact:
-            # 条号直查命中视为确定性满足题集预期：不再做二次排序
+    pairs = parse_article_queries(query)
+    if pairs:
+        # D-50：点名的**每一条**都要走一次条号直查。旧实现只查 `parse_article_query` 的第一对，
+        # 多引用问题里第二条从一开始就没进过精确通道。
+        hits: list[Document] = []
+        seen: set[tuple[str, str]] = set()
+        for source, article in pairs:
+            for doc in exact_article_lookup(source, article, cutoff):
+                key = (str(doc.metadata.get("source", "")), str(doc.metadata.get("article", "")))
+                if key in seen:
+                    continue
+                seen.add(key)
+                hits.append(doc)
+        if hits:
+            # 条号直查命中视为确定性满足题集预期：不再做二次排序（与单引用旧行为一致——
+            # 命中即返回、不下穿混合检索；改的只是"命中哪几条"）。
             if not expected_laws:
-                return exact
+                return hits
     return hybrid_retrieve(
         query, k, category, cutoff, expected_laws=expected_laws, deadline_monotonic=deadline_monotonic
     )
