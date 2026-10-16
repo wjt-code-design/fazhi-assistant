@@ -54,7 +54,9 @@ services:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=5).close()"]
       interval: 30s
       timeout: 5s
-      start_period: 60s
+      # 等待窗必须大于启动墙钟：prewarm() 会解析嵌入模型（本机＋合成语料代理读数约 53 s，2核4G 目标机只会更慢），
+      # 窗口小于它就把容器标成 unhealthy，而 frontend 的 depends_on: service_healthy 会跟着一直等。钉子见 backend/tests/test_deploy_healthcheck_window.py
+      start_period: 120s
       retries: 3
 
   frontend:
