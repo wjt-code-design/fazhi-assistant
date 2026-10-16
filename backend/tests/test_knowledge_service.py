@@ -173,6 +173,13 @@ def w2_crash_run():
     """
     import logging
 
+    import rag_chain
+    from tests._fake_embeddings import FakeEmbeddings, embeddings_double
+
+    # C15 分流（2026-10-16）：本 fixture 是 module 级，用不上函数级 double_embeddings，
+    # 所以在装/拆上走同一个构造处（tests/_fake_embeddings.embeddings_double）。
+    # 这两条用例判的是"判据崩溃时旧块不被误删 + 崩溃看得见"，与向量语义无关。
+    _previous_inner = rag_chain.embeddings._inner_resource
     records: list[logging.LogRecord] = []
 
     class Capture(logging.Handler):
@@ -181,9 +188,14 @@ def w2_crash_run():
 
     logger = logging.getLogger("legal.knowledge")
     handler = Capture()
-    original = ks.replaceable_version_ids
-    _w2_cleanup()
+    # 复核 B 路 MINOR：从"装上替身"到 `try:` 之间的任何一行抛错（例如
+    # `ks.replaceable_version_ids` 哪天被改名），都会让替身永久留在进程里、后续真向量用例悄悄变假。
+    # 所以整段挪进 try，回收只可能走 finally。
     try:
+        rag_chain.embeddings._inner_resource = embeddings_double()
+        assert isinstance(rag_chain.embeddings._inner, FakeEmbeddings), "w2 现场没换成替身，这条腿会去加载 BGE"
+        original = ks.replaceable_version_ids
+        _w2_cleanup()  # 替身就位后再清，免得清理动作去加载真模型
         # 对照腿：判据正常时，同 (法名, 条号, 生效日) 的重传**会**替换旧块。
         # 缺了这条，下面的"旧块仍在"可能只是判据本来就不替换 ⇒ 恒真断言。
         _w2_add(_W2_BODIES[0])
@@ -204,6 +216,7 @@ def w2_crash_run():
             ks.replaceable_version_ids = original
         yield records, surviving, _w2_ids(), n
     finally:
+        rag_chain.embeddings._inner_resource = _previous_inner  # 替身必须收回，否则泄漏给同模块后续用例
         _w2_cleanup()
 
 

@@ -75,21 +75,21 @@ def _stored(question: str) -> dict:
     raise AssertionError(f"未找到刚写入的 QA 记录：{question[:30]}")
 
 
-def test_add_qa_pair_stores_basis_when_absent():
+def test_add_qa_pair_stores_basis_when_absent(double_embeddings):
     """先红：调用方不给基准日时，`add_qa_pair` 必须自己落当日（改前根本没人写这个键）。"""
     q = "写侧基准日先红腿：用人单位能否随意约定试用期？"
     ks.add_qa_pair(q, "不得随意约定", evidence="劳动合同法|第十九条")
     assert str(_stored(q).get("law_as_of_basis") or "") == PINNED_TODAY
 
 
-def test_control_explicit_basis_is_preserved():
+def test_control_explicit_basis_is_preserved(double_embeddings):
     """控制腿：显式传入的基准日原样保留（调用方知道的版本比默认值可信）。"""
     q = "写侧基准日控制腿：保证方式未约定时按哪种处理？"
     ks.add_qa_pair(q, "一般保证", evidence="民法典|第六百八十六条", basis="2019-06-06")
     assert str(_stored(q).get("law_as_of_basis") or "") == "2019-06-06"
 
 
-def test_control_written_record_passes_the_real_provenance_gate():
+def test_control_written_record_passes_the_real_provenance_gate(double_embeddings):
     """控制腿（端到端）：写入后的记录必须能过**读侧真判据**，否则写侧补了也白补。
 
     只断言"键存在且非空"不够——判据还看 `evidence` 形状，两条得一起成立。
@@ -106,7 +106,7 @@ def test_control_written_record_passes_the_real_provenance_gate():
     assert qa_provenance_verifiable(qa_hit) is True
 
 
-def test_control_adoption_stores_candidate_date_not_today():
+def test_control_adoption_stores_candidate_date_not_today(double_embeddings):
     """控制腿：人工采纳存的是**候选产生日**，不是采纳那一刻的今天。
 
     答案的法律版本身份来自它被产出的那天；隔了 20 天采纳不会让它变成今天的法。
@@ -129,7 +129,7 @@ def test_control_adoption_stores_candidate_date_not_today():
     assert stored != PINNED_TODAY, "存成了采纳日 ⇒ 答案的法律版本身份被改写"
 
 
-def test_auto_curate_path_stores_basis():
+def test_auto_curate_path_stores_basis(double_embeddings):
     """生产路径：有据分 ≥0.89 自动收录 ⇒ 落库记录带 basis，且过读侧真判据。"""
     q = "写侧自动收录腿：用人单位可以扣工资作为违约金吗？"
     ks.create_candidate(MagicMock(), q, "一般不可以", grounded_score=0.95, evidence="劳动合同法|第九十条")

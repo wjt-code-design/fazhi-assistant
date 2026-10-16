@@ -10,7 +10,9 @@ import logging
 import os
 import re
 import threading
+import time
 from contextlib import aclosing
+from typing import TYPE_CHECKING
 
 from anyio import CancelScope
 
@@ -31,6 +33,87 @@ from settings import settings  # noqa: E402
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 logger = logging.getLogger(__name__)
+
+# D-52（2026-10-16）：重量对象（本地 BGE ≈409 MB、Chroma 持久集合）一律推迟到第一次真正使用。
+# 失败语义要同时满足两条，缺一条都是假的：
+#   ① 不把坏对象永久缓存——一次抖动就毒死整个进程不可接受；
+#   ② 不做无界重试——否则每个 embed 调用都重新去加载 409 MB / 再打一次网络（vector_top 会在
+#      一次请求里循环 1+N 次，retrieve_exam 还能到 6 次），故障时反而放大开销。
+# 折中：失败后在窗口内直接抛同一个异常并留一条 error 日志（M2：静默降级是本仓的老毛病），
+# 窗口过后允许再试一次。
+_INIT_RETRY_WINDOW_SECONDS = 30.0
+
+
+class _LazyResource:
+    """按名字延迟构造重量对象：构造恰好一次，失败可重试但有窗口。
+
+    用在三处：`QuotaTrackingEmbeddings` 的内层嵌入对象、模块级 `vectorstore`、
+    `knowledge_service._qa_store`（都经 `lazy_store` 走同一机制，不各写一份）。
+
+    为什么是转发壳、而不是把消费点都改成函数调用：`vectorstore`/`embeddings` 这两个名字在
+    import 期就被 retrieval/main/knowledge_base/scripts 共 10 个模块 `from rag_chain import ...`
+    绑走，65 处用法都在函数体内——改完的面远大于收益，而壳本身只需要一次属性访问才付代价。
+    """
+
+    __slots__ = ("_name", "_factory", "_instance", "_error", "_failed_at", "_lock")
+
+    def __init__(self, name, factory):
+        self._name = name
+        self._factory = factory
+        self._instance = None
+        self._error: BaseException | None = None
+        self._failed_at = 0.0
+        self._lock = threading.Lock()
+
+    def _resolve(self):
+        """双重检查锁：并发下所有调用者拿到同一个成品，不会看到半成品。"""
+        instance = self._instance
+        if instance is not None:
+            return instance
+        with self._lock:
+            if self._instance is not None:
+                return self._instance
+            if self._error is not None and (time.monotonic() - self._failed_at) < _INIT_RETRY_WINDOW_SECONDS:
+                raise self._error
+            try:
+                self._instance = self._factory()
+            except Exception as exc:
+                self._error = exc
+                self._failed_at = time.monotonic()
+                logger.error(
+                    "%s 初始化失败：%r（%.0f 秒内不再重试，之后会再试）",
+                    self._name,
+                    exc,
+                    _INIT_RETRY_WINDOW_SECONDS,
+                )
+                raise
+            self._error = None
+            return self._instance
+
+    def warm(self):
+        """启动预热用：把重量对象现在就构造出来并返回成品。
+
+        取个动词名而不是让调用方直接读 `_inner`：`_inner` 只有 `QuotaTrackingEmbeddings` 才有，
+        裸的 `_LazyResource` 上它会走到属性转发、把"成品自己没有 `_inner`"当成 AttributeError
+        抛给启动路径——这个坑由 tests/test_rag_initialization_boundary.py 的两条 prewarm 用例
+        实测抓到（2026-10-16），不是假想。
+        """
+        return self._resolve()
+
+    def __getattr__(self, item):
+        # 只有不在 __slots__/方法名单里的名字才会走到这里，转发给已构造的成品
+        return getattr(self._resolve(), item)
+
+    def __repr__(self) -> str:
+        # 刻意不触发构造：pytest 失败时会 repr 模块级对象，一旦 repr 去建库，
+        # "收集期零副作用" 就被自己的调试输出打回原形。
+        state = "resolved" if self._instance is not None else "unresolved"
+        return f"<LazyResource {self._name} {state}>"
+
+
+def lazy_store(factory, name: str = "vector store") -> _LazyResource:
+    """惰性重量对象的唯一出口：主库与 QA 集合共用一套机制与同一套失败语义。"""
+    return _LazyResource(name, factory)
 
 
 # 1. Embeddings — 配置驱动（ADR-011，2026-08-04）：local=本地 BGE CPU（默认，零配置回退）；
@@ -73,11 +156,30 @@ class QuotaTrackingEmbeddings(Embeddings):
       retrieve_exam 的 ThreadPoolExecutor 多线程并发 encode 在 Windows 偶发原生 segfault
       （onnxruntime 多线程访问不稳）。全局锁串行化编码，消除竞态；嵌入是 CPU 快路径，
       锁开销可忽略。Chroma 查询为并发读（SQLite/HNSW 读安全）不锁。
+    - **惰性（D-52，2026-10-16）**：`inner_factory` 收**工厂**而不是实例。`embeddings` 这个名字
+      在 import 期就被 main/retrieval/knowledge_service/scripts 等 10 处
+      `from rag_chain import embeddings` 绑走，而本地 BGE 的构造（`_build_embeddings()`）
+      在无缓存环境会直接抛错——CI 的 39 个收集期错误就是这么来的（见
+      tests/test_rag_initialization_boundary.py 的 ARM 记录）。所以内层推迟到第一次真嵌入。
     """
 
-    def __init__(self, inner):
-        self._inner = inner
+    def __init__(self, inner_factory):
+        # D-52（2026-10-16）：收**工厂**而不是实例；失败留痕 + 窗口化重试见 _LazyResource。
+        self._inner_resource = _LazyResource("本地嵌入模型", inner_factory)
         self._lock = threading.Lock()
+
+    @property
+    def _inner(self) -> Embeddings:
+        """首次用到才构造内层：失败留痕、窗口内不重复重试，也不交出半成品。
+
+        `retrieval._query_token_len` 经 `getattr(embeddings, "_inner", ...)` 读真实 tokenizer，
+        因此"量 token"这个动作本身会触发构造——这是有意的：没有内层就没有分词器可量（N01）。
+        """
+        return self._inner_resource._resolve()
+
+    def warm(self) -> Embeddings:
+        """预热：与裸壳同名同语义，调用方不必分辨 `embeddings` 绑的是包装类还是壳本身。"""
+        return self._inner_resource.warm()
 
     def _check(self) -> None:
         if settings.embedding_provider == "aliyun" and quota_utils.utility_depleted(quota_utils.embedding_model_key()):
@@ -105,7 +207,17 @@ class QuotaTrackingEmbeddings(Embeddings):
         return v
 
 
-embeddings = QuotaTrackingEmbeddings(_build_embeddings())
+embeddings = QuotaTrackingEmbeddings(_build_embeddings)
+
+
+def get_embeddings() -> QuotaTrackingEmbeddings:
+    """最小惰性出口（执行书 W01）：返回的始终是同一个包装对象。
+
+    真正的内层模型在它第一次被用到时才构造，所以 `import rag_chain` 本身零模型加载、零写盘；
+    老名字 `embeddings` 仍然可用，绑的是同一个对象（消费方 65 处用法不必改）。
+    """
+    return embeddings
+
 
 # 2. Vector store — Chroma 持久化。collection 名随 provider 派生（语义空间不同，切云须重建）
 _COLLECTION_LOCAL = "legal_provisions_cos"  # hnsw:space=cosine：距离分=1-cos
@@ -124,11 +236,21 @@ QA_COLLECTION_NAME = _QA_COLLECTION_CLOUD if settings.embedding_provider == "ali
 DEFAULT_CHROMA_DIR = os.path.join(BASE_DIR, "chroma_db")
 CHROMA_DIR = os.environ.get("CHROMA_DIR") or DEFAULT_CHROMA_DIR
 
-vectorstore = Chroma(
-    persist_directory=CHROMA_DIR,
-    embedding_function=embeddings,
-    collection_name=COLLECTION_NAME,
-)
+
+def _build_vectorstore() -> Chroma:
+    return Chroma(
+        persist_directory=CHROMA_DIR,
+        embedding_function=embeddings,
+        collection_name=COLLECTION_NAME,
+    )
+
+
+if TYPE_CHECKING:
+    # 类型面保持 Chroma：65 处消费点的属性拼写检查不能因为运行时换成壳就失效。
+    # mypy 只分析这一支，运行时走 else（否则 `__getattr__ -> Any` 会把向量层全部变盲）。
+    vectorstore: Chroma
+else:
+    vectorstore = lazy_store(_build_vectorstore, "chroma 主集合")
 
 
 def format_docs(docs) -> str:

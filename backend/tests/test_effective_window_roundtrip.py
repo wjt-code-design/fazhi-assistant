@@ -20,6 +20,8 @@ from __future__ import annotations
 import os
 import sys
 
+import pytest
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from dotenv import load_dotenv
@@ -62,7 +64,23 @@ def _setup_once() -> None:
         _write_two_versions()
 
 
-def test_write_then_read_old_version_in_window():
+@pytest.fixture(scope="module", autouse=True)
+def _clean_up_written_versions():
+    """把本模块写进共享集合的两条版本删掉（独立复核 B 路 MAJOR：写完不清理会污染后续检索）。
+
+    不删的后果不是"红"，而是**更绿**：替身文档留在同一个 collection 里，后面的检索用例
+    会在一个混着测试数据的环境上判通过。teardown 里连缓存一起丢，免得跨库串味。
+    """
+    yield
+    try:
+        ids = R.vectorstore._collection.get(where={"source": SRC})["ids"]
+        if ids:
+            R.vectorstore._collection.delete(ids=ids)
+    finally:
+        R.invalidate()
+
+
+def test_write_then_read_old_version_in_window(double_embeddings):
     """① 区间内（2019-06-01）⇒ 只应取到旧版。"""
     _setup_once()
     texts = _texts_at("2019-06-01")
@@ -70,14 +88,14 @@ def test_write_then_read_old_version_in_window():
     assert NEW_TEXT not in texts, f"新版 2021-01-01 才生效，2019-06-01 不应可见，实得 {texts}"
 
 
-def test_write_then_read_boundary_last_day():
+def test_write_then_read_boundary_last_day(double_embeddings):
     """② 边界：`effective_to == cutoff` 当日仍有效（废止日当天没失效）。"""
     _setup_once()
     texts = _texts_at("2020-12-31")
     assert OLD_TEXT in texts, f"废止日当天仍应可见（边界语义），实得 {texts}"
 
 
-def test_write_then_read_boundary_first_day():
+def test_write_then_read_boundary_first_day(double_embeddings):
     """③ 边界：`effective_from == cutoff` 当日即生效；同日旧版应已被取代。"""
     _setup_once()
     texts = _texts_at("2021-01-01")
@@ -85,14 +103,14 @@ def test_write_then_read_boundary_first_day():
     assert OLD_TEXT not in texts, f"2021-01-01 已过旧版废止日，不应可见，实得 {texts}"
 
 
-def test_write_then_read_today_only_new():
+def test_write_then_read_today_only_new(double_embeddings):
     """④ 今天 ⇒ 只应取到新版。"""
     _setup_once()
     texts = _texts_at("2026-09-22")
     assert NEW_TEXT in texts and OLD_TEXT not in texts, f"今日应只见新版，实得 {texts}"
 
 
-def test_write_side_status_visible():
+def test_write_side_status_visible(double_embeddings):
     """⑤ 写入侧 `status` 真的落到 metadata（`count_docs` 能按状态数出来）。"""
     _setup_once()
     assert ks.count_docs(status="已废止") >= 1, "写入的『已废止』状态未在库中可见"

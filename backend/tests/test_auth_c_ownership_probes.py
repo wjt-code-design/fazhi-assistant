@@ -170,7 +170,7 @@ def test_media_of_foreign_conversation_is_404_before_touching_disk(two_users, mo
     assert trav.status_code == 400, f"穿越路径应显式判非法，实测 {trav.status_code}"
 
 
-def test_chat_with_foreign_conversation_id_creates_own_conversation_not_404(two_users, monkeypatch):
+def test_chat_with_foreign_conversation_id_creates_own_conversation_not_404(two_users, monkeypatch, double_embeddings):
     """`/api/chat` 的真实契约（票面第一版写错的那条）：带别人的 conv_id ⇒ **200 + 新建自己的会话**。
 
     静默改判归属在这里是**正确行为**（`request_bootstrap` 那一支：不符归属就当没给 conv_id），

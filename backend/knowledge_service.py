@@ -23,7 +23,7 @@ import retrieval
 import retrieval_core as rc
 from law_versions import replaceable_version_ids, version_metadata
 from models import QaCandidate
-from rag_chain import CHROMA_DIR, QA_COLLECTION_NAME, embeddings, vectorstore
+from rag_chain import CHROMA_DIR, QA_COLLECTION_NAME, embeddings, lazy_store, vectorstore
 
 logger = logging.getLogger("legal.knowledge")
 
@@ -36,13 +36,20 @@ _MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 # 真正的原子替换需 Chroma 事务或多进程协调，超出当前架构（见 ADR-008）。
 _WRITE_LOCK = threading.RLock()
 
+
 # 受控沉淀采纳后的"已确认问答"集合：用 question 做向量，便于问题空间匹配复用。
 # collection 名随 embedding provider 派生（与主库同语义空间，见 rag_chain.QA_COLLECTION_NAME）
-_qa_store = Chroma(
-    persist_directory=CHROMA_DIR,
-    embedding_function=embeddings,
-    collection_name=QA_COLLECTION_NAME,
-)
+def _build_qa_store():
+    return Chroma(
+        persist_directory=CHROMA_DIR,
+        embedding_function=embeddings,
+        collection_name=QA_COLLECTION_NAME,
+    )
+
+
+# 与主库共用 rag_chain.lazy_store 这一套惰性机制（D-52，2026-10-16）：
+# import knowledge_service 不再建集合，第一次真读写 QA 才构造。
+_qa_store = lazy_store(_build_qa_store, "chroma QA 集合")
 
 
 def _collection():
