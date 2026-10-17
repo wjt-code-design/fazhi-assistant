@@ -165,6 +165,14 @@ _ACCOUNT_FIELDS = (
     # 标记与条文正文记号均不进 JSON。formatter 本体的这行行为见本文件 `_JsonFormatter.format`。
     # 未登记会被 JSON formatter 静默丢弃 ⇒ 这个键本身白写。
     "law_version_judgment_failed",
+    # W06-IMPL（2026-10-17，C03=形状 P）：撤回/隔离在**读侧**被拒时的两个字段。
+    # `qa_eligibility_reason` 沿用上面两键的**分键不分门**口径（state|provenance|citation），
+    # 这样"状态轴在衰减"与"来源/引用在衰减"是两个读数而不是一个"语料被拦了"；
+    # 只落归因键与候选行 id（int），既没有判据分解也没有题干/答案原文（AUTH-3 日志不落原文）。
+    # 未登记会被 JSON formatter 静默丢弃 ⇒ 两键白写——这一族由 `tests/test_log_field_whitelist.py`
+    # 的 AST 哨兵守着，本轮就是它在全量门上抓出来的（纯树门 warm_rc=1，见 W12-GATES-FROM-COMMIT-06da7cc.log）。
+    "qa_eligibility_reason",
+    "qa_candidate_id",
 )
 
 _TEST_REQUEST_ID_FALLBACK = "unit-test-no-middleware-request-id"
