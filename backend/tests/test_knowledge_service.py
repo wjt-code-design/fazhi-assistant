@@ -100,7 +100,9 @@ def test_create_candidate_auto_approve(monkeypatch, db):
     from models import QaCandidate
 
     added = []
-    monkeypatch.setattr(ks, "add_qa_pair", lambda q, a, e="", fp="": added.append(q))
+    # W06-IMPL：add_qa_pair 现收 cand_id/doc_id 两个可选链接参数 ⇒ 测试替身同步放宽到能吃这些 kwargs，
+    # 语义逐字不变（仍只记第一次位置参数 q）。本用例的行为断言「自动收录写向量、待审不写」一字未改。
+    monkeypatch.setattr(ks, "add_qa_pair", lambda q, a, e="", fp="", *more, **link: added.append(q))
     monkeypatch.setattr(retrieval, "invalidate", lambda: None)
 
     q1, q2 = f"_auto_{id(object())}", f"_pend_{id(object())}"

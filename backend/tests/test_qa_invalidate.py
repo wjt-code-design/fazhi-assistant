@@ -43,12 +43,17 @@ def test_approve_invalidates_cache(monkeypatch):
     assert called == [1]
 
 
-def test_reject_does_not_invalidate(monkeypatch):
+def test_reject_invalidates_cache(monkeypatch):
+    """W06-IMPL 改写（原钉「拒绝不清缓存」）：拒绝走形状 B，必须调 invalidate 停第三条出口（§4 项 1）。
+
+    这是票未点名、但与 §4 项 1 / `test_qa_revocation_lifecycle` 同一契约的特征化腿：旧断言 `called == []`
+    钉的正是被本轮修掉的缺陷，故照 revocation 那条一样改写成「拒绝清一次缓存」，不删。
+    """
     monkeypatch.setattr(ks, "add_qa_pair", lambda *a, **k: None)
     called = []
     monkeypatch.setattr(retrieval, "invalidate", lambda: called.append(1))
     ks.decide_candidate(_FakeDb(), 1, "rejected")
-    assert called == []
+    assert called == [1]
 
 
 def test_approve_passes_candidate_date_as_basis(monkeypatch):

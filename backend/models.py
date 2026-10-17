@@ -77,6 +77,15 @@ class QaCandidate(Base):
     evidence = Column(Text, default="")  # 命中来源（JSON 串）
     # pending / approved / rejected
     status = Column(String(16), default="pending", index=True)
+    # W06-IMPL（C03=形状 P）：审批来源 + 读取资格 + 向量链，全部带默认值 ⇒ 旧行不炸、旧 INSERT 不破。
+    # human | auto_by_score_inferred | unknown；默认 unknown = 「未知来源＝不可服务」（判据在 qa_eligibility）。
+    approval_source = Column(String(32), default="unknown")
+    reviewed_by = Column(Integer, nullable=True)  # 采纳那一次的管理员 id（与 audit_logs.qa.approved 同源）
+    reviewed_at = Column(DateTime, nullable=True)
+    # ok | quarantined | revoked：拒绝走「置资格、不删数据」（形状 B/P），判据据它放行/拦截
+    eligibility = Column(String(16), default="ok", index=True)
+    eligibility_version = Column(Integer, default=1)
+    vector_doc_id = Column(String(64), nullable=True)  # 写向量时自生成并记下的 doc id（此前两侧无链接）
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

@@ -12,6 +12,7 @@ import io
 import logging
 import os
 import threading
+import uuid
 from datetime import UTC, datetime
 
 from langchain_chroma import Chroma
@@ -319,7 +320,15 @@ def count_docs(status: str | None = None) -> int:
 
 
 # ==================== qa_pairs（受控沉淀采纳后） ====================
-def add_qa_pair(question: str, answer: str, evidence: str = "", fingerprint: str = "", basis: str = "") -> None:
+def add_qa_pair(
+    question: str,
+    answer: str,
+    evidence: str = "",
+    fingerprint: str = "",
+    basis: str = "",
+    cand_id: int | None = None,
+    doc_id: str | None = None,
+) -> str | None:
     """QA 对入库（answer/evidence/options_fingerprint 存 metadata，question 作向量检索入口）。
 
     fingerprint（选项内容指纹，审查 C4 护栏）：直返前校验同题干换选项内容必须 miss。
@@ -340,6 +349,11 @@ def add_qa_pair(question: str, answer: str, evidence: str = "", fingerprint: str
     隔几天采纳不会让它变成今日的法 ⇒ `decide_candidate` 显式传候选 `created_at` 的日期。
     时钟取 UTC，与 `QaCandidate.created_at`（`datetime.utcnow`）同一个钟——
     若默认值改用本地钟，两条路径的"当日"就会差最多一天。
+
+    **票 W06-IMPL 链接补口（2026-10-17，C03=形状 P）**：候选写路径传 `cand_id`/`doc_id`，
+    把 `qa_candidate_id` 落进 metadata、用显式 `doc_id` 写向量并返回它 ⇒ SQL `vector_doc_id`
+    与向量 `qa_candidate_id` 从此双向可对。种子/生成脚本不传这两个 ⇒ 记录无链，读侧按
+    「来源可校验」判定（`qa_eligibility` 对无链记录放行到 provenance/citation，不是 fail-open）。
     """
     if not fingerprint:
         from query_understand import _options_fingerprint  # 局部导入：不加重模块加载
@@ -347,20 +361,21 @@ def add_qa_pair(question: str, answer: str, evidence: str = "", fingerprint: str
         fingerprint = _options_fingerprint(question or "")
     if not basis:
         basis = datetime.now(UTC).date().isoformat()
-    _qa_store.add_documents(
-        [
-            Document(
-                page_content=question,
-                metadata={
-                    "answer": answer,
-                    "evidence": evidence,
-                    "origin": "qa",
-                    "options_fingerprint": fingerprint,
-                    "law_as_of_basis": basis,
-                },
-            )
-        ]
-    )
+    metadata = {
+        "answer": answer,
+        "evidence": evidence,
+        "origin": "qa",
+        "options_fingerprint": fingerprint,
+        "law_as_of_basis": basis,
+    }
+    if cand_id is not None:
+        metadata["qa_candidate_id"] = cand_id
+    doc = Document(page_content=question, metadata=metadata)
+    if doc_id:
+        _qa_store.add_documents([doc], ids=[doc_id])
+        return doc_id
+    _qa_store.add_documents([doc])
+    return None
 
 
 def search_qa(query: str, threshold: float = 0.7):
@@ -391,6 +406,9 @@ def search_qa(query: str, threshold: float = 0.7):
         # 否则那道护栏没有输入。缺字段时给空串 ⇒ 调用方按"未标注"处理（不拦，保持旧行为）。
         "law_as_of_basis": res[0][0].metadata.get("law_as_of_basis", ""),
         "fingerprint": res[0][0].metadata.get("options_fingerprint", ""),
+        # W06-IMPL：把候选链带出给读出口——出口据此装载 SQL 状态判资格。存量无链记录此项为 None
+        # ⇒ `qa_eligibility` 走「无链按来源可校验放行」，而非按缺链 fail-closed。
+        "qa_candidate_id": res[0][0].metadata.get("qa_candidate_id"),
     }
 
 
@@ -401,21 +419,28 @@ AUTO_CURATE_THRESHOLD = 0.89
 
 def create_candidate(db: Session, question: str, answer: str, grounded_score: float, evidence: str):
     """入候选。有据分 ≥ 0.89 自动收录（写 qa_pairs + 清缓存 + 标记 approved，不留待审）；
-    否则进待审队列（status=pending，人工采纳）。反馈纠错（grounded=0）不受影响仍待审。"""
-    if grounded_score >= AUTO_CURATE_THRESHOLD:
-        add_qa_pair(question, answer, evidence or "")
-        # 收录 = 知识变更：清回答缓存，否则旧答案在 TTL 内继续命中、新 QA 静默失效
-        import retrieval
+    否则进待审队列（status=pending，人工采纳）。反馈纠错（grounded=0）不受影响仍待审。
 
-        retrieval.invalidate()
+    W06-IMPL：自动收录改**先落 SQL 行拿 id**（flush，未提交），再带 `cand_id`/自生成 `doc_id` 写向量
+    并把 `vector_doc_id` 记回行 ⇒ 双向链闭合；`approval_source="auto_by_score_inferred"` 让机器批准
+    与人工批准**从此可区分**（此前两份拷贝都只写 approved，字节级不可分）。
+    """
+    if grounded_score >= AUTO_CURATE_THRESHOLD:
         c = QaCandidate(
             question=question,
             answer=answer,
             grounded_score=grounded_score,
             evidence=evidence,
             status="approved",
+            approval_source="auto_by_score_inferred",
         )
         db.add(c)
+        db.flush()  # 取回自增 id：向量的 qa_candidate_id 要在写入前就知道它
+        doc_id = uuid.uuid4().hex
+        add_qa_pair(question, answer, evidence or "", cand_id=c.id, doc_id=doc_id)
+        c.vector_doc_id = doc_id
+        # 收录 = 知识变更：清回答缓存，否则旧答案在 TTL 内继续命中、新 QA 静默失效
+        retrieval.invalidate()
         db.commit()
         db.refresh(c)
         return c
@@ -447,23 +472,46 @@ def list_candidates(db: Session, status: str | None = None):
     ]
 
 
-def decide_candidate(db: Session, cand_id: int, decision: str):
+def decide_candidate(db: Session, cand_id: int, decision: str, reviewed_by: int | None = None):
+    """采纳/拒绝一条候选。
+
+    W06-IMPL（C03=形状 B/P）：
+    - 采纳：记 `approval_source="human"` + `reviewed_by`/`reviewed_at`（reviewed_by 由管理员端点传入，
+      与它随后写的 `audit_logs.qa.approved` 同源）；带 `cand_id`/自生成 `doc_id` 写向量并回记 `vector_doc_id`
+      ⇒ 与机器批准可区分、与向量双向闭合。
+    - 拒绝：只**置资格**（`eligibility="revoked"`，不删向量、不删行——形状 P「隔离不删」），
+      并调 `retrieval.invalidate()` 连带清回答缓存。此前拒绝分支只改 SQL status、两份拷贝照旧在服务，
+      是本轮取证的 fail-open 缺陷。
+    """
     r = db.get(QaCandidate, cand_id)
     if not r:
         return None
     if decision == "approved":
+        doc_id = uuid.uuid4().hex
         # 采纳≠产生：基准日取候选**产生**那天（created_at），不是此刻的今天。缺值时传空串，
         # 由 add_qa_pair 落当日——那是它默认的"今天产生"口径，比凭空造一个旧日期诚实。
         add_qa_pair(
-            r.question, r.answer, r.evidence or "", basis=r.created_at.date().isoformat() if r.created_at else ""
+            r.question,
+            r.answer,
+            r.evidence or "",
+            basis=r.created_at.date().isoformat() if r.created_at else "",
+            cand_id=cand_id,
+            doc_id=doc_id,
         )
+        r.vector_doc_id = doc_id
         # 纠错采纳 = 知识变更：清回答缓存，否则旧答案在 TTL 内继续命中、纠错静默失效
-        import retrieval
-
         retrieval.invalidate()
         r.status = "approved"
+        r.approval_source = "human"
+        r.reviewed_by = reviewed_by
+        r.reviewed_at = datetime.now(UTC)
+        r.eligibility = "ok"  # 重新采纳 = 恢复可服务（此前若被隔离/撤回，回到 ok）
     elif decision == "rejected":
         r.status = "rejected"
+        r.eligibility = "revoked"
+        r.eligibility_version = (getattr(r, "eligibility_version", 1) or 1) + 1
+        # 拒绝必须停三条出口：置资格关语料两出口，invalidate 关回答缓存出口（形状 B）
+        retrieval.invalidate()
     else:
         raise ValueError("decision 必须为 approved 或 rejected")
     db.commit()

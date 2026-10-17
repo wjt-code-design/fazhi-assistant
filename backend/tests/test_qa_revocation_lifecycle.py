@@ -81,24 +81,32 @@ def _prompt_text(messages) -> str:
     return "\n".join(out)
 
 
-def test_reject_after_auto_approval_leaves_both_read_exits_serving_the_answer(db, double_embeddings, monkeypatch):
-    """① 撤回失败面：SQL 说 rejected，两条出口都说"可以用"——这是票面「任何旧出口都不能继续返回已失效条目」的反例。"""
+def test_reject_stops_both_read_exits_without_deleting_the_record(db, double_embeddings, monkeypatch):
+    """W06-IMPL 改写（原钉 ①：SQL 说 rejected，两条出口仍服务）：
+
+    现钉新契约——拒绝后两条语料出口都 miss，但向量记录**照旧在服务侧读得回**（形状 P「隔离不删」：
+    只置资格、不删数据）。仍**保留**：status=rejected、search_qa 命中、answer 不变（这些今天也成立）。
+    """
     q = "撤回生命周期甲：试用期的约定有什么上限？"
     row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)  # 机器自动收录
     _kb_has_article(monkeypatch, [{"page_content": "第十九条 试用期……"}])
 
     ks.decide_candidate(db, row.id, "rejected")
     assert db.query(ks.QaCandidate).filter(ks.QaCandidate.id == row.id).one().status == "rejected"
+    # 新契约的资格位：拒绝 = 置 revoked（不是删行、不是删向量）
+    assert db.query(ks.QaCandidate).filter(ks.QaCandidate.id == row.id).one().eligibility == "revoked"
 
     hit = ks.search_qa(q)
     assert hit is not None, "读侧根本没命中 ⇒ 后面的断言全部失去对象（本条判据空转）"
     assert hit["answer"] == ANSWER
-    # 出口①：零模型直返
-    assert main._qa_direct_return({"rewritten": q, "qa_hit": hit}) == ANSWER
-    # 出口②：prompt 注入（"此前已确认的问答（可优先参考）"）
+    assert hit["qa_candidate_id"] == row.id, "向量链没闭合 ⇒ 出口无从核验状态"
+
+    # 原钉：`== ANSWER`（直返仍服务）⇒ 现钉：miss（读出口自判 revoked）
+    assert main._qa_direct_return({"rewritten": q, "qa_hit": hit}) is None
     prompt = _prompt_text(main._build_messages(_pre(q, hit)))
-    assert ANSWER in prompt
-    assert "此前已确认的问答" in prompt
+    # 原钉：`ANSWER in prompt` / `"此前已确认的问答" in prompt`（注入仍发生）⇒ 现钉：都不出现
+    assert ANSWER not in prompt
+    assert "此前已确认的问答" not in prompt
 
 
 def test_control_a_rejected_candidate_that_was_never_auto_approved_is_not_served(db, double_embeddings):
@@ -168,18 +176,16 @@ def test_no_production_path_can_delete_a_written_qa_record():
         }
     )
     assert receivers == ["_collection()"], f"条文库/QA 两侧的 delete 接受者形状变了（现量 {receivers}）"
-    # 功能面的同一件事在第①条里已经跑过：拒绝之后 QA 记录仍在且仍被两条出口服务。
+    # 功能面的同一件事在第①条里已经跑过：拒绝之后 QA 记录仍在（不删），但三条出口都不再服务它。
 
 
-def test_rejecting_does_not_clear_the_answer_cache_while_approving_does(db, double_embeddings, monkeypatch):
-    """① 漏掉的**第三份拷贝**：票面 `:350` 点名「已写 QA、**回答缓存**及进程缓存」要一起失效——现在少一份。
+def test_reject_and_auto_approve_both_invalidate_the_answer_cache(db, double_embeddings, monkeypatch):
+    """W06-IMPL 改写（原钉「拒绝路径不碰回答缓存」的漏口）：
 
-    `knowledge_service` 只在自动收录（:410）与人工采纳（:463）两条分支调 `retrieval.invalidate()`，
-    拒绝分支（:465-466）两个都不碰；而 `retrieval.invalidate()` 内部会延迟 import `answer_cache` 一起清
-    （retrieval.py:765-774）。
-    后果：这条问句在 TTL 内已落进回答缓存的那份答案**不会因为拒绝而消失**，
-    而 `main.py:2193` 的 `answer_cache.get(cache_key)` 正是产品每次答复先问的那道出口。
-    ⇒ 本票前面测的是两条**语料**出口，这第三条此前没有判据（独立复核打出来的漏项）。
+    票面 :350 点名「已写 QA、**回答缓存**及进程缓存」要一起失效——此前拒绝分支一个都不碰（少一份拷贝）。
+    现钉新契约：`decide_candidate` 拒绝分支也调 `retrieval.invalidate()`，而 invalidate 内部延迟 import
+    `answer_cache` 一起清（retrieval.py:765-781），⇒ 这条问句在 TTL 内已落进回答缓存的那份答案
+    **会因为拒绝而消失**——`main.py:2193` 的 `answer_cache.get(cache_key)` 那道出口随之 miss。
     """
     import answer_cache
     import retrieval
@@ -198,7 +204,9 @@ def test_rejecting_does_not_clear_the_answer_cache_while_approving_does(db, doub
 
     calls.clear()
     ks.decide_candidate(db, row.id, "rejected")
-    assert calls == [], "拒绝路径开始清缓存了 ⇒ 本条特征化要改写成新契约断言（不要删）"
+    # 原钉 `calls == []`（拒绝不碰回答缓存 = 第三份漏口）⇒ 现钉 `["invalidate"]`：
+    # 拒绝走形状 B，必须调 invalidate 连带清回答缓存（§4 项 1 的第三条出口）。本条原注释就要求这样改写、不删。
+    assert calls == ["invalidate"], "拒绝路径没清缓存 ⇒ §4 项 1 的回答缓存出口仍会命中旧答案"
 
     # 正对照：读侧入口确实存在（所以"回答缓存留着"是可服务的状态，不是一只空模块）
     assert hasattr(answer_cache, "get"), "回答缓存的读侧入口不见了 ⇒ 上面那句因果不成立"

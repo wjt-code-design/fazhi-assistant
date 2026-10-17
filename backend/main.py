@@ -110,6 +110,7 @@ from prompts import (
     SYSTEM_CONTRACT_REVIEW,
     SYSTEM_STUDY,
 )
+from qa_eligibility import evaluate_revocation_state
 from quota_utils import UtilityQuotaExhausted
 from rag_chain import ClosingStream, clean_answer, embeddings, format_docs, make_chain, stream_with_retry, vectorstore
 from request_bootstrap import (
@@ -480,10 +481,11 @@ def _build_messages(pre: dict) -> list:
         elif m["role"] == "assistant":
             history.append(AIMessage(content=m["content"] or ""))
     qa_note = ""
-    if pre["qa_hit"]:
-        qa_note = (
-            f"此前已确认的问答（可优先参考）：\n问：{pre['qa_hit']['question']}\n答：{pre['qa_hit']['answer']}\n\n"
-        )
+    hit = pre["qa_hit"]
+    # W06-IMPL：注入出口自带状态判据（评测探针会直接构造 pre 绕过产生处）——撤回/隔离/未知来源/读不到状态
+    # 都不给它递进模型上下文。来源可校验与引用在库两条判定仍在产生处做一次，此处只咨询状态轴、不重复扫库。
+    if hit and evaluate_revocation_state(hit).allow:
+        qa_note = f"此前已确认的问答（可优先参考）：\n问：{hit['question']}\n答：{hit['answer']}\n\n"
     date_scope = _law_version_scope_note(pre)
     context_block = (
         f"本题相关法律条文{date_scope}（以下均为本题判断依据，含场景补充条文，可全部直接引用）：\n"
@@ -1441,6 +1443,8 @@ def _qa_direct_return(pre: dict, law_as_of: date | None = None) -> str | None:
         return None
     if not qa_provenance_verifiable(qa):
         return None  # 来源校验不了 ⇒ 本出口不放行（与产生处同一判据，直连调用路径也挡得住）
+    if not evaluate_revocation_state(qa).allow:
+        return None  # W06-IMPL：撤回/隔离/未知来源/读不到状态 ⇒ 停服务（状态轴唯一真源 qa_eligibility）
     if law_as_of is not None:
         basis = date.fromisoformat(qa["law_as_of_basis"])  # 有效日期由共享来源判据保证
         if (basis >= _CIVIL_WATERSHED) != (law_as_of >= _CIVIL_WATERSHED):
@@ -2154,7 +2158,9 @@ async def chat(
             raise HTTPException(status_code=503, detail="服务繁忙，请稍后重试") from None
 
     assert pre is not None
-    messages = _build_messages(pre)
+    # W06-IMPL：注入出口现在带一次候选状态读取（load_read_state 开 session），与直返出口同法
+    # 放线程池，绝不在事件循环里做同步 SQLite 读（对抗审计 v2 #20 同一约束）。
+    messages = await run_in_threadpool(_build_messages, pre)
 
     # ---- 多模型路由决策（feature_router 关 → 全走 legacy 流式，旧行为零变化） ----
     use_router = settings.feature_router
@@ -3231,7 +3237,7 @@ def admin_qa_candidates(status: str = None, db: Session = Depends(get_db), _admi
 def admin_qa_decision(
     cand_id: int, body: QaDecisionIn, db: Session = Depends(get_db), _admin: User = Depends(require_admin)
 ):
-    r = ks.decide_candidate(db, cand_id, body.decision)
+    r = ks.decide_candidate(db, cand_id, body.decision, reviewed_by=_admin.id)
     if not r:
         raise HTTPException(status_code=404, detail="候选不存在")
     log_audit(_admin.id, f"qa.{body.decision}", target=cand_id)

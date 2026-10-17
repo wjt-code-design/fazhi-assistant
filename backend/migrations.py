@@ -25,6 +25,15 @@ _COLUMN_MIGRATIONS = [
     ("messages", "image_desc", "TEXT", None),
     # T1（2026-09-16）：Agent 终稿消息关联 run（历史会话覆盖投影用）；无默认（NULL）
     ("messages", "agent_run_id", "VARCHAR(36)", None),
+    # W06-IMPL（2026-10-17，C03=形状 P）：`qa_candidates` 的资格六列。
+    # 默认值逐字对应 P 的口径——存量行**先按"来源未知"隔离待判**（`approval_source='unknown'`），
+    # 但不是 revoked：状态轴上它们仍是 ok，等 backfill 按审计行分类后才决定去留（删数据不可撤销，所以不删）。
+    ("qa_candidates", "approval_source", "VARCHAR(32)", "'unknown'"),
+    ("qa_candidates", "reviewed_by", "INTEGER", None),
+    ("qa_candidates", "reviewed_at", "DATETIME", None),
+    ("qa_candidates", "eligibility", "VARCHAR(16)", "'ok'"),
+    ("qa_candidates", "eligibility_version", "INTEGER", "1"),
+    ("qa_candidates", "vector_doc_id", "VARCHAR(64)", None),
 ]
 
 

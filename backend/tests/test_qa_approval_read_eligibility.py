@@ -79,19 +79,40 @@ def test_gate_signature_has_no_question_so_off_topic_answers_cannot_be_caught():
     assert curation.should_curate(0.95, off_topic.replace("《民法典》第五百八十五条", "相关违约金规则")) is False
 
 
-def test_auto_approve_marks_the_row_approved_but_records_nobody_approved_it(db, double_embeddings):
-    """② 自动收录写出的记录：SQL 侧叫 approved，向量侧却没有任何审批来源/审核人/审核时间/候选 ID。"""
+def test_auto_approve_records_machine_source_and_closes_the_link(db, double_embeddings):
+    """W06-IMPL 改写（原钉 ②：approved 但向量侧没人/没时/没 ID）：
+
+    现钉新契约——自动收录两头都记账：SQL 侧 `approval_source="auto_by_score_inferred"`，
+    向量侧 metadata 多出 `qa_candidate_id` 且与 SQL `vector_doc_id` 双向对得上。
+    仍**保留**的旧事实：status=approved、记录读得回、来源可校验、答案不变（这几条今天也还成立）。
+    """
     q = "自动收录特征化：用人单位与劳动者约定的试用期上限应当如何确定？"
     row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
     assert row.status == "approved"
+    assert row.approval_source == "auto_by_score_inferred", "机器批准仍不可辨识 ⇒ W06 未落地"
 
     meta = _meta_of(q)
-    assert set(meta) == META_KEYS, f"向量侧键集变了（现量 {sorted(set(meta))}）"
+    # 原钉 `set(meta) == META_KEYS`（无候选 ID）⇒ 现钉多一个 qa_candidate_id，仍逐字闭集、没放宽成 in
+    assert set(meta) == META_KEYS | {"qa_candidate_id"}, f"向量侧键集变了（现量 {sorted(set(meta))}）"
+    assert meta["qa_candidate_id"] == row.id, "向量侧没记回候选 ID ⇒ 双向链没闭合"
 
     cols = {c.name for c in QaCandidate.__table__.columns}
-    # **闭集**而不是关键词筛（独立复核打出来的）：`review*/approv*/source*` 这种词表拦不住
-    # `machine_made` / `curated_on` 这类换个名字的列，而"换名字就说审批来源已存在"正是票面 :346 禁的形状。
-    assert cols == {"id", "question", "answer", "grounded_score", "evidence", "status", "created_at"}, sorted(cols)
+    # 原钉 7 列闭集 ⇒ 现钉 13 列闭集（新增 6 列逐字钉住，仍是**闭集**不是关键词筛）
+    assert cols == {
+        "id",
+        "question",
+        "answer",
+        "grounded_score",
+        "evidence",
+        "status",
+        "created_at",
+        "approval_source",
+        "reviewed_by",
+        "reviewed_at",
+        "eligibility",
+        "eligibility_version",
+        "vector_doc_id",
+    }, sorted(cols)
 
     # 这条记录**不是**被既有护栏拦着的状态：读侧真判据判它"来源可校验"，两条出口都放行。
     hit = ks.search_qa(q)
@@ -100,8 +121,13 @@ def test_auto_approve_marks_the_row_approved_but_records_nobody_approved_it(db, 
     assert hit["answer"] == ANSWER
 
 
-def test_machine_approved_and_human_approved_are_indistinguishable_in_both_copies(db, double_embeddings):
-    """③ 机器批准与人工批准：两份拷贝里都看不出区别——这就是「存量 origin=qa 不可区分审核方式」的机理。"""
+def test_machine_and_human_approvals_are_distinguishable_by_approval_source(db, double_embeddings):
+    """W06-IMPL 改写（原钉 ③：机器批准与人工批准两份拷贝都长得一样）：
+
+    现钉新契约——**metadata 形状**仍对两条逐字相同（都走同一个 `add_qa_pair`，只多了 qa_candidate_id），
+    但 SQL 侧从此分得开：auto→`auto_by_score_inferred`（无 reviewed_at），human→`human`＋reviewed_at。
+    仍**保留**：两条都 approved、metadata 键集相等、origin 都等于 "qa"、待审控制腿不变。
+    """
     q_auto = "机器批准对照甲：试用期包含在劳动合同期限内吗？"
     q_human = "人工批准对照乙：用人单位可以只约定试用期而不签劳动合同吗？"
 
@@ -111,11 +137,18 @@ def test_machine_approved_and_human_approved_are_indistinguishable_in_both_copie
     ks.decide_candidate(db, human_row.id, "approved")  # 人工采纳
 
     assert auto_row.status == "approved" and human_row.status == "approved"
-    assert set(_meta_of(q_auto)) == set(_meta_of(q_human)) == META_KEYS
+    # 原钉 == META_KEYS ⇒ 现钉 == META_KEYS|{qa_candidate_id}：两条 metadata 键集**仍相等**（该保留的事实），
+    # 只是集合本身新增了链键——把"两条相等"这条收窄掉会销毁唯一证据，所以留着只改等号右侧。
+    assert set(_meta_of(q_auto)) == set(_meta_of(q_human)) == META_KEYS | {"qa_candidate_id"}
     assert _meta_of(q_auto)["origin"] == _meta_of(q_human)["origin"] == "qa"
 
+    # 新契约：来源可辨——这正是此前"字节级不可分"缺陷的反面（人工有 reviewed_at、机器没有）
+    assert auto_row.approval_source == "auto_by_score_inferred"
+    assert human_row.approval_source == "human"
+    assert auto_row.reviewed_at is None and human_row.reviewed_at is not None
+
     # 控制腿：待审行既在 SQL 里可区分（status=pending），也没有进向量侧 ⇒
-    # 上面"两条完全一样"不是因为"这两份拷贝里全是常数"。
+    # 上面"两条一样"不是因为"这两份拷贝里全是常数"。
     q_pending = "待审对照丙：试用期工资不得低于本单位相同岗位最低档工资的百分之多少？"
     pend = ks.create_candidate(db, q_pending, ANSWER, 0.55, EVIDENCE)
     assert pend.status == "pending"
