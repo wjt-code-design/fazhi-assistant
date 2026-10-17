@@ -516,10 +516,36 @@ _contract_convs = DEFAULT_CONTRACT_STATE.active
 _contract_reviewed_convs = DEFAULT_CONTRACT_STATE.reviewed
 
 
-# 票 W07（C04＝甲）：识图失败对外的说法。这条路由上 502 只有这一个出处（另一处 502 住在
-# `/api/chat/transcribe`），所以前端可以按「502 ＋ 本轮带图」认定图片失败并显示它自己那条文案
-# ——判据见 tests/test_image_failure_impl.py::test_502_on_the_chat_route_has_exactly_one_source。
+# 票 W07（C04＝甲）：识图失败对外的说法。甲的用户可见腿**只覆盖这一支**（调用抛异常 ⇒ 本轮不作答）；
+# 「模型正常返回但内容为空」那一支仍继续作答、对用户没有声明，本轮按票 §3 V-B3 的第二选项落成
+# 可观测降级计数（见 `_note_empty_image_description`）。
+# `/api/chat` **这条路由上** 502 只有这一个出处（另一处 502 住在 `/api/chat/transcribe` 那条语音路由上，
+# 不同语义）——所以前端除了「本轮带图」还要认那只结构化信号（响应头，或逐字相符的 detail），
+# 免得反代合成的裸 502 被标成「图片识别失败」（票 W7-FIX B5）。
+# ——判据见 tests/test_image_failure_impl.py::test_502_on_the_chat_route_has_exactly_one_source
 IMAGE_DESCRIBE_FAILED_DETAIL = "图片识别失败，本轮未作答；请稍后重试，或改用文字描述案情。"
+IMAGE_FAILURE_HEADER = "X-Image-Failure"
+IMAGE_FAILURE_HEADER_VALUE = "describe"
+
+
+def _note_empty_image_description(bootstrap: RequestBootstrap) -> None:
+    """W7-B3：把 `RequestBootstrap.image_failure` 从**只写字段**变成有读者的降级读数。
+
+    改前全树（除测试）只有 `request_bootstrap` 自己写它，没有任何读者 ⇒ 「失败可见」这句话
+    在「空内容」那一腿上并不成立。这一腿的出口形状（继续拿原图作答、描述为空）不该被伪造成
+    用户可见的注记帧（新增一帧要动 gate-exit 登记表，不在本票面内），所以落**管理台可读的降级计数**：
+    `kind`/`degraded` 是既有登记字段，`image_desc_empty_degraded` 本轮登记（未登记会被 formatter 丢掉）。
+    读数只在「本轮确实带图且确实拿到空描述」时出现，正常轮与 502 轮都不出现（判据见
+    tests/test_image_failure_impl.py::test_empty_content_leg_has_a_reader_and_counts_as_degraded）。
+    """
+    if bootstrap.image_failure != "content_empty":
+        return
+    log_account(
+        kind="image_desc_empty_degraded",
+        degraded=True,
+        image_desc_empty_degraded=True,
+        conv_id=bootstrap.conv_id,
+    )
 
 
 def _describe_image_for_bootstrap(image: str, text: str) -> str:
@@ -531,8 +557,8 @@ def _describe_image_for_bootstrap(image: str, text: str) -> str:
 
     票 W07（C04＝甲）：`describe_image` 不再吞异常之后，**调用失败**在这一层变成明确 HTTP 502
     （本轮不产出"看起来读了图"的答案）；而**模型返回空内容**不是失败——它原样回空串，
-    由 request_bootstrap 落 `image_content_empty` 并在契约上留失败位。两个出口的归因键分开，
-    读数只在 bootstrap 那一处落，这里只把失败变成用户看得见的状态码。
+    由 request_bootstrap 落 `image_content_empty` 并在契约上留失败位（读数只在 bootstrap 那一处落）。
+    两个出口的归因键分开；本层只把**失败**那一支变成用户看得见的状态码＋结构化信号头。
     """
     try:
         _, vision_llm = registry.pick("vision", "flag")
@@ -544,7 +570,11 @@ def _describe_image_for_bootstrap(image: str, text: str) -> str:
         except HTTPException:
             raise
         except Exception as exc:
-            raise HTTPException(status_code=502, detail=IMAGE_DESCRIBE_FAILED_DETAIL) from exc
+            raise HTTPException(
+                status_code=502,
+                detail=IMAGE_DESCRIBE_FAILED_DETAIL,
+                headers={IMAGE_FAILURE_HEADER: IMAGE_FAILURE_HEADER_VALUE},
+            ) from exc
 
 
 configure_default_image_describer(_describe_image_for_bootstrap)
@@ -738,6 +768,7 @@ def _bootstrap_only(
             conv_id=bootstrap.conv_id,
             law_as_of=bootstrap.law_as_of.isoformat(),
         )
+    _note_empty_image_description(bootstrap)
     return bootstrap
 
 
@@ -1763,7 +1794,10 @@ async def chat_transcribe(request: Request, file: UploadFile = File(...), user: 
     except HTTPException:
         raise
     except Exception as e:
-        logging.getLogger(__name__).warning("transcribe failed: %s", e)
+        # 票 W7-FIX B9：只记**异常类名**，不把 SDK 异常正文写进 msg——`_JsonFormatter` 无条件输出 `msg`，
+        # 而上游异常文本可能回显请求内容（这条腿没有真 key 可测 ⇒ 「上游是否回显」标 NOT TESTABLE，
+        # 见 dispatch/w07-fix-ticket.md；这里做的是「即便回显也不落日志」的那一半，可静态钉）。
+        logging.getLogger("legal.chat").warning("transcribe failed", extra={"llm_error_class": type(e).__name__})
         raise HTTPException(status_code=502, detail="语音识别服务暂时不可用，请稍后重试") from e
 
 

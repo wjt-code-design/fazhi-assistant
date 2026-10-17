@@ -113,8 +113,9 @@ AUDIO_PROMPT = (
 # livetranslate 语音模型接受的音频格式（2026-08-06 门禁：webm/opus 不收）
 AUDIO_EXTS = ("wav", "mp3", "m4a", "flac", "ogg")
 
-# 票 W07 §1 ④：语音的**传输词表**。值的闭集由 llm_registry 的 cfg 白名单定义（§1 ②），
-# 这里那三个字面量与它是两处——由 tests/test_multimodal_transport_impl.py::
+# 票 W07 §1 ④＋F15 在册口径：语音的**传输词表**是「三个本地字面量＋一只同词判据」，
+# **不是**单点定义——值的闭集由 llm_registry.TRANSPORTS 定义（§1 ②），这里 CHAT/MULTIPART/NO
+# 三个常量与它是两处并列，由 tests/test_multimodal_transport_impl.py::
 # test_transport_names_are_the_same_words_on_both_sides 钉成同一套词（先例：conftest 里
 # chroma 集合名那两处字面量的处理）。故意不在 multimodal 里 import llm_registry：
 # 那只模块 import 期就构造 registry（要求凭据），会把「只想用图片工具」的调用点拖进配置依赖。
@@ -162,7 +163,13 @@ def _transcribe_multipart(voice_llm, b64: str, fmt: str, *, client: Any | None =
     if sdk is None:
         raise ValueError("audio_transcriptions 需要模型客户端才能拼出 /audio/transcriptions 端点")
     raw = base64.b64decode(b64)
-    mime = _AUDIO_MIME.get(fmt, "application/octet-stream")
+    # 票 W7-FIX B8：白名单外的格式**显式失败**，不再静默降级成通用 MIME——
+    # 那种降级把「客户端发了个模型不收的容器格式」伪装成「MIME 未知」，而上游只会回一个看不懂的 400。
+    # 今天这条路只被路由层 `main.py` 的 `ext not in AUDIO_EXTS ⇒ 400` 拦住，那是别人的门；
+    # 分派腿自己也要有门（判据：test_audio_format_outside_the_whitelist_raises_instead_of_octet_stream）。
+    if fmt not in _AUDIO_MIME:
+        raise ValueError(f"音频格式 {fmt!r} 不在白名单内（可用 {list(AUDIO_EXTS)}）——不静默降级 MIME")
+    mime = _AUDIO_MIME[fmt]
     resp = sdk.audio.transcriptions.create(
         model=voice_llm.model_name,
         file=(f"audio.{fmt}", raw, mime),
@@ -189,6 +196,8 @@ def transcribe_audio(
     """语音→文字（M2）。**唯一**按 transport 分派的地方；缺省 chat＝今天那条路，旧行为逐字不变。
 
     两条腿的失败纪律一致：异常向上抛（前端据此回退 Web Speech，管理台据此分账）。
+    调用方两处：`main.chat_transcribe`（生产路由）与 `mcp_server.transcribe_audio`（开发期验收工具）——
+    票 W7-B4 之后后者也不再自己拼请求体，所以"按 transport 分岔"这件事仍然只发生在本函数里一次。
     """
     try:
         handler = _VOICE_DISPATCH[transport]

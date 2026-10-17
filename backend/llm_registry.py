@@ -96,6 +96,14 @@ def reject_kind(status: int | None) -> str:
     return "config" if isinstance(status, int) and status in REJECT_CONFIG_STATUSES else "shape"
 
 
+def _unknown_keys(container: dict[str, Any], allowed: frozenset[str]) -> list[str]:
+    """白名单外的键名（排序后的列表）。票 W7-B2：cfg 面（`_build`）与 entry 原始 dict 面
+    （`LLMRegistry._load`）**共用这一把尺**——两处各写一遍 `set(x) - KEYS` 的话，
+    entry 面那份会跟着 cfg 面一起漂，而「拼错的键无声消失」正是本票要钉死的失效。
+    """
+    return sorted(set(container) - allowed)
+
+
 # 默认代表模型表：key / model / modality / tier / capabilities / initial_used（截图已用量）
 # base_url / api_key 复用 settings；可在 .env 用 LLM_MODELS_JSON 整体覆盖。
 DEFAULT_ROLES: list[dict[str, Any]] = [
@@ -386,7 +394,8 @@ class ModelEntry:
     # 耗尽是运行期事实可持久校准，拒绝是**瞬时事实**，过期即自愈（重启自然清零）。
     rejected_until: float = 0.0
     rejected_kind: str | None = None  # D-9：config（改配置才好）与 shape（本次请求的问题）分档
-    # 票 W07 §1 ③：transport 的**唯一存放处**就是 entry 上这一位（由 `_load` 从 cfg 派生一次），
+    # 票 W07 §1 ③＋W7-FIX F11：transport 的**唯一存放处**就是 entry 上这一位（由 `_load` 从 entry
+    # 原始 dict 派生一次，**不再**同时写进 cfg——两份同源的那些测试判据永远是绿的，量不到漂移）。
     # 调用方经 `LLMRegistry.transport_of(key)` 读它——不改 `pick()` 的公共返回形状，
     # 也不在 ChatOpenAI 上再存一份（那会变成两处各存一份，本票判据直接红）。
     transport: str = DEFAULT_TRANSPORT
@@ -428,10 +437,14 @@ def _build(
     # 不再像改前那样「不报错也不生效」。这是全链路上唯一一处按字面读 `transport` 的地方：
     # 调用方读的是 ModelEntry.transport（同一个派生值），不是第二份 cfg 读取（判据见
     # tests/test_multimodal_transport_impl.py::test_transport_is_read_from_cfg_in_exactly_one_place）。
-    unknown = sorted(set(cfg) - CFG_KEYS)
+    # ⚠️ W7-FIX §2 的这条腿要说实话：`_load` 用固定键重建 cfg，所以真实配置路径**走不到**这里，
+    # entry 面的等价检查在 `_load` 里（同一把尺 `_unknown_keys`），落日志而不是 raise。
+    unknown = _unknown_keys(cfg, CFG_KEYS)
     if unknown:
         raise ValueError(f"LLM cfg 含白名单外的键：{unknown}——静默丢弃等于配置写了没人读")
     transport = cfg.get("transport", DEFAULT_TRANSPORT)
+    # 手搓 cfg 的调用点（含测试）仍在这里被拦；`_load` 那条真实配置路已提前验过并**跳过**坏 entry，
+    # 所以这一发 raise 不再有机会打死启动（W7-B1，判据见 tests/test_llm_registry_boot_impl.py）。
     if transport not in TRANSPORTS:
         raise ValueError(f"未知 transport：{transport!r}（可用 {list(TRANSPORTS)}）")
     if not cfg.get("api_key") or not cfg.get("base_url"):
@@ -494,20 +507,43 @@ class LLMRegistry:
         self._aclose_done = False  # 应用退出收尾一次性标记（aclose 幂等）
         self._load()
 
+    def _skip_entry(self, r: dict[str, Any], key: str, reason: str) -> None:
+        """一条 entry 降级跳过（不致命）＋落一条**已登记**的归因读数。
+
+        W7-B1（可用性回退）：改前 `_load` 只 `except RuntimeError: continue`，而 `_build` 对未知
+        transport 抛的是 `ValueError`，且 `registry = LLMRegistry()` 跑在模块作用域 ⇒
+        `LLM_MODELS_JSON` 里一个拼错的值让整只后端 import 就炸（判据：
+        tests/test_llm_registry_boot_impl.py::test_import_time_bad_transport_value_does_not_kill_the_backend）。
+        读数只带 entry key／transport 值（闭集词汇，不是凭据）／异常类名——不带任何 key 的值，
+        也不带异常正文（W7-B9 同一口径：上游文本可能回显请求字节）。
+        """
+        logging.getLogger("legal.llm").warning(
+            f"llm_entry_skipped entry={key} reason={reason}",
+            extra={"model": r.get("model", ""), "llm_cfg_entry_rejected": [f"{key}: {reason}"]},
+        )
+
     def _load(self) -> None:
         with self._lock:
             self._entries = {}
             for r in _load_roles():
                 key = r["key"]
                 # 票 W07 §1 ①：entry 输入面的 transport（缺省＝chat ⇒ 旧条目逐字不变）。
-                # 拼错的键在这里落一条 warning 而不是无声消失（§3 第 4 条的入口那一半）。
-                stray = sorted(set(r) - ROLE_KEYS)
+                # W7-B2：未知键检查作用在 entry 的**原始 dict** 上（`_build` 那只 cfg 白名单在真实
+                # 配置路径上够不着，因为下面的 cfg 是用固定键名重建的），拼错的键在这里点名，
+                # 而不是让它的值无声消失。msg 带 entry key ⇒ 运维知道去改哪一条。
+                stray = _unknown_keys(r, ROLE_KEYS)
                 if stray:
                     logging.getLogger("legal.llm").warning(
-                        "llm_role_unknown_keys",
+                        f"llm_role_unknown_keys entry={key}",
                         extra={"model": r.get("model", ""), "llm_cfg_unknown_keys": stray},
                     )
                 transport = r.get("transport", DEFAULT_TRANSPORT)
+                # W7-B1：transport 的值在这一层就验，验不过**只跳过这一条 entry**。
+                # 位置在取凭据之前，顺带修掉复核说的顺序问题：缺 key 的 RuntimeError 检查原本排在
+                # transport 校验之后，于是一个坏值连「本来会被跳过的未配置 provider」一起炸死。
+                if transport not in TRANSPORTS:
+                    self._skip_entry(r, key, f"未知 transport={transport!r}（可用 {list(TRANSPORTS)}）")
+                    continue
                 provider = r.get("provider", "aliyun")
                 if provider == "zhipu":  # 智谱平台（8-23 到期免费 token）：独立 base_url/key
                     base_url = r.get("base_url") or settings.zhipu_base_url
@@ -526,7 +562,10 @@ class LLMRegistry:
                     "disable_thinking": bool(r.get("disable_thinking", False)),
                     "timeout": int(r.get("timeout", 120)),
                     "translation_options": r.get("translation_options"),
-                    "transport": transport,
+                    # F11：这里**不再**写 transport ⇒ 它的唯一存放处就是下一段 `ModelEntry.transport`
+                    # （由 `_load` 派生一次，调用方经 `transport_of` 读）。往 cfg 再塞一份等于同一值存两处，
+                    # 而 `_build` 那次读取在真实配置路径上永远只会读到默认值（判据：
+                    # tests/test_multimodal_transport_impl.py::test_registry_entry_is_the_only_store_of_transport）。
                 }
                 e = ModelEntry(
                     key=key,
@@ -548,10 +587,13 @@ class LLMRegistry:
                     e.initial_used = ov
                 try:
                     e.llm = _build(cfg)
-                except RuntimeError:
-                    # 缺 key/base_url 的 provider 跳过（2026-08-08 服务器部署修复）：用户只配了
-                    # 部分模型 key（如阿里云 qwen），智谱等其他 provider 没配会抛 RuntimeError，
-                    # 原先整个后端启动失败。跳过该 entry，不影响其他已配置模型。
+                except (RuntimeError, ValueError) as exc:
+                    # RuntimeError＝该 provider 没配 key/base_url（2026-08-08 服务器部署修复：用户只配了
+                    # 部分模型 key 时原先整个后端启动失败）；ValueError＝这条 entry 的 cfg 本身写错。
+                    # 两者都**只降级这一条 entry**，其余照常可用。
+                    # 刻意不写 `except Exception`：结构性 bug（KeyError/TypeError 等）必须当场炸，
+                    # 否则真故障会被配置降级通道一起吞掉（判据见 tests/test_llm_registry_boot_impl.py）。
+                    self._skip_entry(r, key, type(exc).__name__)
                     continue
                 self._entries[key] = e
 

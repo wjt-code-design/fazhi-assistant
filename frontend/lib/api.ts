@@ -6,7 +6,12 @@
 // dispatch-output/t12a-deploy-base-20260922/report.md。
 import { parseSSEFrames } from "./sse";
 import { coverageFromFinalEvent } from "./coverage";
-import { IMAGE_DESCRIBE_FAILED_MESSAGE } from "./constants";
+import {
+  IMAGE_DESCRIBE_FAILED_DETAIL,
+  IMAGE_DESCRIBE_FAILED_MESSAGE,
+  IMAGE_FAILURE_HEADER,
+  IMAGE_FAILURE_HEADER_VALUE,
+} from "./constants";
 import type {
   ConversationItem,
   ConversationDetail,
@@ -143,11 +148,18 @@ export interface AnalysisStep {
   detail: string;
 }
 
+// 票 W7-FIX B7：错误回调的**结构化**附注。`turnNotCommitted` ＝后端确认这一轮**没有半提交**
+// （消息未落库、配额未扣、缓存未写），调用方据此把本轮的用户气泡一起撤掉，
+// 而不是等刷新才发现那条气泡根本没被提交（502 识图失败就是这种）。
+export interface StreamErrorInfo {
+  turnNotCommitted?: boolean;
+}
+
 export async function streamChat(
   payload: ChatPayload,
   onChunk: (text: string) => void,
   onMeta: (meta: ChatMeta) => void,
-  onError: (msg: string) => void,
+  onError: (msg: string, info?: StreamErrorInfo) => void,
   onSteps?: (steps: AnalysisStep[]) => void,
   onRestart?: () => void,
   signal?: AbortSignal
@@ -213,21 +225,29 @@ export async function streamChat(
         onError("登录已过期，请重新登录");
         return;
       }
-      // 票 W07（C04＝甲）：识图失败在 /api/chat 上是 502，且后端那条路由上 502 只有这一个出处
-      // （判据：tests/test_image_failure_impl.py::test_502_on_the_chat_route_has_exactly_one_source）。
-      // 本轮没带图就不认成图片失败——宁可退回通用提示，也不替后端编一句没说过的话。
-      if (res.status === 502 && payload.image) {
-        onError(IMAGE_DESCRIBE_FAILED_MESSAGE);
-        return;
-      }
-      let detail = `请求失败（HTTP ${res.status}）`;
+      // 票 W07（C04＝甲）＋W7-FIX B5：识图失败在 /api/chat 上回 502，但**状态码不是信号**——
+      // 反代/网关合成的 502（请求根本没到 FastAPI）会被误标成「图片识别失败」。
+      // 因此这里只认后端给的结构化信号：响应头 `X-Image-Failure: describe`，
+      // 或后端那条**逐字相符**的 detail（代理剥自定义头时的退路）。两者都没有 ⇒ 走通用文案。
+      // 后端那条路由上 502 只有识图失败这一个出处（判据：
+      // tests/test_image_failure_impl.py::test_502_on_the_chat_route_has_exactly_one_source）。
+      let detail = "";
       try {
         const d = await res.json();
         if (d.detail) detail = d.detail;
       } catch {
-        /* ignore */
+        /* 没有 JSON body（反代合成的 502 常见形状）⇒ detail 留空，信号缺失就不认图片失败 */
       }
-      onError(detail);
+      const imageFailureSignal =
+        res.headers.get(IMAGE_FAILURE_HEADER) === IMAGE_FAILURE_HEADER_VALUE ||
+        detail === IMAGE_DESCRIBE_FAILED_DETAIL;
+      // 本轮没带图同样不认——宁可退回通用提示，也不替后端编一句没说过的话。
+      if (res.status === 502 && payload.image && imageFailureSignal) {
+        // B7：后端这一轮没有半提交（消息未落库、配额未扣），所以调用方可以连用户气泡一起撤掉
+        onError(IMAGE_DESCRIBE_FAILED_MESSAGE, { turnNotCommitted: true });
+        return;
+      }
+      onError(detail || `请求失败（HTTP ${res.status}）`);
       return;
     }
 

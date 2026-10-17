@@ -1,14 +1,21 @@
 """W07-IMPL 新契约（C04＝甲 已裁）：识图失败**可见**——异常不再收敛成空串，两个出口分得开。
 
+⚠️ 「可见」的适用范围（票 W7-FIX W7-B3 要求如实写明）：甲的**用户可见**那条腿只覆盖
+「识图调用抛异常 ⇒ 本轮 502 不作答」这一支。「模型正常返回但内容为空」那一支**仍然继续作答、
+没有面向用户的声明**——本轮按票 §3 V-B3 的第二选项给它落一条**可观测降级计数**
+（`main._note_empty_image_description` 读 `RequestBootstrap.image_failure` ⇒ `image_desc_empty_degraded`），
+所以这一腿的措辞是「降级可读」，不是「失败可见」。
+
 与 `test_image_failure_visibility.py`（特征化轮，钉的是「失败与空内容同形、契约里没有失败位」）的分工：
 那只文件量改前的现量，本文件量改后应有的行为。票 §3 第 1、2 条在这里成对：
 
-1. 带图问答在识图失败时 ⇒ 用户看到明确失败（HTTP 502），**不是**「正常答案」，也不许进入检索/生成阶段；
+1. 带图问答在识图失败时 ⇒ 用户看到明确失败（HTTP 502 ＋ 结构化信号），**不是**「正常答案」，也不许进入检索/生成阶段；
 2. 注入异常亮键 A（`image_describe_failed`）、返回空内容亮键 B（`image_content_empty`）
    ⇒ 断言**是哪个键亮了**（两个键各自单独判，不只断言「有键亮」）。
 
-外加两条本票特有的：`RequestBootstrap` 的失败位（§1 ⑦ 穷举证明改前没有），
-以及两个归因键在 `observability._ACCOUNT_FIELDS` 里真的登记过（上一票就是漏这格被全量门打回）。
+外加本票特有的几条：`RequestBootstrap` 的失败位（§1 ⑦ 穷举证明改前没有）与其**读者**（V-B3）、
+两个归因键在 `observability._ACCOUNT_FIELDS` 里真的登记过（上一票就是漏这格被全量门打回）、
+吞异常普查的尺子与作用域（W7-B10/B4）、502 普查尺子的两种写法（F12）。
 
 零外发：所有异常与空内容都由记账假对象注入，DB 是 in-memory SQLite；HTTP 腿走 TestClient，
 识图能力本身换成假对象、检索/生成整段换成记账桩——一个字节都不出机器。
@@ -47,6 +54,7 @@ _QUESTION = "这份合同有效吗"
 
 # 跨面判据对象（先例：`test_multimodal_transport_contract.py` 第 4 条读 recorder.ts）
 FRONTEND_DIR = Path(__file__).resolve().parents[2] / "frontend"
+BACKEND = Path(__file__).resolve().parents[1]
 
 
 class _Llm:
@@ -233,35 +241,139 @@ def test_both_lanes_reject_the_same_exception_set(exc):
     assert vision.calls == 1, "视觉腿没调到模型就拒绝 ⇒ 这条腿在空转"
 
 
-def _swallowing_handlers(source: str) -> int:
-    """数「捕获之后不把异常抛出去、而是返回一个值」的 except 处理器——那才是吞。
+def _swallow_sites(source: str) -> dict[str, int]:
+    """按**最内层函数**归属数「捕获之后不把异常抛出去」的 except 处理器（票 W7-B10 的尺）。
 
-    只看 `Return` 不看 `Raise` 会把 `except KeyError: raise ValueError(...)` 这种**换类型上抛**
-    误判成吞（票 §1 ④ 的分派表里正好有一条），所以两个都要查。
+    判据从「处理器里有 `Return` 且子树内无 `Raise`」改成「**处理器顶层没有 re-raise**」——
+    旧尺漏掉五种形状，其中第三种恰好是"只继续吞某一类"那种回退：
+      ① `except Exception: pass` ＋ try 之后再 return；
+      ② `except Exception: out = ""` 赋值后返回 / 委托 helper（`return _fallback(e)`）；
+      ③ 条件 re-raise：`if not isinstance(e, X): raise` 然后 return ⇒ 顶层没有 raise；
+      ④ `with contextlib.suppress(X):`（另由 `_suppress_sites` 数）；
+      ⑤ 处理器里根本没有 Return 的那种降级。
+    换类型上抛（`except KeyError as e: raise ValueError(...) from e`）顶层就有 raise ⇒ 不算吞（旧尺那条不误伤）。
     """
-    total = 0
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, ast.ExceptHandler):
-            # 必须是 list：生成器被上面那次 any() 消费完，下面再迭代就永远为空 ⇒
-            # 尺子会数出 0，第一条断言于是变成恒绿假象（本轮就是这么被正对照打回来的）
-            body = list(ast.walk(node))
-            if any(isinstance(x, ast.Raise) for x in body):
-                continue
-            if any(isinstance(x, ast.Return) for x in body):
-                total += 1
-    return total
+    tree = ast.parse(source)
+    out: dict[str, int] = {}
+
+    def walk(node, fname):
+        for ch in ast.iter_child_nodes(node):
+            nf = fname
+            if isinstance(ch, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                nf = ch.name
+            if isinstance(ch, ast.ExceptHandler) and not any(isinstance(s, ast.Raise) for s in ch.body):
+                key = nf or "<module>"
+                out[key] = out.get(key, 0) + 1
+            walk(ch, nf)
+
+    walk(tree, None)
+    return out
+
+
+def _swallowing_handlers(source: str) -> int:
+    """吞没处理器总数（保留旧函数名：调用处按"有几个"判）。"""
+    return sum(_swallow_sites(source).values())
+
+
+def _suppress_sites(source: str) -> dict[str, int]:
+    """`with suppress(...)`／`with contextlib.suppress(...)` 的落点（按最内层函数归属）。
+
+    这种写法**天生**不 re-raise（它就是为此而被 import 的），所以旧尺一条都数不到它。
+    """
+    tree = ast.parse(source)
+    out: dict[str, int] = {}
+
+    def qual(n):
+        if isinstance(n, ast.Name):
+            return n.id
+        if isinstance(n, ast.Attribute):
+            return n.attr
+        return ""
+
+    def walk(node, fname):
+        for ch in ast.iter_child_nodes(node):
+            nf = fname
+            if isinstance(ch, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                nf = ch.name
+            if isinstance(ch, ast.With):
+                for item in ch.items:
+                    ctx = item.context_expr
+                    if isinstance(ctx, ast.Call) and qual(ctx.func) == "suppress":
+                        key = nf or "<module>"
+                        out[key] = out.get(key, 0) + 1
+            walk(ch, nf)
+
+    walk(tree, None)
+    return out
+
+
+# 作用域（票 W7-B10）：`multimodal`／`request_bootstrap`／`main`／`mcp_server` 四个文件一起扫。
+# `mcp_server.py` 不能 import（本机没装 `mcp` 包），所以一律按**源文件文本**读——
+# 尺量的是文本，与被测模块能不能装载无关。
+_CENSUS_FILES = ("multimodal.py", "request_bootstrap.py", "main.py", "mcp_server.py")
+
+# 存量登记在册（W7-FIX 只把尺子**扩**到这些文件，逐条改造清理路径超出本票面）：
+# 数字与键（函数名）任一变化都红 ⇒ 新增一处吞没必红，改掉一处也得同步把这条读数往下改。
+_KNOWN_SWALLOW_SITES = {
+    "multimodal.py": {},
+    "mcp_server.py": {},
+    "request_bootstrap.py": {"cleanup_persisted_images": 2, "bootstrap_request": 3},
+    "main.py": {
+        "__call__": 1,
+        "lifespan": 1,
+        "healthz": 3,
+        "_best_effort_log_agent_gate_failure": 1,
+        "_observe_agent_gate": 4,
+        "_run_agent_gate_shadow": 1,
+        "_pre": 1,
+        "_record_actual_agent_route": 2,
+        "_join_owned_task": 2,
+        "run_and_record": 1,
+        "watch_disconnect": 1,
+        "_execute_agent_observing_disconnect": 1,
+        "_record_analysis": 1,
+        "finalize_verified_agent_answer": 1,
+        "_safe_pick": 1,
+        "_embed_question": 1,
+        "_similar_cache_hit": 1,
+        "_ainvoke_cancel_safe": 2,
+        "_light_buffered_locked": 1,
+        "_do": 2,
+        "_acquire_chat_turn": 1,
+        "_serialized_chat": 1,
+        "stream": 16,
+        "compensate_unstarted": 1,
+    },
+}
+_KNOWN_SUPPRESS_SITES = {
+    "multimodal.py": {},
+    "mcp_server.py": {},
+    "request_bootstrap.py": {},
+    "main.py": {"_execute_agent_observing_disconnect": 1},
+}
+
+
+def _file_source(name: str) -> str:
+    return (Path(__file__).resolve().parents[1] / name).read_text(encoding="utf-8")
 
 
 def test_multimodal_has_no_swallowing_handler_left():
-    """甲之后 `multimodal` 里不该再有「捕获→返回一个值」的处理器（AST 普查，两侧一起管）。
+    """甲之后 `multimodal`／`mcp_server` 里不该再有吞异常的处理器；其余两个文件按存量在册（AST 普查）。
 
     为什么用普查而不是逐条 `pytest.raises`：逐条判据只覆盖**想到了的那几种**异常与**那两条**出口，
     而"哪天有人给 multipart 腿补一句 except 返回空串"是新增出口——普查对整只文件生效。
-    watch-it-fail（正对照）：合成一份 `except Exception: return ""` 的源码必须数出 1，
-    同一段合成源码里 `except KeyError: raise ValueError` 必须数出 0 ⇒ 尺子量的是「吞」而不是「有 try」。
+    watch-it-fail（正对照）见下面那条 `_swallow_sites` 形状判据，五种漏项各一条合成正对照。
     """
     assert _swallowing_handlers(inspect.getsource(multimodal)) == 0, "multimodal 里又出现了吞异常的处理器"
     assert _swallowing_handlers(inspect.getsource(multimodal.transcribe_audio)) == 0
+
+    for name in _CENSUS_FILES:
+        assert _swallow_sites(_file_source(name)) == _KNOWN_SWALLOW_SITES[name], (
+            f"{name} 的吞异常面与在册读数不符：{_swallow_sites(_file_source(name))}"
+        )
+        assert _suppress_sites(_file_source(name)) == _KNOWN_SUPPRESS_SITES[name], (
+            f"{name} 的 contextlib.suppress 落点与在册读数不符：{_suppress_sites(_file_source(name))}"
+        )
 
     swallowed = "\n".join(
         [
@@ -283,6 +395,100 @@ def test_multimodal_has_no_swallowing_handler_left():
         ]
     )
     assert _swallowing_handlers(converted) == 0, "换类型上抛被误判成吞 ⇒ 判据会把合法代码也钉红"
+
+
+@pytest.mark.parametrize(
+    "shape,expected",
+    [
+        # ① 处理器里 pass，try 之后才 return（旧尺：处理器内没有 Return ⇒ 数不出来）
+        (
+            "\n".join(
+                [
+                    "def f(x):",
+                    "    try:",
+                    "        x()",
+                    "    except Exception:",
+                    "        pass",
+                    "    return 'ok'",
+                ]
+            ),
+            1,
+        ),
+        # ② 条件 re-raise ＋ return：`if not isinstance(e, X): raise` ⇒ **只继续吞某一类**那种回退
+        (
+            "\n".join(
+                [
+                    "def f(x):",
+                    "    try:",
+                    "        return x()",
+                    "    except Exception as e:",
+                    "        if not isinstance(e, TimeoutError):",
+                    "            raise",
+                    "        return ''",
+                ]
+            ),
+            1,
+        ),
+        # ③ 赋值后返回（处理器内无 Return 语句，返回的是刚赋的值）
+        (
+            "\n".join(
+                [
+                    "def f(x):",
+                    "    try:",
+                    "        out = x()",
+                    "    except Exception:",
+                    "        out = ''",
+                    "    return out",
+                ]
+            ),
+            1,
+        ),
+        # ④ 委托 helper（返回值来自被调函数，旧尺数得到 Return 但形状判不出"顶层不抛"）
+        (
+            "\n".join(
+                [
+                    "def f(x, fallback):",
+                    "    try:",
+                    "        return x()",
+                    "    except Exception as e:",
+                    "        return fallback(e)",
+                ]
+            ),
+            1,
+        ),
+        # 正对照：顶层 bare raise ⇒ 不是吞
+        (
+            "\n".join(
+                [
+                    "def f(x):",
+                    "    try:",
+                    "        return x()",
+                    "    except Exception:",
+                    "        raise",
+                ]
+            ),
+            0,
+        ),
+    ],
+    ids=["pass-then-return", "conditional-reraise", "assign-then-return", "delegated-helper", "bare-raise"],
+)
+def test_swallow_ruler_detects_each_previously_missed_shape(shape, expected):
+    """W7-B10 的 watch-it-fail：四种漏项各被数出 1，合法的那条仍是 0（否则这条尺是恒真的）。"""
+    assert sum(_swallow_sites(shape).values()) == expected, _swallow_sites(shape)
+
+
+def test_suppress_ruler_detects_contextlib_suppress():
+    """`contextlib.suppress`（`main.py` 早就 import 了它）在旧尺里一条都数不到——这里补上。"""
+    src = "\n".join(
+        [
+            "from contextlib import suppress",
+            "def f(x):",
+            "    with suppress(ValueError):",
+            "        x()",
+        ]
+    )
+    assert _suppress_sites(src) == {"f": 1}
+    assert _suppress_sites("def f(x):\n    return x()\n") == {}
 
 
 # ---------------------------------------------------------------- §3 第 2 条：分键亮灭
@@ -367,6 +573,56 @@ def test_failure_bit_is_not_repudicated_by_the_empty_description_path(store):
     assert (_failure_bit(empty), _failure_bit(ok)) == ("content_empty", None)
 
 
+def _image_failure_reads() -> dict[str, int]:
+    """`x.image_failure` 的**属性读取**（AST，Load 位）按文件归集；不含 request_bootstrap 自己那份写。"""
+    out: dict[str, int] = {}
+    for path in sorted(BACKEND.glob("*.py")):
+        if path.name == "request_bootstrap.py":
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError:
+            continue
+        n = sum(
+            1
+            for node in ast.walk(tree)
+            if isinstance(node, ast.Attribute) and node.attr == "image_failure" and isinstance(node.ctx, ast.Load)
+        )
+        if n:
+            out[path.name] = n
+    return out
+
+
+def test_empty_content_leg_has_a_reader_and_counts_as_degraded(store):
+    """V-B3（W7-B3）：空内容腿**有读者＋有降级计数**——甲那句「失败可见」在这一腿上至此才成立。
+
+    改前 `image_failure` 是只写字段（全树除测试无人读），空内容那一轮继续拿原图作答且没有任何声明。
+    三条一起钉：
+    ① 静态面：除 `request_bootstrap` 外必须真有属性**读取**（注释里提一句不算，所以走 AST）；
+    ② 行为面：空内容轮落一条 `image_desc_empty_degraded`（连同既有 `kind`/`degraded`）；
+    ③ 反对照：正常轮不落（否则这条计数会把所有带图轮都算成降级）。
+    """
+    import main
+
+    assert _image_failure_reads().get("main.py", 0) >= 1, _image_failure_reads()
+
+    empty = bootstrap_request(
+        store.user_id, None, _QUESTION, _PNG, False, _deps=_deps(store, describe_image=lambda image, text: "")
+    )
+    ok = bootstrap_request(store.user_id, None, _QUESTION, _PNG, False, _deps=_deps(store))
+    assert empty.image_failure == "content_empty" and ok.image_failure is None
+
+    with _Capture(logging.getLogger("legal.chat"), logging.INFO) as recs:
+        main._note_empty_image_description(empty)
+    assert recs.lit("image_desc_empty_degraded") is True, [r.getMessage() for r in recs.items]
+    assert [getattr(r, "kind", None) for r in recs.items] == ["image_desc_empty_degraded"]
+    assert all(getattr(r, "degraded", False) is True for r in recs.items)
+
+    with _Capture(logging.getLogger("legal.chat"), logging.INFO) as clean:
+        main._note_empty_image_description(ok)
+    assert clean.items == [], [r.getMessage() for r in clean.items]
+
+
 # ---------------------------------------------------------------- §3 第 1 条：HTTP 一层
 
 
@@ -393,10 +649,13 @@ def _wire_image_chat(monkeypatch, describer):
 
 
 def test_failed_image_turn_returns_explicit_http_failure_and_never_answers(monkeypatch):
-    """§3 第 1 条（甲）：带图问答识图失败 ⇒ HTTP 502 明确失败，且**没有**进入检索/生成阶段。
+    """§3 第 1 条（甲）＋V-B5/V-B6：带图问答识图失败 ⇒ HTTP 502 ＋ **结构化信号**，且不进入检索/生成。
 
     「不能是正常答案」用两条腿一起钉：状态码不是 2xx 且响应体没有 content/answer，
     外加 `prepare_fast_path` 一次都没被调用。
+    信号本身（B5/B6）：那只响应头＋逐字相符的 detail——前端认的就是这两样，
+    「TestClient 端到端拿到 502」这条判据把"尺子按函数名数、不绑路由"那个漏洞补上
+    （往 `chat()` 函数体里再加一个 502，光数函数名的判据照样绿，而这里会红在 detail/头上）。
     """
     from fastapi.testclient import TestClient
 
@@ -422,26 +681,88 @@ def test_failed_image_turn_returns_explicit_http_failure_and_never_answers(monke
     body = resp.json()
     assert body.get("detail"), body
     assert "content" not in body and "answer" not in body
+    # 结构化信号（前端唯一的认定依据）：头 + detail 逐字
+    assert resp.headers.get(main.IMAGE_FAILURE_HEADER) == main.IMAGE_FAILURE_HEADER_VALUE, dict(resp.headers)
+    assert body["detail"] == main.IMAGE_DESCRIBE_FAILED_DETAIL, body
     # 生产链路（不是只桩出来的 dep）也要亮键 A：main 把异常换成 502 之后，
     # bootstrap 那一道 `except Exception` 收到的仍是同一发 ⇒ 一次失败一个读数。
     assert records.lit("image_describe_failed") is True
     assert records.lit("image_content_empty") is False
 
 
-def test_empty_image_description_does_not_become_an_http_failure(monkeypatch):
-    """甲的边界：「图里没字」不是失败——识图出口不许把它变成 HTTP 异常。
+def test_transcribe_route_502_carries_no_image_signal_and_logs_only_the_exception_class(monkeypatch):
+    """B5 的反例＋B9 的读数面：语音那条路由的 502 **不是**识图失败信号，日志里也不许有异常正文。
 
-    反向钉 §3 第 2 条的另一半：实现若把两种出口混成一个异常，这条就红。
-    同时钉住「空内容的读数只落在 bootstrap 那一处」，不留两份账。
+    为什么要这条：`/api/chat/transcribe` 也回 502（不同语义），如果前端只看状态码，
+    一轮带图的请求撞上语音故障就会被标成「图片识别失败」。这里量的是后端**没有**给那条 502
+    发识图信号（头缺失＋detail 不同字），所以前端据信号判是安全的。
+    B9：改前那行 `logging.warning("transcribe failed: %s", e)` 把 SDK 异常正文无条件写进 `msg`
+    （`_JsonFormatter` 永远输出 `msg`）⇒ 现在只许出现**异常类名**。
+    「上游是否回显请求字节」这一问没有真 key 测不了 ⇒ 标 NOT TESTABLE，本条只钉我们这一侧。
     """
+    from fastapi.testclient import TestClient
+
+    import main
+    from auth import get_current_user
+
+    monkeypatch.setattr(main.settings, "feature_transcribe", True)
+    monkeypatch.setattr(main.registry, "has_modality", lambda modality: modality == "voice")
+    monkeypatch.setattr(main.registry, "pick", lambda modality, tier, **kw: ("voice_flag", SimpleNamespace()))
+
+    def boom(*_a, **_kw):
+        raise RuntimeError("上游把请求内容回显出来的那种异常 zzz-marker-不能进日志")
+
+    monkeypatch.setattr(main, "transcribe_audio", boom)
+    main.app.dependency_overrides[get_current_user] = lambda: SimpleNamespace(id=1)
+    try:
+        with (
+            TestClient(main.app, raise_server_exceptions=False) as client,
+            _Capture(logging.getLogger("legal.chat")) as records,
+        ):
+            resp = client.post(
+                "/api/chat/transcribe",
+                files={"file": ("a.wav", b"RIIFFAKEFAKEFAKEFAKEFAKEFAKEFAKEFAKE" * 40, "audio/wav")},
+            )
+    finally:
+        main.app.dependency_overrides.clear()
+
+    assert resp.status_code == 502, resp.text
+    assert main.IMAGE_FAILURE_HEADER not in resp.headers, dict(resp.headers)
+    assert resp.json()["detail"] != main.IMAGE_DESCRIBE_FAILED_DETAIL, resp.json()
+    hits = [getattr(r, "llm_error_class", None) for r in records.items if getattr(r, "llm_error_class", None)]
+    assert hits == ["RuntimeError"], hits
+    text = "\n".join(_JsonFormatter().format(r) for r in records.items)
+    assert "zzz-marker" not in text, f"异常正文进了日志：{text[:300]}"
+
+
+def test_empty_image_description_does_not_become_an_http_failure(monkeypatch):
+    """甲的边界（F13 改写）：空内容腿**确实跑了识图调用**，且**没有**被变成 HTTP 失败。
+
+    原钉 `records.lit("image_content_empty") is False` ⇒ 现钉「调用计数 1 ＋ 返回值是空串 ＋ 没抛 HTTPException」。
+    理由（票 F13）：`_describe_image_for_bootstrap` 这条路径**根本不调** `bootstrap_request`，
+    那个键在这一段永远不会亮 ⇒ 断它的"灭"近恒真。空内容腿的读数由另外两条真的走到那一层的判据量：
+    `test_empty_content_lights_key_b_only`（bootstrap 层的分键）与
+    `test_empty_content_leg_has_a_reader_and_counts_as_degraded`（路由层的降级计数，V-B3）。
+    """
+    from fastapi import HTTPException
+
     import main
 
-    monkeypatch.setattr(main.registry, "pick", lambda modality, tier, **kw: ("vision_flag", SimpleNamespace()))
+    picks: list[str] = []
+
+    def pick(modality, tier, **kw):
+        picks.append(modality)
+        return "vision_flag", SimpleNamespace()
+
+    monkeypatch.setattr(main.registry, "pick", pick)
     monkeypatch.setattr(main, "describe_image", lambda _llm, _image, _text: "")
 
-    with _Capture(logging.getLogger("legal.chat")) as records:
-        assert main._describe_image_for_bootstrap(_PNG, _QUESTION) == ""
-    assert records.lit("image_content_empty") is False
+    try:
+        out = main._describe_image_for_bootstrap(_PNG, _QUESTION)
+    except HTTPException as exc:  # 空内容被升级成 HTTP 失败 ⇒ 甲的边界被击穿
+        pytest.fail(f"空内容腿被变成 HTTP {exc.status_code}：甲只把**调用失败**那一支变成 502")
+    assert out == "", repr(out)
+    assert picks == ["vision"], f"这条腿根本没发过识图请求 ⇒ 判据在空转：{picks}"
 
 
 def test_vision_quota_shortage_stays_503_and_is_not_counted_as_describe_failure(monkeypatch):
@@ -467,34 +788,84 @@ def test_vision_quota_shortage_stays_503_and_is_not_counted_as_describe_failure(
     assert records.lit("image_describe_failed") is False
 
 
+def _http_exception_sites(source: str) -> dict[int, set[str]]:
+    """按状态码归集「在哪个函数里 raise 了 HTTPException」——**两种写法都收**（票 F12）。
+
+    改前的尺只匹配关键字形式 `HTTPException(status_code=502, ...)`；`HTTPException(502, ...)`
+    这种**位置参数**写法会漏（今天的树里 0 处，所以尺子暂时不瞎，但没被合成对照钉住）。
+    """
+    by_status: dict[int, set[str]] = {}
+
+    def visit(node, fname):
+        for ch in ast.iter_child_nodes(node):
+            fn = fname
+            if isinstance(ch, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                fn = ch.name
+            if isinstance(ch, ast.Call) and getattr(ch.func, "id", "") == "HTTPException":
+                status = None
+                for kw in ch.keywords:
+                    if kw.arg == "status_code" and isinstance(kw.value, ast.Constant):
+                        status = kw.value.value
+                if status is None and ch.args and isinstance(ch.args[0], ast.Constant):
+                    status = ch.args[0].value
+                if isinstance(status, int):
+                    by_status.setdefault(status, set()).add(fn or "<module>")
+            visit(ch, fn)
+
+    visit(ast.parse(source), None)
+    return by_status
+
+
 def test_502_on_the_chat_route_has_exactly_one_source():
-    """前端按「状态码 502 ＋ 本轮带图」判图片失败，所以后端这条路由上 502 只能有一个出处。
+    """识图失败是 `/api/chat` **这条路由上** 502 的唯一出处（尺子两种写法都收，各配合成正对照）。
 
     判据是 AST 计数（不是 grep 印象）：`main.py` 里 raise 502 的函数集合恰好等于
-    {识图失败出口, 语音转写出口}，后者住在另一条路由 `/api/chat/transcribe` 上。
-    正对照：同一条尺量 501 得到**多个**函数 ⇒ 尺子不是打空。
+    {识图失败出口, 语音转写出口}，后者住在另一条路由 `/api/chat/transcribe` 上——
+    所以措辞里的限定词是「该路由上」，不是「全仓只有一个 502」。
+    正对照：同一条尺量 501 得到**多个**函数 ⇒ 尺不是打空；
+    F12 的合成正对照：关键字式与位置式各造一条，两样都要被数出来。
     """
     import main
 
     source = Path(main.__file__).read_text(encoding="utf-8")
-    by_status: dict[int, set[str]] = {}
-    for node in ast.walk(ast.parse(source)):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            for sub in ast.walk(node):
-                if isinstance(sub, ast.Call) and getattr(sub.func, "id", "") == "HTTPException":
-                    for kw in sub.keywords:
-                        if kw.arg == "status_code" and isinstance(kw.value, ast.Constant):
-                            by_status.setdefault(kw.value.value, set()).add(node.name)
+    by_status = _http_exception_sites(source)
     assert by_status.get(502) == {"_describe_image_for_bootstrap", "chat_transcribe"}, by_status.get(502)
     assert len(by_status.get(501, set())) > 1, f"尺子打空：501 只数出 {by_status.get(501)}"
+
+    keyword_shape = "\n".join(
+        [
+            "def f_a():",
+            "    raise HTTPException(status_code=502, detail='x')",
+        ]
+    )
+    positional_shape = "\n".join(
+        [
+            "def f_b():",
+            "    raise HTTPException(502, 'x')",
+        ]
+    )
+    assert _http_exception_sites(keyword_shape) == {502: {"f_a"}}, _http_exception_sites(keyword_shape)
+    assert _http_exception_sites(positional_shape) == {502: {"f_b"}}, _http_exception_sites(positional_shape)
+    both = keyword_shape + "\n" + positional_shape
+    assert _http_exception_sites(both) == {502: {"f_a", "f_b"}}, "两种写法必须被同一把尺一起数"
 
 
 # ---------------------------------------------------------------- 归因键与 formatter
 
 
 def test_both_attribution_keys_are_registered():
-    """上一票的漏格：新键不登记进 `observability._ACCOUNT_FIELDS` 就会被 JSON formatter 丢掉。"""
-    for key in ("image_describe_failed", "image_content_empty", "llm_cfg_unknown_keys"):
+    """上一票的漏格：新键不登记进 `observability._ACCOUNT_FIELDS` 就会被 JSON formatter 丢掉。
+
+    W07-FIX 起的读数面（V-B3 的降级计数、B1 的 entry 跳过归因）与识图两键同一条规矩，
+    所以一起钉在这里——漏一个就是"键白写"。
+    """
+    for key in (
+        "image_describe_failed",
+        "image_content_empty",
+        "image_desc_empty_degraded",
+        "llm_cfg_unknown_keys",
+        "llm_cfg_entry_rejected",
+    ):
         assert key in _ACCOUNT_FIELDS, f"{key} 未登记 ⇒ 结构化日志里读不到"
 
 
@@ -569,3 +940,24 @@ def test_frontend_has_one_dedicated_image_failure_message():
     # 502 只在**本轮带图**时才是识图失败；条件写成一条正则判据，免得「文件里有个 502」就蒙过去。
     assert re.search(r"status\s*===\s*502[\s\S]{0,120}payload\.image", api), "502 没和「本轮带图」绑在一起"
     assert "登录已过期" in api, "正对照：这条判据量的确实是同一段流式错误映射"
+
+    # V-B5（票 W7-FIX B5）：光「502 ＋ 本轮带图」不够——反代合成的 502 会把基建故障标成图片失败。
+    # 前端必须**另**认一个结构化信号（响应头，或逐字相符的 detail），三者一起才算数。
+    assert re.search(r"headers\s*\.\s*get\s*\(\s*IMAGE_FAILURE_HEADER", api), "前端没读那只结构化响应头"
+    assert re.search(r"detail\s*===\s*IMAGE_DESCRIBE_FAILED_DETAIL", api), "detail 那条退路没了"
+    assert re.search(r"payload\.image[\s\S]{0,80}imageFailureSignal", api), "502 认定没和结构化信号绑在一起"
+
+    # 跨面同值（先例：recorder 的 MIME 尺）：前端那两个契约值必须与后端逐字相同，否则"信号"各自漂移。
+    # 与格式化无关的两条正则（prettier 会把长行折成「等号换行再缩进放字符串」）：
+    # 一条只要求常量**存在**，另一条取值出来与后端对字面。
+    header_name = re.search(r"^export const IMAGE_FAILURE_HEADER\s*=\s*\"([^\"]+)\"", constants, re.M)
+    header_value = re.search(r"^export const IMAGE_FAILURE_HEADER_VALUE\s*=\s*\"([^\"]+)\"", constants, re.M)
+    detail_pair = re.search(r'IMAGE_DESCRIBE_FAILED_DETAIL\s*=\s*\s*"([^"]+)"', constants, re.S)
+    assert header_name and header_value and detail_pair, (
+        f"前端缺识图信号常量：header={bool(header_name)} value={bool(header_value)} detail={bool(detail_pair)}"
+    )
+    import main
+
+    assert header_name.group(1) == main.IMAGE_FAILURE_HEADER, header_name.group(1)
+    assert header_value.group(1) == main.IMAGE_FAILURE_HEADER_VALUE, header_value.group(1)
+    assert detail_pair.group(1) == main.IMAGE_DESCRIBE_FAILED_DETAIL, detail_pair.group(1)

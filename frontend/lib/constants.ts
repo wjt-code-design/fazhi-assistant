@@ -8,9 +8,22 @@ export const ACCEPT_FILE = [".txt", ".md", ".pdf", ".docx"];
 
 // 票 W07（C04＝甲）：带图问答在识图失败时，后端 /api/chat 明确回 502（此前那一发异常被吞成
 // 空描述，用户看到的仍是一条「像是读了图」的正常答案）。这条是用户侧唯一的那句失败文案。
-// 判据按 **状态码＋本轮带图** 选文案，不去匹配后端 detail——两处文本各写一遍必然漂移
-// （后端那条住在 main.IMAGE_DESCRIBE_FAILED_DETAIL，给运维与直连客户端看）。
 export const IMAGE_DESCRIBE_FAILED_MESSAGE =
+  "图片识别失败，本轮未作答；请稍后重试，或改用文字描述案情。";
+
+// 票 W7-FIX B5（2026-10-17）：**什么才算「这一次是识图失败」**——只认后端给的结构化信号，
+// 不认「502 ＋ 本轮带图」这种状态码印象：502 可能是**反代合成的**（请求根本没到 FastAPI），
+// 那种基建故障被标成「图片识别失败」既误导用户也误导运维。
+// 认头为主（`X-Image-Failure: describe`），detail 逐字相符为辅（老代理会**剥掉自定义响应头**，
+// 那才是这条备选存在的理由）。两条都有判据：正例 tests/image-failure-mapping.test.ts 各一条，
+// 反例「裸 502 不认成图片失败」一条；后端侧的端到端判据在
+// tests/test_image_failure_impl.py::test_failed_image_turn_returns_explicit_http_failure_and_never_answers。
+// ⚠️ 下面这两个值与后端 main.IMAGE_DESCRIBE_FAILED_DETAIL / main.IMAGE_FAILURE_HEADER(_VALUE)
+// 是**跨面同值**：由那只 Python 侧的正则判据逐字钉住（同 recorder MIME 那把跨面尺），
+// 所以「两处各写一遍必然漂移」这句旧注释在这里不适用——漂移会红，不是靠人记得改。
+export const IMAGE_FAILURE_HEADER = "X-Image-Failure";
+export const IMAGE_FAILURE_HEADER_VALUE = "describe";
+export const IMAGE_DESCRIBE_FAILED_DETAIL =
   "图片识别失败，本轮未作答；请稍后重试，或改用文字描述案情。";
 
 // 空状态：场景直达卡

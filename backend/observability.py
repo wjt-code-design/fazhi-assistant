@@ -188,6 +188,20 @@ _ACCOUNT_FIELDS = (
     # 改前这类拼错的键（如 transpor）走到 cfg 白名单就无声消失，正是票面「设置不丢」要防的失效。
     # 值只有**键名列表**（不含值，所以不会把 api_key 的值带进日志）与模型名。
     "llm_cfg_unknown_keys",
+    # W07-FIX V-B1（2026-10-17）：`_load` 降级跳过某条 entry 时的归因读数。
+    # 改前 `_build` 对未知 transport 抛 ValueError 而 `_load` 只接 RuntimeError，且 registry
+    # 建在模块作用域 ⇒ `LLM_MODELS_JSON` 里一个拼错的值让整只后端起不来（全量纯树门当时可以全绿）。
+    # 修成「按 entry 跳过」之后，跳过本身必须可读——否则「这个模型为什么不在册」又变回只能猜。
+    # 值只有 `"<entry key>: <原因>"` 列表：原因要么是 transport 的闭集词汇，要么是异常**类名**，
+    # 不含凭据值也不含异常正文（W7-B9 同一口径：上游文本可能回显请求内容）。
+    # 未登记会被 JSON formatter 静默丢弃 ⇒ 这个键白写（本仓哨兵已抓过两次）。
+    "llm_cfg_entry_rejected",
+    # W07-FIX V-B3（2026-10-17）：识图**空内容**那一腿的降级读数（`main._note_empty_image_description`
+    # 读 `RequestBootstrap.image_failure` 才落这一条）——把 `image_failure` 从只写字段变成有读者的位。
+    # 与上面 `image_content_empty` 的分工：那一个是 bootstrap 内部的出口分键（同轮一次），
+    # 这一条是**路由层确认这一轮真的以「没读出内容」的图继续作答**的降级计数（管理台可按 kind 聚合）。
+    # 只有归因布尔与 kind/conversation 标识，没有题干、没有图片内容、没有 base64。
+    "image_desc_empty_degraded",
 )
 
 _TEST_REQUEST_ID_FALLBACK = "unit-test-no-middleware-request-id"

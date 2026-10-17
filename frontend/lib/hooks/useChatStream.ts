@@ -198,12 +198,22 @@ export function useChatStream(opts: {
             setPendingAgentRun(null);
           }
         },
-        (err) => {
+        (err, info) => {
           if (!isCurrent()) return;
           // 失败标注：保留已有 agentNote（error code 在其中；普通 RAG 路径 undefined）
           setClarifyRounds(0);
           setMessages((m) => {
             if (controller.signal.aborted) return m;
+            // 票 W7-FIX B7：后端确认**这一轮没有半提交**（识图失败 502：消息未落库、配额未扣、
+            // 缓存未写）时，本轮用户气泡也不该留着——改前只改写最后一条 assistant 气泡，
+            // 于是那条"其实没被提交"的用户消息要等刷新才消失。撤掉「用户＋assistant」两条占位，
+            // 输入内容仍在本页 state 里，用户可以原样重问。
+            if (info?.turnNotCommitted) {
+              const trimmed = [...m];
+              if (trimmed[trimmed.length - 1]?.role === "assistant") trimmed.pop();
+              if (trimmed[trimmed.length - 1]?.role === "user") trimmed.pop();
+              return trimmed;
+            }
             const copy = [...m];
             copy[copy.length - 1] = { ...copy[copy.length - 1], content: `出错了：${err}` };
             return copy;

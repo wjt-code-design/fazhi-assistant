@@ -18,6 +18,7 @@ import json
 import logging
 import os
 import sys
+from pathlib import Path
 from types import SimpleNamespace
 
 import httpx
@@ -329,7 +330,10 @@ def test_unknown_role_entry_key_is_logged_not_dropped(monkeypatch):
     hits = [r for r in records.items if getattr(r, "llm_cfg_unknown_keys", None)]
     assert len(hits) == 1, f"未知 entry 键没有留痕：{[getattr(r, 'llm_cfg_unknown_keys', None) for r in records.items]}"
     assert hits[0].llm_cfg_unknown_keys == ["transpor"]
-    assert "transpor" in json.dumps({k: v for k, v in vars(hits[0]).items() if k == "llm_cfg_unknown_keys"})
+    # F13：删掉 `"transpor" in json.dumps(...)` 那一条——它排在上一行 `== ["transpor"]` 之后，
+    # 是**重复**（上一行成立则它必然成立）。换成 W7-B2 要求的「信号得能归因到哪一条 entry」：
+    # 只报键名的话，运维拿着 `transpor` 还是不知道该去改 `LLM_MODELS_JSON` 里的哪一项。
+    assert any("voice_typo" in r.getMessage() for r in hits), [r.getMessage() for r in hits]
     # 正对照：干净条目不许每次都陪跑一条 warning
     assert len([r for r in records.items if getattr(r, "llm_cfg_unknown_keys", None)]) == 1
 
@@ -455,7 +459,7 @@ def test_multimodal_dispatch_is_a_single_point():
 
 
 def test_registry_entry_is_the_only_store_of_transport(monkeypatch):
-    """③：transport 挂在 entry 上、由调用方读；`pick()` 的公共返回形状不变。"""
+    """③＋F11：transport 只挂在 entry 上（cfg 里**不留副本**）；`pick()` 的公共返回形状不变。"""
     roles = [_role("voice_multipart", transport="audio_transcriptions"), _role("voice_plain")]
     reg = _registry_from(monkeypatch, roles)
 
@@ -463,7 +467,11 @@ def test_registry_entry_is_the_only_store_of_transport(monkeypatch):
     entry = reg._entries["voice_multipart"]
     _require(entry, "transport")
     assert entry.transport == "audio_transcriptions"
-    assert entry.cfg["transport"] == entry.transport, "entry 与 cfg 两份真源漂移了"
+    # 原钉 `entry.cfg["transport"] == entry.transport`（承认 cfg 里还有一份，只防漂移，
+    # 而两份同源 ⇒ 这条永远为真）⇒ 现钉「cfg 里不该再有 transport 这个键」。
+    # 理由（F11）：票 §1 ③ 的字面要求是「不许两处各派生一份」，只有把键从 cfg 里**拿掉**，
+    # `ModelEntry.transport` 才是唯一存放处；`_load` 现在派生一次后只写 entry 那一位。
+    assert "transport" not in entry.cfg, f"cfg 里仍带着第二份 transport：{sorted(entry.cfg)}"
     assert reg.transport_of("voice_plain") == "chat"
     assert reg.transport_of("没有这个 key") == "chat", "未知 key 不许把调用方拖进另一条路"
 
@@ -473,8 +481,56 @@ def test_registry_entry_is_the_only_store_of_transport(monkeypatch):
 
 
 def test_transport_names_are_the_same_words_on_both_sides():
-    """②↔④：cfg 白名单与调用处分派表用的是同一套词（两处字面量，由本条钉住不许漂移）。"""
+    """②↔④（F15 在册口径）：**三处字面量＋这一只同词判据**，不是「单点定义」。
+
+    `multimodal.CHAT_TRANSPORT`／`MULTIPART_TRANSPORT`／`NO_TRANSPORT` 是三个独立字面量，
+    与 `llm_registry.TRANSPORTS` 那一份并列（刻意不 import：见 multimodal.py 那段注释的理由）。
+    本条钉的是"不许漂"，不是"只有一份"——把它读成单点定义就是虚报。
+    """
     _require(llm_registry, "TRANSPORTS")
     _require(multimodal, "VOICE_TRANSPORTS")
     assert set(llm_registry.TRANSPORTS) == set(multimodal.VOICE_TRANSPORTS)
     assert len(multimodal.VOICE_TRANSPORTS) == 3
+
+
+# ---------------------------------------------------------------- W7-B4 / W7-B8（票 W7-FIX）
+
+
+def test_mcp_server_voice_tool_goes_through_the_single_dispatch_point():
+    """V-B4（W7-B4）：`mcp_server` 那条**第二条语音路**被收编——语音分派重新只剩一处。
+
+    改前那里自拼音频部件、自带一份 `_AUDIO_EXTS`、无视 registry/transport，
+    还把异常收敛成一句返回字符串（`transport:"none"` 的 entry 在那里照样走 chat-ASR）。
+    尺子是**源文件文本**：本机没装 `mcp` 包 ⇒ 该模块不能被 import，读文本与能不能装载无关
+    （同先例：跨面判据读 recorder.ts / api.ts）。
+    """
+    src = (Path(__file__).resolve().parents[1] / "mcp_server.py").read_text(encoding="utf-8")
+    assert "multimodal.transcribe_audio(" in src, "语音工具没走唯一那条分派腿"
+    assert "registry.transport_of(" in src, "无视 transport ⇒ 分派真源被绕过"
+    assert "registry.pick(" in src, "模型不来自 registry ⇒ 第二处选模真源"
+    assert "_AUDIO_EXTS" not in src, "又出现第二份音频扩展名白名单（真源是 multimodal.AUDIO_EXTS）"
+    assert "multimodal.AUDIO_EXTS" in src
+    assert "input_audio" not in src, "mcp_server 自己拼聊天部件 ⇒ 分派点不止一处"
+    assert "except" not in src, "把异常收敛成返回字符串就是吞 ⇒ 该文件现在一条处理器都不许有"
+
+
+def test_audio_format_outside_the_whitelist_raises_instead_of_octet_stream():
+    """W7-B8：白名单外的格式**显式失败**，不再静默降级成 `application/octet-stream`。
+
+    正对照（同一条腿）：白名单内的 `wav` 仍正常出 multipart，且 file 部件带的是**真 MIME**。
+    """
+    sink = _MultipartSink()
+    with pytest.raises(ValueError, match="webm"):
+        _transcribe(_RecordingLlm(), _FAKE_B64, "webm", transport="audio_transcriptions", client=_sdk_client(sink))
+    assert sink.requests == [], "降级路还在发请求 ⇒ raise 没生效"
+
+    ok_sink = _MultipartSink()
+    _transcribe(_RecordingLlm(), _FAKE_B64, "wav", transport="audio_transcriptions", client=_sdk_client(ok_sink))
+    assert b"audio/wav" in ok_sink.requests[0].read()
+
+    # 跨面 MIME 判据的这条腿：MIME 表的键与 AUDIO_EXTS **同一批格式**（缺一格就会走进上面那条 raise）
+    assert set(multimodal._AUDIO_MIME) == set(multimodal.AUDIO_EXTS), (
+        sorted(multimodal._AUDIO_MIME),
+        sorted(multimodal.AUDIO_EXTS),
+    )
+    assert "octet-stream" not in inspect.getsource(multimodal._transcribe_multipart)
