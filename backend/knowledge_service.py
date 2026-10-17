@@ -354,6 +354,11 @@ def add_qa_pair(
     把 `qa_candidate_id` 落进 metadata、用显式 `doc_id` 写向量并返回它 ⇒ SQL `vector_doc_id`
     与向量 `qa_candidate_id` 从此双向可对。种子/生成脚本不传这两个 ⇒ 记录无链，读侧按
     「来源可校验」判定（`qa_eligibility` 对无链记录放行到 provenance/citation，不是 fail-open）。
+
+    **票 W06-FIX F1/V3（2026-10-17）**：上面那句「记录无链」从今天起不再是隐情——不传 `cand_id`
+    时本函数落一只**已登记**的归因键 `qa_write_unlinked`（`observability._ACCOUNT_FIELDS`）并计入
+    `qa_write_counts()`，管理面 `/api/admin/stats` 读得到。语义一个字没改（无链仍走来源/引用判定），
+    改的是**可见性**：无链＝这批语料**撤不回**，现在这件事有名字、有数、有判据。
     """
     if not fingerprint:
         from query_understand import _options_fingerprint  # 局部导入：不加重模块加载
@@ -370,6 +375,7 @@ def add_qa_pair(
     }
     if cand_id is not None:
         metadata["qa_candidate_id"] = cand_id
+    _record_qa_write(cand_id)  # 票 W06-FIX F1/V3：无链写入亮键 + 计数（带链只计不亮）
     doc = Document(page_content=question, metadata=metadata)
     if doc_id:
         _qa_store.add_documents([doc], ids=[doc_id])
@@ -397,24 +403,62 @@ def search_qa(query: str, threshold: float = 0.7):
             return None
     if score < threshold:
         return None
-    return {
-        "question": res[0][0].page_content,
-        "answer": res[0][0].metadata.get("answer", ""),
-        "score": round(score, 4),
-        "evidence": res[0][0].metadata.get("evidence", ""),
-        # 票 I 的 I-2(a)：把语料的**版本基准日**带到调用方（`main._qa_direct_return` 靠它判分水岭），
-        # 否则那道护栏没有输入。缺字段时给空串 ⇒ 调用方按"未标注"处理（不拦，保持旧行为）。
-        "law_as_of_basis": res[0][0].metadata.get("law_as_of_basis", ""),
-        "fingerprint": res[0][0].metadata.get("options_fingerprint", ""),
-        # W06-IMPL：把候选链带出给读出口——出口据此装载 SQL 状态判资格。存量无链记录此项为 None
-        # ⇒ `qa_eligibility` 走「无链按来源可校验放行」，而非按缺链 fail-closed。
-        "qa_candidate_id": res[0][0].metadata.get("qa_candidate_id"),
-    }
+    from qa_eligibility import QaHit  # 局部导入：只在真有命中时才碰判据模块（同 `_qa_store` 的加载纪律）
+
+    return QaHit(
+        {
+            "question": res[0][0].page_content,
+            "answer": res[0][0].metadata.get("answer", ""),
+            "score": round(score, 4),
+            "evidence": res[0][0].metadata.get("evidence", ""),
+            # 票 I 的 I-2(a)：把语料的**版本基准日**带到调用方（`main._qa_direct_return` 靠它判分水岭），
+            # 否则那道护栏没有输入。缺字段时给空串 ⇒ 调用方按"未标注"处理（不拦，保持旧行为）。
+            "law_as_of_basis": res[0][0].metadata.get("law_as_of_basis", ""),
+            "fingerprint": res[0][0].metadata.get("options_fingerprint", ""),
+            # W06-IMPL：把候选链带出给读出口——出口据此装载 SQL 状态判资格。存量无链记录此项为 None
+            # ⇒ `qa_eligibility` 走「无链按来源可校验放行」，而非按缺链 fail-closed。
+            "qa_candidate_id": res[0][0].metadata.get("qa_candidate_id"),
+        }
+    )
 
 
 # ==================== 受控沉淀 CRUD ====================
 # 有据分 ≥ 此值自动收录（直接写 qa_pairs，跳过人工待审）——用户要求（2026-08-07）
 AUTO_CURATE_THRESHOLD = 0.89
+
+# 票 W06-FIX F1/V3：**「未链」是有名有数的状态，不是一个语义空缺**。
+# 全仓两只在册写入者（`qa_seeds.py` 的种子、`scripts/gen_qa_corpus.py` 的离线语料）调
+# `add_qa_pair` 时**不传 `cand_id`** ⇒ 写出来的向量记录没有候选链 ⇒ 它永远进不了状态轴、
+# 永远撤回不了。本票按票面要求**不发明语义**（不硬把缺链读成 fail-closed，那会打掉
+# `test_qa_provenance_guard.py`／`test_qa_citation_gate_symmetry.py` 钉死的放行面），
+# 只把它变成**可见**：每写一条无链记录就落一只已登记的归因键 `qa_write_unlinked`
+# （未登记会被 JSON formatter 静默丢弃 ⇒ 白写，见 `tests/test_log_field_whitelist.py`），
+# 并把进程内计数交给管理面 DTO。
+# 计数是**进程内**的（现役单进程，同 F6 的前提）；跨进程的累计看日志键本身。
+_write_lock = threading.Lock()
+_write_counts = {"linked": 0, "unlinked": 0}
+
+
+def qa_write_counts() -> dict[str, int]:
+    """无链/带链写入的进程内计数（`/api/admin/stats` 的 `qa_write_unlinked` 读它）。
+
+    返回**拷贝**：调用方改不动内部状态（本仓教训：暴露可变共享状态＝把并发单例的第二种坏形状请回来）。
+    """
+    with _write_lock:
+        return dict(_write_counts)
+
+
+def _record_qa_write(cand_id: int | None) -> None:
+    """写侧归因的唯一落点：带链记一笔、无链亮一只键。"""
+    with _write_lock:
+        _write_counts["linked" if cand_id is not None else "unlinked"] += 1
+    if cand_id is not None:
+        return
+    # 只落标识与计数，不落题干/答案（AUTH-3 日志不落原文；种子题干也可能被用户问到）
+    logging.getLogger("legal.chat").warning(
+        "QA 语料写入不带候选链 ⇒ 该记录不可撤回（在册：qa_write_unlinked）",
+        extra={"qa_write_unlinked": True},
+    )
 
 
 def create_candidate(db: Session, question: str, answer: str, grounded_score: float, evidence: str):
@@ -439,9 +483,13 @@ def create_candidate(db: Session, question: str, answer: str, grounded_score: fl
         doc_id = uuid.uuid4().hex
         add_qa_pair(question, answer, evidence or "", cand_id=c.id, doc_id=doc_id)
         c.vector_doc_id = doc_id
-        # 收录 = 知识变更：清回答缓存，否则旧答案在 TTL 内继续命中、新 QA 静默失效
-        retrieval.invalidate()
+        # 票 W06-FIX F5（V1）：**先提交再清缓存**，两件事的顺序就是这条的判据对象。
+        # 改前是 `retrieval.invalidate()` 在 `db.commit()` 之前 ⇒ invalidate 之后、commit 之前那一段里，
+        # 并发请求仍能从 SQL 读到**旧状态**，把刚被撤掉的答案**写回回答缓存**（TTL 6 小时），
+        # 于是「撤回即时生效」在窗口内被反向击穿；SQLite 单写者 + `timeout=30` 还会把窗口拉长。
+        # 收录这一支的顺序同样按「提交可见 ⇒ 再清缓存」统一（提交失败就不清缓存：没有变更就没有该清的）。
         db.commit()
+        retrieval.invalidate()
         db.refresh(c)
         return c
     c = QaCandidate(
@@ -454,6 +502,14 @@ def create_candidate(db: Session, question: str, answer: str, grounded_score: fl
 
 
 def list_candidates(db: Session, status: str | None = None):
+    """待审/已决候选列表（管理面 `/api/admin/qa/candidates` 的读数）。
+
+    票 W06-FIX F2①/V4：DTO 补齐**资格六列**（`approval_source`/`reviewed_by`/`reviewed_at`/
+    `eligibility`/`eligibility_version`/`vector_doc_id`）。此前只回 7 列旧形状 ⇒
+    「隔离」与「撤回」就算真的有生产者，管理面也**看不见**（判据：
+    `tests/test_qa_read_eligibility.py::test_list_candidates_exposes_the_six_state_columns`）。
+    `vector_doc_id` 为 None 就是**无链**（＝不可撤回）的那一列证据，与 `qa_write_unlinked` 键同源。
+    """
     q = db.query(QaCandidate)
     if status:
         q = q.filter(QaCandidate.status == status)
@@ -467,6 +523,13 @@ def list_candidates(db: Session, status: str | None = None):
             "evidence": r.evidence,
             "status": r.status,
             "created_at": r.created_at.isoformat() if r.created_at else None,
+            # ↓ 资格六列（票 W06-FIX F2①）
+            "approval_source": r.approval_source,
+            "reviewed_by": r.reviewed_by,
+            "reviewed_at": r.reviewed_at.isoformat() if r.reviewed_at else None,
+            "eligibility": r.eligibility,
+            "eligibility_version": r.eligibility_version,
+            "vector_doc_id": r.vector_doc_id,
         }
         for r in rows
     ]
@@ -482,6 +545,12 @@ def decide_candidate(db: Session, cand_id: int, decision: str, reviewed_by: int 
     - 拒绝：只**置资格**（`eligibility="revoked"`，不删向量、不删行——形状 P「隔离不删」），
       并调 `retrieval.invalidate()` 连带清回答缓存。此前拒绝分支只改 SQL status、两份拷贝照旧在服务，
       是本轮取证的 fail-open 缺陷。
+    - 票 W06-FIX F5（V1）：`invalidate()` 挪到 `db.commit()` **之后**。改前顺序是
+      invalidate → commit，中间那段里并发请求仍读到旧资格（`ok`），会把已撤回的答案**写回**
+      回答缓存（TTL 6 小时）——「撤回即时生效」在窗口内被反向击穿。现在的不变式是
+      **「缓存被清的那一刻，撤回在 SQL 里已经可读」**（判据：
+      `tests/test_qa_revocation_lifecycle.py::test_revocation_is_visible_in_sql_at_the_moment_of_invalidate`，
+      那条用例在 invalidate 的位置注入并发读者，测的是可见性而不是调用顺序）。
     """
     r = db.get(QaCandidate, cand_id)
     if not r:
@@ -499,8 +568,6 @@ def decide_candidate(db: Session, cand_id: int, decision: str, reviewed_by: int 
             doc_id=doc_id,
         )
         r.vector_doc_id = doc_id
-        # 纠错采纳 = 知识变更：清回答缓存，否则旧答案在 TTL 内继续命中、纠错静默失效
-        retrieval.invalidate()
         r.status = "approved"
         r.approval_source = "human"
         r.reviewed_by = reviewed_by
@@ -510,10 +577,12 @@ def decide_candidate(db: Session, cand_id: int, decision: str, reviewed_by: int 
         r.status = "rejected"
         r.eligibility = "revoked"
         r.eligibility_version = (getattr(r, "eligibility_version", 1) or 1) + 1
-        # 拒绝必须停三条出口：置资格关语料两出口，invalidate 关回答缓存出口（形状 B）
-        retrieval.invalidate()
+        # 拒绝必须停三条出口：置资格关语料两出口，invalidate（本函数末尾）关回答缓存出口（形状 B）
     else:
         raise ValueError("decision 必须为 approved 或 rejected")
     db.commit()
+    # 票 W06-FIX F5（V1）：纠错采纳/撤回都**先提交、再清缓存**（与 `create_candidate` 同一条不变式）。
+    # 清早了而状态还没提交＝并发请求能在窗口里读到旧资格并把旧答案写回缓存（TTL 6 小时）。
+    retrieval.invalidate()
     db.refresh(r)
     return r

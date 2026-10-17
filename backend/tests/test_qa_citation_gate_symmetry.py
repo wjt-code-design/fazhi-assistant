@@ -102,12 +102,44 @@ def test_both_exits_call_the_same_function_object():
 
     谁把判据在某个出口重新内联（第二份判据 ⇒ 两份会各自漂移；本仓对 `_source_key`、
     `is_valid_by_time` 立的就是同一份"单一真源"规矩），这条直接红。
+
+    票 W06-FIX F3/V2 就地改写（**原钉 ⇒ 现钉**，不删腿）：
+    原钉 `"qa_citations_in_kb" in _body(prepare_fast_path)`——它只证明产生处**引用了那个名字**，
+    证明不了"没有第二份合成规则"（同一份排序可以在别处再抄一遍，本票的 F3 就是抓的这个）。
+    现钉三段传递链，任一段断掉都红：
+    ① 产生处调 `qa_eligibility.qa_read_eligible`（合成判据的唯一真源）；
+    ② `qa_read_eligible` 本体里确实调 `qa_citations_in_kb`/`qa_provenance_verifiable`（原钉的那两个名字）；
+    ③ 产生处的**QA 闸门段**（按 AST 取的 `if qa_hit is not None:` 那一整块）里不许
+       再出现解析/查库的形状知识（`exact_article_lookup(`／`cited_articles(`／`qa_citations_in_kb(`）；
+       整只函数别处仍允许调 `exact_article_lookup`——条号对账那条通道要用它，那不是引用闸门。
     """
     assert main.qa_citations_in_kb is retrieval.qa_citations_in_kb
 
+    import ast
+    import textwrap
+
+    import qa_eligibility
     import request_bootstrap
 
-    assert "qa_citations_in_kb" in _body(request_bootstrap.prepare_fast_path)
+    producer_src = textwrap.dedent(inspect.getsource(request_bootstrap.prepare_fast_path))
+    composite = _body(qa_eligibility.qa_read_eligible)
+    assert "qa_read_eligible" in producer_src, "产生处不再调合成判据 ⇒ 它要么在别处又抄了一份排序，要么这道门没了"
+    assert "qa_citations_in_kb" in composite, "合成判据本体不再共享那份时效判据 ⇒ 出现了第二份循环"
+    assert "qa_provenance_verifiable" in composite, "合成判据本体不再共享那份形状判据 ⇒ 出现了第二份形状知识"
+
+    # 产生处的 **QA 闸门那一段**（`if qa_hit is not None:` 的整个 If 节点，按 AST 取，不按行号猜）
+    # 里不许出现解析/查库的形状知识。之所以只量这一段而不是整个函数：`prepare_fast_path` 末尾的
+    # 条号对账（`article_miss_note` 那条通道）合法地要调 `exact_article_lookup`，它不是引用闸门。
+    qa_gates = [
+        ast.get_source_segment(producer_src, node) or ""
+        for node in ast.walk(ast.parse(producer_src))
+        if isinstance(node, ast.If) and "qa_hit" in ast.unparse(node.test)
+    ]
+    assert len(qa_gates) == 1, f"产生处的 QA 闸门段应当只有一处，现量 {len(qa_gates)} 处 ⇒ 扫描对象不唯一，本条不可信"
+    gate_src = qa_gates[0]
+    assert "qa_read_eligible" in gate_src, "QA 闸门段不再调合成判据 ⇒ 这道门被就地重抄或删除"
+    for copy_marker in ("exact_article_lookup(", "cited_articles(", "qa_citations_in_kb("):
+        assert copy_marker not in gate_src, f"QA 闸门段自带 {copy_marker} ⇒ 存在第二份判据"
 
 
 @pytest.mark.parametrize("fn", [main._qa_direct_return, retrieval.qa_citations_in_kb], ids=["exit-direct", "kb"])

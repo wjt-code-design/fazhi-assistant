@@ -210,6 +210,12 @@ class PreviewChunkIn(BaseModel):
 
 # ===== 受控沉淀 =====
 class QaCandidateOut(BaseModel):
+    """候选列表的 DTO 形状（与 `knowledge_service.list_candidates` 的返回逐键一致）。
+
+    票 W06-FIX F2①/V4：补上资格六列。此前 DTO 只有旧 7 列 ⇒ 就算「隔离/撤回」真的有生产者，
+    管理面按这份形状也渲染不出「这条被撤过、撤到第几版、它的向量链在哪」——可见性是判据的前半段。
+    """
+
     id: int
     question: str
     answer: str
@@ -217,6 +223,13 @@ class QaCandidateOut(BaseModel):
     evidence: str
     status: str
     created_at: datetime | None = None
+    # ↓ 资格六列（W06-IMPL 加的列，今天起在 DTO 上可见）
+    approval_source: str | None = None  # human | auto_by_score_inferred | unknown
+    reviewed_by: int | None = None
+    reviewed_at: datetime | None = None
+    eligibility: str | None = None  # ok | quarantined | revoked
+    eligibility_version: int | None = None
+    vector_doc_id: str | None = None  # None ＝**无链**＝不可撤回的那一列证据（见 qa_write_unlinked）
 
 
 class QaDecisionIn(BaseModel):

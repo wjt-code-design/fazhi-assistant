@@ -173,6 +173,13 @@ _ACCOUNT_FIELDS = (
     # 的 AST 哨兵守着，本轮就是它在全量门上抓出来的（纯树门 warm_rc=1，见 W12-GATES-FROM-COMMIT-06da7cc.log）。
     "qa_eligibility_reason",
     "qa_candidate_id",
+    # W06-FIX F1/V3（2026-10-17）：**无链写入**的归因键。`knowledge_service.add_qa_pair` 在没有
+    # `cand_id` 时亮这一只（两只在册写入者：`qa_seeds.py` 的种子、`scripts/gen_qa_corpus.py` 的离线语料）。
+    # 没有链的向量记录进不了状态轴 ⇒ **永久撤不回**，这件事此前只在注释里、不在线上的任何一个读数里。
+    # 本键只承载布尔（一次无链写入一次读数），计数走 `qa_write_counts()`→`/api/admin/stats`，
+    # 题干与答案一律不落（AUTH-3 日志不落原文）。未登记会被 JSON formatter 静默丢弃 ⇒ 键白写
+    # （同一族本仓已被哨兵抓过四次）。
+    "qa_write_unlinked",
     # W07-IMPL（2026-10-17，C04＝甲 已裁）：识图「失败」与「空内容」分家之后的两个归因键。
     # 改前 `multimodal.describe_image` 把四类异常与「模型返回空内容」收敛成同一个空串，
     # 所以**没有任何键可落**（读数也分不清「没字」和「没读到」）；甲把可分性建起来之后，

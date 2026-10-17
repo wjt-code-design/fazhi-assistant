@@ -16,6 +16,7 @@ import json
 import os
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -219,46 +220,402 @@ def test_unreadable_state_rejects_both_exits_and_logs_only_reason(db, double_emb
     assert all(q not in m for m in messages), messages
 
 
+# ==================== 票 W06-FIX V2/F3：产生处与出口回同一个 reason ====================
+
+
+def _fast_deps(**overrides):
+    """快车道取数桩（接缝形状与 `FastPathDependencies` 一致，`cutoff` 关键字必收）。"""
+    import request_bootstrap as rb
+
+    values = dict(
+        feature_study_retrieval=True,
+        is_meta_study=lambda query: False,
+        rewrite_for_retrieval=lambda raw, recent_ser, recent, has_options: raw,
+        scenario_supplement_docs=lambda query, cutoff=None: [],
+        retrieve_exam=lambda query, k=6, cutoff=None: [],
+        cheating_docs=lambda cutoff=None: [],
+        build_contract_data=lambda text, cutoff=None: {"docs": [], "blocks": [], "level": "低", "basis": "test"},
+        retrieve=lambda query, k, cutoff=None: [],
+        search_qa=lambda query: None,
+        is_consumer_clause_scenario=lambda query: False,
+        consumer_clause_docs=lambda cutoff=None: [],
+        is_consumer_fraud_scenario=lambda query: False,
+        consumer_fraud_docs=lambda cutoff=None: [],
+        format_docs=lambda docs: "",
+    )
+    values.update(overrides)
+    return rb.FastPathDependencies(**values)
+
+
+def _plain_bootstrap(q: str) -> object:
+    """`prepare_fast_path` 需要的最小 bootstrap（非检索分支之外的键都取「不触发」的形状）。"""
+    return SimpleNamespace(
+        conv_id=1,
+        raw_query=q,
+        user_text=q,
+        contract_text="",
+        supplement_text="",
+        summary="",
+        recent=[],
+        recent_messages=[],
+        has_options=False,
+        is_exam=False,
+        intent="legal_query",
+        contract_mode=False,
+        client_truncated=False,
+        intent_confirm=False,
+        law_as_of=None,
+        image=None,
+        image_rel=None,
+        thumb_rel=None,
+    )
+
+
+def _reason_in(records) -> str:
+    """从留痕里取 `qa_eligibility_reason`（放行 ⇒ 没有任何一条 ⇒ 空串，与判据的 reason 同词汇）。"""
+    reasons = [getattr(r, "qa_eligibility_reason", None) for r in records if getattr(r, "qa_eligibility_reason", None)]
+    assert len(set(reasons)) <= 1, f"一次拒绝落了多个 reason ⇒ 判据又被抄了一份：{reasons}"
+    return reasons[0] if reasons else ""
+
+
+@pytest.mark.parametrize(
+    "shape,expected",
+    [
+        ("ok", ""),
+        ("revoked", "state"),
+        ("broken_link", "state"),
+        ("unknown_provenance", "provenance"),
+        ("dead_citation", "citation"),
+        # 排序钉：既被撤回、来源又是 unknown 的记录，两个判定点都必须报**状态轴**（不是 provenance）。
+        # 这条就是 F3 说的「两处排序不一样」——改回任一处的老顺序，这条立刻红。
+        ("revoked_and_unknown", "state"),
+    ],
+)
+def test_producer_and_direct_return_exit_report_the_same_reason(db, double_embeddings, monkeypatch, shape, expected):
+    """同一 meta 在**产生处**与**直返出口**必须回同一个 reason（票 W06-FIX V2 的字面要求）。
+
+    两侧都是真跑：产生处走 `prepare_fast_path`（现在调 `qa_eligibility.qa_read_eligible`），
+    出口走 `main._qa_direct_return`（状态轴→来源→…→引用，与合成判据同序）。
+    reason 从**留痕**里读，不是从判据函数里读——读函数就成了拿自己证明自己。
+
+    注入出口（`main._build_messages`）按在册口径只咨询状态轴，所以对它判两件事：
+    ① 状态轴那一档（revoked/broken_link/revoked_and_unknown）它必须回**同一个 reason**；
+    ② 来源/引用那一档它不重复判，但**产生处已经把它丢了** ⇒ 端到端不出现「此前已确认的问答」。
+    把②写成「注入出口的 reason 也要等于 provenance/citation」是错的（那是要求它重复扫库，
+    在册明令不做的代价），这条判据因此按**分档**写，而不是按"三个出口一视同仁"糊成一句。
+    """
+    import logging
+
+    q = f"同序判据{shape}：这条记录在产生处与出口报的是同一个 reason 吗？"
+    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    _kb_has_article(monkeypatch, [{"page_content": "第十九条 试用期……"}])
+
+    if shape == "revoked":
+        ks.decide_candidate(db, row.id, "rejected")
+    elif shape == "revoked_and_unknown":
+        ks.decide_candidate(db, row.id, "rejected")
+        row.approval_source = "unknown"  # 两个轴同时不过 ⇒ 只能由排序决定报哪一个
+        db.commit()
+    elif shape == "unknown_provenance":
+        row.approval_source = "unknown"
+        db.commit()
+    elif shape == "dead_citation":
+        _kb_has_article(monkeypatch, [])
+    elif shape == "broken_link":
+        pass  # 链由 `_rescore` 改指到一个绝不存在的 id ⇒ 「带链却读不到行」的 fail-closed 档
+
+    chat_logger = logging.getLogger("legal.chat")
+    records: list[logging.LogRecord] = []
+
+    class _Handler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Handler(level=logging.WARNING)
+    previous = chat_logger.level
+    chat_logger.addHandler(handler)
+    chat_logger.setLevel(logging.WARNING)
+    try:
+        # ---- 产生处：真调 prepare_fast_path，桩只替「取语料」这一缝 ----
+        hit_producer = ks.search_qa(q) or dict(_meta(qa_candidate_id=None))
+        hit_producer = _rescore(hit_producer, shape, row.id)
+        records.clear()
+        pre = main_prepare_fast_path(hit_producer, q)
+        producer_reason = _reason_in(records)
+        assert producer_reason == expected, (shape, producer_reason, expected)
+        assert (pre["qa_hit"] is None) == (expected != ""), "放行/丢弃与 reason 不一致 ⇒ 这道门在自说自话"
+
+        # ---- 直返出口：同一形状的另一份对象（没有共享缓存，各判各的） ----
+        records.clear()
+        hit_exit = _rescore(ks.search_qa(q) or dict(_meta(qa_candidate_id=None)), shape, row.id)
+        served = main._qa_direct_return({"rewritten": q, "qa_hit": hit_exit})
+        exit_reason = _reason_in(records)
+        assert exit_reason == producer_reason, (shape, "产生处报", producer_reason, "出口报", exit_reason)
+        assert (served is None) == (expected != ""), (shape, served)
+
+        # ---- 注入出口：状态轴那两档（撤回／未知来源）出口自查并回**同一个 reason**；
+        # 引用档按在册口径**委托给产生处**（出口不重复扫库），所以这里判的是委托成立，不是让出口重判 ----
+        records.clear()
+        prompt = _prompt_text(main._build_messages(_build_pre(q, _rescore(hit_exit, shape, row.id))))
+        injection_reason = _reason_in(records)
+        end_to_end = _prompt_text(main._build_messages(pre))
+        assert ("此前已确认的问答" in end_to_end) is (expected == ""), (
+            shape,
+            "经过产生处的 pre 仍把不可服务的问答递进了 prompt",
+        )
+        if expected in ("state", "provenance"):
+            assert injection_reason == expected, (shape, injection_reason, expected)
+        elif expected == "citation":
+            assert injection_reason == "", (
+                "引用档出口开始自判 ⇒ 在册的「注入出口不重复扫库」口径已经变了，"
+                "同步改这条与 qa_eligibility 的模块 docstring，别把它当噪音删掉"
+            )
+            assert "此前已确认的问答" in prompt, (
+                "注入出口单独喂（绕过产生处）现在连引用都拦得住 ⇒ 委托关系变了，同上：改口径而不是删判据"
+            )
+        else:
+            assert injection_reason == ""
+            assert "此前已确认的问答" in prompt
+    finally:
+        chat_logger.removeHandler(handler)
+        chat_logger.setLevel(previous)
+
+
+def _rescore(hit, shape, cand_id):
+    """把取回的语料记录整成**可比较**的形状：分数抬到直返阈值之上（判据分档与分数无关），
+    链指向本用例那一行（broken_link 例外——它要的是「带链却读不到行」，用一个绝不存在的 id）。"""
+    if hit is None:
+        return None
+    out = dict(hit)
+    out["score"] = 0.99
+    out["qa_candidate_id"] = int(cand_id) + 100000 if shape == "broken_link" else int(cand_id)
+    if shape == "broken_link":
+        out["law_as_of_basis"] = out["law_as_of_basis"] or "2026-08-23"
+    return out
+
+
+def main_prepare_fast_path(hit, q: str):
+    """真调产生处（`request_bootstrap.prepare_fast_path`），只把「取语料」这一缝换成给定记录。"""
+    import request_bootstrap as rb
+
+    return rb.prepare_fast_path(_plain_bootstrap(q), _deps=_fast_deps(search_qa=lambda query: hit))
+
+
+# ==================== 票 W06-FIX V10/F10：拒绝留痕两键一起落 ====================
+
+
+def test_denial_log_carries_reason_and_candidate_id_and_survives_the_formatter(db, double_embeddings, monkeypatch):
+    """F10：注释写着「落归因键 + 候选行 id」，字节里却只有归因键 ⇒ 归因指不到行。现在两键必须一起落，
+    且必须能被 JSON formatter 带出来（白名单外的键会被静默丢弃 ⇒ 只在 LogRecord 对象上断言等于没断言）。
+    """
+    import logging
+
+    from observability import _JsonFormatter
+
+    q = "留痕双键：拒绝日志能不能指到具体那一行？"
+    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    _kb_has_article(monkeypatch, [{"page_content": "第十九条"}])
+    ks.decide_candidate(db, row.id, "rejected")
+    hit = ks.search_qa(q)
+    assert hit is not None and hit["qa_candidate_id"] == row.id
+
+    chat_logger = logging.getLogger("legal.chat")
+    records: list[logging.LogRecord] = []
+
+    class _Handler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Handler(level=logging.WARNING)
+    previous = chat_logger.level
+    chat_logger.addHandler(handler)
+    chat_logger.setLevel(logging.WARNING)
+    try:
+        assert main._qa_direct_return({"rewritten": q, "qa_hit": dict(hit)}) is None
+    finally:
+        chat_logger.removeHandler(handler)
+        chat_logger.setLevel(previous)
+
+    denied = [r for r in records if getattr(r, "qa_eligibility_reason", None)]
+    assert len(denied) == 1, f"一次拒绝应当只留一条痕，现量 {len(denied)} 条：{[r.getMessage() for r in records]}"
+    payload = json.loads(_JsonFormatter().format(denied[0]))
+    assert payload["qa_eligibility_reason"] == "state", payload
+    assert payload["qa_candidate_id"] == row.id, f"日志指不到行（两键没一起落）：{payload}"
+    assert q not in payload["msg"] and q not in json.dumps(payload, ensure_ascii=False), "日志落了题干（AUTH-3）"
+
+
+# ==================== 票 W06-FIX V8/F9：一次请求一条 session（计数判据，不是读代码） ====================
+
+
+def test_one_sql_state_session_per_qa_bearing_request(db, double_embeddings, monkeypatch):
+    """F9：每个带 QA 命中的请求此前开**两条** `SessionLocal()`（注入出口＋直返出口各一条）。
+
+    判据是**计数替身**：把 `database.SessionLocal` 换成会数数的工厂，跑一遍真实形状
+    （产生处 + 直返出口 + 注入出口三个判定点，读的是**同一条** `search_qa` 出来的记录），
+    要求整个请求只开 **1** 条。改前这里是 2（两个出口各自 `load_read_state`）。
+
+    反空跑对照（同一条用例里，不另开文件）：把那条记录复制成 **plain dict**（没有请求内状态槽，
+    即评测探针直接构造 `pre` 的形状）再跑两个出口 ⇒ 计数必须**各读一次**（+2）。
+    这半条同时证明：①计数器真的在数判据点的那次 SELECT（不是数别的），②省下来的那次读
+    来自共享槽而不是来自"出口不判了"——自查一条没少。
+    """
+    import database
+
+    q = "计数判据：一次带语料命中的请求到底开了几条 session？"
+    ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    _kb_has_article(monkeypatch, [{"page_content": "第十九条 试用期……"}])
+    hit = ks.search_qa(q)
+    assert hit is not None, "语料没命中 ⇒ 本条判据没有对象"
+
+    real_factory = database.SessionLocal
+    counter = {"n": 0}
+
+    def counting_factory():
+        counter["n"] += 1
+        return real_factory()
+
+    monkeypatch.setattr(database, "SessionLocal", counting_factory)
+
+    counter["n"] = 0
+    pre = main_prepare_fast_path(hit, q)
+    assert pre["qa_hit"] is not None, "这条记录本该可服务，却被丢了 ⇒ 计数腿测的不再是「活请求」"
+    main._qa_direct_return(pre)
+    main._build_messages(pre)
+    assert counter["n"] == 1, (
+        f"一次请求开了 {counter['n']} 条 session（期望 1 条）⇒ "
+        "状态装载没有请求内复用，或某个判定点开始各读各的（票 W06-FIX F9）"
+    )
+
+    counter["n"] = 0
+    probe_pre = _build_pre(q, dict(hit))
+    main._qa_direct_return(probe_pre)
+    main._build_messages(probe_pre)
+    assert counter["n"] == 2, (
+        f"探针形状（无状态槽的 plain dict）只读了 {counter['n']} 次（期望 2 次，两个出口各一次）"
+        "⇒ 要么出口自查被删了（fail-open），要么计数器数的不是判据点（本条不可信）"
+    )
+
+
 # ==================== §4 项 4：单一真源 AST 守卫（无第二份判据，带阳性对照） ====================
 
+# 尺子判的是**类**，不是语法（票 W06-FIX F4/V5）：属性名三选一 × 形状五选一 × 词表值。
+STATE_ATTRS = frozenset({"status", "eligibility", "approval_source"})
+STATE_VOCAB = frozenset(
+    {
+        "revoked",
+        "quarantined",
+        "ok",
+        "approved",
+        "rejected",
+        "pending",
+        "unknown",
+        "human",
+        "auto_by_score_inferred",
+    }
+)
+# 属性名 × 词表值**成对判**，不是「任何属性碰上任何词」：`status` 是全仓最通用的列名
+# （`scripts/backup_data.py` 的备份清单项、`scripts/capture_eval.py` 的评测行都在读 `status == "ok"`，
+# 那是**另一套词汇**，不是候选状态轴）。把它们也算成判据，尺子就变成见谁都咬、
+# 下一轮只能整条删掉——所以 `status` 这一列不收 `"ok"`，其余两列名字无歧义、词表全收。
+STATE_VALUES_BY_ATTR: dict[str, frozenset[str]] = {
+    "eligibility": STATE_VOCAB,
+    "approval_source": STATE_VOCAB,
+    "status": STATE_VOCAB - {"ok"},
+}
+SHAPES = ("attribute", "membership", "alias", "getattr", "subscript")
 
-def _eligibility_compare_nodes(source: str, filename: str) -> list[int]:
-    """返回「把资格/审批来源当判据读出来」的 Compare 行号：
 
-    命中形状 = 某比较的一侧访问了 `eligibility`/`approval_source`（属性或下标/get），
-    另一侧是与票面词表（revoked/quarantined/ok/approved/unknown/human/auto_by_score_inferred）
-    相等的字符串常量，或对该词表做成员判定。写侧赋值（`r.eligibility = "revoked"`）不算判据 ⇒ 不命中。
+def _eligibility_compare_nodes(source: str, filename: str, skip: tuple[str, ...] = ()) -> list[int]:
+    """返回「把资格/审批来源/候选状态当判据读出来」的 Compare 行号（票 W06-FIX F4/V5：**按类判，不按语法形状判**）。
+
+    改前这把尺子只咬一种语法：同一个 `Compare` 节点里同时出现 `eligibility`/`approval_source`
+    属性**与**词表字面量。实测漏三种（票面 F4，本文件的正对照逐条会红）：
+      · `row.status == "rejected"`（`status` 不在属性名表、`rejected` 不在词表）
+      · `st = row.eligibility` 之后再 `if st == "revoked"`（改名/别名后比较）
+      · `getattr(row, "approval_source") == "unknown"`（属性名藏在字符串参数里）
+    现在判的是**「读状态轴的哪个属性 × 用哪种形状读 × 跟哪个词表值比」这一类**：
+      属性名三选一：`status` / `eligibility` / `approval_source`
+      形状五选一：直接比 attribute / 成员判定 membership / 别名后比 alias / getattr / 字典取值 subscript
+      词表：revoked|quarantined|ok|approved|rejected|pending|unknown|human|auto_by_score_inferred
+      （属性名与值**成对判**，理由见 `STATE_VALUES_BY_ATTR` 的注释）
+    写侧赋值（`r.eligibility = "revoked"`）不是判据 ⇒ 不命中。
+    SQLAlchemy 列表达式（`QaCandidate.status == "pending"` 这种**类名.列**、喂给 `.filter()` 的查询条件）
+    也不命中：它当布尔用会直接 TypeError（列表达式没有真值），它不是第二份 Python 判据。
+    `skip` 是给正对照用的「把某一条腿拆掉」开关（只在本文件的对照用例里传）：
+    拆掉哪条腿，那一腿的样本必须漏检 ⇒ 证明这条腿真的在咬东西，而不是五条腿共享一次恒真。
     """
-    vocab = {"revoked", "quarantined", "ok", "approved", "unknown", "human", "auto_by_score_inferred"}
-    state_keys = {"eligibility", "approval_source"}
+    shapes = set(SHAPES) - set(skip)
 
-    def _reads_state(node: ast.expr) -> bool:
-        if isinstance(node, ast.Attribute):
-            return node.attr in state_keys
-        if isinstance(node, ast.Subscript):
+    def _reads_state(node: ast.AST, aliases: dict[str, str]) -> str | None:
+        """这一侧是否在**读**三个属性名之一？读出的是哪一个（成对判要用它）。"""
+        if isinstance(node, ast.Attribute) and "attribute" in shapes and node.attr in STATE_ATTRS:
+            # 类名.列 ＝ SQLAlchemy 列表达式（管理面的查询条件），不是 Python 判据
+            if isinstance(node.value, ast.Name) and node.value.id[:1].isupper():
+                return None
+            return node.attr
+        if isinstance(node, ast.Subscript) and "subscript" in shapes:
             sl = node.slice
-            return isinstance(sl, ast.Constant) and sl.value in state_keys
-        if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "get":
-            if node.args and isinstance(node.args[0], ast.Constant):
-                return node.args[0].value in state_keys
-        return False
+            if isinstance(sl, ast.Constant) and sl.value in STATE_ATTRS:
+                return str(sl.value)
+            return None
+        if isinstance(node, ast.Call) and node.args:
+            func = node.func
+            if isinstance(func, ast.Attribute) and func.attr == "get" and "subscript" in shapes:
+                first = node.args[0]
+                if isinstance(first, ast.Constant) and first.value in STATE_ATTRS:
+                    return str(first.value)
+                return None
+            if isinstance(func, ast.Name) and func.id == "getattr" and "getattr" in shapes:
+                if len(node.args) > 1 and isinstance(node.args[1], ast.Constant) and node.args[1].value in STATE_ATTRS:
+                    return str(node.args[1].value)
+                return None
+        if isinstance(node, ast.Name) and "alias" in shapes:
+            return aliases.get(node.id)
+        return None
 
+    def _vocab_values(node: ast.AST) -> set[str]:
+        if isinstance(node, ast.Constant):
+            return {node.value} if node.value in STATE_VOCAB else set()
+        if "membership" in shapes and isinstance(node, (ast.Tuple, ast.List, ast.Set)):
+            return {e.value for e in node.elts if isinstance(e, ast.Constant) and e.value in STATE_VOCAB}
+        return set()
+
+    nodes = list(ast.walk(ast.parse(source)))  # 走两遍（先收别名再比），必须先物化成 list：生成器会被第一遍吃掉
+    assigns = [n for n in nodes if isinstance(n, ast.Assign)]
+
+    def _collect_aliases() -> dict[str, str]:
+        """别名闭包：`a = row.eligibility` ⇒ a→eligibility；`b = a` ⇒ b→eligibility
+        （有界迭代到不动点，两跳改名也咬得住）。"""
+        if "alias" not in shapes:
+            return {}
+        found: dict[str, str] = {}
+        for _round in range(len(assigns) + 2):
+            added = False
+            for asn in assigns:
+                if not (len(asn.targets) == 1 and isinstance(asn.targets[0], ast.Name)):
+                    continue
+                name = asn.targets[0].id
+                if name in found:
+                    continue
+                attr = _reads_state(asn.value, found)
+                if attr is not None:
+                    found[name] = attr
+                    added = True
+            if not added:
+                break
+        return found
+
+    aliases = _collect_aliases()
     hits: list[int] = []
-    tree = ast.parse(source)
-    for cmp in ast.walk(tree):
+    for cmp in nodes:
         if not isinstance(cmp, ast.Compare):
             continue
         operands = [cmp.left, *cmp.comparators]
-        touches_state = any(_reads_state(o) for o in operands)
-        touches_vocab = False
+        attrs = {a for a in (_reads_state(o, aliases) for o in operands) if a}
+        values: set[str] = set()
         for o in operands:
-            if isinstance(o, ast.Constant) and o.value in vocab:
-                touches_vocab = True
-            if isinstance(o, (ast.Tuple, ast.List, ast.Set)) and any(
-                isinstance(e, ast.Constant) and e.value in vocab for e in o.elts
-            ):
-                touches_vocab = True
-        if touches_state and touches_vocab:
+            values |= _vocab_values(o)
+        if attrs and values and any(v in STATE_VALUES_BY_ATTR[a] for a in attrs for v in values):
             hits.append(cmp.lineno)
     del filename
     return hits
@@ -281,12 +638,67 @@ def test_no_second_copy_of_the_eligibility_predicate():
     assert offenders == [], f"发现第二份读取资格判据：{offenders}"
 
 
+# 三属性 × 五形状：每一格都是「生产里真可能这么写」的样本，且都必须被抓到。
+_SHAPE_SAMPLES: dict[str, str] = {
+    "attribute": 'def f(row, v):\n    if row.{attr} == "{value}":\n        return v\n    return None\n',
+    "membership": 'def f(row, v):\n    if row.{attr} in {{"{value}", "其它"}}:\n        return v\n    return None\n',
+    "alias": 'def f(row, v):\n    held = row.{attr}\n    if held == "{value}":\n        return v\n    return None\n',
+    "getattr": 'def f(row, v):\n    if getattr(row, "{attr}") == "{value}":\n        return v\n    return None\n',
+    "subscript": 'def f(meta, v):\n    if meta.get("{attr}") == "{value}":\n        return v\n    return None\n',
+}
+_VALUE_BY_ATTR = {
+    "status": "rejected",
+    "eligibility": "revoked",
+    "approval_source": "unknown",
+}
+
+
+@pytest.mark.parametrize("shape", sorted(SHAPES))
+@pytest.mark.parametrize("attr", sorted(STATE_ATTRS))
+def test_guard_catches_every_attribute_times_shape_combination(attr, shape):
+    """V5 的正对照矩阵：三属性 × 五形状 = 15 格，每格一条**会红的样本**。
+
+    每一格还带一条**拆腿对照**：把负责这一格的形状腿拆掉（`skip=(shape,)`），样本必须漏检 ⇒
+    证明这一格是被这条腿咬住的，而不是被别的腿顺手咬住的（否则「15 格全过」可能只是 1 条腿在撑）。
+    抽掉任一条判据都会有对应的一格红，这就是票面 V5 要的那句。
+    """
+    src = _SHAPE_SAMPLES[shape].format(attr=attr, value=_VALUE_BY_ATTR[attr])
+    hits = _eligibility_compare_nodes(src, "shadow.py")
+    assert hits, f"{attr}/{shape} 的第二份判据没被抓到 ⇒ 尺子漏这一类：\n{src}"
+    assert not _eligibility_compare_nodes(src, "shadow.py", skip=(shape,)), (
+        f"{attr}/{shape} 这一格被别的腿咬住了 ⇒ 形状腿「{shape}」是空跑的，本条判据不可信"
+    )
+
+
 def test_guard_positive_control_actually_fires():
-    """阳性对照：守卫不是空扫——喂一份「自己拼资格判据」的样本必须被抓到（否则上一条恒真）。"""
+    """阳性对照（保留原腿，另补漏掉的三种形状）：守卫不是空扫。
+
+    原对照只喂它能咬的那一种形状（`state["eligibility"] == "revoked"`）——那等于
+    「用尺子能量到的东西证明尺子有效」。现在四样一起喂：
+    字典取值（原腿）、`row.status == "rejected"`、别名后比、`getattr` 后比，
+    外加写侧赋值这条**反向**腿（写不是判据，不许误伤）。
+    """
     bad = 'def _copy(state):\n    if state["eligibility"] == "revoked":\n        return False\n    return True\n'
     assert _eligibility_compare_nodes(bad, "shadow.py"), "阳性对照打空 ⇒ 守卫形同虚设"
     benign = 'r.eligibility = "revoked"\n'  # 写侧赋值不是判据
     assert _eligibility_compare_nodes(benign, "writer.py") == []
+    # 改前漏的三形状（票面 F4），逐条必须被抓到
+    for label, src in {
+        "status 属性 + rejected 词表": 'if row.status == "rejected":\n    pass\n',
+        "别名后比": 'held = row.approval_source\nif held == "unknown":\n    pass\n',
+        "getattr 后比": 'if getattr(row, "eligibility") in {"revoked", "quarantined"}:\n    pass\n',
+        "字典下标后比": 'if meta["status"] == "pending":\n    pass\n',
+        "两跳改名": 'a = row.eligibility\nb = a\nif b == "quarantined":\n    pass\n',
+    }.items():
+        assert _eligibility_compare_nodes(src, "shadow.py"), f"改前漏的形状如今又漏了：{label}"
+    # 反向腿：SQLAlchemy 列表达式（类名.列，喂给 .filter() 的查询条件）不是 Python 判据
+    column_expr = 'q = db.query(QaCandidate).filter(QaCandidate.status == "pending")\n'
+    assert _eligibility_compare_nodes(column_expr, "admin.py") == [], "列表达式被误判成第二份判据 ⇒ 尺子会咬管理面"
+    # 反向腿：成对判（`status` 是全仓通用列名，`"ok"` 属备份/评测那套词汇；`eligibility` 无歧义所以全收）
+    assert _eligibility_compare_nodes('if item["status"] == "ok":\n    pass\n', "backup.py") == []
+    assert _eligibility_compare_nodes('if state["eligibility"] == "ok":\n    pass\n', "shadow.py"), (
+        "eligibility == ok 漏检 ⇒ 放行侧的第二份判据抓不住"
+    )
 
 
 # ==================== §4 项 5：id 链闭合（双向对得上），对不上 fail-closed ====================
@@ -332,3 +744,185 @@ def test_mismatched_existing_row_is_fail_closed_not_served(db, double_embeddings
     assert main._qa_direct_return({"rewritten": q, "qa_hit": broken}) is None
     prompt = _prompt_text(main._build_messages(_build_pre(q, broken)))
     assert "此前已确认的问答" not in prompt
+
+
+# ==================== 票 W06-FIX V4/F2②：`quarantined` 现在没有生产者（一根**必须变红**的钉子）====================
+
+
+def _quarantined_write_nodes(source: str) -> list[int]:
+    """找出**把 `eligibility` 写成 `quarantined`** 的行（五种写入形状）。
+
+    只认「写」：属性赋值 / 下标赋值 / ORM `update`+`values` 的字典项或关键字 / 元数据字典项
+    （向量侧那份拷贝也算，隔离要两边都落）。
+    比较（`== "quarantined"`）与文档字符串不算——那是**读**与**说明**。
+    """
+    hits: list[int] = []
+    for node in list(ast.walk(ast.parse(source))):
+        # ① 赋值：`r.eligibility = "quarantined"` / `row["eligibility"] = "quarantined"`
+        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and node.value.value == "quarantined":
+            for target in node.targets:
+                if (isinstance(target, ast.Attribute) and target.attr == "eligibility") or (
+                    isinstance(target, ast.Subscript)
+                    and isinstance(target.slice, ast.Constant)
+                    and target.slice.value == "eligibility"
+                ):
+                    hits.append(node.lineno)
+                    break
+        # ② ORM 批量写 / 元数据字典项：`{"eligibility": "quarantined"}`、`values(eligibility="quarantined")`
+        if isinstance(node, ast.Dict):
+            for k, v in zip(node.keys, node.values, strict=True):
+                if (
+                    isinstance(k, ast.Constant)
+                    and k.value == "eligibility"
+                    and isinstance(v, ast.Constant)
+                    and v.value == "quarantined"
+                ):
+                    hits.append(node.lineno)
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr
+            in (
+                "update",
+                "values",
+            )
+        ):
+            for kw in node.keywords:
+                if kw.arg == "eligibility" and isinstance(kw.value, ast.Constant) and kw.value.value == "quarantined":
+                    hits.append(node.lineno)
+    return sorted(set(hits))
+
+
+_QUARANTINE_WRITE_SAMPLES = {
+    "attr_assign": 'r.eligibility = "quarantined"\n',
+    "subscript_assign": 'row["eligibility"] = "quarantined"\n',
+    "orm_update_dict": 'db.query(QaCandidate).update({"eligibility": "quarantined"})\n',
+    "orm_values_kwarg": 'db.query(QaCandidate).filter(x).values(eligibility="quarantined")\n',
+    "metadata_dict": 'meta = {"answer": "a", "eligibility": "quarantined"}\n',
+}
+
+
+@pytest.mark.parametrize("label", sorted(_QUARANTINE_WRITE_SAMPLES))
+def test_quarantined_write_scanner_catches_every_write_shape(label):
+    """这条是下一条的**阳性对照**：写入扫描器必须真能认出五种写形状。
+
+    没有这半条，「零生产者」会因为「扫描器根本没在找东西」而恒真（本仓教训：
+    「没有 X」型判据必须配一条「X 长什么样都能抓到」的对照）。
+    """
+    src = _QUARANTINE_WRITE_SAMPLES[label]
+    assert _quarantined_write_nodes(src), f"写入形状漏检：{label}"
+    # 反向：把值换成别的词 ⇒ 不该命中（证明咬的是「quarantined 被写」，不是「eligibility 被写」）
+    assert not _quarantined_write_nodes(src.replace("quarantined", "revoked")), f"{label} 误报：写 revoked 也算生产者"
+
+
+def test_quarantined_has_no_producer_yet_and_this_pin_must_go_red_when_the_backfill_lands():
+    """V4/F2②：全仓（除 tests 与判据本体）**没有任何一处把 `eligibility` 写成 `quarantined`**。
+
+    ⚠️ **这是一根「预期红」的钉子，今天它是绿的**：生产者是 `dispatch/w06-backfill-ticket.md`（未交付）。
+    backfill 落地那天这条**应当红**——红代表「隔离半边真的有写者了」。那时**不许删这条**，
+    要把它改成正向判据（列出生产者文件＋计数，并引用 backfill 票 §2 的先计数再动手），
+    同时同步 `docs/capability-matrix.md` 的隔离半边。这条存在的全部意义是防「backfill 无声交付」：
+    没有它，隔离哪天悄悄上线、哪天悄悄没上线，读数上看不出区别。
+    """
+    root = Path(__file__).resolve().parents[1]
+    producers: list[str] = []
+    for py in sorted(root.rglob("*.py")):
+        rel = py.relative_to(root).as_posix()
+        if "tests" in py.parts or "__pycache__" in py.parts:
+            continue
+        if rel == "qa_eligibility.py":  # 判据本体只有**读**
+            continue
+        lines = _quarantined_write_nodes(py.read_text(encoding="utf-8"))
+        if lines:
+            producers.append(f"{rel}:{lines}")
+    assert producers == [], (
+        f"`quarantined` 出现了生产者：{producers} ⇒ 这是一条**预期红**（backfill=w06-backfill-ticket 落地了）。"
+        "别删这条：改成正向判据（生产者清单＋计数），并同步 docs/capability-matrix.md 的隔离半边。"
+    )
+
+
+def test_list_candidates_exposes_the_six_state_columns(db, double_embeddings):
+    """V4 的另一半（F2①）：管理面 DTO 必须带那六列，否则「隔离」将来在管理面上**看不见**。"""
+    q = "管理面可见性：列表 DTO 有没有把资格六列带出来？"
+    row = ks.create_candidate(db, q, ANSWER, 0.55, EVIDENCE)
+    ks.decide_candidate(db, row.id, "approved", reviewed_by=7)
+    rows = ks.list_candidates(db)
+    assert rows, "列表为空 ⇒ 下面的键断言没有对象"
+    got = next(r for r in rows if r["id"] == row.id)
+    for key in ("approval_source", "reviewed_by", "reviewed_at", "eligibility", "eligibility_version", "vector_doc_id"):
+        assert key in got, f"DTO 缺列 {key} ⇒ 隔离/撤回在管理面不可见：{sorted(got)}"
+    assert got["approval_source"] == "human" and got["eligibility"] == "ok"
+    assert got["vector_doc_id"] == row.vector_doc_id, "DTO 的链与 SQL 不一致 ⇒ 可见性是假的"
+    assert got["eligibility_version"] >= 1
+
+
+# ==================== 票 W06-FIX V3/F1：无链写入是**有名有数**的状态 ====================
+
+
+def test_unlinked_qa_write_lights_the_registered_key_and_the_count(db, double_embeddings, monkeypatch):
+    """V3/F1：`qa_seeds.py:62` 与 `scripts/gen_qa_corpus.py:178` 这两只在册写入者**不带链**——
+    本票不发明语义，只把「未链」变成有名有数的状态：
+    ① 落一只**已登记**的归因键 `qa_write_unlinked`（未登记会被 JSON formatter 静默丢弃），
+    ② 计数与键一致（DTO 读数），
+    ③ 判据不许把它读成「放行」，只许读成「**不可撤回的语料**」。
+
+    正对照＝**造一条无链写入**（`add_qa_pair` 不传 cand_id），键必须亮、计数必须 +1；
+    反对照＝带链写入（自动收录那条路径）键不许亮、计数不许动。
+    """
+    import logging
+
+    import observability
+    from observability import _JsonFormatter
+
+    assert "qa_write_unlinked" in observability._ACCOUNT_FIELDS, "键没登记 ⇒ 会被 JSON formatter 静默丢弃（白写）"
+
+    chat_logger = logging.getLogger("legal.chat")
+    records: list[logging.LogRecord] = []
+
+    class _Handler(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(record)
+
+    handler = _Handler(level=logging.WARNING)
+    previous = chat_logger.level
+    chat_logger.addHandler(handler)
+    chat_logger.setLevel(logging.WARNING)
+    try:
+        # ---- 反对照：带链写入（自动收录）不该亮键、不该动计数 ----
+        linked_q = "无链可见甲：自动收录的写入不该算未链。"
+        before_linked = ks.qa_write_counts()["linked"]
+        before_unlinked = ks.qa_write_counts()["unlinked"]
+        ks.create_candidate(db, linked_q, ANSWER, 0.95, EVIDENCE)
+        assert not [r for r in records if getattr(r, "qa_write_unlinked", False)], "带链写入亮了未链键"
+        assert ks.qa_write_counts()["linked"] == before_linked + 1
+        assert ks.qa_write_counts()["unlinked"] == before_unlinked
+
+        # ---- 正对照：无链写入（种子/生成脚本那两只的形状）键必须亮 ----
+        records.clear()
+        q = "无链可见乙：种子脚本那种不带 cand_id 的写入会不会留下读数？"
+        ks.add_qa_pair(q, ANSWER, EVIDENCE)  # 与 qa_seeds.py / gen_qa_corpus.py 同样的调用形状
+        lit = [r for r in records if getattr(r, "qa_write_unlinked", False)]
+        assert len(lit) == 1, f"未链写入没留痕（现量 {len(lit)} 条）⇒ 「有名有数」这一半没成立"
+        payload = json.loads(_JsonFormatter().format(lit[0]))
+        assert payload["qa_write_unlinked"] is True, payload
+        assert ks.qa_write_counts()["unlinked"] == before_unlinked + 1, "计数与键不一致 ⇒ 读数不能当指标"
+        assert q not in json.dumps(payload, ensure_ascii=False), "日志落了题干（AUTH-3）"
+
+        # ---- 判据侧（F1 的「不许读成放行」）：缺链**不是**放行信号，只是状态轴不适用 ----
+        # 「无链 ⇒ 按来源/引用判定」这一放行面由 `test_qa_provenance_guard.py`／
+        # `test_qa_citation_gate_symmetry.py` 钉死，不许打掉；这里判的是另一半：**没有链不等于可以服务**。
+        # 反证：同样无链、但引用为空的一条必须被拒（reason=provenance），
+        # 也就是说判据从没把「缺链」 itself 当成通过的理由。
+        hit = ks.search_qa(q)
+        assert hit is not None and hit.get("qa_candidate_id") is None, "无链记录应当没有候选 id"
+        assert qe.qa_read_eligible(dict(hit, evidence="[]"), None).reason == "provenance", (
+            "无链记录被读成放行 ⇒ 判据把「没有链」当成了「可以服务」"
+        )
+        # 状态轴对无链记录**不适用**（放行面），于是也没有任何一行 SQL 能被置成 revoked ⇒
+        # 这批语料是**不可撤回**的，唯一的读数就是刚亮的这只键。
+        assert qe.evaluate_revocation_state(hit).allow is True, "状态轴应当对无链记录不适用（放行面不许改）"
+        assert ks.search_qa(q)["qa_candidate_id"] is None
+        assert ks.qa_write_counts()["unlinked"] >= before_unlinked + 1
+    finally:
+        chat_logger.removeHandler(handler)
+        chat_logger.setLevel(previous)

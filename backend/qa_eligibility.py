@@ -17,6 +17,14 @@
 注入出口（`main._build_messages`）只咨询**状态轴**（撤回/审批来源/缺链 fail-closed）：
 来源可校验与引用在库两条判定仍在产生处（`request_bootstrap.prepare_fast_path`）做一次，
 注入出口不重复扫库——否则每个带 qa_hit 的请求都多一次 Chroma 读，也会把未打桩的注入对照腿打死。
+
+票 W06-FIX（2026-10-17）两条就地修正：
+① F3/V2：合成判据从「零生产调用者」变成**产生处的唯一入口**——`prepare_fast_path` 现在调
+   `qa_read_eligible`（一次判全：状态轴→来源→引用），不再自己写一遍排序。
+   两排序不一致这条由 `tests/test_qa_read_eligibility.py::test_producer_and_direct_return_exit_report_the_same_reason`
+   钉住（同一条记录在产生处与直返出口必须回同一个 reason）。
+② F9/V8：一次带 QA 命中的请求原先开两条 `SessionLocal()`（两个出口各一条），现在状态装载走
+   `load_read_state_for` 的请求内复用（`QaHit.state_slot`）⇒ 一条。判据是**计数替身**，不是读代码。
 """
 
 import logging
@@ -30,11 +38,36 @@ import retrieval_core as rc
 
 logger = logging.getLogger("legal.chat")
 
+# 拒绝读数里**两道门各自的既有布尔键**（票 AUTH-A／票 W1 在册口径：分键不分门）。
+# 合成一键就只知道「语料被拦了」而不知道是哪道门在衰减，所以这两键继续由**产生处**落，
+# 出口侧只落 `qa_eligibility_reason`（同一次拒绝在两处各留一次读数会让计数翻倍 ⇒ 见 `log_read_denial` 的形参）。
+_GATE_BOOLEAN = {"provenance": "qa_provenance_refused", "citation": "qa_citation_refused"}
+
 
 @dataclass(frozen=True)
 class Eligibility:
     allow: bool
     reason: str = ""
+
+
+class QaHit(dict):
+    """`knowledge_service.search_qa` 的返回形状：普通 dict ＋ 一个**请求内**共享的 SQL 状态槽。
+
+    为什么把槽挂在对象上而不是加一个键（票 W06-FIX F9/V8）：
+    ① 加键会打穿「`result["qa_hit"] == 手搓 dict`」这一族既有判据（产生处的接缝用例就长这样）；
+    ② 状态槽是**一次请求的生命周期**属性，不是语料内容，把它做成键等于把 SQL 读数混进向量 payload；
+    ③ 挂在对象上还有一层安全含义：`dict(hit, ...)` 派生出的 plain dict **拿不到槽** ⇒
+       评测探针/改链路的对照腿仍走「各自自查」的老路径，不会因为缓存而读到别人塞的状态。
+
+    所以：**有槽 ⇒ 一次 SELECT 服务一次请求里的三个判定点；没槽 ⇒ 每个判定点自己读一次**
+    （语义完全相同，只是不省那次读）。槽随 `pre` 一起被回收，不存在跨请求残留。
+    """
+
+    state_slot: dict
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.state_slot = {}
 
 
 def _as_meta(meta_or_doc_id) -> Mapping:
@@ -95,6 +128,48 @@ def _load_state_safe(qa_hit):
         return None
 
 
+def _cand_id(hit):
+    return hit.get("qa_candidate_id") if isinstance(hit, Mapping) else None
+
+
+def load_read_state_for(hit):
+    """一条 qa_hit 的 SQL 状态：**同一次请求内只读一次**（票 W06-FIX F9/V8，把每请求两条 session 降到一条）。
+
+    有槽（`QaHit`，即真 `search_qa` 出来的那条）⇒ 第一个判定点读一次，其余判定点复用；
+    无槽（探针手搓的 plain dict）⇒ 每个判定点自己读一次。两者语义完全一致，只差那次 SELECT。
+    复用范围严格限定在**同一个 qa_hit 对象**上，而该对象随 `pre` 活在一次请求里 ⇒
+    撤回的可见性不受影响（下一条请求必然重读），也不会出现「今天的读服务昨天撤回前的状态」那种跨请求残留。
+    """
+    cand_id = _cand_id(hit)
+    if cand_id is None:
+        return None
+    memo = getattr(hit, "state_slot", None)
+    if not isinstance(memo, dict):
+        return _load_state_safe(hit)
+    if cand_id not in memo:
+        memo[cand_id] = _load_state_safe(hit)
+    return memo[cand_id]
+
+
+def log_read_denial(hit, reason: str, *, with_gate_boolean: bool = False) -> None:
+    """拒绝留痕的**唯一落点**（票 W06-FIX F10/V10）。
+
+    改前这条只落 `qa_eligibility_reason`，而 `:114` 的注释与 `observability.py:170-172` 都写着
+    「落归因键 + 候选行 id」⇒ 注释与字节不一致，归因指不到行。现在**两键一起落**：
+    `qa_eligibility_reason`（state|provenance|citation）＋ `qa_candidate_id`（int，无链记录为 None ⇒
+    JSON formatter 不写这个键，那条记录该看的读数是 `qa_write_unlinked`）。
+    两键都是枚举/整数，不含题干与答案原文（AUTH-3 日志不落原文）。
+    `with_gate_boolean` 只给产生处用（保住 `qa_provenance_refused`/`qa_citation_refused` 两个在册读数
+    不被合成一键）；出口侧默认不落，否则一次拒绝在两个地方各计一次，指标就虚高了。
+    """
+    extra = {"qa_eligibility_reason": reason, "qa_candidate_id": _cand_id(hit)}
+    if with_gate_boolean:
+        gate = _GATE_BOOLEAN.get(reason)
+        if gate:
+            extra[gate] = True
+    logger.warning("qa_read_eligible_denied reason=%s", reason, extra=extra)
+
+
 def qa_read_eligible(meta_or_doc_id, state) -> Eligibility:
     """全判据（状态轴 + 来源可校验 + 引用在库）——单点真源，供一次性判定的调用方使用。"""
     meta = _as_meta(meta_or_doc_id)
@@ -111,11 +186,10 @@ def qa_read_eligible(meta_or_doc_id, state) -> Eligibility:
 def evaluate_revocation_state(qa_hit) -> Eligibility:
     """读出口用的一站式**状态轴**判定：从 qa_hit 取链 → 装载 SQL 状态（读不到即 fail-closed）→ 出裁决。
 
-    拒绝只落归因键 + 候选 id（int），绝不落题干/答案原文（题干可能就是用户问句）。
+    状态装载走 `load_read_state_for`（同一次请求内复用那一次 SELECT，票 W06-FIX F9）。
+    拒绝只经 `log_read_denial` 落归因键 + 候选 id（int），绝不落题干/答案原文（题干可能就是用户问句）。
     """
-    verdict = _state_axis(qa_hit, _load_state_safe(qa_hit)) or Eligibility(True, "")
+    verdict = _state_axis(qa_hit, load_read_state_for(qa_hit)) or Eligibility(True, "")
     if not verdict.allow:
-        logger.warning(
-            "qa_read_eligible_denied reason=%s", verdict.reason, extra={"qa_eligibility_reason": verdict.reason}
-        )
+        log_read_denial(qa_hit, verdict.reason)
     return verdict

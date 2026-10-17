@@ -109,6 +109,66 @@ def test_reject_stops_both_read_exits_without_deleting_the_record(db, double_emb
     assert "此前已确认的问答" not in prompt
 
 
+def test_revocation_is_visible_in_sql_at_the_moment_of_invalidate(db, double_embeddings, monkeypatch):
+    """票 W06-FIX V1（F5）：撤回必须**提交可见之后**才清缓存——并发判据，不是「你按顺序调了吗」的断言。
+
+    失效形状（改前现量）：`decide_candidate` 拒绝分支是 `invalidate()` → `commit()`。
+    在 invalidate 之后、commit 之前那一段里，**并发请求**仍从 SQL 读到旧资格 `ok`，
+    于是它把刚被撤掉的答案**写回回答缓存**（TTL 6 小时，`main.py` 的两处 `answer_cache.put`），
+    「撤回即时生效」在这个窗口里被反向击穿；SQLite 单写者 + `timeout=30` 只会把窗口拉长。
+
+    判据怎么把「并发」跑出来（可控钩子，不是顺序断言）：
+    把 `retrieval.invalidate` 换成一只**并发读者替身**——它在缓存被清的那一刻
+    ① 另开一条 session 读同一行的 `eligibility`（=另一个请求能看到的状态），
+    ② 用**生产判据** `qa_eligibility.evaluate_revocation_state` 判这条语料还能不能被服务，
+    ③ 若判据放行就**按生产写法把答案 put 回缓存**（这就是事故本身，不是它的比喻）。
+    三条断言分别钉住这三步；改前 ①读到 `ok`、②放行、③缓存里重新出现已撤回答案 ⇒ 三条全红。
+    顺序断言（「invalidate 的调用序号在 commit 之后」）在本文件里**不作为判据**：
+    它换一种写法（先 flush 再 commit、或把 invalidate 塞进 commit 事件）就能绕过，而并发窗口照旧。
+    """
+    import answer_cache
+    import database
+    import models
+    import qa_eligibility as qe
+
+    q = "撤回并发判据：缓存被清的那一刻，另一个请求读到的是什么资格？"
+    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    _kb_has_article(monkeypatch, [{"page_content": "第十九条 试用期……"}])
+    hit = ks.search_qa(q)
+    assert hit is not None and hit["qa_candidate_id"] == row.id, "链没闭合 ⇒ 并发读者无从判状态"
+
+    cache_key = answer_cache.make_key(q, "legal_query", "2026-08-23", ["劳动合同法|第十九条"])
+    answer_cache.put(cache_key, ANSWER, [])
+    assert answer_cache.get(cache_key) is not None, "预置的缓存条目没写进去 ⇒ 下面三条断言失去对象"
+
+    seen: dict[str, object] = {}
+    real_invalidate = retrieval.invalidate
+
+    def concurrent_reader_invalidate():
+        """站在 invalidate 那一刻的第二个请求：读 SQL → 跑生产判据 → 按判据决定是否写回缓存。"""
+        probe = database.SessionLocal()
+        try:
+            r = probe.get(models.QaCandidate, row.id)
+            seen["eligibility"] = None if r is None else r.eligibility
+        finally:
+            probe.close()
+        seen["predicate_allows"] = qe.evaluate_revocation_state(hit).allow
+        if seen["predicate_allows"]:
+            answer_cache.put(cache_key, ANSWER, [])  # 事故本体：已撤回的答案被写回缓存
+        real_invalidate()
+
+    monkeypatch.setattr(retrieval, "invalidate", concurrent_reader_invalidate)
+    ks.decide_candidate(db, row.id, "rejected")
+
+    assert seen, "钩子根本没被调用 ⇒ 本条判据空转（先查写序改动是否把 invalidate 删了）"
+    assert seen["eligibility"] == "revoked", (
+        f"invalidate 时并发请求读到的仍是 {seen['eligibility']!r} ⇒ 撤回还没提交可见，"
+        "窗口内的并发请求会把已撤回答案写回缓存（票 W06-FIX F5 的失效形状）"
+    )
+    assert seen["predicate_allows"] is False, "生产判据在 invalidate 那一刻仍放行 ⇒ 缓存清完又会被填回去"
+    assert answer_cache.get(cache_key) is None, "已撤回的答案重新出现在回答缓存里 ⇒ TTL 内继续零 token 直返"
+
+
 def test_control_a_rejected_candidate_that_was_never_auto_approved_is_not_served(db, double_embeddings):
     """① 的控制腿：分数在自动阈值**以下**时，拒绝路径确实没有任何东西可服务 ⇒
     上面那条放行来自"自动收录已经写了向量"，而不是来自"拒绝函数本身放行"。"""
@@ -196,6 +256,7 @@ def test_reject_and_auto_approve_both_invalidate_the_answer_cache(db, double_emb
     assert "answer_cache" in invalidate_src, "invalidate 不再连带清回答缓存 ⇒ 下面那句因果推理失去依据"
 
     calls: list[str] = []
+    real_invalidate = retrieval.invalidate  # 替身装好之前先把**原件**留住（下面那条真判据要用它）
     monkeypatch.setattr(retrieval, "invalidate", lambda: calls.append("invalidate"))
 
     q = "撤回生命周期庚：自动收录后又被拒绝，回答缓存会跟着失效吗？"
@@ -208,8 +269,19 @@ def test_reject_and_auto_approve_both_invalidate_the_answer_cache(db, double_emb
     # 拒绝走形状 B，必须调 invalidate 连带清回答缓存（§4 项 1 的第三条出口）。本条原注释就要求这样改写、不删。
     assert calls == ["invalidate"], "拒绝路径没清缓存 ⇒ §4 项 1 的回答缓存出口仍会命中旧答案"
 
-    # 正对照：读侧入口确实存在（所以"回答缓存留着"是可服务的状态，不是一只空模块）
-    assert hasattr(answer_cache, "get"), "回答缓存的读侧入口不见了 ⇒ 上面那句因果不成立"
+    # 票 W06-FIX F9/V8：**原钉 `assert hasattr(answer_cache, "get")` ⇒ 现钉真判据，理由：恒真**。
+    # `answer_cache` 是个模块对象，`hasattr(..., "get")` 在这个模块存在的任何一秒都是 True
+    # （模块连不上读侧入口的情况本仓没有发生过，也不会由这条断言发现）——
+    # 「回答缓存的读侧入口确实存在」这句话要用**行为**判，不是用**属性名存在**判。
+    # 现钉：真的写进缓存 ⇒ 真的调**原件** invalidate ⇒ 真的读不回来。
+    # 这半条同时是上面那句因果的依据：invalidate 确实能清到回答缓存（不是只清检索缓存）。
+    q_live = "撤回生命周期庚补：invalidate 真的能清掉回答缓存里那一条吗？"
+    key = answer_cache.make_key(q_live, "legal_query", "2026-08-23", ["劳动合同法|第十九条"])
+    answer_cache.put(key, ANSWER, [])
+    hit = answer_cache.get(key) or {}
+    assert hit.get("answer") == ANSWER, "写进去的条目读不回来 ⇒ 下面那条 invalidate 判据失去对象"
+    real_invalidate()
+    assert answer_cache.get(key) is None, "invalidate 没清掉回答缓存 ⇒ 拒绝路径的第三条出口仍然命中旧答案"
 
 
 def test_sql_commit_failure_leaves_an_orphan_vector_record(db, double_embeddings, monkeypatch):

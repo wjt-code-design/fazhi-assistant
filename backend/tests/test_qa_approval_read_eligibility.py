@@ -156,16 +156,44 @@ def test_machine_and_human_approvals_are_distinguishable_by_approval_source(db, 
     assert q_pending not in {str(d).strip() for d in (data.get("documents") or [])}
 
 
-def test_admin_candidate_dto_exposes_no_field_to_separate_machine_from_human(db, double_embeddings):
-    """③ 的另一半：审核界面 DTO 只有 `status` 一根轴 ⇒ 无法把 approved 显示成"已人工核订"（票面第六条）。"""
-    q = "DTO 特征化：已采纳的候选在管理员接口里能看出是谁采纳的吗？"
-    ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
-    rows = ks.list_candidates(db, "approved")
-    assert rows, "列表读不到刚收录的候选 ⇒ 本条判据没有对象"
-    keys = set(rows[0])
-    assert "status" in keys
-    for name in ("reviewed_by", "reviewer", "reviewed_at", "approval_source", "approved_by", "origin"):
-        assert name not in keys, f"DTO 已新增 {name}：本条特征化要改写成新契约断言"
+def test_admin_candidate_dto_separates_machine_approval_from_human_approval(db, double_embeddings):
+    """W06-FIX 改写（原钉「DTO 只有 `status` 一根轴 ⇒ 看不出是谁采纳的」——那条特征化本就等实现落地时变红）。
+
+    现钉新契约：审核面 DTO 暴露资格六列，且**机器自动收录与人工采纳可读地分得开**。
+    字段名用**闭集相等**钉而不是 `in`/`not in`：将来有人加一个 `approved_by` 别名进来，
+    用包含关系的判据照样绿，而闭集会当场响。
+    """
+    q_machine = "DTO 新契约甲：机器自动收录的候选在管理员接口里能看出没人核过吗？"
+    q_human = "DTO 新契约乙：人工采纳的候选在管理员接口里能看出是谁采纳的吗？"
+    auto = ks.create_candidate(db, q_machine, ANSWER, 0.95, EVIDENCE)
+    human = ks.create_candidate(db, q_human, ANSWER, 0.55, EVIDENCE)
+    ks.decide_candidate(db, human.id, "approved", reviewed_by=7)
+
+    rows = {r["question"]: r for r in ks.list_candidates(db, "approved")}
+    assert {q_machine, q_human} <= set(rows), f"列表读不到已采纳候选 ⇒ 本条判据没有对象：{sorted(rows)}"
+    machine, manual = rows[q_machine], rows[q_human]
+    assert auto.status == "approved" and manual["status"] == "approved"
+    assert set(machine) == {
+        "id",
+        "question",
+        "answer",
+        "grounded_score",
+        "evidence",
+        "status",
+        "created_at",
+        "approval_source",
+        "reviewed_by",
+        "reviewed_at",
+        "eligibility",
+        "eligibility_version",
+        "vector_doc_id",
+    }, f"DTO 字段集合漂移：{sorted(set(machine))}"
+    assert machine["approval_source"] == "auto_by_score_inferred", machine["approval_source"]
+    assert machine["reviewed_by"] is None and machine["reviewed_at"] is None
+    assert manual["approval_source"] == "human" and manual["reviewed_by"] == 7
+    assert manual["reviewed_at"], "人工采纳必须留下审核时刻，否则与机器行仍不可分"
+    assert machine["eligibility"] == "ok" == manual["eligibility"]
+    assert machine["vector_doc_id"], "机器收录也该有向量链，否则撤回无处可查"
 
 
 def test_the_two_exits_already_share_one_eligibility_predicate_and_never_read_the_approval_state():

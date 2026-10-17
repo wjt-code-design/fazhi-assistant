@@ -110,7 +110,7 @@ from prompts import (
     SYSTEM_CONTRACT_REVIEW,
     SYSTEM_STUDY,
 )
-from qa_eligibility import evaluate_revocation_state
+from qa_eligibility import evaluate_revocation_state, log_read_denial
 from quota_utils import UtilityQuotaExhausted
 from rag_chain import ClosingStream, clean_answer, embeddings, format_docs, make_chain, stream_with_retry, vectorstore
 from request_bootstrap import (
@@ -1488,10 +1488,20 @@ def _qa_direct_return(pre: dict, law_as_of: date | None = None) -> str | None:
     qa = pre.get("qa_hit")
     if not qa or qa.get("score", 0) < _QA_DIRECT_RETURN_THRESHOLD:
         return None
-    if not qa_provenance_verifiable(qa):
-        return None  # 来源校验不了 ⇒ 本出口不放行（与产生处同一判据，直连调用路径也挡得住）
+    # 票 W06-FIX F3/V2：本出口这三道语料门按**合成判据的排序**跑（状态轴→来源→引用），
+    # 与产生处（`request_bootstrap.prepare_fast_path` 调 `qa_eligibility.qa_read_eligible`）逐字同序 ⇒
+    # 同一条记录在产生处与出口回**同一个 reason**（判据：
+    # `tests/test_qa_read_eligibility.py::test_producer_and_direct_return_exit_report_the_same_reason`）。
+    # 改前这里是 来源→状态→分水岭→指纹→引用：一条既被撤回、来源又是 unknown 的记录，
+    # 出口报 `provenance`、产生处报 `state`，两条读数对不上同一件事（F3 说的"排序还不一样"）。
+    # 状态轴判据本体仍在 `qa_eligibility`（拒绝留痕也在它内部，本出口不重复落键）；
+    # 来源/引用两道沿用 `retrieval_core`／`retrieval` 的那**一个对象**（不内联循环，
+    # `tests/test_qa_citation_gate_symmetry.py::test_no_exit_keeps_its_own_copy_of_the_lookup_loop`）。
     if not evaluate_revocation_state(qa).allow:
         return None  # W06-IMPL：撤回/隔离/未知来源/读不到状态 ⇒ 停服务（状态轴唯一真源 qa_eligibility）
+    if not qa_provenance_verifiable(qa):
+        log_read_denial(qa, "provenance")
+        return None  # 来源校验不了 ⇒ 本出口不放行（与产生处同一判据，直连调用路径也挡得住）
     if law_as_of is not None:
         basis = date.fromisoformat(qa["law_as_of_basis"])  # 有效日期由共享来源判据保证
         if (basis >= _CIVIL_WATERSHED) != (law_as_of >= _CIVIL_WATERSHED):
@@ -1506,6 +1516,7 @@ def _qa_direct_return(pre: dict, law_as_of: date | None = None) -> str | None:
     # "对称收口"）——此前这一步只写在本函数里，于是另一条出路（`_build_messages` 的
     # "此前已确认的问答"注入）从未做过时效判定。本出口仍自带这道判据的理由见上面第五道。
     if not qa_citations_in_kb(qa):
+        log_read_denial(qa, "citation")
         return None  # 证据条文已失效/不在库/查不动 → 不直返
     return qa.get("answer") or None
 
@@ -2210,7 +2221,11 @@ async def chat(
             raise HTTPException(status_code=503, detail="服务繁忙，请稍后重试") from None
 
     assert pre is not None
-    # W06-IMPL：注入出口现在带一次候选状态读取（load_read_state 开 session），与直返出口同法
+    # W06-IMPL：注入出口自带状态判据（评测探针会绕过产生处直接构造 `pre`）。
+    # 票 W06-FIX F9/V8：候选状态读取由 `qa_eligibility.load_read_state_for` 在**一次请求内复用**
+    # （`search_qa` 返回的 `QaHit` 带一条状态槽）⇒ 产生处＋本出口＋直返出口三个判定点合开**一条** session
+    # （改前是这里一条＋直返那里一条，共两条）。判据是计数替身，见
+    # `tests/test_qa_read_eligibility.py::test_one_sql_state_session_per_qa_bearing_request`。
     # 放线程池，绝不在事件循环里做同步 SQLite 读（对抗审计 v2 #20 同一约束）。
     messages = await run_in_threadpool(_build_messages, pre)
 
@@ -3087,6 +3102,9 @@ def admin_stats(db: Session = Depends(get_db), _admin: User = Depends(require_ad
         "knowledge_expired": ks.count_docs(status="已废止"),
         "llm_model": registry.config()["model"],
         "qa_pending": db.query(QaCandidate).filter(QaCandidate.status == "pending").count(),
+        # 票 W06-FIX F1/V3：无链（＝撤不回）语料的进程内计数，与日志键 `qa_write_unlinked` 同源。
+        # 判据不许把缺链读成放行，但管理面必须读得到它到底有多少条（backfill 之前先有计数）。
+        "qa_write_unlinked": ks.qa_write_counts()["unlinked"],
     }
 
 

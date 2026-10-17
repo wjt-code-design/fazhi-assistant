@@ -626,36 +626,28 @@ def prepare_fast_path(
         else:
             docs = deps.retrieve(rewritten, k=10, cutoff=cutoff)
         # QA 语料按**当日**沉淀，无版本轴 ⇒ 历史查询不可直返（见 main._qa_direct_return 分水岭守卫）。
-        from retrieval import qa_citations_in_kb
-        from retrieval_core import qa_provenance_verifiable
-
         qa_hit = None if cutoff else deps.search_qa(rewritten)
-        if qa_hit is not None and not qa_provenance_verifiable(qa_hit):
-            # 拦了要留痕：这道门关掉的是**零 token 直返**，静默拒绝的话"语料在衰减"线上没有任何痕迹
-            # （形状同 `main._law_version_gate` 的绊线日志）。刻意只落一个归因键、不落判据分解——
-            # 把"缺 basis 还是缺引用"抄进日志等于放第二份判据，改那道门时它会开始说谎。
-            # 也不落问题原文（AUTH-3）：语料题干可能就是用户问句。
-            logging.getLogger("legal.chat").warning(
-                "QA 语料命中但来源不可校验 ⇒ 不参与生成",
-                extra={"qa_provenance_refused": True},
-            )
-            # 来源校验不了的记录不给它进 `pre["qa_hit"]`：直返（main._qa_direct_return）与
-            # prompt 注入（main._build_messages 的"此前已确认的问答"）两个出口共用这一处判定。
-            qa_hit = None
-        if qa_hit is not None and not qa_citations_in_kb(qa_hit):
-            # 票 W1（2026-09-25，Owner 裁决"对称收口，判据上提到产生处"）：上面那道只问"引用给不给得出"，
-            # 这一道问"引用核验不核验得了"。此前时效判定**只写在** `main._qa_direct_return` 里，于是引用了
-            # 已删条目的记录照样进 `pre["qa_hit"]`，被 `_build_messages` 以"此前已确认的问答（可优先参考）"
-            # 递给模型——那是第 8 节② 漏口的后一半。判据本体住在 `retrieval.qa_citations_in_kb`，
-            # 两个出口调**同一个对象**（不许各抄一份循环；`tests/test_qa_citation_gate_symmetry.py` 钉这条同一性）。
-            # 刻意放在形状判据**之后**：无效形状不付读库成本（`test_shape_gate_runs_before_the_kb_and_skips_the_lookup`）。
-            # 归因**分键不分门**：这是第二道门，与 `qa_provenance_refused` 各一个读数——
-            # 合成一键就只知道"语料被拦了"而不知道是哪道门在衰减。
-            logging.getLogger("legal.chat").warning(
-                "QA 语料引用的条文不在库 ⇒ 不参与生成",
-                extra={"qa_citation_refused": True},
-            )
-            qa_hit = None
+        if qa_hit is not None:
+            # 票 W06-FIX F3/V2：产生处**一次判全**——合成判据的唯一真源是
+            # `qa_eligibility.qa_read_eligible`（状态轴→来源可校验→引用在库，就这一份排序），
+            # 本模块此前自写一遍「来源→引用、不含状态轴」的形状到此为止。
+            # 状态装载走 `load_read_state_for`：同一次请求里三个判定点共用一条 session（F9/V8）。
+            # 三道门**分键不分门**（在册口径不变）：`qa_provenance_refused` / `qa_citation_refused`
+            # 继续各落一个布尔读数，`state` 那一档只落 `qa_eligibility_reason`＋`qa_candidate_id`；
+            # 合成一键就只知道"语料被拦了"而不知道是哪道门在衰减，也不许把判据分解抄进日志
+            # （那等于放第二份判据，改那道门时它会开始说谎）。题干与答案一律不落（AUTH-3）。
+            import qa_eligibility
+
+            verdict = qa_eligibility.qa_read_eligible(qa_hit, qa_eligibility.load_read_state_for(qa_hit))
+            if not verdict.allow:
+                # 拦了要留痕：这道门关掉的是**零 token 直返**，静默拒绝的话"语料在衰减"线上没有任何痕迹
+                # （形状同 `main._law_version_gate` 的绊线日志）。
+                # 来源校验不了与引用不在库的记录都不给它们进 `pre["qa_hit"]`：直返（main._qa_direct_return）
+                # 与 prompt 注入（main._build_messages 的"此前已确认的问答"）两个出口共用这一处判定。
+                # 顺序仍然是**形状判据在时效判据之前**（无效记录不付读库成本，
+                # `test_shape_gate_runs_before_the_kb_and_skips_the_lookup`；`qa_read_eligible` 内部同序）。
+                qa_eligibility.log_read_denial(qa_hit, verdict.reason, with_gate_boolean=True)
+                qa_hit = None
         if not bootstrap.is_exam:
             docs = deps.scenario_supplement_docs(bootstrap.supplement_text, cutoff=cutoff) + docs
             query = bootstrap.user_text or raw_query

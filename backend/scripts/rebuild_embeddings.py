@@ -52,21 +52,41 @@ def _char_token_cost(chars: int) -> tuple[float, float]:
     return tokens, tokens * _PRICE_PER_1K / 1000  # 单价是 元/千token
 
 
-def _read_old(col, name: str) -> tuple[list[str], list[dict]]:
-    """读旧 collection 全量 docs+metas。"""
+def _read_old(col, name: str) -> tuple[list[str], list[str], list[dict]]:
+    """读旧 collection 全量 **ids**+docs+metas（顺序一一对应）。
+
+    票 W06-FIX F7/V6：ids 必须一起读出来——SQL 的 `qa_candidates.vector_doc_id` 记的就是这个 id，
+    重嵌入时换掉 id 等于把「SQL→向量」那条链**静默改断**（改前这里没读 ids，
+    `_write_new` 于是自己编号成 `re-<n>`，759 行候选里带链的那几条从此指不到任何文档）。
+    数量不齐就直接失败：按顺序猜一份缺失的 id 会把链指到**别的条文**上，那比断链更坏。
+    """
     data = col.get(include=["documents", "metadatas"])
+    ids = list(data["ids"] or [])
     docs = list(data["documents"] or [])
     metas = [dict(m) for m in (data["metadatas"] or [])]  # Mapping → dict，统一类型
-    print(f"  [{name}] 读旧库 {len(docs)} 条")
-    return docs, metas
+    if not (len(ids) == len(docs) == len(metas)):
+        raise RuntimeError(f"[{name}] ids/docs/metas 数量不齐：{len(ids)}/{len(docs)}/{len(metas)} ⇒ 拒绝按顺序猜 id")
+    print(f"  [{name}] 读旧库 {len(docs)} 条（含 {len(ids)} 个原 doc id）")
+    return ids, docs, metas
 
 
-def _write_new(emb, col, docs: list[str], metas: list[dict], batch: int, name: str) -> None:
-    """批量重嵌入 + 写入新 collection。单线程 + 指数退避。"""
+def _write_new(
+    emb, col, ids: list[str], docs: list[str], metas: list[dict], batch: int, name: str, *, reuse_ids: bool = True
+) -> None:
+    """批量重嵌入 + 写入新 collection。单线程 + 指数退避。
+
+    `reuse_ids=True`（默认，且**生产路径只有这一条**）：新库沿用**原 doc id** ⇒
+    `vector_doc_id` 与条文库侧按 id 建立的引用在重建后仍然解析得到（票 W06-FIX F7/V6）。
+    留一个显式的 `reuse_ids=False` 分支只为本文件的反面对照能跑（它必须亮出「换 id 就断链」这个事实），
+    生产调用点不许传 False。
+    """
     n = len(docs)
+    if reuse_ids and len(ids) != n:
+        raise RuntimeError(f"[{name}] ids({len(ids)}) 与 docs({n}) 数量不一致 ⇒ 不能带着缺 id 重建")
     for start in range(0, n, batch):
         chunk_docs = docs[start : start + batch]
         chunk_metas = metas[start : start + batch]
+        chunk_ids = ids[start : start + batch] if reuse_ids else [f"re-{start + i}" for i in range(len(chunk_docs))]
         delay = 1
         for attempt in range(6):
             try:
@@ -80,7 +100,7 @@ def _write_new(emb, col, docs: list[str], metas: list[dict], batch: int, name: s
                 delay *= 2
         # 用 Chroma 直接 add(embeddings=...)（避免再次走 embeddings 重嵌）
         col.add(
-            ids=[f"re-{start + i}" for i in range(len(chunk_docs))],
+            ids=chunk_ids,
             embeddings=vecs,
             documents=chunk_docs,
             metadatas=chunk_metas,
@@ -135,9 +155,9 @@ def main() -> None:
     if old_main.count() == 0 and COLLECTION_NAME != _COLLECTION_LOCAL:
         old_main = client.get_collection(_COLLECTION_LOCAL)
         source_name = _COLLECTION_LOCAL
-    docs_main, metas_main = _read_old(old_main, source_name)
+    ids_main, docs_main, metas_main = _read_old(old_main, source_name)
     # qa_pairs 同理（优先当前库，空回落本地）
-    qa_docs, qa_metas = [], []
+    qa_ids, qa_docs, qa_metas = [], [], []
     qa_source = QA_COLLECTION_NAME
     try:
         qa_col = client.get_collection(QA_COLLECTION_NAME)
@@ -145,11 +165,15 @@ def main() -> None:
             qa_col = client.get_collection(_QA_COLLECTION_LOCAL)
             qa_source = _QA_COLLECTION_LOCAL
         qa_data = qa_col.get(include=["documents", "metadatas"])
+        qa_ids = list(qa_data["ids"] or [])
         qa_docs = list(qa_data["documents"] or [])
         qa_metas = [dict(m) for m in (qa_data["metadatas"] or [])]
-        print(f"  [{qa_source}] 读旧库 {len(qa_docs)} 条")
+        if not (len(qa_ids) == len(qa_docs) == len(qa_metas)):
+            raise RuntimeError(f"[{qa_source}] ids/docs/metas 数量不齐：{len(qa_ids)}/{len(qa_docs)}/{len(qa_metas)}")
+        print(f"  [{qa_source}] 读旧库 {len(qa_docs)} 条（含 {len(qa_ids)} 个原 doc id）")
     except Exception as e:
         print(f"  qa_pairs 读取跳过：{e}")
+        qa_ids, qa_docs, qa_metas = [], [], []
 
     total_chars = sum(len(d) for d in docs_main) + sum(len(d) for d in qa_docs)
     tokens, cost = _char_token_cost(total_chars)
@@ -161,13 +185,13 @@ def main() -> None:
         print("\n--dry-run：不写新库。确认后去掉 --dry-run 实跑。")
         sys.exit(0)
 
-    # 2. 建新库 + 重嵌入
+    # 2. 建新库 + 重嵌入（**原 doc id 一路带过去**，票 W06-FIX F7/V6）
     print("\n=== 重建 ===")
     new_main = _ensure_new_collection(COLLECTION_NAME)
-    _write_new(embeddings, new_main, docs_main, metas_main, args.batch, COLLECTION_NAME)
+    _write_new(embeddings, new_main, ids_main, docs_main, metas_main, args.batch, COLLECTION_NAME)
     if qa_docs:
         new_qa = _ensure_new_collection(QA_COLLECTION_NAME)
-        _write_new(embeddings, new_qa, qa_docs, qa_metas, args.batch, QA_COLLECTION_NAME)
+        _write_new(embeddings, new_qa, qa_ids, qa_docs, qa_metas, args.batch, QA_COLLECTION_NAME)
 
     # 3. 校验
     print("\n=== 校验 ===")
@@ -175,6 +199,24 @@ def main() -> None:
     print(f"新库 count: {n_new}（旧库 {len(docs_main)}）{'✅' if n_new == len(docs_main) else '❌ 不一致'}")
     if n_new != len(docs_main):
         sys.exit(1)
+    # 链持久校验（票 W06-FIX F7/V6）：重建**之后**每一个原 doc id 都必须还解析得到同一份内容。
+    # 改前这一步根本不存在，而 `re-<n>` 的重新编号让 SQL 侧的 `vector_doc_id` 全部指空——
+    # 「SQL→向量」那条方向静默断链，比断得响亮难查得多。
+    new_ids = set(new_main.get(include=["metadatas"]).get("ids") or [])
+    lost = [i for i in ids_main if i not in new_ids]
+    print(
+        f"doc id 保链：{len(ids_main) - len(lost)}/{len(ids_main)} 在新库仍解析得到"
+        f"{'✅' if not lost else '❌ 有 id 丢失'}"
+    )
+    if lost:
+        print(f"  例：{lost[:5]}")
+        sys.exit(1)
+    if qa_docs:
+        qa_new_ids = set(new_qa.get(include=["metadatas"]).get("ids") or [])
+        qa_lost = [i for i in qa_ids if i not in qa_new_ids]
+        print(f"qa_pairs doc id 保链：{len(qa_ids) - len(qa_lost)}/{len(qa_ids)}{'✅' if not qa_lost else '❌'}")
+        if qa_lost:
+            sys.exit(1)
     # dimension 校验
     sample = new_main.get(limit=1, include=["embeddings"])
     dim = len(sample["embeddings"][0]) if sample.get("embeddings") else "?"
