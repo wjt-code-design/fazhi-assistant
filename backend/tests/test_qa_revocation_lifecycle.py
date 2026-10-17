@@ -322,22 +322,44 @@ def test_r2_commit_failure_still_clears_the_cache_on_both_write_branches(db, dou
     calls: list[str] = []
     monkeypatch.setattr(retrieval, "invalidate", lambda: calls.append("invalidate"))
 
-    def boom():
-        raise RuntimeError("模拟提交失败（锁／唯一约束／进程被杀都算这一类）")
+    # ⚠️ 这里**不许**用 `monkeypatch.undo()`：本文件的 `db`/`double_embeddings` 等替身都挂在同一个
+    # function 级 monkeypatch 对象上，undo 会把 `double_embeddings` 一起卸掉 ⇒ 用例转而加载真实 BGE 权重。
+    # 暖缓存（本机）看不出来，冷缓存（CI 的隔离 HF_HOME）就红——2026-10-18 的纯树门 ci_exact 腿就是被这条打中的
+    # （`W12-GATES-FROM-COMMIT-480193d.log`：LocalEntryNotFoundError，同批 warm 腿却全绿）。
+    # 改法：把「提交要不要炸」做成一个开关，而不是撤掉整批补丁。
+    real_commit = db.commit
+    state = {"boom": False}
+
+    def gated_commit():
+        if state["boom"]:
+            raise RuntimeError("模拟提交失败（锁／唯一约束／进程被杀都算这一类）")
+        real_commit()
+
+    monkeypatch.setattr(db, "commit", gated_commit)
+    # 阳性自证（与 `conftest.double_embeddings` 同一把尺子）：替身内层此刻**仍必须在位**。
+    # 写成显式 raise 而不是 assert——判据不该依赖 pytest 的断言重写或 -O。
+    import rag_chain
+    from tests._fake_embeddings import FakeEmbeddings
+
+    if not isinstance(rag_chain.embeddings._inner, FakeEmbeddings):
+        raise AssertionError(
+            f"double_embeddings 的替身已被卸掉（内层={type(rag_chain.embeddings._inner).__name__}）"
+            "⇒ 本用例会去加载真实 BGE 权重：暖缓存机器假绿，冷缓存（CI 隔离 HF_HOME）直接红"
+        )
 
     # ── 支 1：`create_candidate` 的自动收录（≥0.89 那一支，先写向量再提交）
     q1 = "复核R2戊：自动收录提交失败时缓存清不清？"
-    monkeypatch.setattr(db, "commit", boom)
+    state["boom"] = True
     with pytest.raises(RuntimeError):
         ks.create_candidate(db, q1, ANSWER, 0.95, EVIDENCE)
     assert calls == ["invalidate"], f"自动收录这一支提交失败后没清缓存（向量里已经有 {q1} 那条）：{calls}"
 
     # ── 支 2：`decide_candidate` 的人工采纳（同样先写向量再提交）
     calls.clear()
-    monkeypatch.undo()  # 还原 db.commit／retrieval.invalidate，先把候选正常落成待审行
+    state["boom"] = False
     row = ks.create_candidate(db, "复核R2戊补：人工采纳这一支提交失败呢？", ANSWER, 0.55, EVIDENCE)
-    monkeypatch.setattr(retrieval, "invalidate", lambda: calls.append("invalidate"))
-    monkeypatch.setattr(db, "commit", boom)
+    assert calls == [], f"待审分支不写向量也不该清缓存，这里却清了：{calls}（开关复原失败 ⇒ 支 2 的对照物不成立）"
+    state["boom"] = True
     with pytest.raises(RuntimeError):
         ks.decide_candidate(db, row.id, "approved")
     assert calls == ["invalidate"], f"人工采纳这一支提交失败后没清缓存：{calls}"
@@ -373,3 +395,53 @@ def test_approving_the_same_candidate_twice_writes_two_vector_records(db, double
     assert _hits(q) == 2, "写侧已经改成幂等 ⇒ 本条特征化要改写成「重复采纳只有一条」"
     # SQL 侧仍只有一行 ⇒ 两份拷贝的数量也开始不一致（这就是"两个独立状态各自判 approved"）
     assert db.query(ks.QaCandidate).filter(ks.QaCandidate.question == q).count() == 1
+
+
+def test_r2_write_branch_tests_never_call_monkeypatch_undo():
+    """R2-F7 用例的**形状钉子**：这两条用例里不许**调用** `monkeypatch.undo()`。
+
+    为什么钉形状而不是只在运行时自查：本文件的替身（`db`、`double_embeddings`…）都挂在同一个
+    function 级 monkeypatch 上，`undo()` 会把 `double_embeddings` 一起卸掉 ⇒ 用例转去加载真实 BGE。
+    暖缓存机器上这是**假绿**，冷缓存（CI 隔离 `HF_HOME`）上它就红——2026-10-18 的纯树门 ci_exact 腿
+    正是这样红的（`evidence/W12-GATES-FROM-COMMIT-480193d.log`：`LocalEntryNotFoundError`，
+    同批 warm 腿却全绿；对照产物 `evidence/VERIFY-R2-F7-coldhf-after.log`）。
+
+    走 AST 而不是子串：docstring 里就得提这件事，子串判据会被自己的注释打死（第一轮就是这么红的）。
+    变异自证：把 `monkeypatch.undo()` 插回支 2 ⇒ 本条红（`evidence/VERIFY-R2-F7-mutation-undo-restores-real-model.log`）。
+    """
+    import ast
+    import inspect
+
+    def undo_calls(fn) -> list[int]:
+        found = []
+        for node in ast.walk(ast.parse(inspect.getsource(fn))):
+            if (
+                isinstance(node, ast.Call)
+                and isinstance(node.func, ast.Attribute)
+                and node.func.attr == "undo"
+                and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "monkeypatch"
+            ):
+                found.append(node.lineno)
+        return found
+
+    targets = [
+        test_r2_commit_failure_still_clears_the_cache_on_both_write_branches,
+        test_r2_successful_commit_still_clears_the_cache_exactly_once,
+    ]
+    found = {f.__name__: undo_calls(f) for f in targets}
+    assert all(not v for v in found.values()), (
+        f"R2-F7 用例里出现了 monkeypatch.undo() 调用：{found}⇒ 会连带卸掉 embeddings 替身，冷缓存那条腿必红"
+    )
+    # 阳性对照：同一个判据必须认得出"含有该调用"的形状，否则上面那条是恒真
+    sample = "def f(db, monkeypatch):" + chr(10) + "    monkeypatch.undo()" + chr(10)
+    hits = [
+        n.lineno
+        for n in ast.walk(ast.parse(sample))
+        if isinstance(n, ast.Call)
+        and isinstance(n.func, ast.Attribute)
+        and n.func.attr == "undo"
+        and isinstance(n.func.value, ast.Name)
+        and n.func.value.id == "monkeypatch"
+    ]
+    assert hits, "monkeypatch.undo() 这个形状没被认出 ⇒ 上面的 not in 是假判据"
