@@ -750,16 +750,49 @@ def test_mismatched_existing_row_is_fail_closed_not_served(db, double_embeddings
 
 
 def _quarantined_write_nodes(source: str) -> list[int]:
-    """找出**把 `eligibility` 写成 `quarantined`** 的行（五种写入形状）。
+    """找出**把 `eligibility` 写成 `quarantined`** 的行（写形状闭包＋别名闭包）。
 
-    只认「写」：属性赋值 / 下标赋值 / ORM `update`+`values` 的字典项或关键字 / 元数据字典项
-    （向量侧那份拷贝也算，隔离要两边都落）。
+    只认「写」：属性赋值 / 下标赋值 / `setattr(obj, "eligibility", …)` / ORM `update`+`values`
+    的字典项或关键字 / 元数据字典项 / 裸 SQL（`execute("… eligibility = ?", ("quarantined",))`）。
     比较（`== "quarantined"`）与文档字符串不算——那是**读**与**说明**。
+
+    票 R2-F6（复核第二轮）：改前只认**字面量**，于是 `Q = "quarantined"; r.eligibility = Q`、
+    `setattr(...)`、裸 SQL 三种写法都能带着「零生产者」那条钉子变绿——而读侧尺子（同文件
+    `_state_reads`）早就做过别名闭包，写侧却没做。同一族尺子不能一头闭一头开。
     """
+    nodes = list(ast.walk(ast.parse(source)))
+    names: set[str] = set()
+    for _ in range(6):  # 别名闭包到定点：`Q = "quarantined"`、`R = Q`、`S = R` 都要认
+        grew = False
+        for node in nodes:
+            if not isinstance(node, ast.Assign):
+                continue
+            direct = isinstance(node.value, ast.Constant) and node.value.value == "quarantined"
+            via_alias = isinstance(node.value, ast.Name) and node.value.id in names
+            if not (direct or via_alias):
+                continue
+            for target in node.targets:
+                if isinstance(target, ast.Name) and target.id not in names:
+                    names.add(target.id)
+                    grew = True
+        if not grew:
+            break
+
+    def is_quarantined(value: ast.expr) -> bool:
+        if isinstance(value, ast.Constant):
+            return value.value == "quarantined"
+        return isinstance(value, ast.Name) and value.id in names
+
+    def mentions_eligibility(subtree: ast.AST) -> bool:
+        return any(
+            isinstance(n, ast.Constant) and isinstance(n.value, str) and "eligibility" in n.value
+            for n in ast.walk(subtree)
+        )
+
     hits: list[int] = []
-    for node in list(ast.walk(ast.parse(source))):
-        # ① 赋值：`r.eligibility = "quarantined"` / `row["eligibility"] = "quarantined"`
-        if isinstance(node, ast.Assign) and isinstance(node.value, ast.Constant) and node.value.value == "quarantined":
+    for node in nodes:
+        # ① 赋值：`r.eligibility = "quarantined"` / `row["eligibility"] = Q`
+        if isinstance(node, ast.Assign) and is_quarantined(node.value):
             for target in node.targets:
                 if (isinstance(target, ast.Attribute) and target.attr == "eligibility") or (
                     isinstance(target, ast.Subscript)
@@ -768,27 +801,35 @@ def _quarantined_write_nodes(source: str) -> list[int]:
                 ):
                     hits.append(node.lineno)
                     break
-        # ② ORM 批量写 / 元数据字典项：`{"eligibility": "quarantined"}`、`values(eligibility="quarantined")`
+        # ② ORM 批量写 / 元数据字典项：`{"eligibility": "quarantined"}`、`values(eligibility=Q)`
         if isinstance(node, ast.Dict):
             for k, v in zip(node.keys, node.values, strict=True):
+                if isinstance(k, ast.Constant) and k.value == "eligibility" and is_quarantined(v):
+                    hits.append(node.lineno)
+        if isinstance(node, ast.Call):
+            func = node.func
+            # ③ setattr(obj, "eligibility", "quarantined")
+            if isinstance(func, ast.Name) and func.id == "setattr" and len(node.args) >= 3:
                 if (
-                    isinstance(k, ast.Constant)
-                    and k.value == "eligibility"
-                    and isinstance(v, ast.Constant)
-                    and v.value == "quarantined"
+                    isinstance(node.args[1], ast.Constant)
+                    and node.args[1].value == "eligibility"
+                    and is_quarantined(node.args[2])
                 ):
                     hits.append(node.lineno)
-        if (
-            isinstance(node, ast.Call)
-            and isinstance(node.func, ast.Attribute)
-            and node.func.attr
-            in (
-                "update",
-                "values",
-            )
-        ):
-            for kw in node.keywords:
-                if kw.arg == "eligibility" and isinstance(kw.value, ast.Constant) and kw.value.value == "quarantined":
+            if isinstance(func, ast.Attribute) and func.attr in ("update", "values"):
+                for kw in node.keywords:
+                    if kw.arg == "eligibility" and is_quarantined(kw.value):
+                        hits.append(node.lineno)
+            # ④ 裸 SQL：语句文本里出现 eligibility，同一次调用里出现 quarantined（含别名）
+            if isinstance(func, (ast.Name, ast.Attribute)) and (
+                getattr(func, "id", getattr(func, "attr", "")) in ("execute", "executemany", "text")
+            ):
+                args = list(node.args) + [kw.value for kw in node.keywords]
+                has_el = any(mentions_eligibility(a) for a in args)
+                has_q = any(
+                    is_quarantined(n) for a in args for n in ast.walk(a) if isinstance(n, (ast.Constant, ast.Name))
+                )
+                if has_el and has_q:
                     hits.append(node.lineno)
     return sorted(set(hits))
 
@@ -799,12 +840,16 @@ _QUARANTINE_WRITE_SAMPLES = {
     "orm_update_dict": 'db.query(QaCandidate).update({"eligibility": "quarantined"})\n',
     "orm_values_kwarg": 'db.query(QaCandidate).filter(x).values(eligibility="quarantined")\n',
     "metadata_dict": 'meta = {"answer": "a", "eligibility": "quarantined"}\n',
+    # R2-F6 补的三形：别名 / setattr / 裸 SQL——改前这三形都能带着「零生产者」那条钉子变绿
+    "alias_chain": 'Q = "quarantined"\nR = Q\nr.eligibility = R\n',
+    "setattr_form": 'setattr(row, "eligibility", "quarantined")\n',
+    "raw_sql_form": 'con.execute("update qa_candidates set eligibility = ?", ("quarantined",))\n',
 }
 
 
 @pytest.mark.parametrize("label", sorted(_QUARANTINE_WRITE_SAMPLES))
 def test_quarantined_write_scanner_catches_every_write_shape(label):
-    """这条是下一条的**阳性对照**：写入扫描器必须真能认出五种写形状。
+    """这条是下一条的**阳性对照**：写入扫描器必须真能认出每一种写形状。
 
     没有这半条，「零生产者」会因为「扫描器根本没在找东西」而恒真（本仓教训：
     「没有 X」型判据必须配一条「X 长什么样都能抓到」的对照）。
@@ -815,17 +860,21 @@ def test_quarantined_write_scanner_catches_every_write_shape(label):
     assert not _quarantined_write_nodes(src.replace("quarantined", "revoked")), f"{label} 误报：写 revoked 也算生产者"
 
 
-def test_quarantined_has_no_producer_yet_and_this_pin_must_go_red_when_the_backfill_lands():
-    """V4/F2②：全仓（除 tests 与判据本体）**没有任何一处把 `eligibility` 写成 `quarantined`**。
+def test_quarantined_has_exactly_one_producer_file_and_it_is_the_backfill_registration():
+    """**原钉**「全仓没有任何一处把 `eligibility` 写成 `quarantined`（这是根预期红，backfill 落地那天应当红）」
+    ⇒ **现钉**「写 `quarantined` 的文件恰为 `scripts/backfill_qa_link.py` 一只，写入点恰 2 处」。
 
-    ⚠️ **这是一根「预期红」的钉子，今天它是绿的**：生产者是 `dispatch/w06-backfill-ticket.md`（未交付）。
-    backfill 落地那天这条**应当红**——红代表「隔离半边真的有写者了」。那时**不许删这条**，
-    要把它改成正向判据（列出生产者文件＋计数，并引用 backfill 票 §2 的先计数再动手），
-    同时同步 `docs/capability-matrix.md` 的隔离半边。这条存在的全部意义是防「backfill 无声交付」：
-    没有它，隔离哪天悄悄上线、哪天悄悄没上线，读数上看不出区别。
+    理由：票 `dispatch/w06-backfill-ticket.md` 已于 2026-10-18 交付，那根预期红**如期红了**
+    （见 `evidence/VERIFY-R2-and-backfill-targeted.log`：`1 failed, 167 passed`，红的就是旧措辞这条）。
+    按旧 docstring 自己写明的处置转义成正向判据——**没有删**，因为这条存在的全部意义是防"隔离无声上线/无声下线"：
+    现在多一个生产者它红，backfill 被改回不写隔离它同样红。
+    扫描器本身由上面那条参数化对照钉住（八种写形状，含别名／`setattr`／裸 SQL，R2-F6）。
+
+    2 处写入点＝`build_plan` 里孤儿登记与重复(superseded)登记这两条 `new_rows` 字典。
+    同步面：`docs/capability-matrix.md` 的「隔离半边」行按本轮现量改写。
     """
     root = Path(__file__).resolve().parents[1]
-    producers: list[str] = []
+    producers: dict[str, int] = {}
     for py in sorted(root.rglob("*.py")):
         rel = py.relative_to(root).as_posix()
         if "tests" in py.parts or "__pycache__" in py.parts:
@@ -834,10 +883,11 @@ def test_quarantined_has_no_producer_yet_and_this_pin_must_go_red_when_the_backf
             continue
         lines = _quarantined_write_nodes(py.read_text(encoding="utf-8"))
         if lines:
-            producers.append(f"{rel}:{lines}")
-    assert producers == [], (
-        f"`quarantined` 出现了生产者：{producers} ⇒ 这是一条**预期红**（backfill=w06-backfill-ticket 落地了）。"
-        "别删这条：改成正向判据（生产者清单＋计数），并同步 docs/capability-matrix.md 的隔离半边。"
+            producers[rel] = len(lines)
+    assert producers == {"scripts/backfill_qa_link.py": 2}, (
+        f"`quarantined` 的生产者面与在册不符：{producers}。"
+        "期望恰为回填脚本的孤儿/重复两处登记 ⇒ 多出来＝第二个隔离生产者未经登记就上线（票面 §2 要求先计数再动手）；"
+        "少了＝backfill 被无声改回不写隔离 ⇒ 隔离半边又变回空话。"
     )
 
 

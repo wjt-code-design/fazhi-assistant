@@ -203,6 +203,14 @@ _ACCOUNT_FIELDS = (
     # 不含凭据值也不含异常正文（W7-B9 同一口径：上游文本可能回显请求内容）。
     # 未登记会被 JSON formatter 静默丢弃 ⇒ 这个键白写（本仓哨兵已抓过两次）。
     "llm_cfg_entry_rejected",
+    # R2-F1（复核第二轮）：`LLM_MODELS_JSON` **整段**不可用（JSON 解析失败／顶层不是数组）时
+    # `_load_roles` 回退 DEFAULT_ROLES ——改前那一发裸 `json.loads` 排在任何 try 之外，
+    # 而 registry 建在模块作用域 ⇒ 少一个逗号就让整只后端死在 import 期，九腿纯树门却全绿。
+    # 回退必须留痕，否则「模型比配置里少了一整批」这件事又只剩猜。
+    # 值只有异常**类名**或结构性词汇（如「顶层是 dict 而不是数组」）：`JSONDecodeError` 的正文会复述
+    # 配置片段，而配置里可能写着 api_key（与 W7-B9 同一口径，不落正文）。
+    # 未登记会被 JSON formatter 静默丢弃 ⇒ 本仓哨兵已抓过三次，这一格不许再来一次。
+    "llm_cfg_malformed",
     # W07-FIX V-B3（2026-10-17）：识图**空内容**那一腿的降级读数（`main._note_empty_image_description`
     # 读 `RequestBootstrap.image_failure` 才落这一条）——把 `image_failure` 从只写字段变成有读者的位。
     # 与上面 `image_content_empty` 的分工：那一个是 bootstrap 内部的出口分键（同轮一次），

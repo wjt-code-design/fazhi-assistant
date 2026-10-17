@@ -306,6 +306,63 @@ def test_sql_commit_failure_leaves_an_orphan_vector_record(db, double_embeddings
     assert _hits(q2) == 0
 
 
+def test_r2_commit_failure_still_clears_the_cache_on_both_write_branches(db, double_embeddings, monkeypatch):
+    """R2-F7（复核第二轮，本仓**上一轮自己引进**的新静默路径）：提交失败 ⇒ 向量已经写了，缓存却没清。
+
+    `10d1dc0` 把 `invalidate()` 从 commit **之前**挪到之后（那一步是对的：并发读者要在缓存被清之前
+    就读到新资格），代价是新增了一条失败路径：`db.commit()` 抛了 ⇒ 一行都不执行 ⇒
+    向量里那条 QA 已经存在（`add_qa_pair` 先写），而进程缓存与回答缓存留着**旧**读数。
+    改前无条件清，所以这条洞是本轮新挖的。
+
+    现钉两支（批准/auto-approve 各一）：提交炸 ⇒ 异常照旧上抛，但 `retrieval.invalidate()` **仍被调用**。
+    用调用计数器判，不用 `hasattr`（本仓已把「属性存在」类恒真判据改写过一次，见上面 V8 那条）。
+    """
+    import inspect
+
+    calls: list[str] = []
+    monkeypatch.setattr(retrieval, "invalidate", lambda: calls.append("invalidate"))
+
+    def boom():
+        raise RuntimeError("模拟提交失败（锁／唯一约束／进程被杀都算这一类）")
+
+    # ── 支 1：`create_candidate` 的自动收录（≥0.89 那一支，先写向量再提交）
+    q1 = "复核R2戊：自动收录提交失败时缓存清不清？"
+    monkeypatch.setattr(db, "commit", boom)
+    with pytest.raises(RuntimeError):
+        ks.create_candidate(db, q1, ANSWER, 0.95, EVIDENCE)
+    assert calls == ["invalidate"], f"自动收录这一支提交失败后没清缓存（向量里已经有 {q1} 那条）：{calls}"
+
+    # ── 支 2：`decide_candidate` 的人工采纳（同样先写向量再提交）
+    calls.clear()
+    monkeypatch.undo()  # 还原 db.commit／retrieval.invalidate，先把候选正常落成待审行
+    row = ks.create_candidate(db, "复核R2戊补：人工采纳这一支提交失败呢？", ANSWER, 0.55, EVIDENCE)
+    monkeypatch.setattr(retrieval, "invalidate", lambda: calls.append("invalidate"))
+    monkeypatch.setattr(db, "commit", boom)
+    with pytest.raises(RuntimeError):
+        ks.decide_candidate(db, row.id, "approved")
+    assert calls == ["invalidate"], f"人工采纳这一支提交失败后没清缓存：{calls}"
+
+    # 注释里那句被复核打穿的假话不许留在原地当依据（它现在**是错的**，留着比删掉更坏）
+    src = inspect.getsource(ks.create_candidate) + inspect.getsource(ks.decide_candidate)
+    assert "没有变更就没有该清的" not in src, "注释仍声称「提交失败就不清缓存」⇒ 那是被击穿的那句原话"
+
+
+def test_r2_successful_commit_still_clears_the_cache_exactly_once(db, double_embeddings, monkeypatch):
+    """R2-F7 的反对照：`try/finally` 不许把正常路改成「清两次」或「每次都清」。
+
+    没有这条对照，上面那条判据会被一个无条件空转的 `finally` 一起骗过去（例如把 invalidate
+    挪到函数最外层无条件调用 ⇒ 待审分支也清、成功分支清两遍，读数从此不能当指标）。
+    """
+    calls: list[str] = []
+    monkeypatch.setattr(retrieval, "invalidate", lambda: calls.append("invalidate"))
+
+    ks.create_candidate(db, "复核R2戊再补：待审分支提交成功该不该清缓存？", ANSWER, 0.55, EVIDENCE)
+    assert calls == [], f"待审分支不写向量，也不该清缓存：{calls}"
+
+    ks.create_candidate(db, "复核R2戊再补：自动收录提交成功清几次？", ANSWER, 0.95, EVIDENCE)
+    assert calls == ["invalidate"], f"成功路径的清理次数漂了：{calls}"
+
+
 def test_approving_the_same_candidate_twice_writes_two_vector_records(db, double_embeddings):
     """⑤ 采纳不幂等：`add_qa_pair` 每次都是 `add_documents`（无 ID、无 upsert），重复采纳就叠成两条。"""
     q = "撤回生命周期己：同一候选采纳两次，向量侧是一条还是两条？"

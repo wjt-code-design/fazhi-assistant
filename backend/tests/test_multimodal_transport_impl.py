@@ -13,6 +13,7 @@ transport 从 entry 输入经 cfg 白名单到调用处一路不丢，且分派�
 
 import ast
 import base64
+import binascii
 import inspect
 import json
 import logging
@@ -496,6 +497,118 @@ def test_transport_names_are_the_same_words_on_both_sides():
 # ---------------------------------------------------------------- W7-B4 / W7-B8（票 W7-FIX）
 
 
+def _except_handlers(source: str) -> int:
+    """AST 层面数 `except` **处理器**（R2-F9：旧尺子是子串 `"except" not in src`，连注释里的
+    单词都禁——那是误伤型尺子：它既能在真出现吞异常时因为「写在同一行的大写 Except」漏掉，
+    也能因为一句提到异常的文字把合法改动判红。尺子该量**结构**，不是量词。"""
+    return sum(1 for n in ast.walk(ast.parse(source)) if isinstance(n, ast.ExceptHandler))
+
+
+def _mcp_pure_helper(name: str):
+    """把 `mcp_server.py` 里**一只**纯函数从源文件里摘出来单独 exec。
+
+    为什么不能 import：本机没装 `mcp` 包，模块级 `from mcp.server.fastmcp import FastMCP` 就装不上
+    ——这正是 R2-F9 说的「call site never executes」的成因：模块导不进来 ⇒ 只剩源码子串尺子 ⇒
+    参数顺序、`transport=` 关键字、返回值交给谁，全都没人咬。摘出**一只无装饰器、无外部依赖**的
+    纯函数单独装载，等值判据就成立了（判据仍然在 Python 层，不是文本层）。
+    """
+    src = (Path(__file__).resolve().parents[1] / "mcp_server.py").read_text(encoding="utf-8")
+    fn = next(
+        (n for n in ast.parse(src).body if isinstance(n, ast.FunctionDef) and n.name == name),
+        None,
+    )
+    assert fn is not None, f"mcp_server.py 里没有纯函数 {name} ⇒ 参数装配没有可断言的形状"
+    assert not fn.decorator_list, f"{name} 带着装饰器（@mcp.tool?）⇒ 摘出来装载会依赖 mcp 包"
+    ns: dict = {"base64": base64, "Path": Path, "__builtins__": __builtins__}
+    exec(compile(ast.Module(body=[fn], type_ignores=[]), f"<mcp_server:{name}>", "exec"), ns)
+    return ns[name]
+
+
+def test_r2_voice_call_args_has_an_assertable_shape(tmp_path):
+    """R2-F1/F9 同族的那一格：`mcp_server` 语音调用的**参数装配**现在是可等值断言的纯形状。
+
+    复核现量：把 `b64` 与 `fmt` 互换，旧尺子（源码子串）全绿。这里按值判：
+    `fmt` 必须是去点小写的扩展名，`b64` 必须能原样解回文件字节，`transport` 必须**逐字**等于传进来的那个。
+    """
+    wav = tmp_path / "Boop.WAV"
+    payload = b"RIFF-fake-audio-bytes"
+    wav.write_bytes(payload)
+
+    b64, fmt, transport = _mcp_pure_helper("_voice_call_args")(str(wav), "audio_transcriptions")
+
+    assert fmt == "wav", f"fmt 不是去点小写的扩展名：{fmt!r}"
+    assert base64.b64decode(b64) == payload, "b64 不是文件字节的 base64 ⇒ 参数形状/顺序没被咬住"
+    assert transport == "audio_transcriptions", "transport 在装配这一步被丢掉或换掉了"
+
+    # 反面对照（watch-it-fail）：把两值互换后，上面那条 b64 判据必须失效——否则本条是恒真的
+    swapped_b64, swapped_fmt = fmt, b64
+    try:
+        decoded_swapped = base64.b64decode(swapped_b64)
+    except binascii.Error:  # "wav" 根本不是合法的 base64：这正是"换序会被本条抓到"的意思
+        decoded_swapped = None
+    assert decoded_swapped != payload, "互换 b64 与 fmt 之后仍解得回原字节 ⇒ 上面那条判据是恒真的"
+    assert swapped_fmt != "wav", "fmt 的位置被 b64 占了却还长得像扩展名 ⇒ 判据没量到它"
+
+
+def test_r2_image_call_args_keeps_one_prompt_source(tmp_path):
+    """R2-F9 的图片那一支：交给 `multimodal.describe_image` 的就是 `data:<mime>;base64,...` 一个值。
+
+    复核点名 `describe_image(vision_llm, url)` 把 mcp 那份提示词丢了这件事没人验——现量答案是
+    **这里本来就不该有提示词**：提示词唯一真源在 `multimodal.describe_image` 内部。
+    于是这条判据钉两件事：① URL 形状可等值断言；② 装配函数**只**产一个值（不掺第二份措辞）。
+    """
+    png = tmp_path / "shot.png"
+    payload = b"\x89PNG-fake"
+    png.write_bytes(payload)
+
+    url = _mcp_pure_helper("_image_call_args")(str(png))
+    assert url == f"data:image/png;base64,{base64.b64encode(payload).decode()}"
+
+    jpg = tmp_path / "shot.jpeg"
+    jpg.write_bytes(payload)
+    assert _mcp_pure_helper("_image_call_args")(str(jpg)).startswith("data:image/jpeg;base64,")
+
+
+def test_r2_mcp_tools_hand_the_helper_results_to_the_dispatch_point():
+    """R2-F9 的接线那一半：装配函数产出的三个值**按位置**交进 `multimodal.transcribe_audio`，
+    `transport` 走关键字。上一轮的判据只数到「文件里出现过这个调用」，数不到顺序（复核：换序仍全绿）。
+    """
+    src = (Path(__file__).resolve().parents[1] / "mcp_server.py").read_text(encoding="utf-8")
+    tree = ast.parse(src)
+
+    tool = next(
+        (n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "transcribe_audio"),
+        None,
+    )
+    assert tool is not None, src
+    assigns = [
+        n
+        for n in ast.walk(tool)
+        if isinstance(n, ast.Assign)
+        and isinstance(n.value, ast.Call)
+        and isinstance(n.value.func, ast.Name)
+        and n.value.func.id == "_voice_call_args"
+    ]
+    assert len(assigns) == 1, "语音工具没有把参数装配交给 `_voice_call_args`（或交了不止一次）"
+    names = [t.id for t in assigns[0].targets[0].elts]
+    assert names == ["b64", "fmt", "transport"], names
+
+    dispatch = [
+        n
+        for n in ast.walk(tool)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "transcribe_audio"
+    ]
+    assert len(dispatch) == 1, dispatch
+    call = dispatch[0]
+    positional = [a.id for a in call.args if isinstance(a, ast.Name)]
+    # `multimodal.transcribe_audio(voice_llm, b64, fmt, transport=...)`：模型＋两个装配值按位置，
+    # transport 走关键字。复核点名的坏形状（换序 / transport 退成位置参）在这两条上各红一次。
+    assert positional[0] == "voice_llm", f"第一个位置参不是选出来的模型：{positional}"
+    assert positional[1:3] == ["b64", "fmt"], f"装配值的顺序/来源对不上 `_voice_call_args`：{positional}"
+    kws = {kw.arg: (kw.value.id if isinstance(kw.value, ast.Name) else None) for kw in call.keywords}
+    assert kws == {"transport": "transport"}, f"transport 必须是关键字参、且取自装配函数的第三个值：{kws}"
+
+
 def test_mcp_server_voice_tool_goes_through_the_single_dispatch_point():
     """V-B4（W7-B4）：`mcp_server` 那条**第二条语音路**被收编——语音分派重新只剩一处。
 
@@ -503,6 +616,11 @@ def test_mcp_server_voice_tool_goes_through_the_single_dispatch_point():
     还把异常收敛成一句返回字符串（`transport:"none"` 的 entry 在那里照样走 chat-ASR）。
     尺子是**源文件文本**：本机没装 `mcp` 包 ⇒ 该模块不能被 import，读文本与能不能装载无关
     （同先例：跨面判据读 recorder.ts / api.ts）。
+
+    R2-F9 改了一处措辞尺子：原钉 `"except" not in src` ⇒ 现钉 AST 数 `ExceptHandler` 为 0。
+    理由：旧那条把注释/文案里出现的单词一起禁掉，是**误伤型尺子**（合法的说明文字会红），
+    而它想钉的其实是「这个文件里没有把异常收敛成返回值的处理器」——那是**结构**事实，
+    用结构量。正/反对照就在下面两发，防止新尺子恒真。
     """
     src = (Path(__file__).resolve().parents[1] / "mcp_server.py").read_text(encoding="utf-8")
     assert "multimodal.transcribe_audio(" in src, "语音工具没走唯一那条分派腿"
@@ -511,7 +629,11 @@ def test_mcp_server_voice_tool_goes_through_the_single_dispatch_point():
     assert "_AUDIO_EXTS" not in src, "又出现第二份音频扩展名白名单（真源是 multimodal.AUDIO_EXTS）"
     assert "multimodal.AUDIO_EXTS" in src
     assert "input_audio" not in src, "mcp_server 自己拼聊天部件 ⇒ 分派点不止一处"
-    assert "except" not in src, "把异常收敛成返回字符串就是吞 ⇒ 该文件现在一条处理器都不许有"
+    assert _except_handlers(src) == 0, "该文件现在一条 except 处理器都不许有（把异常收敛成返回字符串就是吞）"
+
+    # 正对照：真处理器数得出来；文案里的单词不误伤（旧尺子在这两处分别是漏判与误判）
+    assert _except_handlers("def f(x):\n    try:\n        return x()\n    except ValueError:\n        return ''\n") == 1
+    assert _except_handlers("# 这里解释 except 与 exception 的用法\nimport base64\n") == 0
 
 
 def test_audio_format_outside_the_whitelist_raises_instead_of_octet_stream():

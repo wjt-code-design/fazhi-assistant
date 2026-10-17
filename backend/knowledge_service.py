@@ -487,9 +487,20 @@ def create_candidate(db: Session, question: str, answer: str, grounded_score: fl
         # 改前是 `retrieval.invalidate()` 在 `db.commit()` 之前 ⇒ invalidate 之后、commit 之前那一段里，
         # 并发请求仍能从 SQL 读到**旧状态**，把刚被撤掉的答案**写回回答缓存**（TTL 6 小时），
         # 于是「撤回即时生效」在窗口内被反向击穿；SQLite 单写者 + `timeout=30` 还会把窗口拉长。
-        # 收录这一支的顺序同样按「提交可见 ⇒ 再清缓存」统一（提交失败就不清缓存：没有变更就没有该清的）。
-        db.commit()
-        retrieval.invalidate()
+        # 收录这一支的顺序同样按「提交可见 ⇒ 再清缓存」统一。
+        #
+        # 票 R2-F7（复核第二轮）：上一轮在这里补的那句旧理由——把「提交没成功」当成「没有变更、
+        # 所以没有该清的」——是**错的**，复核照原样打穿了：向量是上面 `add_qa_pair` 在 commit **之前**
+        # 就写好的，提交失败时「有变更」这件事已经成立（向量侧那条 QA 活着），而进程缓存与回答缓存
+        # 仍留着旧读数——改前（invalidate 排在 commit 之前）本来就无条件清，这条洞是上一轮新挖的。
+        # 现在收进 `finally`：提交成功＝提交可见后清；提交炸＝照样清再上抛。
+        # 清早了的代价只是让人多查一次，留着旧读数的代价是一条已落进向量的语料被陈旧缓存一直盖着。
+        # （判据：tests/test_qa_revocation_lifecycle.py::
+        #  test_r2_commit_failure_still_clears_the_cache_on_both_write_branches ＋那条反对照）
+        try:
+            db.commit()
+        finally:
+            retrieval.invalidate()
         db.refresh(c)
         return c
     c = QaCandidate(
@@ -580,9 +591,15 @@ def decide_candidate(db: Session, cand_id: int, decision: str, reviewed_by: int 
         # 拒绝必须停三条出口：置资格关语料两出口，invalidate（本函数末尾）关回答缓存出口（形状 B）
     else:
         raise ValueError("decision 必须为 approved 或 rejected")
-    db.commit()
     # 票 W06-FIX F5（V1）：纠错采纳/撤回都**先提交、再清缓存**（与 `create_candidate` 同一条不变式）。
     # 清早了而状态还没提交＝并发请求能在窗口里读到旧资格并把旧答案写回缓存（TTL 6 小时）。
-    retrieval.invalidate()
+    # 票 R2-F7：`finally` 补上另一半——提交炸了也**必须**清。采纳这一支的向量在上面就已经落盘，
+    # 提交失败时缓存里那条旧答案照样服务它；拒绝这一支虽然没写向量，但资格已改而缓存未清
+    # 同样是「旧读数继续在服务一条已撤回的语料」。上一轮那句把「提交没成功」当成「没有该清的」的
+    # 旧理由已按现量改写（见 `create_candidate` 那一段的完整说明）。
+    try:
+        db.commit()
+    finally:
+        retrieval.invalidate()
     db.refresh(r)
     return r

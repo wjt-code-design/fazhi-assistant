@@ -492,41 +492,137 @@ def estimate_tokens(text: str) -> int:
     return quota_utils.estimate_tokens(text)
 
 
-def _load_roles() -> list[dict[str, Any]]:
+def _load_roles() -> list[Any]:
+    """`LLM_MODELS_JSON` → entry 列表；**整段解析不了**就回退 `DEFAULT_ROLES` 并落归因读数。
+
+    R2-F1（复核第二轮）：改前这里是裸的 `json.loads(raw)`，排在任何 try 之外——`.env` 里少一个逗号
+    就多一个引号都能把 `_load→__init__→模块作用域 registry = LLMRegistry()` 一路炸穿到 **import 期**：
+    后端起不来，而九腿纯树门全绿（上一轮 W7-B1 的判据只咬住 transport 一个字段，同一类还留着）。
+    这里回退而不是抛，是因为这只 registry 建在模块作用域——导入期**没有**能接住它的调用方。
+    读数只带异常**类名**或结构性词汇：`JSONDecodeError` 的正文会复述配置片段，而配置里可能写着 api_key
+    （与 W7-B9「上游文本可能回显请求字节」同一口径：不落正文）。
+    """
     raw = (settings.llm_models_json or "").strip()
     if not raw:
         return [dict(r) for r in DEFAULT_ROLES]
-    return json.loads(raw)
+    try:
+        parsed: Any = json.loads(raw)
+    except json.JSONDecodeError as exc:
+        reason: str | None = type(exc).__name__
+        parsed = None
+    else:
+        reason = None if isinstance(parsed, list) else f"顶层是 {type(parsed).__name__} 而不是数组"
+    if reason is not None:
+        logging.getLogger("legal.llm").warning(
+            f"llm_cfg_malformed LLM_MODELS_JSON 不可用（{reason}）⇒ 回退 DEFAULT_ROLES",
+            extra={"llm_cfg_malformed": [reason]},
+        )
+        return [dict(r) for r in DEFAULT_ROLES]
+    return parsed
+
+
+# entry 里必须是整数的字段（名字＝默认值）。R2-F1：改前这四个 `int(...)` 直接写在 cfg/ModelEntry
+# 构造式里，排在 per-entry try 之外 ⇒ 一个 `"timeout": "abc"` 就打死启动。
+_ENTRY_INT_FIELDS: tuple[tuple[str, Any], ...] = (
+    ("timeout", 120),
+    ("priority", 0),
+    ("quota_total", DEFAULT_QUOTA),
+    ("initial_used", 0),
+)
+
+
+def _entry_shape(r: Any, index: int = 0) -> tuple[str, dict[str, int], list[str]]:
+    """一条 entry 的**形状**校验：返回 (key, 取好的整数, 缺陷列表)；缺陷列表非空＝这条不该进册。
+
+    与 `_unknown_keys` 并列的第二把 entry 面尺子：那把管「键名拼错」，这把管「值写不成它该有的形状」。
+    刻意做成**返回缺陷**而不是 `except Exception` 兜底——只认定「配置值不是它声称的那个类型」这一类，
+    代码 bug（AttributeError/TypeError 之类）仍当场炸（判据：
+    tests/test_llm_registry_boot_impl.py::test_load_does_not_swallow_the_real_failure_shapes）。
+
+    刻意**不**校验 `model` 的类型：`model` 键在而值不对（例如 null）要留给 `_build`——那里 pydantic 抛的
+    `ValidationError` 是 `ValueError` 的子类，正是 R2-F2 说的「真实配置路径上唯一还够得着的 ValueError 腿」。
+    在半路把它拦下来等于把那条腿重新变成不可达（然后 `(RuntimeError, ValueError)` 又只剩凭据一条腿）。
+    """
+    if not isinstance(r, dict):
+        return f"<第 {index} 条非对象 entry>", {}, [f"entry 应为 JSON 对象，实得 {type(r).__name__}"]
+    defects: list[str] = []
+    key = r.get("key")
+    if not isinstance(key, str) or not key:
+        defects.append(f"key 缺失或不是字符串（{key!r}）")
+        key = "<无 key 的 entry>"
+    if "model" not in r:
+        defects.append("缺 model 字段")
+    if "capabilities" in r and not isinstance(r["capabilities"], (list, tuple)):
+        defects.append(f"capabilities={r['capabilities']!r} 不是数组")
+    ints: dict[str, int] = {}
+    for name, default in _ENTRY_INT_FIELDS:
+        raw = r.get(name, default)
+        try:
+            ints[name] = int(raw)
+        except (TypeError, ValueError):
+            defects.append(f"{name}={raw!r} 不是整数")
+            ints[name] = default if isinstance(default, int) else 0
+    return key, ints, defects
 
 
 class LLMRegistry:
     def __init__(self) -> None:
         self._lock = threading.RLock()
         self._entries: dict[str, ModelEntry] = {}
+        # R2-F3：被降级跳过的 entry（`"key: 原因"`），与 `_entries` 同批维护。
+        # 0 条在册**不是**「一切正常」：计数走 `entry_count()`/`skipped_count()`，出口在 `/api/health`。
+        self._skipped: list[str] = []
         self._admin_disabled: set[str] = set()  # 管理员禁用开关：只影响 pick 自动路由
         self._aclose_done = False  # 应用退出收尾一次性标记（aclose 幂等）
         self._load()
 
-    def _skip_entry(self, r: dict[str, Any], key: str, reason: str) -> None:
-        """一条 entry 降级跳过（不致命）＋落一条**已登记**的归因读数。
+    def _skip_entry(self, r: Any, key: str, reason: str) -> None:
+        """一条 entry 降级跳过（不致命）＋落一条**已登记**的归因读数，并计入 `skipped_count()`。
 
-        W7-B1（可用性回退）：改前 `_load` 只 `except RuntimeError: continue`，而 `_build` 对未知
-        transport 抛的是 `ValueError`，且 `registry = LLMRegistry()` 跑在模块作用域 ⇒
+        W7-B1（可用性回退）修的是 transport 那**一个字段**：改前 `_load` 只 `except RuntimeError: continue`，
+        而 `_build` 对未知 transport 抛的是 `ValueError`，且 `registry = LLMRegistry()` 跑在模块作用域 ⇒
         `LLM_MODELS_JSON` 里一个拼错的值让整只后端 import 就炸（判据：
         tests/test_llm_registry_boot_impl.py::test_import_time_bad_transport_value_does_not_kill_the_backend）。
-        读数只带 entry key／transport 值（闭集词汇，不是凭据）／异常类名——不带任何 key 的值，
+
+        R2-F1（复核第二轮）把同一件事扩到**整段 entry 构造**：`int(timeout)`／`int(priority)`／
+        `int(quota_total)`／`int(initial_used)`／`r["model"]`／`json.loads(LLM_MODELS_JSON)` 当时仍排在
+        per-entry try 之外，同一类故障还在（复核判词：moved, not closed）。现在这些形状问题
+        由 `_entry_shape()` 在构造**之前**验掉，验不过就走这里——跳过这一条，而不是带走整只服务。
+
+        读数只带 entry key／原因（闭集词汇，不是凭据）／异常类名——不带任何 key 的值，
         也不带异常正文（W7-B9 同一口径：上游文本可能回显请求字节）。
         """
+        self._skipped.append(f"{key}: {reason}")
+        raw_model = r.get("model", "") if isinstance(r, dict) else ""
+        # 非字符串的 model（例如 null）不落值本身，落它的**类型名**：读数要指得出是哪条，不该把
+        # 配置内容原样抄进日志（与上面「不带凭据值」同一条纪律）。
+        model_name = raw_model if isinstance(raw_model, str) else type(raw_model).__name__
         logging.getLogger("legal.llm").warning(
             f"llm_entry_skipped entry={key} reason={reason}",
-            extra={"model": r.get("model", ""), "llm_cfg_entry_rejected": [f"{key}: {reason}"]},
+            extra={"model": model_name, "llm_cfg_entry_rejected": [f"{key}: {reason}"]},
         )
+
+    def entry_count(self) -> int:
+        """在册（构造成功）的 entry 条数。R2-F3：0 条必须**被读得到**，不许等于「健康」。"""
+        with self._lock:
+            return len(self._entries)
+
+    def skipped_count(self) -> int:
+        """本次 `_load` 降级跳过的 entry 条数（`/api/health` 的 `llm_entry_rejected` 读它）。"""
+        with self._lock:
+            return len(self._skipped)
 
     def _load(self) -> None:
         with self._lock:
             self._entries = {}
-            for r in _load_roles():
-                key = r["key"]
+            self._skipped = []
+            for index, r in enumerate(_load_roles()):
+                # R2-F1：entry 的**形状**先过一遍尺（key/model/整数字段/capabilities 数组）。
+                # 位置在取凭据与构造 cfg 之前——改前这些取值语句本身就是启动期的雷。
+                key, ints, defects = _entry_shape(r, index)
+                if defects:
+                    self._skip_entry(r, key, "；".join(defects))
+                    continue
                 # 票 W07 §1 ①：entry 输入面的 transport（缺省＝chat ⇒ 旧条目逐字不变）。
                 # W7-B2：未知键检查作用在 entry 的**原始 dict** 上（`_build` 那只 cfg 白名单在真实
                 # 配置路径上够不着，因为下面的 cfg 是用固定键名重建的），拼错的键在这里点名，
@@ -560,7 +656,8 @@ class LLMRegistry:
                     "api_key": api_key,
                     "capabilities": list(r.get("capabilities", ["text"])),
                     "disable_thinking": bool(r.get("disable_thinking", False)),
-                    "timeout": int(r.get("timeout", 120)),
+                    # R2-F1：整数已经由 `_entry_shape()` 取好（写不成整数的 entry 根本到不了这里）
+                    "timeout": ints["timeout"],
                     "translation_options": r.get("translation_options"),
                     # F11：这里**不再**写 transport ⇒ 它的唯一存放处就是下一段 `ModelEntry.transport`
                     # （由 `_load` 派生一次，调用方经 `transport_of` 读）。往 cfg 再塞一份等于同一值存两处，
@@ -572,11 +669,11 @@ class LLMRegistry:
                     model=r["model"],
                     modality=r.get("modality", "text"),
                     tier=r.get("tier", "flag"),
-                    priority=int(r.get("priority", 0)),
+                    priority=ints["priority"],
                     capabilities=set(cfg["capabilities"]),
                     cfg=cfg,
-                    quota_total=int(r.get("quota_total", DEFAULT_QUOTA)),
-                    initial_used=int(r.get("initial_used", 0)),
+                    quota_total=ints["quota_total"],
+                    initial_used=ints["initial_used"],
                     runtime_used=quota_store.get_used(key),
                     transport=transport,
                 )
@@ -588,8 +685,14 @@ class LLMRegistry:
                 try:
                     e.llm = _build(cfg)
                 except (RuntimeError, ValueError) as exc:
-                    # RuntimeError＝该 provider 没配 key/base_url（2026-08-08 服务器部署修复：用户只配了
-                    # 部分模型 key 时原先整个后端启动失败）；ValueError＝这条 entry 的 cfg 本身写错。
+                    # 这条 except 现在**只**接两种类别，且两类的到达路径要说实话（R2-F2）：
+                    # - `RuntimeError`＝该 provider 没配 key/base_url（2026-08-08 服务器部署修复：
+                    #   用户只配了部分模型 key 时原先整个后端启动失败）；
+                    # - `ValueError`＝`_build` 里 pydantic 对**取值**的校验失败（现量：`model` 键在但值为
+                    #   null ⇒ ValidationError，它是 ValueError 的子类）。
+                    # 注意 `_build` 开头那两处 `raise ValueError`（cfg 键白名单／transport 闭集）在真实
+                    # 配置路径上**够不着**：下面的 cfg 是用固定键名重建的，transport 也已在上面验过并跳过，
+                    # 所以那两处的读者是手搓 cfg 的调用点（`variant`／`reload`／测试），不是 `_load`。
                     # 两者都**只降级这一条 entry**，其余照常可用。
                     # 刻意不写 `except Exception`：结构性 bug（KeyError/TypeError 等）必须当场炸，
                     # 否则真故障会被配置降级通道一起吞掉（判据见 tests/test_llm_registry_boot_impl.py）。

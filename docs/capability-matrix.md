@@ -31,6 +31,7 @@
 | 法考题/学习模式 | `/api/chat` study_aid | LongCat-2.0 | PASS* | 纯文本链路与主问答同构；*最终以阶段 D/J 回归为准 |
 | 合同/文书分析（粘贴） | `/api/chat` contract | LongCat-2.0 | PASS* | 纯文本；*阶段 J 需端到端复核 |
 | 合同文件解析 | `/api/chat/file` | 无 LLM（本地解析） | PASS | 代码检查：魔数校验+解析零 LLM |
+| QA 直返的读取资格（撤回与隔离半边） | `qa_eligibility` 加三个读出口 | 无 LLM | BLOCKED | 判据与写侧已落（`06da7cc` 状态轴单一真源，`10d1dc0` 撤回先提交再清缓存、资格六列进 DTO）；**但存量一侧目前不生效**：现网 `qa_pairs` 279 条向量里 0 条带 `qa_candidate_id`，而 `search_qa` 只从向量 metadata 取链，回填 apply（只写 SQL）前后同一批题面的直返命中实测 28 题 17 变 17、279 题 277 变 277，`direct_return_hits_linked` 两次都是 0。解除条件＝决策格 C20（读侧按 `vector_doc_id` 回查 SQL，或一次性把链写进向量 metadata）。读数在 `reports/execution-runs/fazhi-full-closeout-20261016-0742605c06ca437fb1903bc72d1d7a7c/evidence/W06-BACKFILL-measure-before-corpus.json` 与同批 after 件。生产者面由 `tests/test_qa_read_eligibility.py::test_quarantined_has_exactly_one_producer_file_and_it_is_the_backfill_registration` 钉住 |
 
 ## 2. Agent（Legal Agent V1，默认关闭，仅灰度开启）
 

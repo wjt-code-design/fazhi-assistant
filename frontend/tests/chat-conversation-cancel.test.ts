@@ -430,3 +430,60 @@ it("preserves Agent clarification/resume metadata, steps, restart and final cove
   expect(hook.read().clarifyRounds).toBe(0);
   expect(fetch).not.toHaveBeenCalled();
 });
+// ── R2-F11（复核第二轮）：票 W7-B7 的用户气泡裁剪，改前**没有任何用例**跑过这一腿
+// （前端测试只覆盖到 api.ts 那侧「`turnNotCommitted` 发得出」，钉不到消费端把它裁成什么样）。
+// 这里跑的是**真 hook**（本文件的 React 替身只调钩子、不渲染），所以钉的是消费侧的接线本身，
+// 而不是某只被抽出来的纯函数——同票 R2-F4 的教训就是「helper 有判据、接线没人咬」。
+it("drops both the user bubble and the assistant placeholder when the turn was not committed", async () => {
+  const completion = pendingStream();
+  const hook = mount();
+  const sending = hook.read().doSend("这合同有效吗");
+  await flush(); // 会话创建是异步的：先让它把 streamChat 叫起来
+  expect(hook.read().messages.map((m) => m.role)).toEqual(["user", "assistant"]);
+
+  callbacks().error("图片识别失败，本轮未作答", { turnNotCommitted: true });
+
+  // 两条占位都撤掉：那条用户气泡**根本没被提交**，留着就是「已发出」的错觉
+  expect(hook.read().messages).toEqual([]);
+  completion.resolve(undefined);
+  await sending;
+});
+
+it("keeps the bubbles and only rewrites the assistant one when the turn WAS committed", async () => {
+  // 反对照：`turnNotCommitted` 缺席＝后端没确认「没半提交」⇒ 不许裁。
+  // 没有这一条，上面那条会被「无条件裁掉两条」那种坏实现一起骗过去。
+  const completion = pendingStream();
+  const hook = mount();
+  const sending = hook.read().doSend("这合同有效吗");
+  await flush();
+
+  callbacks().error("上游 502（反代合成的裸 502）", undefined);
+
+  const kept = hook.read().messages;
+  expect(kept.map((m) => m.role)).toEqual(["user", "assistant"]);
+  expect(kept.at(-1)?.content).toContain("出错了：");
+  expect(kept[0].content).toBe("这合同有效吗");
+  completion.resolve(undefined);
+  await sending;
+});
+
+it("trims only the trailing user bubble when there is no assistant placeholder after it", async () => {
+  // 形状对照：裁剪是「尾部 assistant 占位 → 尾部 user」各一次，不是「尾巴砍两刀」。
+  // 前一轮留下的 assistant 必须活着，否则刷新前用户看到的是空屏。
+  const completion = pendingStream();
+  const hook = mount();
+  hook.read().setMessages([
+    { role: "user", content: "上一问" },
+    { role: "assistant", content: "上一答" },
+  ]);
+  const sending = hook.read().doSend("追问");
+  await flush();
+  expect(hook.read().messages.map((m) => m.role)).toEqual(["user", "assistant", "user", "assistant"]);
+
+  callbacks().error("图片识别失败，本轮未作答", { turnNotCommitted: true });
+
+  expect(hook.read().messages.map((m) => m.role)).toEqual(["user", "assistant"]);
+  expect(hook.read().messages.map((m) => m.content)).toEqual(["上一问", "上一答"]);
+  completion.resolve(undefined);
+  await sending;
+});

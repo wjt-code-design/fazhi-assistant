@@ -29,6 +29,7 @@ import logging
 import os
 import re
 import sys
+import textwrap
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -276,9 +277,15 @@ def _swallowing_handlers(source: str) -> int:
 
 
 def _suppress_sites(source: str) -> dict[str, int]:
-    """`with suppress(...)`／`with contextlib.suppress(...)` 的落点（按最内层函数归属）。
+    """`with suppress(...)`／`with contextlib.suppress(...)`／两者的 `async with` 形（按最内层函数归属）。
 
     这种写法**天生**不 re-raise（它就是为此而被 import 的），所以旧尺一条都数不到它。
+
+    R2-F10（复核第二轮）：改前只匹配 `ast.With` ⇒ `async with contextlib.suppress(...)` 在**异步**
+    的 `main.py` 里（`stream`／`lifespan` 那几十条 `async def` 路径）完全隐形——普查报「零 suppress 落点」
+    而实际有人用异步形吞掉异常。现在两形一起数（正对照见
+    `test_suppress_ruler_detects_both_alias_and_async_shapes`：别名/限定名 × 同步/异步 四形各数得出，
+    且 `async with` 别的上下文管理器**不**被误数）。
     """
     tree = ast.parse(source)
     out: dict[str, int] = {}
@@ -295,7 +302,7 @@ def _suppress_sites(source: str) -> dict[str, int]:
             nf = fname
             if isinstance(ch, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 nf = ch.name
-            if isinstance(ch, ast.With):
+            if isinstance(ch, (ast.With, ast.AsyncWith)):
                 for item in ch.items:
                     ctx = item.context_expr
                     if isinstance(ctx, ast.Call) and qual(ctx.func) == "suppress":
@@ -305,6 +312,27 @@ def _suppress_sites(source: str) -> dict[str, int]:
 
     walk(tree, None)
     return out
+
+
+def _call_sites_outside_own_def(source: str, fn_name: str) -> list[int]:
+    """`fn_name(...)` 的**调用**落点行号，排除它自己 def 体内的那一处。
+
+    R2-F4（复核第二轮）：「`image_failure` 有读者」这句话，旧判据数的是**属性读取**
+    （`x.image_failure` 出现在 Load 位），而那个读取就写在 `_note_empty_image_description` **自己身上**
+    （`main.py:541`）——读者读自己的字段也算「有读者」。结果把路由层那行**调用**
+    （`main.py:771`）整行删掉，全树仍然绿：函数定义了却没人调，降级读数一次也不会落。
+    现在钉的是调用点：必须在它自己 def **之外**真有一处把它接进请求路径。
+    """
+    tree = ast.parse(source)
+    inside = set()
+    for d in ast.walk(tree):
+        if isinstance(d, (ast.FunctionDef, ast.AsyncFunctionDef)) and d.name == fn_name:
+            inside |= {id(n) for n in ast.walk(d)}
+    return [
+        n.lineno
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and isinstance(n.func, ast.Name) and n.func.id == fn_name and id(n) not in inside
+    ]
 
 
 # 作用域（票 W7-B10）：`multimodal`／`request_bootstrap`／`main`／`mcp_server` 四个文件一起扫。
@@ -491,6 +519,81 @@ def test_suppress_ruler_detects_contextlib_suppress():
     assert _suppress_sites("def f(x):\n    return x()\n") == {}
 
 
+@pytest.mark.parametrize(
+    "src,expected",
+    [
+        # 别名形（`from contextlib import suppress`）＋同步
+        (
+            "\n".join(
+                [
+                    "from contextlib import suppress",
+                    "def f(x):",
+                    "    with suppress(ValueError):",
+                    "        x()",
+                ]
+            ),
+            {"f": 1},
+        ),
+        # 限定名形（`contextlib.suppress`）＋同步
+        (
+            "\n".join(
+                [
+                    "import contextlib",
+                    "def f(x):",
+                    "    with contextlib.suppress(ValueError):",
+                    "        x()",
+                ]
+            ),
+            {"f": 1},
+        ),
+        # R2-F10：别名形＋**异步**——改前只匹配 `ast.With`，这一发整条隐形
+        (
+            "\n".join(
+                [
+                    "from contextlib import suppress",
+                    "async def f(x):",
+                    "    async with suppress(ValueError):",
+                    "        await x()",
+                ]
+            ),
+            {"f": 1},
+        ),
+        # 限定名形＋异步
+        (
+            "\n".join(
+                [
+                    "import contextlib",
+                    "async def f(x):",
+                    "    async with contextlib.suppress(ValueError):",
+                    "        await x()",
+                ]
+            ),
+            {"f": 1},
+        ),
+        # 反对照：`async with` 用的不是 suppress ⇒ 一条都不该数（否则这把尺是恒真的）
+        (
+            "\n".join(
+                [
+                    "async def f(lock, x):",
+                    "    async with lock:",
+                    "        await x()",
+                ]
+            ),
+            {},
+        ),
+    ],
+    ids=["sync-alias", "sync-qualified", "async-alias", "async-qualified", "async-other-context"],
+)
+def test_suppress_ruler_detects_both_alias_and_async_shapes(src, expected):
+    """R2-F10 的 watch-it-fail：别名/限定名 × 同步/异步 四形各数得出 1，异步的**别的**上下文数出 0。
+
+    异步那两形为什么算吞没落点：`with suppress(...)` 的形状天生不 re-raise，`async with` 只是把它
+    搬到 `main.py` 里那些 `async def`（`stream`／`lifespan`）路径上——普查看不见它，就等于
+    「异步面零吞没」这条读数是假的。
+    """
+    assert _suppress_sites(src) == expected, _suppress_sites(src)
+
+
 # ---------------------------------------------------------------- §3 第 2 条：分键亮灭
 
 
@@ -604,7 +707,17 @@ def test_empty_content_leg_has_a_reader_and_counts_as_degraded(store):
     """
     import main
 
+    # 原钉 `_image_failure_reads().get("main.py", 0) >= 1`（数属性**读取**）⇒ 现钉「def 之外有调用点」。
+    # 理由（R2-F4，复核第二轮）：旧那半条被读者**自己**满足——`_note_empty_image_description` 函数体里
+    # 那句 `bootstrap.image_failure != "content_empty"` 就是一次 Load，删掉 `main.py:771` 那行**调用**
+    # （于是没有请求路径会走到这里，计数一次也不落）判据照样绿。读取计数留作辅助读数，真判据换成调用点。
     assert _image_failure_reads().get("main.py", 0) >= 1, _image_failure_reads()
+    call_sites = _call_sites_outside_own_def(_file_source("main.py"), "_note_empty_image_description")
+    assert call_sites, "没有**请求路径上**的调用点 ⇒ 读者定义了却没人叫它（V-B3 的接线没钉住）"
+    # 接线要在 bootstrap 那一步之后：早于 bootstrap 拿到 `image_failure` 就没东西可读
+    assert (
+        _file_source("main.py").splitlines()[call_sites[0] - 1].strip().startswith("_note_empty_image_description(")
+    ), f"调用点形状变了：{call_sites}"
 
     empty = bootstrap_request(
         store.user_id, None, _QUESTION, _PNG, False, _deps=_deps(store, describe_image=lambda image, text: "")
@@ -621,6 +734,30 @@ def test_empty_content_leg_has_a_reader_and_counts_as_degraded(store):
     with _Capture(logging.getLogger("legal.chat"), logging.INFO) as clean:
         main._note_empty_image_description(ok)
     assert clean.items == [], [r.getMessage() for r in clean.items]
+
+
+def test_r2_empty_content_leg_is_a_log_counter_not_a_frame_path():
+    """R2-F5（cosmetic，但要落地）：`b06af58` 的提交信息把这一腿写成「计数**＋声明帧路径**」——
+    复核判它 unsupported：`main.py` 这一段只是个日志计数器，没有任何 NOTE/SSE 帧
+    （新增一帧要动 gate-exit 登记表，本就不在上一票面内）。
+
+    历史提交不能改（本票红线：只新增提交、不 amend），所以这一格落成**判据**而不是删字：
+    把「只有日志、没有帧」钉住 ⇒ 那句话要么由后来者真的实现一帧（并同步登记表与本条），
+    要么就只能继续是错的。回执 §5 里那句措辞已按现量撤回。
+    """
+    import main
+
+    src = inspect.getsource(main._note_empty_image_description)
+    tree = ast.parse(textwrap.dedent(src))
+    assert not any(isinstance(n, (ast.Yield, ast.YieldFrom)) for n in ast.walk(tree)), (
+        "空内容腿出现了 yield ⇒ 它不再只是计数器，gate-exit 登记表与本条要一起改"
+    )
+    emitted = {n.func.id for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
+    assert emitted <= {"log_account"}, f"这一段除了日志还做了别的事（措得当核对现量）：{sorted(emitted)}"
+    for frame_token in ("NOTE", "StreamingResponse", "EventSource", "Response("):
+        assert frame_token not in src, f"出现帧词汇 {frame_token} ⇒ 「声明帧路径」这句话需要重新核实"
+    # 现量侧的正对照：这一腿的**读数**确实存在（否则上面那堆"没有帧"就只是函数被删空的假话）
+    assert "image_desc_empty_degraded" in src
 
 
 # ---------------------------------------------------------------- §3 第 1 条：HTTP 一层

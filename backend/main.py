@@ -297,9 +297,21 @@ app.add_middleware(MaxContentLengthMiddleware, max_bytes=12 * 1024 * 1024)
 # ==================== 健康检查 ====================
 @app.get("/api/health")
 def health():
-    """能力发现（阶段B 诚实停用）：前端据此隐藏未验证能力的入口，而非展示必然失败的按钮。"""
+    """能力发现（阶段B 诚实停用）：前端据此隐藏未验证能力的入口，而非展示必然失败的按钮。
+
+    R2-F3（复核第二轮）：一台**一条可用模型都没有**的机器过去也回 `status="ok"`——`_load` 会开心地把
+    `_entries` 留成空 dict，只逐条落 warning，聚合面上读不出任何异常。探针/运维据此继续放量，
+    而服务实际上一问就 503。现在把两个计数带出来，0 条就报 `degraded`。
+    刻意**不**改成「0 entry 就 raise」：那正是 W7-B1 刚修掉的「坏配置打死启动」坏形状，
+    两格方向相反（判据：tests/test_llm_registry_boot_impl.py::test_r2_zero_usable_entries_does_not_raise_at_construction）。
+    HTTP 状态仍 200：这条是**状态读数**不是就绪门（就绪门在 `/healthz`），改成 5xx 会让
+    `manage.py` 与 OPS 的 `curl -sf` 探活把「降级」读成「进程没起来」。
+    """
+    entry_count = registry.entry_count()
     return {
-        "status": "ok",
+        "status": "ok" if entry_count else "degraded",
+        "llm_entry_count": entry_count,
+        "llm_entry_rejected": registry.skipped_count(),
         "capabilities": {
             "image_chat": registry.has_modality("vision"),
             "voice_transcribe": settings.feature_transcribe and registry.has_modality("voice"),

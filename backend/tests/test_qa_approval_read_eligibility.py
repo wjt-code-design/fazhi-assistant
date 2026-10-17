@@ -214,3 +214,51 @@ def test_the_two_exits_already_share_one_eligibility_predicate_and_never_read_th
             fn.__name__,
             sorted(set(inspect.signature(fn).parameters)),
         )
+
+
+def test_r2_admin_stats_dto_tracks_the_unlinked_counter(db, double_embeddings):
+    """R2-F8（复核第二轮）：`/api/admin/stats` 那行**接线**过去没有任何判据咬得住。
+
+    上一轮的判据（`tests/test_qa_read_eligibility.py` 第 F1/V3 那一组）断言的是
+    `ks.qa_write_counts()` **自己**，而 V3 的字面要求是「DTO 计数与之一致」⇒
+    把 `main.py` 里那句 `ks.qa_write_counts()["unlinked"]` 手滑打成 `["linked"]`，或者整个键删掉，
+    九腿门照样全绿（复核现量：`["linked"]` 手滑仍全绿）。
+
+    现钉两件事：① TestClient **真打**那只端点，读数与进程内计数**逐字相同**；
+    ② 再写一笔**带链**语料 ⇒ 无链读数不许跟着动——这一发只认 `unlinked` 那一位，
+    所以它是那个手滑的克星（只钉①的话，恰好 linked==unlinked 时会空转）。
+    """
+    from types import SimpleNamespace
+
+    from fastapi.testclient import TestClient
+
+    import main
+    from auth import require_admin
+
+    before = ks.qa_write_counts()
+    main.app.dependency_overrides[require_admin] = lambda: SimpleNamespace(id=1, role="admin")
+    try:
+        with TestClient(main.app) as client:
+            resp = client.get("/api/admin/stats")
+            assert resp.status_code == 200, resp.text
+            assert resp.json()["qa_write_unlinked"] == before["unlinked"], resp.json()
+
+            # 一笔**无链**写入 ⇒ DTO +1（接线不是恒 0 的摆设）
+            ks.add_qa_pair("R2-F8 甲：无链写入该让管理面的无链读数加一。", ANSWER, EVIDENCE)
+            mid = ks.qa_write_counts()
+            assert mid["unlinked"] == before["unlinked"] + 1, mid
+            assert client.get("/api/admin/stats").json()["qa_write_unlinked"] == mid["unlinked"]
+
+            # 一笔**带链**写入 ⇒ linked+1、unlinked 不变 ⇒ DTO 也不许动
+            row = ks.create_candidate(db, "R2-F8 乙：带链写入不该动无链读数。", ANSWER, 0.55, EVIDENCE)
+            ks.decide_candidate(db, row.id, "approved")
+            after = ks.qa_write_counts()
+            assert after["linked"] == mid["linked"] + 1, after
+            assert after["unlinked"] == mid["unlinked"], after
+            dto = client.get("/api/admin/stats").json()
+            assert dto["qa_write_unlinked"] == after["unlinked"], (
+                f"DTO 读的不是 unlinked 那一位（复核点名的 ['linked'] 手滑）：{dto}"
+            )
+            assert "qa_write_unlinked" in dto, sorted(dto)
+    finally:
+        main.app.dependency_overrides.clear()
