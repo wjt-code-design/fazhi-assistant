@@ -6,6 +6,13 @@ export const ACCEPT_IMAGE = ["image/jpeg", "image/png"];
 export const MAX_FILE_MB = 10; // 与后端 _MAX_UPLOAD_BYTES 一致
 export const ACCEPT_FILE = [".txt", ".md", ".pdf", ".docx"];
 
+// 票 W07（C04＝甲）：带图问答在识图失败时，后端 /api/chat 明确回 502（此前那一发异常被吞成
+// 空描述，用户看到的仍是一条「像是读了图」的正常答案）。这条是用户侧唯一的那句失败文案。
+// 判据按 **状态码＋本轮带图** 选文案，不去匹配后端 detail——两处文本各写一遍必然漂移
+// （后端那条住在 main.IMAGE_DESCRIBE_FAILED_DETAIL，给运维与直连客户端看）。
+export const IMAGE_DESCRIBE_FAILED_MESSAGE =
+  "图片识别失败，本轮未作答；请稍后重试，或改用文字描述案情。";
+
 // 空状态：场景直达卡
 export const SCENES = [
   { icon: "📄", title: "审合同", desc: "贴 / 传 / 拍合同", q: "请帮我审查这份合同的风险点" },

@@ -516,19 +516,35 @@ _contract_convs = DEFAULT_CONTRACT_STATE.active
 _contract_reviewed_convs = DEFAULT_CONTRACT_STATE.reviewed
 
 
+# 票 W07（C04＝甲）：识图失败对外的说法。这条路由上 502 只有这一个出处（另一处 502 住在
+# `/api/chat/transcribe`），所以前端可以按「502 ＋ 本轮带图」认定图片失败并显示它自己那条文案
+# ——判据见 tests/test_image_failure_impl.py::test_502_on_the_chat_route_has_exactly_one_source。
+IMAGE_DESCRIBE_FAILED_DETAIL = "图片识别失败，本轮未作答；请稍后重试，或改用文字描述案情。"
+
+
 def _describe_image_for_bootstrap(image: str, text: str) -> str:
     """Resolve the image capability here so bootstrap never selects a provider.
 
     阶段B（2026-09-05）：必须按模态取视觉模型。旧写法 registry.get() 会拿默认文本模型
     （LongCat 实测静默忽略图片）——能力缺失已由 chat() 的 501 门拦截，此处再遇
     QuotaExhausted 说明能力存在但配额耗尽，显式 503 而非静默降级为"无图回答"。
+
+    票 W07（C04＝甲）：`describe_image` 不再吞异常之后，**调用失败**在这一层变成明确 HTTP 502
+    （本轮不产出"看起来读了图"的答案）；而**模型返回空内容**不是失败——它原样回空串，
+    由 request_bootstrap 落 `image_content_empty` 并在契约上留失败位。两个出口的归因键分开，
+    读数只在 bootstrap 那一处落，这里只把失败变成用户看得见的状态码。
     """
     try:
         _, vision_llm = registry.pick("vision", "flag")
     except QuotaExhausted as qe:
         raise HTTPException(status_code=503, detail="视觉模型配额不足，请稍后重试") from qe
     with llm_guard:
-        return describe_image(vision_llm, image, text)
+        try:
+            return describe_image(vision_llm, image, text)
+        except HTTPException:
+            raise
+        except Exception as exc:
+            raise HTTPException(status_code=502, detail=IMAGE_DESCRIBE_FAILED_DETAIL) from exc
 
 
 configure_default_image_describer(_describe_image_for_bootstrap)
@@ -1734,7 +1750,9 @@ async def chat_transcribe(request: Request, file: UploadFile = File(...), user: 
     def _do() -> dict:
         with llm_guard:  # LLM 调用，占并发位（与图片描述同级）
             key, llm = registry.pick("voice", "flag")
-            text = transcribe_audio(llm, b64, ext)
+            # 票 W07 §1 ④：transport 由 entry 单一真源给出（`transport_of` 读的是 ModelEntry 那一位），
+            # 分派只发生在 multimodal.transcribe_audio 一处；现役语音条目缺省 chat ⇒ 行为逐字不变。
+            text = transcribe_audio(llm, b64, ext, transport=registry.transport_of(key))
             registry.deduct(key, estimate_tokens(text))
             return {"text": text}
 

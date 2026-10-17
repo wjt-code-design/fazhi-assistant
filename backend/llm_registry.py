@@ -28,6 +28,48 @@ from settings import settings
 
 DEFAULT_QUOTA = 1_000_000
 
+# 票 W07 §1 ①②：语音/视觉的**传输标记**从 entry 一路走到调用处，中间不许被无声丢掉。
+# - `TRANSPORTS` 是值的闭集；`DEFAULT_TRANSPORT`＝chat ⇒ 没写这个键的既有条目行为逐字不变；
+# - `CFG_KEYS` 是 cfg 的**键**闭集：`_build` 对白名单外的键显式报错（改前是「不报错也不生效」，
+#   判据见 `tests/test_multimodal_transport_contract.py` 第 2、3 条，本轮改写成新闭集）。
+#   注意 `capabilities` 在集合内但不被 `_build` 读（它归 ModelEntry 用），AST 闭集钉的是「读了哪些键」，
+#   两者相差这一个键是设计而不是漏项。
+TRANSPORTS: tuple[str, ...] = ("chat", "audio_transcriptions", "none")
+DEFAULT_TRANSPORT = "chat"
+CFG_KEYS = frozenset(
+    {
+        "api_key",
+        "base_url",
+        "model",
+        "capabilities",
+        "disable_thinking",
+        "timeout",
+        "translation_options",
+        "transport",
+    }
+)
+# entry（DEFAULT_ROLES／LLM_MODELS_JSON）里 `_load` 会读的键闭集；集合外的键**落日志**而不是无声消失——
+# 刻意不在这里 raise：现役 `.env` 的条目内容本轮不可读也不可变，启动期炸整只 registry 超出本票授权。
+ROLE_KEYS = frozenset(
+    {
+        "key",
+        "model",
+        "modality",
+        "tier",
+        "priority",
+        "capabilities",
+        "disable_thinking",
+        "initial_used",
+        "quota_total",
+        "provider",
+        "base_url",
+        "api_key",
+        "timeout",
+        "translation_options",
+        "transport",
+    }
+)
+
 # DB-17（2026-10-09，审查报告 B-48）：**请求形状类 4xx** 的冷却时长（秒）。
 # 判据来自 `llm_errors.is_request_shape_rejection`——400/401/403/404/422 是「这一发请求本身不被接受」
 # （超长上下文、内容审核、模型名写错、key 失效、端点点错），**不是**「这个模型的积分用完了」。
@@ -344,6 +386,10 @@ class ModelEntry:
     # 耗尽是运行期事实可持久校准，拒绝是**瞬时事实**，过期即自愈（重启自然清零）。
     rejected_until: float = 0.0
     rejected_kind: str | None = None  # D-9：config（改配置才好）与 shape（本次请求的问题）分档
+    # 票 W07 §1 ③：transport 的**唯一存放处**就是 entry 上这一位（由 `_load` 从 cfg 派生一次），
+    # 调用方经 `LLMRegistry.transport_of(key)` 读它——不改 `pick()` 的公共返回形状，
+    # 也不在 ChatOpenAI 上再存一份（那会变成两处各存一份，本票判据直接红）。
+    transport: str = DEFAULT_TRANSPORT
     llm: ChatOpenAI | None = field(default=None, repr=False)
 
     @property
@@ -378,6 +424,16 @@ def _build(
     share_llm: "ChatOpenAI | None" = None,
     share_cfg: dict[str, Any] | None = None,
 ) -> ChatOpenAI:
+    # 票 W07 §1 ②：cfg 白名单——白名单外的键（如把 transport 拼成 transpor）**显式失败**，
+    # 不再像改前那样「不报错也不生效」。这是全链路上唯一一处按字面读 `transport` 的地方：
+    # 调用方读的是 ModelEntry.transport（同一个派生值），不是第二份 cfg 读取（判据见
+    # tests/test_multimodal_transport_impl.py::test_transport_is_read_from_cfg_in_exactly_one_place）。
+    unknown = sorted(set(cfg) - CFG_KEYS)
+    if unknown:
+        raise ValueError(f"LLM cfg 含白名单外的键：{unknown}——静默丢弃等于配置写了没人读")
+    transport = cfg.get("transport", DEFAULT_TRANSPORT)
+    if transport not in TRANSPORTS:
+        raise ValueError(f"未知 transport：{transport!r}（可用 {list(TRANSPORTS)}）")
     if not cfg.get("api_key") or not cfg.get("base_url"):
         raise RuntimeError("缺少 LLM_API_KEY / LLM_BASE_URL，请在 backend/.env 配置")
     extra_body: dict[str, Any] = {}
@@ -443,6 +499,15 @@ class LLMRegistry:
             self._entries = {}
             for r in _load_roles():
                 key = r["key"]
+                # 票 W07 §1 ①：entry 输入面的 transport（缺省＝chat ⇒ 旧条目逐字不变）。
+                # 拼错的键在这里落一条 warning 而不是无声消失（§3 第 4 条的入口那一半）。
+                stray = sorted(set(r) - ROLE_KEYS)
+                if stray:
+                    logging.getLogger("legal.llm").warning(
+                        "llm_role_unknown_keys",
+                        extra={"model": r.get("model", ""), "llm_cfg_unknown_keys": stray},
+                    )
+                transport = r.get("transport", DEFAULT_TRANSPORT)
                 provider = r.get("provider", "aliyun")
                 if provider == "zhipu":  # 智谱平台（8-23 到期免费 token）：独立 base_url/key
                     base_url = r.get("base_url") or settings.zhipu_base_url
@@ -461,6 +526,7 @@ class LLMRegistry:
                     "disable_thinking": bool(r.get("disable_thinking", False)),
                     "timeout": int(r.get("timeout", 120)),
                     "translation_options": r.get("translation_options"),
+                    "transport": transport,
                 }
                 e = ModelEntry(
                     key=key,
@@ -473,6 +539,7 @@ class LLMRegistry:
                     quota_total=int(r.get("quota_total", DEFAULT_QUOTA)),
                     initial_used=int(r.get("initial_used", 0)),
                     runtime_used=quota_store.get_used(key),
+                    transport=transport,
                 )
                 # 校准覆盖（块 3）：管理员从控制台读数后用 /api/admin/llm-quota 校准，
                 # 覆盖默认 initial_used——看门狗 remaining 与真实值对齐
@@ -669,6 +736,17 @@ class LLMRegistry:
                 return e.model
             d = self._default_entry()
             return d.model if d else ""
+
+    def transport_of(self, key: str | None) -> str:
+        """key → 该 entry 的 transport（票 W07 §1 ③：调用方读的就是 entry 上那一位，不另存）。
+
+        为什么走访问器而不是改 `pick()` 的返回形状：`pick` 的 `(key, llm)` 元组被十几处调用点
+        与既有判据钉着，本票明令不改。未知/None key 回落 `DEFAULT_TRANSPORT`＝chat，
+        语义是「不知道该用哪种传输时，走旧的那条」——回落不改变任何既有行为。
+        """
+        with self._lock:
+            e = self._entries.get(key) if key else None
+            return e.transport if e else DEFAULT_TRANSPORT
 
     def thinking_mult(self, key: str | None) -> int:
         """思考模型扣减系数（审查 K1：流式无真实 usage，thinking 的 reasoning_content 不进入

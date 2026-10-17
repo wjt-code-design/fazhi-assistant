@@ -34,8 +34,16 @@ export function useVoice(opts: { setInput: Dispatch<SetStateAction<string>> }) {
       if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
       setListening(false);
       if (w) {
-        const blob = await w.stop();
-        void transcribeAndFill(blob);
+        // stop() 会抛（重采样/断开节点在部分浏览器上失败）。此前这里不接 catch ⇒
+        // 异常在事件回调里被吞掉，用户按了麦克风却什么都没发生（票 W07 甲的同一口径：
+        // 失败要看得见）。策略与转写失败一致：明说＋回退浏览器识别。
+        try {
+          const blob = await w.stop();
+          void transcribeAndFill(blob);
+        } catch (err) {
+          alert(`语音录制失败（${err instanceof Error ? err.message : err}），已回退浏览器识别`);
+          legacyWebSpeech();
+        }
       }
       return;
     }
@@ -52,7 +60,12 @@ export function useVoice(opts: { setInput: Dispatch<SetStateAction<string>> }) {
             void w
               .stop()
               .then(transcribeAndFill)
-              .catch(() => {});
+              .catch((err) => {
+                // 同上：自动停止这一路以前是 `.catch(() => {})`，录音丢了却不发一言
+                alert(
+                  `语音录制失败（${err instanceof Error ? err.message : err}），请重新点击麦克风`
+                );
+              });
           }
         }, 60000);
         setListening(true);

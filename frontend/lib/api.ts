@@ -6,6 +6,7 @@
 // dispatch-output/t12a-deploy-base-20260922/report.md。
 import { parseSSEFrames } from "./sse";
 import { coverageFromFinalEvent } from "./coverage";
+import { IMAGE_DESCRIBE_FAILED_MESSAGE } from "./constants";
 import type {
   ConversationItem,
   ConversationDetail,
@@ -210,6 +211,13 @@ export async function streamChat(
           window.location.href = "/login";
         }
         onError("登录已过期，请重新登录");
+        return;
+      }
+      // 票 W07（C04＝甲）：识图失败在 /api/chat 上是 502，且后端那条路由上 502 只有这一个出处
+      // （判据：tests/test_image_failure_impl.py::test_502_on_the_chat_route_has_exactly_one_source）。
+      // 本轮没带图就不认成图片失败——宁可退回通用提示，也不替后端编一句没说过的话。
+      if (res.status === 502 && payload.image) {
+        onError(IMAGE_DESCRIBE_FAILED_MESSAGE);
         return;
       }
       let detail = `请求失败（HTTP ${res.status}）`;

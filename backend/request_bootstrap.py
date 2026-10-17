@@ -49,6 +49,13 @@ class RequestBootstrap:
     law_as_of: date | None = None
     # 口径③⑥（2026-10-13）：只有「条款自指」支命中时先确认审查意图；True 表示本轮应发确认提示词
     intent_confirm: bool = False
+    # 票 W07 §2（C04＝甲）：**失败位**。改前这一份字段面里没有任何一位能表达
+    # 「这一轮的图没被读出来」（现量＝那只 20 字段闭集判据，本轮改写成新闭集）。
+    # 取值：None＝图被正常读出；`content_empty`＝模型正常返回但内容为空——该轮**继续**，
+    # 所以必须有一位可表达。调用本身失败（`describe_failed`）**不落在返回的实例上**：
+    # 那一轮在 HTTP/SSE 层就 502 中止（main._describe_image_for_bootstrap），压根不产出 bootstrap
+    # ——「失败」与「没字」因此是两个出口而不是一处两个值，这正是本票要建起来的分岔。
+    image_failure: str | None = None
 
 
 @dataclass(frozen=True)
@@ -387,10 +394,31 @@ def bootstrap_request(
         ]
 
         image_description = ""
+        image_failure: str | None = None
         if image:
             deps.validate_image(image)
             image_rel, thumb_rel = deps.persist_image(image)
-            image_description = deps.describe_image(image, text or "")
+            # 票 W07（C04＝甲）：这里**不再**有「失败与空内容同形」的通道。
+            # 调用失败 ⇒ 落一个归因键后把原异常**逐字**向上抛（不包装、不换类型：
+            # `tests/test_request_bootstrap.py::test_bootstrap_rolls_back_and_closes_on_image_failure`
+            # 钉的就是原始异常穿过 bootstrap 回滚＋清理那条路）；main 的识图出口再把这一发变成 502。
+            # 模型正常返回但内容为空 ⇒ 该轮继续，但契约上留下失败位＋另一个归因键。
+            # 两个键**分键不分门**（同 QA 语料那两道门）：合成一键就只知道「图没读出来」而不知道是哪一段。
+            # 刻意不落题干、不落图片内容、不落 base64（AUTH-3 日志不落原文）。
+            try:
+                image_description = deps.describe_image(image, text or "")
+            except Exception:
+                logging.getLogger("legal.chat").warning(
+                    "识图调用失败 ⇒ 本轮在 HTTP/SSE 层明确报错",
+                    extra={"image_describe_failed": True},
+                )
+                raise
+            if not image_description:
+                image_failure = "content_empty"
+                logging.getLogger("legal.chat").warning(
+                    "识图返回空内容 ⇒ 本轮仅依据文字",
+                    extra={"image_content_empty": True},
+                )
 
         raw_query = " ".join(part for part in [text or "", image_description] if part).strip()
         if not raw_query:
@@ -495,6 +523,7 @@ def bootstrap_request(
             client_truncated=client_truncated,
             case_domain=case_domain,
             law_as_of=law_as_of,
+            image_failure=image_failure,
         )
     except Exception:
         try:

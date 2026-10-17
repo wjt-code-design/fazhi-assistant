@@ -173,6 +173,21 @@ _ACCOUNT_FIELDS = (
     # 的 AST 哨兵守着，本轮就是它在全量门上抓出来的（纯树门 warm_rc=1，见 W12-GATES-FROM-COMMIT-06da7cc.log）。
     "qa_eligibility_reason",
     "qa_candidate_id",
+    # W07-IMPL（2026-10-17，C04＝甲 已裁）：识图「失败」与「空内容」分家之后的两个归因键。
+    # 改前 `multimodal.describe_image` 把四类异常与「模型返回空内容」收敛成同一个空串，
+    # 所以**没有任何键可落**（读数也分不清「没字」和「没读到」）；甲把可分性建起来之后，
+    # 两个出口各一个布尔键（`request_bootstrap.bootstrap_request` 是唯一落点）：
+    #   image_describe_failed＝识图调用抛异常（该轮在 HTTP/SSE 层 502 中止），
+    #   image_content_empty＝模型正常返回但内容为空（该轮继续，契约上留 image_failure 位）。
+    # 合一键就只剩「图没读出来」——同 QA 语料「分键不分门」的口径。
+    # 未登记会被 JSON formatter 静默丢弃 ⇒ 两键白写（上一票正是漏这格被全量纯树门打回）。
+    # 只有归因布尔，没有题干、没有图片内容、没有 base64（AUTH-3 日志不落原文）。
+    "image_describe_failed",
+    "image_content_empty",
+    # W07-IMPL §1 ②：模型 entry（DEFAULT_ROLES／LLM_MODELS_JSON）里 `_load` 不认识的键——
+    # 改前这类拼错的键（如 transpor）走到 cfg 白名单就无声消失，正是票面「设置不丢」要防的失效。
+    # 值只有**键名列表**（不含值，所以不会把 api_key 的值带进日志）与模型名。
+    "llm_cfg_unknown_keys",
 )
 
 _TEST_REQUEST_ID_FALLBACK = "unit-test-no-middleware-request-id"

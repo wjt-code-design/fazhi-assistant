@@ -1,20 +1,21 @@
-"""W07 特征化（零外发半，票面 `:360-362`）：语音**只有一种传输形状**，而 cfg 白名单会把新键**静默丢掉**。
+"""W07 特征化判据（票面 `:360-362`）——**2026-10-17 由 W07-IMPL 逐条改写**：语音曾只有一种传输形状，
+而 cfg 白名单会把新键静默丢掉。
 
-C04（图片失败可见性）与 C09（非文本能力额度）都还没裁，所以本文件**不改任何行为**，只把四件事钉成现量：
+本轮 C04/C09 已裁（C04＝形状甲），transport 四段接缝落地 ⇒ 本文件按仓规「**改写旧尺，不许删**」
+逐条转义。改前的现量字节在 head `15e6820`，改前/改后的读数在
+`reports/execution-runs/fazhi-full-closeout-20261016-*/evidence/W07-IMPL-*-{before,after}.log`；
+逐条「原钉 ⇒ 现钉 ⇒ 理由」记在派发票 §6 的回执里。新契约的行为判据住在
+`test_multimodal_transport_impl.py`，本文件留的是**形状与闭集**那几把尺：
 
-① 语音→文字在产品里只有一条路：`multimodal.transcribe_audio` 用 `HumanMessage(content=[input_audio, text])`
-   调 `invoke()`（multimodal.py:115-130）——也就是 **chat/completions 形状**。
-   Owner 指定的 `XingChenAGI/XingChenASR-V3.2-Ultra` 需要 multipart `/v1/audio/transcriptions`
-   （该外部证据由另一会话的端点探测给出，**不是本文件测的**）；本文件能测的是：
-   产品发出的请求形状与"端点/传输"这个概念**完全无关**，所以任何需要另一种端点的模型都只能在供应商侧吃 400。
-   票面 `:361` 说「不要把 ASR 强塞进 ChatOpenAI 的聊天抽象」——今天就是那个形状。
-② `_build` 只读它认识的 cfg 键（AST 穷举见第 3 条），**未知键不报错也不生效**
-   ⇒ 将来加 `transport` 标记时，"配置写了但没人读"这件事**不会有任何信号**（正是票面 `:361`
-   「设置不丢」要防的失效）。同一条 cfg 里 `translation_options` 确实会落到 extra_body，
-   所以这条断言不是"我传了个空 dict"造成的空转。
-④ 前端产出的音频 MIME 必须落在后端白名单里（第 4 条）——这条是复核指出我「推迟给 W11 却没有 C 格理由」之后补的跨面判据。
-   ③ 语音条目建出来的对象类型就是 `ChatOpenAI`（llm_registry.py:376-414 唯一出口）——
-   传输层的**唯一**可变点是 extra_body 与 client 复用，没有端点分派。
+① 语音的**缺省**传输仍是 chat 形状：`multimodal.transcribe_audio` 用
+   `HumanMessage(content=[input_audio, text])` 调 `invoke()`，且 chat 腿的请求里仍不带端点概念
+   （multimodal.py 的 `_transcribe_chat`）——甲的回归腿，防改造打穿现役 Qwen livetranslate 路径。
+② cfg 白名单：`translation_options` 落 extra_body、`transport` 落进分派但**不落请求体**，
+   而白名单外的键（`transpor` 拼错）现在**构造期就 ValueError**——改前那一格是「不报错也不生效」，
+   本条改成两个出口分开的闭集。
+③ `_build` 读的 cfg 键按 **AST 穷举**钉成新闭集（多出 `transport` 那一个）；
+   这条与第 2 条一起仍是「未知键静默丢」的唯一现量测量器具，所以只许改写不许删。
+④ 前端产出的音频 MIME 必须落在后端白名单里（跨面判据，本轮一字未动）。
 
 真端点/真音频样本腿（票面 `:363`）不在本轮：本机进程没有凭据，且没有既定中文音频样本 ⇒
 按票面记 **BLOCKED**，不许用"形状兼容"冒充"转写正确"。
@@ -59,8 +60,13 @@ class _RecordingLlm:
         return SimpleNamespace(content=self._content)
 
 
-def test_the_only_voice_transport_is_chat_shaped_input_audio():
-    """① 语音出口今天只发 chat 形状，端点/传输这个概念在入参里根本不存在。"""
+def test_the_default_voice_transport_still_emits_chat_shaped_input_audio():
+    """①（甲的回归腿）缺省 transport＝chat：那条 chat/completions 形状逐字不变。
+
+    原钉「语音只有这一条传输路」⇒ 现钉「这一条仍是缺省那条，且 chat 腿的请求里不带端点概念」，
+    理由：票 §1 ④ 加了第二条传输路（multipart），"唯一"这个词今天不成立了；但票 §3 第 5 条
+    要求不给 transport 的旧条目行为逐字不变 ⇒ 形状断言一条都不许松。
+    """
     llm = _RecordingLlm()
     out = multimodal.transcribe_audio(llm, "aGVsbG8=", "wav")
     assert out == "转写结果"
@@ -74,12 +80,20 @@ def test_the_only_voice_transport_is_chat_shaped_input_audio():
     assert parts[0]["input_audio"]["data"] == "data:;base64,aGVsbG8="
     assert parts[0]["input_audio"]["format"] == "wav"
     assert parts[1]["text"] == multimodal.AUDIO_PROMPT
-    # 没有第二个参数携带端点/传输 ⇒ 想换 /audio/transcriptions 只能改代码，改配置换不掉
+    # 原钉：`kwargs == {}` 证「入参里根本没有端点/传输这个概念」。
+    # 现钉：缺省腿仍然不带任何端点概念（transport 是**函数参数**，不会被转进聊天抽象）。
     assert kwargs == {}, sorted(kwargs)
+    assert multimodal.CHAT_TRANSPORT == "chat", "缺省传输不再是 chat ⇒ 旧条目行为不再逐字不变"
 
 
-def test_unknown_cfg_keys_are_dropped_without_any_signal():
-    """② 同一份 cfg：白名单内的键落到请求体，白名单外的键**无声消失**。"""
+def test_whitelisted_cfg_keys_take_effect_while_unknown_keys_are_rejected():
+    """②（改写）：已知键生效且不落请求体；白名单外的键**构造期显式失败**。
+
+    原钉「`transport` 在 cfg 里无声消失、构造期不报错」⇒ 现钉「`transport` 是白名单内的键
+    （进分派但不进请求体），拼成 `transpor` 才 raise」，理由：票 §1 ② 与 §3 第 4 条要的正是
+    「把配置写了但没人读从静默变成会红」；而请求体那个闭集仍是「别的东西一点都没漏进去」的尺，
+    一条没删（复核轮把它从装饰性的 `getattr(llm, "transport", None)` 换成闭集，本轮继续背）。
+    """
     llm = llm_registry._build(
         {
             **_FAKE_CFG,
@@ -93,19 +107,22 @@ def test_unknown_cfg_keys_are_dropped_without_any_signal():
     assert "extra_body" not in (llm.model_kwargs or {}), llm.model_kwargs or {}
     body = getattr(llm, "extra_body", None) or {}
     assert body.get("translation_options") == {"source_lang": "zh", "target_lang": "zh"}
-    # 请求体键集也钉成闭集：只断言 `getattr(llm,"transport",None) is None` 是装饰性的
-    # （这个属性本来就不可能出现在 ChatOpenAI 上），"body 里没有它"才是要害。
+    # 请求体键集仍是闭集：transport 只做分派，绝不被塞进聊天请求体
     assert set(body) == {"translation_options"}, sorted(body)
-    # 构造期也不报错——所以"配置写了但没人读"这条没有任何失败信号，只能靠判据拦
     assert type(llm).__name__ == "ChatOpenAI"
+
+    with pytest.raises(ValueError, match="transpor"):
+        llm_registry._build({**_FAKE_CFG, "model": "Fake/Model", "transpor": "audio_transcriptions"})
 
 
 def test_build_reads_exactly_this_closed_set_of_cfg_keys():
     """③ `_build` 读的 cfg 键按 **AST 穷举**，不是按我读了三遍源码的印象。
 
     为什么穷举而不是列举：票面要的是「transport 标记从 entry 输入经过 cfg 白名单一路不丢」。
-    今天这条链上根本没有 transport 这个键——要用"没有 X"的形状钉住，就必须把 X 可能出现的位置
+    改前这条链上根本没有 transport 这个键——要用"没有 X"的形状钉住，就必须把 X 可能出现的位置
     穷举完，并同时钉住**已有键确实在集合里**（否则正则打空也会得到空集，判据恒真）。
+    本轮（W07-IMPL）把闭集**改写成含 transport 的新集合**，没删：它同时仍是
+    「未知键静默丢」的唯一现量测量器具——集合少一个键会红，多一个键也会红。
     """
     tree = ast.parse(inspect.getsource(llm_registry._build))
     reads = set()
@@ -125,22 +142,34 @@ def test_build_reads_exactly_this_closed_set_of_cfg_keys():
             continue
         if isinstance(key, ast.Constant) and isinstance(key.value, str):
             reads.add(key.value)
-    expected = {"api_key", "base_url", "model", "translation_options", "disable_thinking", "timeout"}
+    expected = {
+        "api_key",
+        "base_url",
+        "model",
+        "translation_options",
+        "disable_thinking",
+        "timeout",
+        "transport",
+    }
     assert reads == expected, sorted(reads)
-    assert "transport" not in reads and "endpoint" not in reads
+    # 原钉 `"transport" not in reads` ⇒ 现钉它在集合里；`endpoint` 那半**保留**：
+    # 本票裁的是 transport 分派，端点这个概念仍然不许出现在 cfg 读取里（两处各存一份的入口）。
+    assert "transport" in reads and "endpoint" not in reads
     # 正对照：白名单里**有**一个真正会改变请求体的键（第 2 条已行为证过它落到 extra_body）。
-    # 没有这条，"集合恰好等于我抄的这六个"会因为抄错而一直红，或因为打空而一直绿。
+    # 没有这条，"集合恰好等于我抄的这七个"会因为抄错而一直红，或因为打空而一直绿。
     assert "translation_options" in reads
     # 已知未覆盖点（写清楚，不留给下一轮猜）：share 分支里 `cfg.get(k)` 的 k 是
     # ("base_url", "api_key", "timeout") 循环里的**变量**，AST 收不到常量；
     # 那三个键已在集合内，所以覆盖面对得上，但本条穷举不覆盖"将来新增变量键循环"。
+    # 另一处已知差集：`CFG_KEYS` 比本集合多一个 `capabilities`——它写进 cfg 给 ModelEntry 用，
+    # `_build` 不读它，这是设计而不是漏项（见 llm_registry.CFG_KEYS 上方注释）。
 
 
 def test_frontend_audio_mime_is_inside_the_backend_whitelist():
     """④ 跨面契约钉子（复核指出我"推迟给 W11"没有理由之后补的）。
 
-    后端只收 `wav/mp3/m4a/flac/ogg`（multimodal.py:112，`main.py:1722-1723` 处直接 400），
-    而前端 `lib/recorder.ts:72` 自己抓 PCM 编码成 `audio/wav`（:2 的注释就写着这层原因）。
+    后端只收 `wav/mp3/m4a/flac/ogg`（`multimodal.AUDIO_EXTS`，chat_transcribe 里不在白名单直接 400），
+    而前端 `lib/recorder.ts` 自己抓 PCM 编码成 `audio/wav`（文件头注释就写着这层原因）。
     两边各有一句注释 ⇒ 今天对得上，**但没有任何判据**：前端一旦换回 MediaRecorder 默认产物（webm/opus），
     后端会 400 而全部门禁仍绿。这里把"注释里的约定"变成判据。
 
