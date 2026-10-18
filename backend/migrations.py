@@ -36,6 +36,12 @@ _COLUMN_MIGRATIONS = [
     ("qa_candidates", "vector_doc_id", "VARCHAR(64)", None),
 ]
 
+# 补索引清单（表, 列）：名字固定成 `ix_<表>_<列>`，与 SQLAlchemy `index=True` 的默认命名同一个形状，
+# 否则"新建库有的索引"和"升级库有的索引"会长成两副样子，而没人会去比。
+_INDEX_MIGRATIONS = [
+    ("qa_candidates", "vector_doc_id"),
+]
+
 
 def _existing_columns(conn, table: str) -> set:
     try:
@@ -45,15 +51,19 @@ def _existing_columns(conn, table: str) -> set:
         return set()
 
 
-def run_migrations() -> None:
+def run_migrations(bind=None) -> None:
+    # `bind` 形参是为**可测**加的：迁移逻辑过去只能对"模块级那台引擎"跑，
+    # 于是"旧库升级后有没有长出索引"这类判据要么测不到，要么测在错误的库上（假绿）。
+    # 默认值不变 ⇒ 生产调用点（database.init_db）一个字都不用改。
+    target = engine if bind is None else bind
     # 确保模型已注册到 Base.metadata（调用方通常已 import models，这里兜底）
     import models  # noqa: F401
 
     # 1) 建新表（幂等）
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=target)
 
     # 2) 已有表补列（幂等）
-    with engine.connect() as conn:
+    with target.connect() as conn:
         for table, col, ddl, default in _COLUMN_MIGRATIONS:
             if col in _existing_columns(conn, table):
                 continue
@@ -71,3 +81,14 @@ def run_migrations() -> None:
                 if "duplicate column name" not in str(e).lower():
                     raise
                 print(f"[migrations] skip {table}.{col}: {e}")
+
+    # 3) 补索引（幂等）——**这一步不是可选优化**：`create_all` 只给"它新建的表"建索引，
+    # 而现网的 `qa_candidates` 早就存在（列是 ALTER 补上来的）⇒ 模型上写了 index=True 也不会凭空长出索引。
+    # 票 C20 形状①让读出口每次命中按 `vector_doc_id` 回查一次，缺索引就是每次命中全表扫。
+    with target.connect() as conn:
+        for table, col in _INDEX_MIGRATIONS:
+            existing = {r[1] for r in conn.execute(text(f"PRAGMA index_list({table})")).fetchall()}
+            if f"ix_{table}_{col}" in existing:
+                continue
+            conn.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{table}_{col} ON {table} ({col})"))
+            conn.commit()

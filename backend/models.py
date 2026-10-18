@@ -85,7 +85,9 @@ class QaCandidate(Base):
     # ok | quarantined | revoked：拒绝走「置资格、不删数据」（形状 B/P），判据据它放行/拦截
     eligibility = Column(String(16), default="ok", index=True)
     eligibility_version = Column(Integer, default=1)
-    vector_doc_id = Column(String(64), nullable=True)  # 写向量时自生成并记下的 doc id（此前两侧无链接）
+    # 链的**权威存放处**（票 C20 形状①）：向量 metadata 那份只是快路径，读出口在缺键时按这一列回查。
+    # 因此它必须有索引——没有索引时"每次命中回查一次"＝每次命中全表扫（现网 759 行是玩具，语料涨起来就是每问一扫）。
+    vector_doc_id = Column(String(64), nullable=True, index=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

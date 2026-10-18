@@ -405,7 +405,7 @@ def search_qa(query: str, threshold: float = 0.7):
         return None
     from qa_eligibility import QaHit  # 局部导入：只在真有命中时才碰判据模块（同 `_qa_store` 的加载纪律）
 
-    return QaHit(
+    hit = QaHit(
         {
             "question": res[0][0].page_content,
             "answer": res[0][0].metadata.get("answer", ""),
@@ -420,6 +420,12 @@ def search_qa(query: str, threshold: float = 0.7):
             "qa_candidate_id": res[0][0].metadata.get("qa_candidate_id"),
         }
     )
+    # 票 C20（形状①）：链的**权威**在 SQL（`qa_candidates.vector_doc_id`），metadata 那份只是快路径。
+    # doc id 挂在对象上、不做成 dict 键——加键会打穿「qa_hit 与手搓 dict 相等」那一族接缝判据
+    # （与 `state_slot` 同一条理由；判据：tests/test_qa_chain_by_doc_id.py）。
+    # 缺这一行时，metadata 无链的存量记录**永远进不了状态轴** ⇒ 已签的"未核订存量退出直返"是空话。
+    hit.doc_id = getattr(res[0][0], "id", None)
+    return hit
 
 
 # ==================== 受控沉淀 CRUD ====================

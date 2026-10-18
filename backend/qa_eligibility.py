@@ -64,10 +64,63 @@ class QaHit(dict):
     """
 
     state_slot: dict
+    doc_link: dict
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.state_slot = {}
+        self.doc_link = {}
+        self.doc_id: str | None = None
+
+
+def _select_candidate_id_by_doc_id(doc_id):
+    """按向量 doc id 回查候选行 id：**只发一条 SELECT，走 `vector_doc_id` 上的索引**。
+
+    查不到返回 None（＝这条语料确实没有候选行，仍按来源/时效判定）；查不动**照抛**，
+    由 `resolve_chain` 归成 fail-closed——「库挂了」绝不能被读成「没有链所以放行」。
+    """
+    db = database.SessionLocal()
+    try:
+        row = db.query(models.QaCandidate.id).filter(models.QaCandidate.vector_doc_id == str(doc_id)).first()
+        return int(row[0]) if row is not None else None
+    finally:
+        db.close()
+
+
+def resolve_chain(hit):
+    """解析一条读出口记录的候选链，返回 `(cand_id, lookup_failed)`（票 C20 形状①）。
+
+    顺序：① 向量 metadata 里那份链（快路径，新写入都有）；② 没有就用 `doc_id` 回查 SQL。
+    ⇒ 链的**权威存放处**从此是 SQL（`qa_candidates.vector_doc_id`），向量 metadata 那份只是省一次读；
+      这也修掉了 C03=P 落地时留着的那个洞：回填只写 SQL，而读出口只看 metadata ⇒ 已签的
+      "未核订存量退出直返"在现网一条也没发生（实测 279 题 277 → 277，`linked` 两次都是 0）。
+    回查异常 ⇒ `(None, True)` ⇒ 判据按 fail-closed 拒（reason=state）。
+    同一条 hit 只查一次（结果记在 `doc_link` 槽里，三出口共用）。
+    手搓的 plain dict 两个槽都没有 ⇒ 与改前逐字同行为（接缝判据不受影响）。
+    """
+    cand_id = hit.get("qa_candidate_id") if isinstance(hit, Mapping) else None
+    if cand_id is not None:
+        return cand_id, False
+    doc_id = getattr(hit, "doc_id", None)
+    if not doc_id:
+        return None, False
+    memo = getattr(hit, "doc_link", None)
+    if isinstance(memo, dict) and memo:
+        return memo.get("id"), bool(memo.get("failed"))
+    try:
+        found = _select_candidate_id_by_doc_id(doc_id)
+        failed = False
+    except Exception:
+        logger.warning("qa_chain_lookup_failed", extra={"qa_eligibility_reason": "state"})
+        found, failed = None, True
+    if isinstance(memo, dict):
+        memo.update({"id": found, "failed": failed})
+    return found, failed
+
+
+def resolve_candidate_id(hit):
+    """只要链 id 的对外读法（忽略回查失败位）；判据内部一律用 `resolve_chain`。"""
+    return resolve_chain(hit)[0]
 
 
 def _as_meta(meta_or_doc_id) -> Mapping:
@@ -106,10 +159,15 @@ def load_read_state(cand_id):
 
 
 def _state_axis(meta, state) -> Eligibility | None:
-    """§3①②③ 候选状态轴的唯一实现：返回拒绝裁决，或 None（放行/无链不适用）。"""
-    cand_id = meta.get("qa_candidate_id") if isinstance(meta, Mapping) else None
+    """§3①②③ 候选状态轴的唯一实现：返回拒绝裁决，或 None（放行/无链不适用）。
+
+    票 C20（形状①）：链不再只认 metadata 那一份拷贝——`resolve_chain` 在缺键时按 doc id 回查 SQL。
+    手搓的 plain dict 没有 `doc_id` 属性 ⇒ 走的路径与改前逐字相同。
+    """
+    cand_id, lookup_failed = resolve_chain(meta)
     if cand_id is None:
-        return None  # 无链：状态轴不适用，交由来源/时效判定
+        # 回查失败（库挂）与「带链却读不到行」同归 fail-closed；真的没有链才谈"状态轴不适用"
+        return Eligibility(False, "state") if lookup_failed else None
     if not state:
         return Eligibility(False, "state")  # 库挂／找不到行 ⇒ fail-closed
     if state.get("eligibility") in ("revoked", "quarantined"):
@@ -119,17 +177,19 @@ def _state_axis(meta, state) -> Eligibility | None:
     return None
 
 
+def _cand_id(hit):
+    """链的解析口（metadata 快路径 → doc id 回查），全仓只有 `resolve_chain` 这一份。"""
+    return resolve_chain(hit)[0] if isinstance(hit, Mapping) else None
+
+
 def _load_state_safe(qa_hit):
-    cand_id = qa_hit.get("qa_candidate_id") if isinstance(qa_hit, Mapping) else None
+    """状态装载的唯一入口：链由 `_cand_id` 解析，不在这里再读一遍 metadata 键。"""
+    cand_id = _cand_id(qa_hit)
     try:
         return load_read_state(cand_id) if cand_id is not None else None
     except Exception:  # 库挂与「找不到行」同归 fail-closed：查不动不能算查得过
         logger.warning("qa_read_state_unavailable", extra={"qa_candidate_id": cand_id})
         return None
-
-
-def _cand_id(hit):
-    return hit.get("qa_candidate_id") if isinstance(hit, Mapping) else None
 
 
 def load_read_state_for(hit):
@@ -173,6 +233,13 @@ def log_read_denial(hit, reason: str, *, with_gate_boolean: bool = False) -> Non
 def qa_read_eligible(meta_or_doc_id, state) -> Eligibility:
     """全判据（状态轴 + 来源可校验 + 引用在库）——单点真源，供一次性判定的调用方使用。"""
     meta = _as_meta(meta_or_doc_id)
+    if not isinstance(meta_or_doc_id, Mapping) and meta.get("qa_candidate_id") is None:
+        meta = dict(meta)  # 只在"按 doc id 调用"这一支复制一份；其余路径拿到的仍是同一份 Mapping
+        try:
+            meta["qa_candidate_id"] = _select_candidate_id_by_doc_id(str(meta_or_doc_id))
+        except Exception:  # 与 `_state_axis` 同一个 fail-closed 口径：查不动不等于没有链
+            logger.warning("qa_chain_lookup_failed", extra={"qa_eligibility_reason": "state"})
+            return Eligibility(False, "state")
     verdict = _state_axis(meta, state)
     if verdict is not None:
         return verdict
