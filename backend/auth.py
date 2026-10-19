@@ -35,9 +35,25 @@ _bearer = HTTPBearer(auto_error=False)
 # 同一事实两份拷贝、改一处漏一处（显式公知值仍会被种进库里）。
 PUBLIC_DEFAULT_PASSWORD = "admin12345"
 
+# 拒斥显式公知口令的**单一真源集合**（C05 / W09-E，2026-10-18）。刻意小集合——只挡模板占位、
+# 历史泄漏值与最常见的几个弱口令；**口令强度策略不在本项范围内**，别把它当成通用强度校验。
+PUBLIC_PLACEHOLDER_PASSWORDS: frozenset[str] = frozenset(
+    {
+        PUBLIC_DEFAULT_PASSWORD,  # 仓库历史里泄漏过的那个值（引用常量，不再手抄字面量）
+        "change_me",  # 部署模板 .env.example 的原占位值（cp .env.example .env 就种出它）
+        "changeme",  # 同上占位值的常见无下划线写法
+        "your_password",  # 模板里常见的占位口令
+        "your-password",  # 同上占位值的连字符写法
+        "password",  # 最常见的弱口令
+        "123456",  # 最常见的弱口令
+    }
+)
+
 
 def is_public_default_password(password: str) -> bool:
-    return password == PUBLIC_DEFAULT_PASSWORD
+    # strip().lower() 归一化是**有意的收紧**（C05 / W09-E）：大小写/首尾空白变体（如 " Change_Me "）
+    # 同样要被拒，否则模板占位口令换个写法就能上线。
+    return password.strip().lower() in PUBLIC_PLACEHOLDER_PASSWORDS
 
 
 def hash_password(password: str) -> str:

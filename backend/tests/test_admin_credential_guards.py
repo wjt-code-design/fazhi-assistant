@@ -192,6 +192,15 @@ def test_seed_refuses_public_default_password(tmp_path):
     assert _admin_rows(tmp_path) == 0, "拒了却还是把管理员种进了库"
 
 
+def test_seed_refuses_placeholder_change_me_end_to_end(tmp_path):
+    """端到端：`ADMIN_PASSWORD=change_me`（仓库根 .env.example 原值）必须被拒并给非零退出、且不落库。"""
+    proc = _run_seed(tmp_path, {"ADMIN_USERNAME": "admin", "ADMIN_PASSWORD": "change_me"})
+
+    assert proc.returncode == 1, f"应拒绝 change_me，实际 rc={proc.returncode}：{(proc.stdout + proc.stderr)[-300:]}"
+    assert not (tmp_path / "seed.db").exists(), "拒了却还是把库建出来了"
+    assert _admin_rows(tmp_path) == 0, "拒了却还是把管理员种进了库"
+
+
 def test_public_default_constant_is_the_known_leaked_value():
     """守卫挡的必须**就是**仓库历史里泄漏过的那个值：常量一旦被改掉，两条拒绝会静默失去对象。
 
@@ -203,6 +212,29 @@ def test_public_default_constant_is_the_known_leaked_value():
     assert PUBLIC_DEFAULT_PASSWORD == "admin12345", "公知默认口令的值变了 ⇒ 守卫不再挡住真实泄漏值"
     assert is_public_default_password("admin12345") is True
     assert is_public_default_password("a-nother-password") is False, "判据恒真＝两条拒绝用例都是假的"
+
+
+# C05 = 「拒绝显式公知口令」（W09-E）：判据从小集合（单一真源）取，不再只等于一个历史泄漏值。
+# 大小写/首尾空白变体也一并拒绝——归一化是有意的收紧。
+_PLACEHOLDER_VARIANTS = ("change_me", " Change_Me ", "CHANGEME", "your_password", "password", "123456")
+
+
+@pytest.mark.parametrize("value", _PLACEHOLDER_VARIANTS)
+def test_placeholder_passwords_are_refused_by_the_guard(value):
+    """模板占位/历史泄漏/最常见弱口令都必须在拒斥集内。
+
+    否则 `cp .env.example .env && docker compose up` 就照样种出弱口令 admin。
+    """
+    from auth import is_public_default_password
+
+    assert is_public_default_password(value) is True, f"{value!r} 应被判为公知口令"
+
+
+def test_guard_still_accepts_a_long_unique_passphrase():
+    """反向控制：拒斥集是**刻意小集合**、不是通用口令强度策略，合法长口令不得被误伤。"""
+    from auth import is_public_default_password
+
+    assert is_public_default_password("a-long-unique-passphrase") is False
 
 
 def test_public_default_has_exactly_one_definition_site():
@@ -224,6 +256,22 @@ def test_public_default_has_exactly_one_definition_site():
         if has_literal != may_define:
             offenders.append(rel)
     assert not offenders, f"公知默认口令又出现了第二份手抄：{offenders}（判据应统一取 auth.PUBLIC_DEFAULT_PASSWORD）"
+
+
+def test_root_env_example_has_no_copy_and_run_admin_password():
+    """静态门：候选工作树根 `.env.example` 的 `ADMIN_PASSWORD` 必须是空值。
+
+    原先写 `ADMIN_PASSWORD=change_me` ⇒ `cp .env.example .env && docker compose up` 直接种出
+    admin/change_me（公知口令上线）。修复后模板不再提供任何可 copy-and-run 的占位口令。
+    """
+    env_example = BACKEND.parent / ".env.example"
+    values = [
+        line.split("=", 1)[1].strip()
+        for line in env_example.read_text(encoding="utf-8").splitlines()
+        if line.strip().startswith("ADMIN_PASSWORD=")
+    ]
+    assert values, f"{env_example} 里找不到 ADMIN_PASSWORD 行"
+    assert all(v == "" for v in values), f"ADMIN_PASSWORD 仍留可 copy-and-run 的占位口令：{values!r}"
 
 
 def test_seed_still_refuses_empty_password(tmp_path):
