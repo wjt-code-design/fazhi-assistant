@@ -5,9 +5,14 @@ uvicorn[standard]==0.27.1
 langchain-core==1.6.9
 langchain-openai==1.7.0
 # 已测组合（干净安装实测）：langchain-core 1.6.9 / langchain-openai 1.7.0 / langsmith 0.14.7 / openai SDK 2.54.0。
+# （2026-10-19 W10 口径更正）冻结闭包 backend/constraints.txt 解析出的**现行安装组合**是 langsmith 0.14.11 /
+# transformers 5.20.1（CI 与镜像的全新安装即此组合，见 constraints.txt）。0.14.11 下的私有符号边界已补测：
+# 隔离 venv 内 langchain_openai._client_utils 两个私有符号可调用，且 tests/test_llm_lifecycle.py 11 passed
+# （run 根 evidence/net/w10-langsmith-probe.log）⇒ 上面「0.14.7」为 2026-10-17 历史口径，现行以 constraints.txt 为准。
+# transformers 5.20.1 需 torch 才能行为复测，本轮未在本地跑，交给 CI ubuntu 作业。
 # ⚠️ 支持边界（D-45 / C08 于 2026-10-17 裁「固定闭包」）：tests/test_llm_lifecycle.py 依赖 langchain_openai 的
 # **私有模块路径** _client_utils（`_cached_sync_httpx_client` / `_cached_async_httpx_client`），
-# 该面只在上面这套实测组合上被证明过 ⇒ 边界不再只写在注释里：本文件里 **langchain-core / langchain-openai /
+# 该面已在 2026-10-17 实测组合与 2026-10-19 冻结闭包（langsmith 0.14.11）上**先后两次**被证明过 ⇒ 边界不再只写在注释里：本文件里 **langchain-core / langchain-openai /
 # chromadb / sentence-transformers 四行已改成 `==`**，由 `tests/test_dependency_closure.py`
 # 同时核对「声明＝装机」与「私有符号可调用」。
 # ⚠️（D-45 审计 2026-10-19 勘误）下列「部分闭包」表述已过时：torch==2.13.0 / openai==2.54.0 /
