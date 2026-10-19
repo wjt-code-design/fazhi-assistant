@@ -29,8 +29,13 @@ jobs:
       # backend/Dockerfile 同钉 2.13.0，让本机/CI/镜像三根轴对齐。
       - name: Install CPU torch
         run: pip install "torch==2.13.0+cpu" --index-url https://download.pytorch.org/whl/cpu
+      # 2026-10-19 W10：把 2026-10-19 网络批离线交叉平台解析得到的 runtime 传递闭包冻结为
+      #   backend/constraints.txt，装依赖时 `-c` 约束到同一组精确版本，消掉「每天新解析漂移」
+      #   （如 transformers 5.19.0↔5.20.1、langsmith 0.14.7↔0.14.11）。
+      #   constraints 只约束不安装；dev-only 工具（pytest/ruff/mypy/…）不在其中，仍自由解析。
+      #   torch 已在上一行单独装 2.13.0+cpu，故 constraints 写 2.13.0（PEP 440 本地段规则），不逼回 CUDA。
       - name: Install deps
-        run: pip install -r requirements-dev.txt
+        run: pip install -r requirements-dev.txt -c constraints.txt
       - name: Ruff lint
         run: ruff check .
       - name: Ruff format
