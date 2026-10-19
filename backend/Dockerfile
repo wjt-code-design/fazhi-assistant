@@ -18,6 +18,9 @@ ENV PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple
 
 # 先装 CPU 版 torch（避免 PyPI 默认拉取数 GB CUDA 包）
 COPY requirements.txt .
+# 2026-10-19 W10：把 runtime 传递闭包一并烘进构建上下文，下面装依赖时用 `-c` 约束到同一组
+#   精确版本（与 ci.yml 同口径，消掉全新解析漂移）。constraints 只约束不安装。
+COPY constraints.txt .
 
 # 2026-09-04 安装源切换（诚实标注原因与取舍）：
 #   [失败根因] 原 --index-url https://download.pytorch.org/whl/cpu 在国内读取超时
@@ -63,8 +66,12 @@ RUN pip install --no-cache-dir --retries 10 --timeout 60 \
       --find-links https://download.pytorch.org/whl/cpu/torch/ \
       -i https://pypi.org/simple
 
-RUN pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt \
-  || pip install --no-cache-dir --retries 10 --timeout 60 -i https://pypi.org/simple -r requirements.txt
+# 2026-10-19 W10：装 runtime 依赖时用 `-c constraints.txt` 约束到冻结闭包（与 ci.yml 同口径）。
+#   constraints 只约束不安装；torch 已由上一 RUN 装成 2.13.0+cpu，constraints 里写的是无本地段的
+#   `torch==2.13.0`（PEP 440 下 `2.13.0+cpu` 满足 `==2.13.0`）⇒ 不会被拉回 PyPI 的 CUDA 版，
+#   下方防呆断言仍原样保留、不放宽。
+RUN pip install --no-cache-dir --retries 10 --timeout 60 -r requirements.txt -c constraints.txt \
+  || pip install --no-cache-dir --retries 10 --timeout 60 -i https://pypi.org/simple -r requirements.txt -c constraints.txt
 
 # 防呆（与下方 .env 防呆同一策略）：requirements 阶段仍可能把 torch 升级成 CUDA 版，故在此断言
 # 宁可构建红，也不能带着 GPU 版 torch 静默出镜像（数 GB 体积 + 与 CPU-only 部署假设冲突）
