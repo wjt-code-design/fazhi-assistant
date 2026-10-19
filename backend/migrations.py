@@ -34,6 +34,11 @@ _COLUMN_MIGRATIONS = [
     ("qa_candidates", "eligibility", "VARCHAR(16)", "'ok'"),
     ("qa_candidates", "eligibility_version", "INTEGER", "1"),
     ("qa_candidates", "vector_doc_id", "VARCHAR(64)", None),
+    # W06-C（2026-10-18，§5.1）：来源包三列。**无默认(NULL)** ⇒ 旧行来源未知，
+    # 绝不用 complete=true 空依赖批量洗白；内容/摘要/排序原样保留，只是多一列内部来源。
+    ("messages", "qa_provenance", "TEXT", None),
+    ("conversations", "summary_provenance", "TEXT", None),
+    ("qa_candidates", "qa_provenance", "TEXT", None),
 ]
 
 # 补索引清单（表, 列）：名字固定成 `ix_<表>_<列>`，与 SQLAlchemy `index=True` 的默认命名同一个形状，

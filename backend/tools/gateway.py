@@ -258,6 +258,9 @@ class ToolGateway:
                 statement=str(output.statement),
                 output=output,
                 duration_ms=int((time.perf_counter() - started) * 1000),
+                # W06-C §5.2：把工具输出的**内部来源包**接到持久观察上（resume/重放可复核）；
+                # 非来源型输出无该属性 ⇒ None（未知），不在日志落原文。
+                qa_provenance=getattr(output, "provenance", None),
             )
         except FutureTimeoutError:
             # Running synchronous calls cannot be stopped, but queued calls must

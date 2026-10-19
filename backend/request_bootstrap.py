@@ -314,7 +314,9 @@ def _default_bootstrap_dependencies() -> BootstrapDependencies:
 
     return BootstrapDependencies(
         session_factory=database.SessionLocal,
-        load_context=memory.load_context,
+        # W06-C §5.2：request_bootstrap 的历史序列化消费**同一安全投影**（已知失效助手/摘要不进模型输入），
+        # 原 `memory.load_context` 保留给 UI/审计；投影返回形状兼容旧的 (summary, [可用条目])。
+        load_context=memory.load_model_context_bootstrap,
         validate_image=multimodal.validate_image,
         persist_image=multimodal.persist_image,
         cleanup_persisted_image=cleanup_persisted_images,
@@ -348,7 +350,10 @@ def _default_fast_path_dependencies() -> FastPathDependencies:
         cheating_docs=domain_rules.cheating_docs,
         build_contract_data=domain_rules.build_contract_data,
         retrieve=retrieval.retrieve,
-        search_qa=knowledge_service.search_qa,
+        # 票 C21-A Task 2：产生处的默认取语料口绑到**有界资格选择**入口（窗口 8+1、资格唯一真源
+        # `qa_eligibility`、可验证重复）。raw `knowledge_service.search_qa`（k=1）保留给写侧幂等去重，
+        # 不再由默认依赖调用；`prepare_fast_path` 的统一资格复核与显式历史日期绕过 QA 均不变。
+        search_qa=knowledge_service.search_eligible_qa,
         is_consumer_clause_scenario=domain_rules.is_consumer_clause_scenario,
         consumer_clause_docs=domain_rules.consumer_clause_docs,
         is_consumer_fraud_scenario=domain_rules.is_consumer_fraud_scenario,

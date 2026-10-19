@@ -196,6 +196,27 @@ def _with_uncovered_notice(answer: str, uncovered: Sequence[tuple[str, str]], st
     return "\n".join(lines)
 
 
+def _declared_final_provenance(db: Any, conversation_id: int) -> str | None:
+    """W06-C L12：Agent 终稿的**真实来源声明**（不假充已核）。
+
+    Agent 走自己的检索链、不使用聊天侧 QA 依赖；但它可能复用会话历史 ⇒ 声明值取该会话
+    **模型上下文投影**的聚合依赖：完整已知（含"已证明无 QA"）⇒ 签该值；出现未追踪/未知历史
+    ⇒ `None`（列 NULL＝来源未知），绝不用空依赖假签。
+    """
+    import memory
+    import qa_eligibility as qe
+    from models import Conversation
+
+    conv = db.get(Conversation, conversation_id)
+    if conv is None:
+        return None
+    ctx = memory.load_model_context(db, conv)
+    if ctx.dependencies is None:
+        return None  # 有未追踪历史 ⇒ 未知，不签空
+    prov = qe.build_provenance(ctx.dependencies)
+    return qe.serialize_provenance(prov) if prov is not None else None
+
+
 def _persist_drafting_failure(
     db: Any,
     *,
@@ -624,6 +645,9 @@ def execute_agent_request(
             state=state,
             answer=final_answer,
             verification=verification,
+            # W06-C L12：声明这条终稿的**真实来源覆盖**（完整已知才签，未知/未追踪 ⇒ NULL），
+            # 不再恒 NULL 假充、也不假签空。
+            qa_provenance=_declared_final_provenance(db, bootstrap.conv_id),
         )
     except AgentFinalizationConflict:
         return _failure_or_fallback(

@@ -127,6 +127,9 @@ class Observation(BaseModel):
         | None
     ) = None
     duration_ms: NonNegativeInt = 0
+    # W06-C §5.2：工具结果的**内部来源包**（json，来自携带来源的工具输出；NULL＝来源未知）。
+    # 随 run.state_json 持久化（resume 可见），但**不进入**模型可见的 planner payload（见 runtime）。
+    qa_provenance: str | None = None
 
     @model_validator(mode="after")
     def validate_observation_shape(self) -> Observation:

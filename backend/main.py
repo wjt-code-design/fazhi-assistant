@@ -79,7 +79,7 @@ from intent import classify_intent
 from llm_errors import is_request_shape_rejection, is_transient_error, status_of
 from llm_guard import LLMBusyError, llm_guard
 from llm_registry import QuotaExhausted, estimate_tokens, registry
-from memory import compress, load_context, needs_compress, recent_messages, rewrite_query
+from memory import compress, load_model_context_bootstrap, needs_compress, recent_messages, rewrite_query
 from models import AgentRun, AnalysisRun, AuditLog, Conversation, Feedback, Message, QaCandidate, User
 from multimodal import (
     AUDIO_EXTS,
@@ -110,7 +110,7 @@ from prompts import (
     SYSTEM_CONTRACT_REVIEW,
     SYSTEM_STUDY,
 )
-from qa_eligibility import evaluate_revocation_state, log_read_denial
+from qa_eligibility import capture_dependency, evaluate_revocation_state, log_read_denial, validate_dependencies
 from quota_utils import UtilityQuotaExhausted
 from rag_chain import ClosingStream, clean_answer, embeddings, format_docs, make_chain, stream_with_retry, vectorstore
 from request_bootstrap import (
@@ -757,7 +757,9 @@ def _bootstrap_only(
         law_as_of=law_as_of,
         _deps=BootstrapDependencies(
             session_factory=SessionLocal,
-            load_context=load_context,
+            # W06-C §5.2：生产快车道的历史序列化消费**同一安全投影**（已知失效/未知来源不进模型输入；
+            # 原文/UI 仍走 `memory.load_context`）。改前这里绑的是旧的原文接口 ⇒ 投影没真正接线。
+            load_context=load_model_context_bootstrap,
             validate_image=validate_image,
             persist_image=persist_image,
             cleanup_persisted_image=cleanup_persisted_images,
@@ -798,7 +800,9 @@ def _prepare_fast_path_only(bootstrap: RequestBootstrap, turn: dict | None = Non
                 cheating_docs=cheating_docs,
                 build_contract_data=build_contract_data,
                 retrieve=retrieve,
-                search_qa=ks.search_qa,
+                # 票 C21-A：生产快车道同样走**有界资格选择**适配器（原先这里绑 raw `ks.search_qa`，
+                # 会让新适配器在生产路径上成为死代码）。raw `search_qa` 的 k=1 语义本身未改，仅换接线点。
+                search_qa=ks.search_eligible_qa,
                 is_consumer_clause_scenario=is_consumer_clause_scenario,
                 consumer_clause_docs=consumer_clause_docs,
                 is_consumer_fraud_scenario=is_consumer_fraud_scenario,
@@ -1182,7 +1186,7 @@ def finalize_verified_agent_answer(
     return AgentFinalizationResult(answer=normalized, reason_code="READY")
 
 
-def _post(pre: dict, answer: str, curate: bool = True):
+def _post(pre: dict, answer: str, curate: bool = True, *, qa_dependencies=...):
     """流式后的写库 + 受控沉淀 + 压缩（独立会话，线程池内，不阻塞用户该轮）。
 
     curate=False：缓存命中路径——答案当初已沉淀过，跳过避免重复候选。
@@ -1203,8 +1207,41 @@ def _post(pre: dict, answer: str, curate: bool = True):
         answer = output_normalize.strip_unprovided_notes(answer, source_in_kb)
         if pre.get("intent") == "legal_query":
             citation_grounding(answer, pre.get("sources") or [], _grounding_stats)
-        db.add(Message(conversation_id=pre["conv_id"], role="assistant", content=answer))
         conv = db.get(Conversation, pre["conv_id"])
+        # W06-C §5.1：为这条回答签发**真实来源包**（历史/摘要投影来源 ∪ 本次 QA 依赖）；任一未知祖先
+        # ⇒ None（列 NULL＝旧来源未知）。模块名在函数内 import：`_post` 会被 AST 接缝提取执行，
+        # 顶层依赖不得依赖模块全局名是否在场。与消息**同事务**落盘，正文/来源不落半截。
+        import qa_eligibility as _qe
+        from memory import load_model_context as _load_model_context
+
+        _hit = pre.get("qa_hit")
+        if qa_dependencies is ...:
+            # 未显式给出 ⇒ 从 pre 现算（既有出口：QA 直返/合同/澄清等本次确实用了 pre.qa_hit 的分支）。
+            if _hit is not None:
+                _dep = _qe.capture_dependency(_hit)
+                _own = (_dep,) if _dep is not None else None
+            else:
+                _own = ()
+        else:
+            # L8：调用方给的是**这次生成实际使用的输入依赖**（O 失效重建后的 `ldeps`、缓存回放的原依赖）——
+            # 直接采信，**不再从未清理的 pre 现算**；否则会把本次并未使用、甚至已撤回的 QA 误签进来源包。
+            _own = qa_dependencies
+        _ctx = _load_model_context(db, conv)
+        _prov_text = None
+        if _own is not None and not _ctx.unknown_history:
+            _ancestors = [m.provenance for m in _ctx.recent if m.reusable and m.provenance is not None]
+            if _ctx.summary_usable and _ctx.summary_provenance is not None and (_ctx.summary or ""):
+                _ancestors.append(_ctx.summary_provenance)
+            _prov = _qe.build_provenance(_own, ancestors=tuple(_ancestors))
+            _prov_text = _qe.serialize_provenance(_prov) if _prov is not None else None
+        db.add(
+            Message(
+                conversation_id=pre["conv_id"],
+                role="assistant",
+                content=answer,
+                qa_provenance=_prov_text,
+            )
+        )
         # 对抗审计 v2 #21：原子自增（与 _pre 同款防读-改-写竞态）
         db.execute(
             text("UPDATE conversations SET message_count = COALESCE(message_count, 0) + 1 WHERE id = :id"),
@@ -1226,7 +1263,16 @@ def _post(pre: dict, answer: str, curate: bool = True):
             grounded = grounded_top_score(pre["rewritten"])
             q = pre["user_text"] or pre["rewritten"]
             if q and should_curate(grounded, answer):
-                ks.create_candidate(db, q, answer, grounded, json.dumps(pre["sources"], ensure_ascii=False))
+                # W06-C §5.1/§5.3：派生 QA 继承这条回答的真实来源包（防新 candidate id 洗白撤回）。
+                # 调用形状保持既有 5 参（既有接缝替身按此签名打桩）；来源包在其**返回的候选行**上补写。
+                _cand = ks.create_candidate(db, q, answer, grounded, json.dumps(pre["sources"], ensure_ascii=False))
+                if _cand is not None and _prov_text is not None and getattr(_cand, "qa_provenance", None) is None:
+                    # L11：派生签发处做**循环/自引用**拒绝（超限已在 build_provenance 归 None）；
+                    # 自引用（来源包指向候选自身）时不写来源包，防借新 id 洗白撤回。
+                    _prov_obj = _qe.parse_provenance(_prov_text)
+                    if not _qe.has_self_reference(_prov_obj, _cand.id):
+                        _cand.qa_provenance = _prov_text
+                        db.commit()
 
         # 增量压缩（对抗审计 v2 #9：LLM 调用纳入 llm_guard 并发位——突发长答复时不再无界并发，
         # 且不再独占共享线程池/悬挂 SSE 连接最长 120s）
@@ -1466,6 +1512,87 @@ def _similar_cache_hit(pre: dict, scope: answer_cache.CacheScope | None = None) 
         )
     except Exception:
         return None
+
+
+# ==================== W06-B：不可变 QA 依赖的缓存 / 阶段守（§4.1、§4.2） ====================
+# ⚠️ `pre` 的键集被既有契约用例钉死（`test_request_bootstrap.py::test_prepare_fast_path_returns_exact_legacy_keys`）
+# ⇒ 依赖快照**不塞进 `pre`**，而由下面这个**唯一签发点**从 `pre` 现有的 `qa_hit`/`summary`/`recent` 现算。
+
+
+def _input_qa_dependencies(pre: dict):
+    """为这一份实际生成输入**签发**不可变 QA 依赖快照（三态）——全仓唯一签发点。
+
+    - 非空 tuple＝实际使用了 QA 且取到可靠 SQL 身份；
+    - `None`＝使用了 QA 但身份不可靠（无链/不一致/读不动），或存在**未追踪**的 summary/assistant 历史
+      （第三阶段完成前不许签已知空）；
+    - 空 tuple＝整份输入已确认没有使用 QA（仅当无未追踪历史时才可签）。
+
+    `put` 默认 `None` 只是防漏接线的兜底，不构成签名：任何写点都必须显式传这里的返回值。
+    """
+    hit = pre.get("qa_hit")
+    if hit is not None:
+        dep = capture_dependency(hit)
+        return (dep,) if dep is not None else None
+    if pre.get("summary") or any((m or {}).get("role") == "assistant" for m in (pre.get("recent") or [])):
+        return None
+    return ()
+
+
+def _drop_tracked_qa(pre: dict) -> dict:
+    """丢弃被追踪的 QA 输入（撤回/失效后重建用）：不再复用它，也不复用旧状态槽。"""
+    out = dict(pre)
+    out["qa_hit"] = None
+    return out
+
+
+async def _deps_allow(deps) -> bool:
+    """把依赖复核投进线程池（fast-path 业务代码不得在主线程直接读同步 SQL）。"""
+    return bool((await run_in_threadpool(validate_dependencies, deps)).allow)
+
+
+async def _cache_read_deps_ok(hit) -> bool:
+    """缓存命中后的依赖复核（§4.1）：精确与相似命中共用，开**新 SQL 会话**。
+
+    旧条目没有 `qa_dependencies` 字段、或依赖未知(None) ⇒ 不放行（B06）；已知空/有效非空 ⇒ 放行。
+    """
+    deps = hit.get("qa_dependencies", None) if isinstance(hit, dict) else None
+    return await _deps_allow(deps)
+
+
+async def _cache_write_deps_ok(deps) -> bool:
+    """写缓存前的依赖复核（§4.1 的 W 阶段）：依赖未知(None，含无可靠身份的 QA) ⇒ 不写；
+    已知空(`()`)或有效非空 ⇒ 写。B08：无 SQL 身份的 QA 派生答案不进缓存。"""
+    if deps is None:
+        return False
+    return await _deps_allow(deps)
+
+
+async def _generation_input_invalid(deps) -> bool:
+    """O 阶段（§4.2）：实际生成输入的 QA 依赖是否已失效（fresh SQL 核验）。
+
+    已知空 `()`／无 QA(None) 不在此判失效（无链 QA 的直接读取资格另判）；仅**非空**依赖被复核。
+    """
+    if not deps:
+        return False
+    return not await _deps_allow(deps)
+
+
+async def _p_recheck(pre: dict) -> dict:
+    """P 阶段（§4.2）：构造生成输入前 **fresh** 复核选中 QA（清槽新读）。失效 ⇒ 丢弃该 QA。"""
+    hit = pre.get("qa_hit")
+    if hit is None:
+        return pre
+    verdict = await run_in_threadpool(evaluate_revocation_state, hit, fresh=True)
+    return pre if verdict.allow else _drop_tracked_qa(pre)
+
+
+async def _recheck_before_model(pre: dict, messages: list, deps):
+    """实际发起模型调用前再确认依赖仍有效（B12）：失效 ⇒ 丢 QA 并**重建** messages（不是只清 pre）。"""
+    updated = await _p_recheck(pre)
+    if updated is pre:
+        return pre, messages, deps
+    msgs = await run_in_threadpool(_build_messages, updated)
+    return updated, msgs, await run_in_threadpool(_input_qa_dependencies, updated)
 
 
 _QA_DIRECT_RETURN_THRESHOLD = 0.92  # QA 语义直返阈值（审查护栏：低于则回落 LLM）
@@ -2239,7 +2366,12 @@ async def chat(
     # （改前是这里一条＋直返那里一条，共两条）。判据是计数替身，见
     # `tests/test_qa_read_eligibility.py::test_one_sql_state_session_per_qa_bearing_request`。
     # 放线程池，绝不在事件循环里做同步 SQLite 读（对抗审计 v2 #20 同一约束）。
+    # W06-B P 阶段（§4.2）：构造生成输入前 **fresh** 复核选中 QA；失效 ⇒ 丢 QA（messages 尚未构造）。
+    # 注意：`_p_recheck` 只对 `pre["qa_hit"]` 那条 QA 做状态轴 fresh 读；探针直构的 `pre` 无此键亦然。
+    pre = await _p_recheck(pre)
     messages = await run_in_threadpool(_build_messages, pre)
+    # W06-B §4.1：为这份实际生成输入**签发**不可变 QA 依赖快照（唯一签发点，投线程池）。
+    head_deps = await run_in_threadpool(_input_qa_dependencies, pre)
 
     # ---- 多模型路由决策（feature_router 关 → 全走 legacy 流式，旧行为零变化） ----
     use_router = settings.feature_router
@@ -2286,6 +2418,11 @@ async def chat(
 
     async def stream():
         stream_state["entered"] = True
+        # W06-B：本流内**可变视角**（撤回失效后重建 messages 用；不改闭包外那个 `pre`，
+        # 免得触发 `stream` 对 `pre` 的赋值语义变化）。`ldeps` 是这份生成输入的依赖快照。
+        lpre = pre
+        ldeps = head_deps
+        lmsgs = messages  # 本流内可变视角的 messages（重建时覆盖，不改闭包外的 `messages`）
         _posted = False  # 本轮 assistant 消息是否已落库（对抗审计 v2 #5/#8：客户端断开时 finally 兜底占位）
         # D-23：兜底占位要区分"连接被打断"与"这一轮服务端没给出内容"。
         # 判据必须是**真实断开信号**，不能是"有没有走到 try 结尾"——正文里有 5 处 `return` 是
@@ -2309,6 +2446,11 @@ async def chat(
             hit = cache_hit
             if not hit and cache_key and settings.feature_similar_cache:
                 hit = await run_in_threadpool(_similar_cache_hit, pre, cache_scope)
+            # W06-B（§4.1/§4.2）：命中后、首次 content 前，用**新 SQL 会话**复核缓存自身依赖。
+            # 旧条目无该字段 / 依赖未知(None) / 已撤回·隔离·变版·变内容 ⇒ miss——不能因 TTL 没到而放行，
+            # 也不因当前 `pre.qa_hit=None` 而清空旧答案自身依赖（B09）。
+            if hit and not await _cache_read_deps_ok(hit):
+                hit = None
             if hit:
                 ca = hit["answer"]
                 _f0 = time.perf_counter()  # 缓存命中：首帧≈总耗时（瞬时，用于首帧埋点分段标注）
@@ -2328,7 +2470,10 @@ async def chat(
                 yield f"data: {json.dumps({'conversation_id': pre['conv_id'], 'sources': pre['sources']}, ensure_ascii=False)}\n\n"
                 yield "data: [DONE]\n\n"
                 try:
-                    await run_in_threadpool(_post, pre, ca, False)
+                    # W06-C H05：缓存回放把该条目冻结的依赖显式传给 _post，写出的新 assistant 继承之。
+                    # 用零参 lambda 承载关键字，避免给既有的 run_in_threadpool 接缝替身（`async def(fn,*args)`）
+                    # 增加关键字参数面。
+                    await run_in_threadpool(lambda: _post(pre, ca, False, qa_dependencies=hit.get("qa_dependencies")))
                     _posted = True
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)
@@ -2340,6 +2485,12 @@ async def chat(
             qa_ans = (
                 None if body.no_cache else await run_in_threadpool(_qa_direct_return, pre, _exit_law_as_of(pre, body))
             )
+            # W06-B O（§4.2）：QA 直返在首个 content 前用 fresh 状态轴复核（status/restart 都不算正文已开始）。
+            # 无链 QA（capture 拿不到身份）不在本守范围内——其直接读取资格仍由既有门判（B08）。
+            if qa_ans and pre.get("qa_hit") is not None:
+                fresh_state = await run_in_threadpool(evaluate_revocation_state, pre["qa_hit"], fresh=True)
+                if not fresh_state.allow:
+                    qa_ans = None
             if qa_ans:
                 _f0 = time.perf_counter()
                 yield f"data: {json.dumps({'content': qa_ans}, ensure_ascii=False)}\n\n"  # gate-exit: E2
@@ -2540,7 +2691,8 @@ async def chat(
                     # （合同分支里 use_router 为真 ⇒ use_light 已被强制 False ⇒ 该支必已执行），
                     # 而本分支在 `use_router` 为假时同样会走到 ⇒ 直接把裸名读出来会 NameError。
                     degraded = use_router and flag_degraded
-                    if cache_key and not bad and not degraded:
+                    cache_deps_ok = await _cache_write_deps_ok(ldeps)  # W06-B W 阶段：写前 fresh 复核依赖
+                    if cache_key and not bad and not degraded and cache_deps_ok:
                         # 继承回答缓存（code-review #5：重复贴同一合同零重烧）。
                         # 两道闸（票 H）：**引用未收录**（bad 非空）与**降级产出**的报告都不得进缓存 ——
                         # 写进去的是追加注记**之前**的那一份，被零 token 复播时告警/免责注会一起丢掉
@@ -2550,6 +2702,7 @@ async def chat(
                             answer,
                             pre["sources"],
                             model="contract_review",
+                            qa_dependencies=ldeps,
                             scope=cache_scope,
                             generation=cache_generation,
                         )
@@ -2602,10 +2755,23 @@ async def chat(
                     print(f"[chat-post] {e}", flush=True)
                 return
 
+            # W06-B 模型调用前复核（B12）：P 与首次生成之间若 QA 失效，**重建** messages（不是只清 pre，
+            # 只清 pre 而继续用含失效 QA 的旧 messages 不合格）。
+            lpre, lmsgs, ldeps = await _recheck_before_model(lpre, lmsgs, ldeps)
+
             # 分支1：轻量缓冲 + 自检 + 至多一次升级旗舰
             if use_light:
-                res = await _light_buffered(pre, messages, _exit_law_as_of(pre, body))
+                res = await _light_buffered(lpre, lmsgs, _exit_law_as_of(lpre, body))
                 answer = res.answer
+                # W06-B O（§4.2）：首个非空正文交给 SSE 生成器**之前** fresh 复核实际生成依赖。
+                # 已缓冲整答含失效 QA ⇒ 丢弃旧产物（不发送）、重建无失效 QA 的 messages、**最多重做 1 次**；
+                # 重做仍空/仍失败 ⇒ 走既有 error 帧（不把旧产物改标签后发送，不写缓存）。
+                if answer and await _generation_input_invalid(ldeps):
+                    lpre = _drop_tracked_qa(lpre)
+                    ldeps = await run_in_threadpool(_input_qa_dependencies, lpre)
+                    lmsgs = await run_in_threadpool(_build_messages, lpre)
+                    res = await _light_buffered(lpre, lmsgs, _exit_law_as_of(lpre, body))
+                    answer = res.answer
                 if answer and _time_unverified_hit(pre):
                     # 缓冲整答还没吐出 ⇒ 注记并进 E7 那一帧（`_light_buffered_locked` 里的
                     # NOTE_LAW_VERSION / NOTE_COMPLEX 就是同一形状）。带基准日的请求不进缓存
@@ -2640,6 +2806,7 @@ async def chat(
                 #   not multi_bad           —— 多选漏答不入缓存（防错答传播给近重复题）
                 #   not res.law_version_hit —— 命中版本绊线不入缓存：分支0 在本门**之前**直返 ⇒
                 #                              一条错版答复进了缓存就会被零 token 固化，门再也走不到
+                cache_deps_ok = await _cache_write_deps_ok(ldeps)  # W06-B W 阶段：写前 fresh 复核依赖
                 if (
                     cache_key
                     and not res.degraded
@@ -2647,8 +2814,16 @@ async def chat(
                     and res.verdict == "pass"
                     and not multi_bad
                     and not res.law_version_hit
+                    and cache_deps_ok
                 ):
-                    answer_cache.put(cache_key, answer, pre["sources"], scope=cache_scope, generation=cache_generation)
+                    answer_cache.put(
+                        cache_key,
+                        answer,
+                        pre["sources"],
+                        qa_dependencies=ldeps,
+                        scope=cache_scope,
+                        generation=cache_generation,
+                    )
                 if res.key:
                     # 对抗审计 v2 #20：SQLite 扣减同步阻塞事件循环 → 线程池
                     await run_in_threadpool(registry.deduct, res.key, res.usage)
@@ -2672,7 +2847,9 @@ async def chat(
                 yield "data: [DONE]\n\n"
                 if answer:
                     try:
-                        await run_in_threadpool(_post, pre, answer)
+                        # L8：按**这次生成实际使用的输入**（`ldeps`，O 失效重建后已更新）签发来源包，
+                        # 而不是按未清理的原 `pre` 现算——否则会把失效/未使用的 QA 误签进新 assistant。
+                        await run_in_threadpool(lambda: _post(pre, answer, qa_dependencies=ldeps))
                         _posted = True
                     except Exception as e:
                         print(f"[chat-post] {e}", flush=True)
@@ -2720,25 +2897,48 @@ async def chat(
             # 只含用户自述、**不含** context/sources 里的法条文本 —— 票 C §2d）。
             # 开关关 ⇒ 不做无谓扫描（与 `_light_buffered_locked` 同一省法）。
             fact_texts = _fast_path_fact_texts(pre) if settings.fast_path_law_version_check else []
-            async with ClosingStream(
-                stream_with_retry(
-                    make_chain_fn,
-                    messages,
-                    [(False, 0.0), (True, 0.5), (False, 0.5)],
-                    on_model_failure=_on_model_failure,
-                )
-            ) as pieces:
-                async for piece in pieces:
-                    if _restart_pending:
-                        # 上一个模型失败、即将从零重答：先清空已发半截并通知前端（防拼接乱码）
-                        _restart_pending = False
-                        chunks = []
-                        _f0 = None
-                        yield f"data: {json.dumps({'type': 'restart'}, ensure_ascii=False)}\n\n"
-                    if _f0 is None:
-                        _f0 = time.perf_counter()  # 真流式：首个 token 时刻（首帧埋点）
-                    chunks.append(piece)
-                    yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E8
+            # W06-B O（§4.2）：首个**非空正文**交给 SSE 生成器之前 fresh 复核实际生成依赖；
+            # 空 chunk 不算开始。失效 ⇒ 关闭旧生成器、丢弃旧产物、重建无失效 QA 的 messages、
+            # **最多重做 1 次**；重做仍失败 ⇒ 明确结束（走既有 error 帧，不写缓存、不成功 `_post`）。
+            _o_redo_left = 1
+            while True:
+                _o_gate_open = False
+                _discarded = False
+                async with ClosingStream(
+                    stream_with_retry(
+                        make_chain_fn,
+                        lmsgs,
+                        [(False, 0.0), (True, 0.5), (False, 0.5)],
+                        on_model_failure=_on_model_failure,
+                    )
+                ) as pieces:
+                    async for piece in pieces:
+                        if _restart_pending:
+                            # 上一个模型失败、即将从零重答：先清空已发半截并通知前端（防拼接乱码）
+                            _restart_pending = False
+                            chunks = []
+                            _f0 = None
+                            yield f"data: {json.dumps({'type': 'restart'}, ensure_ascii=False)}\n\n"
+                        if not _o_gate_open and piece.strip():
+                            _o_gate_open = True
+                            if await _generation_input_invalid(ldeps):
+                                _discarded = True  # 未发任何正文 ⇒ 关闭旧生成器、丢弃旧产物
+                                break
+                        if _f0 is None:
+                            _f0 = time.perf_counter()  # 真流式：首个 token 时刻（首帧埋点）
+                        chunks.append(piece)
+                        yield f"data: {json.dumps({'content': piece}, ensure_ascii=False)}\n\n"  # gate-exit: E8
+                if not _discarded:
+                    break
+                if _o_redo_left <= 0:
+                    chunks = []  # 明确结束：无可用正文 ⇒ 交由下方 `if not answer:` 的 error 帧
+                    break
+                _o_redo_left -= 1
+                lpre = _drop_tracked_qa(lpre)
+                ldeps = await run_in_threadpool(_input_qa_dependencies, lpre)
+                lmsgs = await run_in_threadpool(_build_messages, lpre)
+                chunks = []
+                _f0 = None
             answer = "".join(chunks)
             # 票 C/S6：把 S5 那道版本绊线门接到本条**唯一承流量**的生成出口上。三个口径照票面：
             #   §5-4 基准日未指定时由服务端落当日；取数口径走 `_exit_law_as_of(pre, body)`
@@ -2748,7 +2948,7 @@ async def chat(
             law_version_hit = False
             if not answer:
                 try:
-                    fb = await _invoke_llm(messages, flag_llm)
+                    fb = await _invoke_llm(lmsgs, flag_llm)
                     answer = clean_answer(fb)
                     if answer:
                         if _f0 is None:
@@ -2840,12 +3040,14 @@ async def chat(
                     # + 多选漏答不入缓存（决策 8：防错答传播给近重复题）
                     # + 命中版本绊线不入缓存（票 C：分支0 在本门**之前**直返 ⇒ 一条错版答复进了缓存
                     #   就会被后续同题请求零 token 固化，门再也走不到）。四条件 → 五条件。
+                    cache_deps_ok = await _cache_write_deps_ok(ldeps)  # W06-B W 阶段：写前 fresh 复核依赖
                     if (
                         cache_key
                         and not flag_degraded
                         and _cache_write_ok(pre, answer)
                         and not multi_bad
                         and not law_version_hit
+                        and cache_deps_ok
                     ):
                         emb = await run_in_threadpool(_embed_question, pre.get("rewritten") or "")
                         pol, cnt, lab, fp = _cache_guards(pre.get("rewritten") or "")
@@ -2859,6 +3061,7 @@ async def chat(
                             label_system=lab,
                             options_fingerprint=fp,
                             model=registry.model_of(flag_key) if use_router else "",
+                            qa_dependencies=ldeps,
                             scope=cache_scope,
                             generation=cache_generation,
                         )
@@ -2908,7 +3111,8 @@ async def chat(
             yield "data: [DONE]\n\n"
             if answer:
                 try:
-                    await run_in_threadpool(_post, pre, answer)
+                    # L8：旗舰/legacy 出口同样按实际生成输入（`ldeps`）签发来源，不从未清理的 pre 现算。
+                    await run_in_threadpool(lambda: _post(pre, answer, qa_dependencies=ldeps))
                     _posted = True
                 except Exception as e:
                     print(f"[chat-post] {e}", flush=True)

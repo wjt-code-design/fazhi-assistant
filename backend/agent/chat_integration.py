@@ -170,11 +170,15 @@ def persist_agent_final_once(
     state: LegalAgentState,
     answer: str,
     verification: VerificationResult,
+    qa_provenance: str | None = None,
 ) -> bool:
     """Atomically complete a run, persist ClaimChecks, and write one assistant Message.
 
     Returns ``True`` for the winning write and ``False`` for an exact idempotent
     replay. Any foreign, stale, or mismatched replay raises rather than guessing.
+
+    ``qa_provenance``（票 W06-C §5.1）：这条 Agent 终稿的真实来源包（json）。**默认 None＝来源未知**
+    （Agent 有自己的检索链，不冒领聊天侧来源）；只在有可靠传递来源时由调用方显式传入，与终稿**同事务**落盘。
     """
 
     normalized_answer = answer.strip()
@@ -289,6 +293,8 @@ def persist_agent_final_once(
                 content=normalized_answer,
                 # T1（2026-09-16）：消息关联 run——历史会话经此读取覆盖信息（旧消息 NULL → unknown）
                 agent_run_id=run_id,
+                # W06-C §5.1：终稿来源包与内容同事务落盘（NULL＝来源未知）
+                qa_provenance=qa_provenance,
             )
         )
         db.add(

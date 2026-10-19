@@ -180,6 +180,11 @@ _ACCOUNT_FIELDS = (
     # 题干与答案一律不落（AUTH-3 日志不落原文）。未登记会被 JSON formatter 静默丢弃 ⇒ 键白写
     # （同一族本仓已被哨兵抓过四次）。
     "qa_write_unlinked",
+    # 票 C21-A（2026-10-18，review J2）：候选**召回层**失败（向量库查询抛错）的专用归因键。
+    # 与 `qa_eligibility_reason` 分家：召回故障不是资格状态轴判定，混进 state 会污染
+    # "语料被资格拦"的读数。只承载布尔；日志正文不含问句/答案/evidence 原文（AUTH-3）。
+    # 未登记会被 JSON formatter 静默丢弃 ⇒ 键白写。
+    "qa_candidate_query_failed",
     # W07-IMPL（2026-10-17，C04＝甲 已裁）：识图「失败」与「空内容」分家之后的两个归因键。
     # 改前 `multimodal.describe_image` 把四类异常与「模型返回空内容」收敛成同一个空串，
     # 所以**没有任何键可落**（读数也分不清「没字」和「没读到」）；甲把可分性建起来之后，

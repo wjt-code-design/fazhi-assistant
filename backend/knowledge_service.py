@@ -10,6 +10,7 @@
 import hashlib
 import io
 import logging
+import math
 import os
 import threading
 import uuid
@@ -337,6 +338,8 @@ def add_qa_pair(
     `scripts/gen_qa_corpus.py` 传指纹，而两条**生产运行时写路径**（`create_candidate`
     有据分自动收录 / `decide_candidate` 人工采纳）与 `qa_seeds` 都不传 ⇒ 经它们进来的
     新语料对 C4 护栏是**盲的**（T7 补采只覆盖了存量 279 条，没堵写侧）。
+    **W06-P0（2026-10-18）**：`create_candidate` 已不写 QA 向量（一律 pending）⇒ 现役**带链**生产
+    写入路径只有人工采纳 `decide_candidate`；上文「有据分自动收录」是 **W06-P0 之前的旧契约**。
     现算复用**读侧同一个** `query_understand._options_fingerprint`——不新增第二份选项提取规则；
     调用方显式传入的值优先（`gen_qa_corpus` 路径逐字不变）。
 
@@ -344,7 +347,7 @@ def add_qa_pair(
     `law_as_of_basis` 时落**当日**。第四轮核对把"缺 basis ⇒ 来源不可校验 ⇒ 不直返也不注入"
     上线后，全仓**没有任何生产者**写这个键（存量的值来自 09-20 一次性回填），于是新沉淀的语料
     **永久**过不了 `retrieval_core.qa_provenance_verifiable`：零模型直返会静默衰减到那 279 条。
-    默认值对四条路径都是**真话**：`_post` 的沉淀闸明令"带历史基准日的请求不沉淀"，种子与生成
+    默认值对各写入路径都是**真话**：`_post` 的沉淀闸明令"带历史基准日的请求不沉淀"，种子与生成
     脚本也按当日法律现产出。唯一例外是人工采纳——答案的法律版本身份属于**产生**它的那天，
     隔几天采纳不会让它变成今日的法 ⇒ `decide_candidate` 显式传候选 `created_at` 的日期。
     时钟取 UTC，与 `QaCandidate.created_at`（`datetime.utcnow`）同一个钟——
@@ -384,10 +387,46 @@ def add_qa_pair(
     return None
 
 
+def _qa_hit_from(doc, score):
+    """由一条向量候选与分数构造公开 `QaHit`（raw `search_qa` 与服务入口**共用**）。
+
+    公开键集、`doc_id` 属性与 4 位 score 与改前 `search_qa` **逐字一致**：raw 与新入口只差
+    「取几条候选、怎么计分」，公开形状只有这一份。
+    """
+    from qa_eligibility import QaHit  # 局部导入：只在真有命中时才碰判据模块（同 `_qa_store` 的加载纪律）
+
+    rounded = round(score, 4) if isinstance(score, (int, float)) and math.isfinite(float(score)) else 0.0
+    hit = QaHit(
+        {
+            "question": doc.page_content,
+            "answer": doc.metadata.get("answer", ""),
+            "score": rounded,
+            "evidence": doc.metadata.get("evidence", ""),
+            # 票 I 的 I-2(a)：把语料的**版本基准日**带到调用方（`main._qa_direct_return` 靠它判分水岭），
+            # 否则那道护栏没有输入。缺字段时给空串 ⇒ 调用方按"未标注"处理（不拦，保持旧行为）。
+            "law_as_of_basis": doc.metadata.get("law_as_of_basis", ""),
+            "fingerprint": doc.metadata.get("options_fingerprint", ""),
+            # W06-IMPL：把候选链带出给读出口——出口据此装载 SQL 状态判资格。存量无链记录此项为 None
+            # ⇒ `qa_eligibility` 走「无链按来源可校验放行」，而非按缺链 fail-closed。
+            "qa_candidate_id": doc.metadata.get("qa_candidate_id"),
+        }
+    )
+    # 票 C20（形状①）：链的**权威**在 SQL（`qa_candidates.vector_doc_id`），metadata 那份只是快路径。
+    # doc id 挂在对象上、不做成 dict 键——加键会打穿「qa_hit 与手搓 dict 相等」那一族接缝判据
+    # （与 `state_slot` 同一条理由；判据：tests/test_qa_chain_by_doc_id.py）。
+    # 缺这一行时，metadata 无链的存量记录**永远进不了状态轴** ⇒ 已签的"未核订存量退出直返"是空话。
+    hit.doc_id = getattr(doc, "id", None)
+    return hit
+
+
 def search_qa(query: str, threshold: float = 0.7):
     """命中已确认问答则返回 {question,answer,score}，否则 None。
 
     性能优化（ADR-011 阶段D）：cosine 空间复用 chroma 距离分（1-dist），免重嵌。
+
+    **保留原始语义（票 C21-A 红线）**：k=1、两条计分分支逐字不变；本函数仍是写侧去重入口
+    （`qa_seeds.py` / `scripts/gen_qa_corpus.py` 用 `threshold=0.99` 幂等去重），不把读取资格
+    策略塞进来。候选窗/资格选择改在 `search_eligible_qa`。
     """
     res = _qa_store.similarity_search_with_score(query, k=1)
     if not res:
@@ -403,33 +442,93 @@ def search_qa(query: str, threshold: float = 0.7):
             return None
     if score < threshold:
         return None
-    from qa_eligibility import QaHit  # 局部导入：只在真有命中时才碰判据模块（同 `_qa_store` 的加载纪律）
+    return _qa_hit_from(res[0][0], score)
 
-    hit = QaHit(
-        {
-            "question": res[0][0].page_content,
-            "answer": res[0][0].metadata.get("answer", ""),
-            "score": round(score, 4),
-            "evidence": res[0][0].metadata.get("evidence", ""),
-            # 票 I 的 I-2(a)：把语料的**版本基准日**带到调用方（`main._qa_direct_return` 靠它判分水岭），
-            # 否则那道护栏没有输入。缺字段时给空串 ⇒ 调用方按"未标注"处理（不拦，保持旧行为）。
-            "law_as_of_basis": res[0][0].metadata.get("law_as_of_basis", ""),
-            "fingerprint": res[0][0].metadata.get("options_fingerprint", ""),
-            # W06-IMPL：把候选链带出给读出口——出口据此装载 SQL 状态判资格。存量无链记录此项为 None
-            # ⇒ `qa_eligibility` 走「无链按来源可校验放行」，而非按缺链 fail-closed。
-            "qa_candidate_id": res[0][0].metadata.get("qa_candidate_id"),
-        }
-    )
-    # 票 C20（形状①）：链的**权威**在 SQL（`qa_candidates.vector_doc_id`），metadata 那份只是快路径。
-    # doc id 挂在对象上、不做成 dict 键——加键会打穿「qa_hit 与手搓 dict 相等」那一族接缝判据
-    # （与 `state_slot` 同一条理由；判据：tests/test_qa_chain_by_doc_id.py）。
-    # 缺这一行时，metadata 无链的存量记录**永远进不了状态轴** ⇒ 已签的"未核订存量退出直返"是空话。
-    hit.doc_id = getattr(res[0][0], "id", None)
-    return hit
+
+def _score_qa_candidates(query: str, results) -> list:
+    """给一组 (Document, distance) 按集合**实际 metric** 计**未舍入**分；返回等长的 float|None 表。
+
+    两支口径与 raw `search_qa` 一致：
+    - cosine：`1 - distance` 夹取 [0,1]（沿用 ADR-011 阶段D 的免重嵌）；
+    - 非 cosine：`query` 只嵌 **1 次**，候选**最多 1 次批量嵌**（≤9 条），逐条余弦。
+    计分异常（嵌入失败/余弦非法）该条记 None ⇒ 不放行、不偷用距离分。
+    """
+    if not results:
+        return []
+    if _qa_is_cosine():
+        return [max(0.0, min(1.0, 1.0 - float(dist))) for _doc, dist in results]
+    try:
+        qv = embeddings.embed_query(query)
+        dvs = embeddings.embed_documents([doc.page_content for doc, _dist in results])
+    except Exception:
+        return [None] * len(results)
+    scores: list = []
+    for dv in dvs:
+        try:
+            scores.append(rc.cos(qv, dv))
+        except Exception:
+            scores.append(None)
+    return scores
+
+
+def search_eligible_qa(query: str, threshold: float = 0.7):
+    """有界资格选择入口（票 C21-A Task 2）：返回选中的**原 `QaHit`** 或 None。
+
+    一次取 `k = 8 + 1`：前 8 条按资格与同分组选择，第 9 条**只作边界哨兵**。资格唯一真源是
+    `qa_eligibility.qa_read_eligible`（状态轴→来源→引用），本函数**不新造**第二份 SQL/引用判据；
+    拒绝只经 `qa_eligibility.log_read_denial` 落归因键 + 候选 id（绝不输出题干/答案/evidence 原文）。
+
+    候选全拒/计分异常/窗内分歧/边界风险时返回 None，**不扩大查询、不反复补池**。选择规则本身
+    在 `qa_selection.select_candidate`（纯标准库）。
+    """
+    from qa_eligibility import load_read_state_for, log_read_denial, qa_read_eligible
+    from qa_selection import WINDOW, Candidate, select_candidate
+
+    try:
+        res = _qa_store.similarity_search_with_score(query, k=WINDOW + 1)
+    except Exception:
+        # 向量候选查询失败 ⇒ 不放行（fail-closed），且不留原文。这是**候选召回层**失败，不是资格
+        # 状态轴判定 ⇒ 落专用归因键 `qa_candidate_query_failed`（票 C21-A review J2），不再借
+        # `qa_eligibility_reason="state"` 冒充状态轴拒绝（那会把"语料被资格拦"的读数被召回故障污染）。
+        logger.warning("qa_candidate_query_failed", extra={"qa_candidate_query_failed": True})
+        return None
+    if not res:
+        return None
+    scores = _score_qa_candidates(query, res)
+    candidates = []
+    denial_logged = False  # 票 C21-A review（J7）：每请求最多一条拒绝留痕（见下方循环内说明）
+    for index, ((doc, _dist), score) in enumerate(zip(res, scores, strict=True)):
+        finite = isinstance(score, (int, float)) and not isinstance(score, bool) and math.isfinite(float(score))
+        doc_id = getattr(doc, "id", None)
+        if not finite:
+            # 计分异常：不放行，且不带可服务分数（纯选择据此归 `score_error`）。
+            candidates.append(
+                Candidate(hit=_qa_hit_from(doc, 0.0), doc_id=doc_id, raw_score=float("nan"), allowed=False)
+            )
+            continue
+        hit = _qa_hit_from(doc, score)
+        # 只有前 WINDOW 条参与资格判定与选择；第 9 条只是哨兵，不为它多开一条 SQL 会话。
+        if index >= WINDOW:
+            candidates.append(Candidate(hit=hit, doc_id=doc_id, raw_score=float(score), allowed=False))
+            continue
+        verdict = qa_read_eligible(hit, load_read_state_for(hit))
+        # 票 C21-A review（J6）：本函数已是「产生处」⇒ 拒绝留痕**带门布尔**，恢复在册读数
+        # `qa_provenance_refused`/`qa_citation_refused`（原先这里不带门布尔，且被拒 hit 到不了
+        # request_bootstrap 的复核支 ⇒ 两个读数一度失去生产者）。
+        # 票 C21-A review（J7）：**每请求最多记一次**（原先逐候选记 ⇒ 一次拒绝最多放大到 8 条，
+        # 与验收 S17「不重复计成多次请求」相悖）。
+        if not verdict.allow and not denial_logged:
+            log_read_denial(hit, verdict.reason, with_gate_boolean=True)
+            denial_logged = True
+        candidates.append(Candidate(hit=hit, doc_id=doc_id, raw_score=float(score), allowed=bool(verdict.allow)))
+    return select_candidate(candidates, threshold=threshold).hit
 
 
 # ==================== 受控沉淀 CRUD ====================
-# 有据分 ≥ 此值自动收录（直接写 qa_pairs，跳过人工待审）——用户要求（2026-08-07）
+# 原「有据分 ≥ 此值自动收录」的阈值（2026-08-07 用户要求）。
+# 票 W06-P0（C03=P 写侧，2026-10-18）：**自动批准已暂停**——create_candidate 不再按分数自动收录/写
+# 向量，高分一律只入 pending。本常量保留**仅供**离线迁移分类脚本（scripts/backfill_qa_link.py）
+# 识别旧的「自动来源」存量，值不改，也不再具有任何自动批准语义。
 AUTO_CURATE_THRESHOLD = 0.89
 
 # 票 W06-FIX F1/V3：**「未链」是有名有数的状态，不是一个语义空缺**。
@@ -468,47 +567,16 @@ def _record_qa_write(cand_id: int | None) -> None:
 
 
 def create_candidate(db: Session, question: str, answer: str, grounded_score: float, evidence: str):
-    """入候选。有据分 ≥ 0.89 自动收录（写 qa_pairs + 清缓存 + 标记 approved，不留待审）；
-    否则进待审队列（status=pending，人工采纳）。反馈纠错（grounded=0）不受影响仍待审。
+    """入候选。**所有分数一律待审（status=pending）**，不再按有据分自动收录/写向量。
 
-    W06-IMPL：自动收录改**先落 SQL 行拿 id**（flush，未提交），再带 `cand_id`/自生成 `doc_id` 写向量
-    并把 `vector_doc_id` 记回行 ⇒ 双向链闭合；`approval_source="auto_by_score_inferred"` 让机器批准
-    与人工批准**从此可区分**（此前两份拷贝都只写 approved，字节级不可分）。
+    票 W06-P0（C03=P 写侧，2026-10-18）：原实现 grounded_score ≥ AUTO_CURATE_THRESHOLD 时即
+    status="approved"、add_qa_pair 写 QA 向量、并自签 approval_source="auto_by_score_inferred"。
+    Owner 已裁「暂停自动批准，高分只入待审」⇒ 本函数**不再**自动写向量、也不再自签来源：可服务的
+    向量写入与 human 来源只由**人工** `decide_candidate(approved)` 产生。分数/证据照实保留，
+    明确的人工采纳路径与既有撤回/缓存/链接语义一字未改。
+
+    票 W06-C §5.1：派生 QA 的来源包由 `main._post` 在该候选行上补写（不在此改调用形状）。
     """
-    if grounded_score >= AUTO_CURATE_THRESHOLD:
-        c = QaCandidate(
-            question=question,
-            answer=answer,
-            grounded_score=grounded_score,
-            evidence=evidence,
-            status="approved",
-            approval_source="auto_by_score_inferred",
-        )
-        db.add(c)
-        db.flush()  # 取回自增 id：向量的 qa_candidate_id 要在写入前就知道它
-        doc_id = uuid.uuid4().hex
-        add_qa_pair(question, answer, evidence or "", cand_id=c.id, doc_id=doc_id)
-        c.vector_doc_id = doc_id
-        # 票 W06-FIX F5（V1）：**先提交再清缓存**，两件事的顺序就是这条的判据对象。
-        # 改前是 `retrieval.invalidate()` 在 `db.commit()` 之前 ⇒ invalidate 之后、commit 之前那一段里，
-        # 并发请求仍能从 SQL 读到**旧状态**，把刚被撤掉的答案**写回回答缓存**（TTL 6 小时），
-        # 于是「撤回即时生效」在窗口内被反向击穿；SQLite 单写者 + `timeout=30` 还会把窗口拉长。
-        # 收录这一支的顺序同样按「提交可见 ⇒ 再清缓存」统一。
-        #
-        # 票 R2-F7（复核第二轮）：上一轮在这里补的那句旧理由——把「提交没成功」当成「没有变更、
-        # 所以没有该清的」——是**错的**，复核照原样打穿了：向量是上面 `add_qa_pair` 在 commit **之前**
-        # 就写好的，提交失败时「有变更」这件事已经成立（向量侧那条 QA 活着），而进程缓存与回答缓存
-        # 仍留着旧读数——改前（invalidate 排在 commit 之前）本来就无条件清，这条洞是上一轮新挖的。
-        # 现在收进 `finally`：提交成功＝提交可见后清；提交炸＝照样清再上抛。
-        # 清早了的代价只是让人多查一次，留着旧读数的代价是一条已落进向量的语料被陈旧缓存一直盖着。
-        # （判据：tests/test_qa_revocation_lifecycle.py::
-        #  test_r2_commit_failure_still_clears_the_cache_on_both_write_branches ＋那条反对照）
-        try:
-            db.commit()
-        finally:
-            retrieval.invalidate()
-        db.refresh(c)
-        return c
     c = QaCandidate(
         question=question, answer=answer, grounded_score=grounded_score, evidence=evidence, status="pending"
     )

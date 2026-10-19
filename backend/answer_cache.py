@@ -56,11 +56,17 @@ def put(
     model: str = "",
     scope: CacheScope | None = None,
     generation: int | None = None,
+    qa_dependencies=None,
 ) -> None:
     """写入（调用方须先确认 self_check PASS + 写闸 _cache_write_ok）。
 
     近重复命中所需元数据（embedding/护栏/指纹/model）由调用方 main.py 提供；
     无 embedding 或 scope 的旧条目仅可精确命中；generation 拒绝失效前启动的写入。
+
+    票 W06-B §4.1：`qa_dependencies` 是**冻结的不可变 QA 依赖快照**（tuple[QaDependency,...]）。
+    `None`（默认）＝依赖未知 ⇒ 该条目可精确保留但在读侧不服务；空 `tuple`＝已确认本次输入无 QA；
+    非空 tuple＝生成实际用到的 QA 记录。模块本身**不打开 SQL**——只存冻结值，核验由 main 侧的
+    异步入口（投线程池调 `qa_eligibility.validate_dependencies`）负责。旧条目没有该字段＝未知。
     """
     _cache.put(
         key,
@@ -75,6 +81,7 @@ def put(
             "options_fingerprint": options_fingerprint,
             "model": model,
             "scope": scope,
+            "qa_dependencies": qa_dependencies,
         },
         generation=generation,
     )

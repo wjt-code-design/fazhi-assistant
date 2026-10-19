@@ -761,6 +761,23 @@ def _assemble_initial_state(
     )
 
 
+def _observation_revoked(item) -> bool:
+    """W06-C §5.2：持久观察的**内部来源包**是否已失效（撤回/隔离/变版/变内容/读不动）。
+
+    只对真正带了来源包的观察做复核；来源未知（NULL／坏格式／complete=false）**不在此判失效**
+    （H07 未裁）：仍进模型，但不被当成可信空集（该口径在 `qa_eligibility`，此处不复制）。
+    """
+    prov_text = getattr(item, "qa_provenance", None)
+    if not prov_text:
+        return False
+    import qa_eligibility as qe
+
+    deps = qe.dependencies_for_reuse(qe.parse_provenance(prov_text))
+    if deps is None:
+        return False
+    return not qe.validate_dependencies(deps).allow
+
+
 def _planner_payload(state: LegalAgentState, bootstrap: RequestBootstrap) -> dict[str, object]:
     return {
         "query": bootstrap.raw_query,
@@ -773,6 +790,8 @@ def _planner_payload(state: LegalAgentState, bootstrap: RequestBootstrap) -> dic
             }
             for issue in state.issues
         ],
+        # W06-C §5.2：**新工具返回与旧 run 恢复走同一投影**——已失效来源的观察不再交模型，
+        # 未知来源（H07 未裁）仍保留。这样"只过滤新工具返回值而放过恢复状态"不会被漏掉。
         "observations": [
             {
                 "issue_id": item.issue_id,
@@ -782,6 +801,7 @@ def _planner_payload(state: LegalAgentState, bootstrap: RequestBootstrap) -> dic
                 "error_code": item.error_code,
             }
             for item in state.observations
+            if not _observation_revoked(item)
         ],
         "evidence": [
             {

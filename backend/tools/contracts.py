@@ -166,6 +166,9 @@ class RetrieveMemoryOutput(BaseModel):
     statement: str = Field(min_length=1)
     summary: str = ""
     messages: list[MemoryMessage] = Field(default_factory=list)
+    # W06-C（§5.2）：内部来源包——随工具结果携带，供再沉淀/复核继承祖先。
+    # **exclude=True**：不序列化进模型可见输出（不把内部来源塞进用户/模型正文），消费者读对象属性。
+    provenance: str | None = Field(default=None, exclude=True)
 
 
 class AskUserInput(BaseModel):

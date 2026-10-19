@@ -31,6 +31,8 @@ class Conversation(Base):
     # 多轮 + 压缩
     title = Column(String(200), default="")
     summary = Column(Text, default="")  # 增量滚动摘要
+    # W06-C（§5.1）：摘要的真实传递来源包（json）。NULL＝旧来源未知（≠"无 QA 依赖"）。
+    summary_provenance = Column(Text, nullable=True)
     message_count = Column(Integer, default=0)
     summary_upto = Column(Integer, default=0)  # 增量压缩指针：已被摘要覆盖的最旧消息条数
     last_active_at = Column(DateTime, default=datetime.utcnow)
@@ -59,6 +61,9 @@ class Message(Base):
     # T1（2026-09-16）：Agent 终稿消息关联的 run——历史会话经此读取结构化覆盖信息
     # （full/partial）。旧消息与普通 RAG 消息为 NULL → 投影为 unknown，不推断 full。
     agent_run_id = Column(String(36), ForeignKey("agent_runs.id"), nullable=True, index=True)
+    # W06-C（§5.1）：这条消息生成时实际使用的 QA/历史传递来源包（json）。
+    # NULL＝旧来源未知（≠"无 QA 依赖"）；原文/角色/排序不变，只是多一列内部来源。
+    qa_provenance = Column(Text, nullable=True)
     token_est = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.utcnow)
 
@@ -88,6 +93,9 @@ class QaCandidate(Base):
     # 链的**权威存放处**（票 C20 形状①）：向量 metadata 那份只是快路径，读出口在缺键时按这一列回查。
     # 因此它必须有索引——没有索引时"每次命中回查一次"＝每次命中全表扫（现网 759 行是玩具，语料涨起来就是每问一扫）。
     vector_doc_id = Column(String(64), nullable=True, index=True)
+    # W06-C（§5.1）：派生 QA 的真实传递来源包（json）——继承祖先依赖，防新 candidate id 洗白撤回。
+    # NULL＝旧来源未知（≠"无 QA 依赖"），读侧按传递依赖复核。
+    qa_provenance = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow)
 
 

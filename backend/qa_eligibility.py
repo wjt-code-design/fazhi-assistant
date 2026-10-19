@@ -27,6 +27,8 @@
    `load_read_state_for` 的请求内复用（`QaHit.state_slot`）⇒ 一条。判据是**计数替身**，不是读代码。
 """
 
+import hashlib
+import json
 import logging
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -48,6 +50,22 @@ _GATE_BOOLEAN = {"provenance": "qa_provenance_refused", "citation": "qa_citation
 class Eligibility:
     allow: bool
     reason: str = ""
+
+
+@dataclass(frozen=True)
+class QaDependency:
+    """**不可变** QA 依赖快照（票 W06-B §4.1）：生成实际用到的 QA 记录的冻结值。
+
+    只含进程内部核对用的字段——`candidate_id`（SQL 主键）、`vector_doc_id`（链映射）、
+    `eligibility_version`（资格版本）与 `record_digest`（question/answer/evidence 的确定性摘要）。
+    摘要**只在进程内部核对**，绝不落日志/报告（题干可能就是用户问句，答案/证据属 AUTH-3 禁项）。
+    不携带可变 `QaHit`/`state_slot`，也不从答案引用反推依赖。
+    """
+
+    candidate_id: int
+    vector_doc_id: str
+    eligibility_version: int
+    record_digest: str
 
 
 class QaHit(dict):
@@ -153,6 +171,8 @@ def load_read_state(cand_id):
             "approval_source": row.approval_source,
             "status": row.status,
             "vector_doc_id": row.vector_doc_id,
+            # W06-C §5.1：派生 QA 的来源包（NULL=旧来源未知）。状态轴据此复核**传递依赖**。
+            "qa_provenance": row.qa_provenance,
         }
     finally:
         db.close()
@@ -174,6 +194,13 @@ def _state_axis(meta, state) -> Eligibility | None:
         return Eligibility(False, "state")
     if state.get("approval_source") in (None, "unknown"):
         return Eligibility(False, "provenance")  # 未知来源＝不可服务
+    # W06-C §5.1：派生 QA 的**传递依赖**复核——从失效祖先生成的新 candidate 不得借新 id 绕过撤回。
+    # 仅当该行真带了来源包（qa_provenance 非 NULL）时才多开一次复核会话；旧行 NULL 不受影响。
+    prov = parse_provenance(state.get("qa_provenance"))
+    if prov is not None:
+        deps = dependencies_for_reuse(prov)
+        if deps is None or not validate_dependencies(deps).allow:
+            return Eligibility(False, "ancestor")
     return None
 
 
@@ -192,14 +219,28 @@ def _load_state_safe(qa_hit):
         return None
 
 
-def load_read_state_for(hit):
+def load_read_state_for(hit, *, fresh: bool = False):
     """一条 qa_hit 的 SQL 状态：**同一次请求内只读一次**（票 W06-FIX F9/V8，把每请求两条 session 降到一条）。
 
     有槽（`QaHit`，即真 `search_qa` 出来的那条）⇒ 第一个判定点读一次，其余判定点复用；
     无槽（探针手搓的 plain dict）⇒ 每个判定点自己读一次。两者语义完全一致，只差那次 SELECT。
     复用范围严格限定在**同一个 qa_hit 对象**上，而该对象随 `pre` 活在一次请求里 ⇒
     撤回的可见性不受影响（下一条请求必然重读），也不会出现「今天的读服务昨天撤回前的状态」那种跨请求残留。
+
+    票 W06-B §4.2：`fresh=True` 时**先清掉该 hit 的状态槽与链记忆**再重读（等价于开一条新 SQL 会话、
+    不复用早期 ORM 读数）——阶段边界（P/O/W）与缓存命中后的复核走这条；阶段内仍可复用（默认 False）。
     """
+    if fresh:
+        slot = getattr(hit, "state_slot", None)
+        if isinstance(slot, dict):
+            slot.clear()
+        link = getattr(hit, "doc_link", None)
+        if isinstance(link, dict):
+            link.clear()
+        cand_id = _cand_id(hit)
+        if cand_id is None:
+            return None
+        return _load_state_safe(hit)
     cand_id = _cand_id(hit)
     if cand_id is None:
         return None
@@ -250,13 +291,306 @@ def qa_read_eligible(meta_or_doc_id, state) -> Eligibility:
     return Eligibility(True, "")
 
 
-def evaluate_revocation_state(qa_hit) -> Eligibility:
+def evaluate_revocation_state(qa_hit, *, fresh: bool = False) -> Eligibility:
     """读出口用的一站式**状态轴**判定：从 qa_hit 取链 → 装载 SQL 状态（读不到即 fail-closed）→ 出裁决。
 
     状态装载走 `load_read_state_for`（同一次请求内复用那一次 SELECT，票 W06-FIX F9）。
     拒绝只经 `log_read_denial` 落归因键 + 候选 id（int），绝不落题干/答案原文（题干可能就是用户问句）。
+
+    票 W06-B §4.2：`fresh=True` 传给 `load_read_state_for` ⇒ 清槽后新读（阶段边界复核用）。
     """
-    verdict = _state_axis(qa_hit, load_read_state_for(qa_hit)) or Eligibility(True, "")
+    verdict = _state_axis(qa_hit, load_read_state_for(qa_hit, fresh=fresh)) or Eligibility(True, "")
     if not verdict.allow:
         log_read_denial(qa_hit, verdict.reason)
     return verdict
+
+
+# ==================== W06-B：不可变 QA 依赖快照与缓存读守 ====================
+# §4.1：`None`＝依赖未知（不读/不写可复用缓存）；空 `tuple`＝该次完整构造输入**已确认没有使用 QA**；
+# 非空 tuple＝完整 QA 依赖。摘要只在进程内部核对，绝不落日志/报告（题干即用户问句，答案/证据禁项）。
+
+
+# 记录摘要的**内部格式版本**：L10（设计 §5.1）要求摘要覆盖来源包与 schema 版本，
+# 只哈希 question/answer/evidence 不能检出"祖先来源包变化"。改了编码即等同换格式 ⇒ 旧缓存保守 miss。
+_RECORD_DIGEST_SCHEMA_VERSION = 1
+
+
+def _record_digest(question, answer, evidence, qa_provenance=None) -> str:
+    """SQL 记录的确定性内部摘要（不落盘/不落日志）。
+
+    L10（设计 §5.1）：纳入**来源包 + 其 schema 版本**——只哈希 question/answer/evidence 时，
+    "祖先来源包变了"（撤回/新增依赖）检不出来，旧"已核"快照会被复用。字段顺序固定；来源包为
+    NULL/空串时与旧口径同值（旧行不受影响），有来源包时摘要随其变化。
+    """
+    payload = json.dumps(
+        [
+            _RECORD_DIGEST_SCHEMA_VERSION,
+            str(question or ""),
+            str(answer or ""),
+            str(evidence or ""),
+            str(qa_provenance or ""),
+        ],
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _hit_matches_row(row, hit) -> bool:
+    """核 SQL 记录内容与选中 hit 一致（题干/答案/证据三字段逐字）。不一致 ⇒ 不做依赖快照。"""
+    if not isinstance(hit, Mapping):
+        return False
+    return (
+        str(getattr(row, "question", "") or "") == str(hit.get("question") or "")
+        and str(getattr(row, "answer", "") or "") == str(hit.get("answer") or "")
+        and str(getattr(row, "evidence", "") or "") == str(hit.get("evidence") or "")
+    )
+
+
+def capture_dependency(hit) -> QaDependency | None:
+    """从一条**实际参与生成**的 hit 收集不可变依赖快照；拿不到可靠 SQL 身份 ⇒ None。
+
+    收集时（§4.1）核 SQL 记录内容与选中 hit 一致、链映射一致，再保存冻结值。SQL 没有
+    `law_as_of_basis` ⇒ 不把 created_at/eligibility_version 冒充法律版本（本函数根本不碰它们）。
+    无可靠身份（无链、行不存在、内容不一致、链映射不一致、读取异常）一律 None（＝依赖未知）。
+    """
+    cand_id = _cand_id(hit)
+    if cand_id is None:
+        return None
+    db = None
+    try:
+        db = database.SessionLocal()
+        row = db.get(models.QaCandidate, cand_id)
+        if row is None:
+            return None
+        doc_id = getattr(hit, "doc_id", None)
+        if doc_id and row.vector_doc_id and str(doc_id) != str(row.vector_doc_id):
+            return None
+        if not _hit_matches_row(row, hit):
+            return None
+        return QaDependency(
+            candidate_id=int(cand_id),
+            vector_doc_id=str(row.vector_doc_id or ""),
+            eligibility_version=int(row.eligibility_version or 1),
+            record_digest=_record_digest(row.question, row.answer, row.evidence, getattr(row, "qa_provenance", None)),
+        )
+    except Exception:  # 库挂/查不动 ⇒ 依赖未知（不读/不写可复用缓存），绝不留原文
+        logger.warning("qa_dependency_capture_failed", extra={"qa_candidate_id": cand_id})
+        return None
+    finally:
+        if db is not None:
+            db.close()
+
+
+def _validate_one(db, dep: QaDependency) -> Eligibility:
+    """单条依赖在**新 SQL 会话**上的复核：任一撤回/隔离/丢行/映射变化/版本变化/内容变化 ⇒ 拒绝。"""
+    row = db.get(models.QaCandidate, dep.candidate_id)
+    if row is None:
+        return Eligibility(False, "missing")  # 丢行
+    if row.eligibility in ("revoked", "quarantined"):
+        return Eligibility(False, "state")  # 撤回/隔离
+    if row.approval_source in (None, "unknown"):
+        return Eligibility(False, "provenance")  # 未知来源
+    if str(row.vector_doc_id or "") != str(dep.vector_doc_id):
+        return Eligibility(False, "identity")  # 链映射变化
+    if int(row.eligibility_version or 1) != int(dep.eligibility_version):
+        return Eligibility(False, "version")  # 版本变化
+    if _record_digest(row.question, row.answer, row.evidence, getattr(row, "qa_provenance", None)) != dep.record_digest:
+        return Eligibility(False, "content")  # 记录内容或来源包（祖先）变化
+    return Eligibility(True, "")
+
+
+def validate_dependencies(deps) -> Eligibility:
+    """复核一份不可变依赖快照（票 W06-B §4.1）：`None`＝依赖未知 ⇒ 不服务；空 tuple ⇒ 放行；非空逐条核。
+
+    用**新的 SQL 会话**装一次，逐条核状态/身份/版本/内容；任一变化或读取异常 ⇒ miss。
+    本函数由调用方投进线程池执行（fast-path 业务代码不得在主线程直接读同步 SQL）。
+    """
+    if deps is None:
+        return Eligibility(False, "unknown")  # 依赖未知 ⇒ 不读/不写可复用缓存
+    if not deps:
+        return Eligibility(True, "")  # 已确认没有使用 QA
+    db = None
+    try:
+        db = database.SessionLocal()
+        for dep in deps:
+            verdict = _validate_one(db, dep)
+            if not verdict.allow:
+                return verdict
+    except Exception:  # 读取异常（含开会话失败）⇒ 不放行（异常≠已知无 QA）
+        logger.warning("qa_dependency_validate_failed")
+        return Eligibility(False, "unreadable")
+    finally:
+        if db is not None:
+            db.close()
+    return Eligibility(True, "")
+
+
+# ==================== W06-C：来源包（Provenance envelope，§5.1）====================
+# 消息 / 摘要 / 派生 QA 的**真实传递来源**。外层带 schema_version、complete 及依赖集合，
+# 依赖类型**复用** W06-B 的 `QaDependency`；序列化/解析/签发只有本模块这一处入口（单一真源）。
+PROVENANCE_SCHEMA_VERSION = 1
+# 依赖/输入 id 的容量上限：超限**保守判未知**，绝不截断后仍称完整（§4.1/§5.1）。
+MAX_QA_DEPENDENCIES = 64
+MAX_INPUT_MESSAGE_IDS = 64
+
+
+@dataclass(frozen=True)
+class Provenance:
+    """一条历史消息 / 摘要 / 派生 QA 的真实来源包（票 W06-C §5.1）。
+
+    - `complete=True, qa_dependencies=()`：真实输入已证明**没有** QA 祖先；
+    - `complete=True, qa_dependencies=[...]`：完整传递依赖；
+    - `complete=False` / 坏 JSON / 未来未支持 schema 版本：来源未知
+      （`parse_provenance` 返回 `None` 或 `dependencies_for_reuse` 返回 `None`），**绝不等价于无 QA 依赖**。
+
+    列上的 `NULL`（`None`）＝旧来源未知——与"空依赖"是两种状态，`build_provenance` 里禁止互相代换。
+    """
+
+    complete: bool
+    qa_dependencies: tuple[QaDependency, ...] = ()
+    input_message_ids: tuple[int, ...] = ()
+    schema_version: int = PROVENANCE_SCHEMA_VERSION
+
+
+def _dep_payload(dep: QaDependency) -> dict:
+    return {
+        "candidate_id": int(dep.candidate_id),
+        "vector_doc_id": str(dep.vector_doc_id),
+        "eligibility_version": int(dep.eligibility_version),
+        "record_digest": str(dep.record_digest),
+    }
+
+
+def _dep_from_payload(item) -> QaDependency | None:
+    if not isinstance(item, dict):
+        return None
+    try:
+        cid = item["candidate_id"]
+        vdid = item["vector_doc_id"]
+        ev = item["eligibility_version"]
+        rd = item["record_digest"]
+    except KeyError:
+        return None
+    if isinstance(cid, bool) or not isinstance(cid, int):
+        return None
+    if not isinstance(vdid, str) or not isinstance(rd, str):
+        return None
+    if isinstance(ev, bool) or not isinstance(ev, int):
+        return None
+    return QaDependency(int(cid), vdid, int(ev), rd)
+
+
+def serialize_provenance(prov: Provenance) -> str:
+    """来源包的**唯一序列化入口**（字段顺序固定、确定性 JSON）。"""
+    payload = {
+        "schema_version": int(prov.schema_version),
+        "complete": bool(prov.complete),
+        "qa_dependencies": [_dep_payload(d) for d in prov.qa_dependencies],
+        "input_message_ids": [int(i) for i in prov.input_message_ids],
+    }
+    return json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True)
+
+
+def parse_provenance(text) -> Provenance | None:
+    """来源包的**唯一解析入口**。`None`/空串/坏 JSON/未来 schema/坏元素/超容量 ⇒ `None`（来源未知）。
+
+    未知是保守的一侧：调用方不得把它降成"已知空依赖"。
+    """
+    if text is None or text == "":
+        return None
+    try:
+        data = json.loads(text)
+    except (ValueError, TypeError):
+        return None
+    if not isinstance(data, dict):
+        return None
+    schema_version = data.get("schema_version")
+    if isinstance(schema_version, bool) or not isinstance(schema_version, int):
+        return None
+    if schema_version != PROVENANCE_SCHEMA_VERSION:
+        return None  # 未来未支持的 schema 版本 ⇒ 来源未知，不作可信空集
+    complete = data.get("complete")
+    if not isinstance(complete, bool):
+        return None
+    raw_deps = data.get("qa_dependencies")
+    if not isinstance(raw_deps, list):
+        return None
+    deps: list[QaDependency] = []
+    for item in raw_deps:
+        dep = _dep_from_payload(item)
+        if dep is None:
+            return None
+        deps.append(dep)
+    raw_ids = data.get("input_message_ids", [])
+    if not isinstance(raw_ids, list):
+        return None
+    if any(isinstance(item, bool) or not isinstance(item, int) for item in raw_ids):
+        return None
+    if len(deps) > MAX_QA_DEPENDENCIES or len(raw_ids) > MAX_INPUT_MESSAGE_IDS:
+        return None  # 容量超限 ⇒ 不许截断后仍称完整
+    return Provenance(
+        complete=complete,
+        qa_dependencies=tuple(deps),
+        input_message_ids=tuple(int(i) for i in raw_ids),
+        schema_version=schema_version,
+    )
+
+
+def build_provenance(qa_dependencies, ancestors=(), input_message_ids=()) -> Provenance | None:
+    """**唯一签发入口**：为一份生成 / 摘要 / 派生输入签发来源包。
+
+    - `qa_dependencies`：本次实际使用的 QA 依赖（tuple）或 `None`（未知）；
+    - `ancestors`：本次实际复用的历史消息 / 摘要 / 工具结果来源包；任一为 `None`（未知）或
+      `complete=False` ⇒ 整体未知（未知祖先**传播未知**），不把未知/不完整当可信空集；
+    - 依赖按 (candidate_id, vector_doc_id, eligibility_version, record_digest) 去重；容量超限 ⇒ 未知。
+    """
+    if qa_dependencies is None:
+        return None  # 本次 QA 使用情况未知 ⇒ 整体未知
+    deps: list[QaDependency] = list(qa_dependencies)
+    ids: list[int] = [int(i) for i in input_message_ids]
+    for ancestor in ancestors:
+        if ancestor is None:
+            return None  # 未知祖先 ⇒ 传播未知，绝不降成空集
+        if not ancestor.complete:
+            return None  # 不完整祖先包不作可信输入
+        deps.extend(ancestor.qa_dependencies)
+        ids.extend(ancestor.input_message_ids)
+    seen = set()
+    unique: list[QaDependency] = []
+    for dep in deps:
+        key = (dep.candidate_id, dep.vector_doc_id, dep.eligibility_version, dep.record_digest)
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(dep)
+    unique_ids = sorted({int(i) for i in ids})
+    if len(unique) > MAX_QA_DEPENDENCIES or len(unique_ids) > MAX_INPUT_MESSAGE_IDS:
+        return None  # 容量耗尽：保守判未知，不截断后谎称完整
+    return Provenance(complete=True, qa_dependencies=tuple(unique), input_message_ids=tuple(unique_ids))
+
+
+def dependencies_for_reuse(prov: Provenance | None):
+    """把来源包还原成**可复核的依赖快照**给复用方：`None`＝来源未知（不是空集）；否则依赖元组。"""
+    if prov is None or not prov.complete:
+        return None
+    return tuple(prov.qa_dependencies)
+
+
+def provenance_state(prov: Provenance | None) -> Eligibility:
+    """来源包复用前的状态：未知(False,'unknown') / 已知空(True) / 非空且逐条复核通过(True)。
+
+    复核走 `validate_dependencies`（新 SQL 会话）。**未知不在此判"失效"**——H07（旧未知来源输入规则）
+    未裁前，调用方按各路径既有行为处理，既不把未知当可信空集，也不静默全量屏蔽。
+    """
+    deps = dependencies_for_reuse(prov)
+    if deps is None:
+        return Eligibility(False, "unknown")
+    return validate_dependencies(deps)
+
+
+def has_self_reference(prov: Provenance | None, candidate_id: int) -> bool:
+    """派生来源自引用检查：来源包里含 candidate_id 自身 ⇒ True（调用方据此拒签发，防借新 id 洗白）。"""
+    if prov is None:
+        return False
+    return any(dep.candidate_id == int(candidate_id) for dep in prov.qa_dependencies)
