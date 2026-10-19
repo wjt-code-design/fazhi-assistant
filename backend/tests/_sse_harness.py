@@ -210,7 +210,8 @@ def sse_client(
     monkeypatch.setattr(main, "make_chain", lambda llm: _FakeChain(flagship_parts))
     monkeypatch.setattr(main, "retrieve", _one_hit_retrieval)
     monkeypatch.setattr(main, "classify_intent", lambda t: "legal_query")
-    monkeypatch.setattr(main.ks, "search_qa", lambda q: None)
+    # 票 C21-A：main 快车道现走 search_eligible_qa（有界资格选择适配器）⇒ 打桩点随之改名。
+    monkeypatch.setattr(main.ks, "search_eligible_qa", lambda q: None)
     # 引用校验放行（假答案引用的条文视为在库）
     monkeypatch.setattr(main, "citation_verify", lambda a, in_kb=None: [])
     monkeypatch.setattr(main.registry, "has_role", lambda modality, tier: False)

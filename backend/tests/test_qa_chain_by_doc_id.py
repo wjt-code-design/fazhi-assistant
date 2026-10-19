@@ -245,9 +245,15 @@ def test_lookup_failure_is_fail_closed_not_deferred_to_provenance(db, double_emb
 
 
 def test_new_writes_still_put_the_chain_in_metadata(db, double_embeddings):
-    """快路径那份链不许因为"反正能回查"就停写——停写会让每次命中都多一条 SELECT（同一份语义退化成两次读）。"""
+    """快路径那份链不许因为"反正能回查"就停写——停写会让每次命中都多一条 SELECT（同一份语义退化成两次读）。
+
+    W06-P0（C03=P 写侧）：新写入触发点从「自动收录」改到**人工采纳**——create_candidate 只入 pending、
+    不写向量；decide_candidate(approved) 才写，且仍把链落进 metadata（qa_candidate_id 与 vector_doc_id 一致）。
+    """
     q = "C20丁：新的自动收录还写不写 metadata 链？"
     row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    assert row.status == "pending", "高分不应再自动批准（W06-P0）"
+    ks.decide_candidate(db, row.id, "approved")
     hit = ks.search_qa(q)
     assert hit is not None
     assert hit.get("qa_candidate_id") == row.id, (

@@ -398,8 +398,8 @@ def test_delete_waits_until_current_assistant_is_committed(store):
     committed = []
     real_post = namespace["_post"]
 
-    def observe_commit(*args):
-        real_post(*args)
+    def observe_commit(*args, **kwargs):
+        real_post(*args, **kwargs)
         committed.append(snapshot(store))
 
     namespace["_post"] = observe_commit

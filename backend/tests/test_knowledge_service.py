@@ -87,30 +87,32 @@ def test_concurrent_add_text_idempotent():
 
 
 # ---------------- 受控沉淀自动收录（2026-08-07） ----------------
-def test_create_candidate_auto_approve(monkeypatch, db):
-    """有据分 >= 0.89 自动收录（写 qa_pairs + status=approved）；< 0.89 进待审。
+def test_create_candidate_is_always_pending(monkeypatch, db):
+    """W06-P0 新契约：**所有分数一律 pending、一律不写向量**（高分不再自动收录、不自签来源）。
 
     2026-09-17 修复：此前直接 `database.SessionLocal()` —— 未设 DATABASE_URL 时
     database.py 回落到真实 backend/app.db，导致**每次全量跑批都写生产裸机库**
     （归因确证：贡献 3 次写事务，落 qa_candidates；见
     dispatch-output/pytest-full-20260917/db-write-attribution-report.md）。
     改用 conftest 的 `db` fixture（tmp_path 建库 + engine/SessionLocal 替换）实现隔离。
+
+    换契约（C03=P 写侧，2026-10-18）：原「≥0.89 自动 approved 且写 QA 向量」已废除。高分腿
+    （原「自动收录」腿）现与低分腿同判：`status=="pending"` 且 `add_qa_pair` 调用数为 0。
     """
     import retrieval
     from models import QaCandidate
 
     added = []
-    # W06-IMPL：add_qa_pair 现收 cand_id/doc_id 两个可选链接参数 ⇒ 测试替身同步放宽到能吃这些 kwargs，
-    # 语义逐字不变（仍只记第一次位置参数 q）。本用例的行为断言「自动收录写向量、待审不写」一字未改。
+    # add_qa_pair 替身放宽到能吃 cand_id/doc_id 等 kwargs，只记调用；新契约下应恒为 0 次。
     monkeypatch.setattr(ks, "add_qa_pair", lambda q, a, e="", fp="", *more, **link: added.append(q))
     monkeypatch.setattr(retrieval, "invalidate", lambda: None)
 
     q1, q2 = f"_auto_{id(object())}", f"_pend_{id(object())}"
     try:
         c1 = ks.create_candidate(db, q1, "答案", 0.95, "证据")
-        assert c1.status == "approved" and added == [q1]
+        assert c1.status == "pending" and added == []
         c2 = ks.create_candidate(db, q2, "答案", 0.70, "证据")
-        assert c2.status == "pending" and len(added) == 1
+        assert c2.status == "pending" and added == []
     finally:
         # 库已隔离到 tmp_path（fixture 负责 close/dispose），此处清理仅为语义完整
         db.rollback()

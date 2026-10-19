@@ -141,6 +141,9 @@ def test_empty_retrieval_is_successful_and_fabricates_no_evidence(context):
         },
         "error_code": None,
         "duration_ms": pytest.approx(observation.duration_ms),
+        # W06-C §5.2：持久观察多一列内部来源包（非来源型工具输出此处为 None）；
+        # 仍是**逐字闭集**，不是放宽成 in。
+        "qa_provenance": None,
     }
 
 

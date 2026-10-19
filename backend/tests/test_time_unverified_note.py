@@ -318,11 +318,11 @@ def test_e2_has_no_note_timing_under_explicit_basis(monkeypatch):
             "law_as_of_basis": "2026-08-23",
         }
 
-    _ask(monkeypatch, tune=lambda mp: mp.setattr(main.ks, "search_qa", fake_search_qa))
+    _ask(monkeypatch, tune=lambda mp: mp.setattr(main.ks, "search_eligible_qa", fake_search_qa))
     assert calls == [], f"带显式基准日的请求仍去取 QA 语料 ⇒ E2 的 NA 判定不成立：{calls}"
 
     calls.clear()
-    _ask(monkeypatch, as_of=None, tune=lambda mp: mp.setattr(main.ks, "search_qa", fake_search_qa))
+    _ask(monkeypatch, as_of=None, tune=lambda mp: mp.setattr(main.ks, "search_eligible_qa", fake_search_qa))
     assert calls, "对照组失效：不传基准日时也不取语料 ⇒ 上面那条 `calls == []` 是空枪"
 
 

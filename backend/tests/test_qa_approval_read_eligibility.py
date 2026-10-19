@@ -21,6 +21,9 @@
 **实现 W06 时应当变红的是 ①②③ 这几条**，届时请**改写**成"新契约成立"的断言，不要删掉——
 删掉就等于把这块唯一的现量证据销毁了。④ 是防漂移钉子，实现前后都该一直绿。
 
+**W06-P0（2026-10-18）**：①②③ 已随 C03=P **写侧落地**而改写——`create_candidate` 现一律 `pending`、
+不写向量；旧式自动批准行只能**合成直构**。本 header 的①②仍按 **T6/W06-IMPL 当时**的契约叙述。
+
 隔离：只用 `db`（tmp_path 上的临时 SQLite）＋ `double_embeddings`（conftest 的确定性伪向量）
 ＋ conftest 已改写的临时 `CHROMA_DIR`。**不碰真实 `app.db`、不碰 365 MB 真实语料、不加载真权重。**
 """
@@ -29,6 +32,7 @@ import inspect
 import json
 import os
 import sys
+import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -63,6 +67,30 @@ def _meta_of(question: str) -> dict:
     raise AssertionError(f"向量侧没有这条记录：{question[:24]}")
 
 
+def _synthetic_auto_row(db, question: str):
+    """合成一条**旧式自动批准行**——代表**旧存量**，**不由 create_candidate 产生**。
+
+    W06-P0 后 create_candidate 一律 pending、不写向量 ⇒ 旧「自动收录」的可服务记录（approved +
+    `approval_source="auto_by_score_inferred"` + 显式向量链）只能直接构造。链以 `cand_id`/`doc_id`
+    写入，与 `vector_doc_id` 双向闭合。
+    """
+    doc_id = uuid.uuid4().hex
+    row = QaCandidate(
+        question=question,
+        answer=ANSWER,
+        grounded_score=0.95,
+        evidence=EVIDENCE,
+        status="approved",
+        approval_source="auto_by_score_inferred",
+        vector_doc_id=doc_id,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    ks.add_qa_pair(question, ANSWER, EVIDENCE, cand_id=row.id, doc_id=doc_id)
+    return row
+
+
 def test_gate_signature_has_no_question_so_off_topic_answers_cannot_be_caught():
     """① 收录闸看不到题干 ⇒ 「答非所问」这类不合格答案在结构上就拦不住。"""
     assert "question" not in inspect.signature(curation.should_curate).parameters, (
@@ -80,16 +108,18 @@ def test_gate_signature_has_no_question_so_off_topic_answers_cannot_be_caught():
 
 
 def test_auto_approve_records_machine_source_and_closes_the_link(db, double_embeddings):
-    """W06-IMPL 改写（原钉 ②：approved 但向量侧没人/没时/没 ID）：
+    """W06-P0 改写（旧契约废除——create_candidate 不再自动批准、不写向量）：
 
-    现钉新契约——自动收录两头都记账：SQL 侧 `approval_source="auto_by_score_inferred"`，
-    向量侧 metadata 多出 `qa_candidate_id` 且与 SQL `vector_doc_id` 双向对得上。
-    仍**保留**的旧事实：status=approved、记录读得回、来源可校验、答案不变（这几条今天也还成立）。
+    现钉**人工采纳闭环**：`create_candidate(0.95)` 只入 `pending`；`decide_candidate(approved)` 后
+    SQL 侧 `approval_source="human"`、向量侧 metadata 多出 `qa_candidate_id` 且与 SQL `vector_doc_id`
+    双向对得上、记录读得回、来源可校验、答案不变。SQL 14 列闭集断言**保留**。
     """
     q = "自动收录特征化：用人单位与劳动者约定的试用期上限应当如何确定？"
     row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    assert row.status == "pending", f"高分仍被自动批准 ⇒ W06-P0 写侧未落实：status={row.status}"
+    ks.decide_candidate(db, row.id, "approved")
     assert row.status == "approved"
-    assert row.approval_source == "auto_by_score_inferred", "机器批准仍不可辨识 ⇒ W06 未落地"
+    assert row.approval_source == "human", "人工采纳未记 human 来源 ⇒ 新契约未落地"
 
     meta = _meta_of(q)
     # 原钉 `set(meta) == META_KEYS`（无候选 ID）⇒ 现钉多一个 qa_candidate_id，仍逐字闭集、没放宽成 in
@@ -97,7 +127,8 @@ def test_auto_approve_records_machine_source_and_closes_the_link(db, double_embe
     assert meta["qa_candidate_id"] == row.id, "向量侧没记回候选 ID ⇒ 双向链没闭合"
 
     cols = {c.name for c in QaCandidate.__table__.columns}
-    # 原钉 7 列闭集 ⇒ 现钉 13 列闭集（新增 6 列逐字钉住，仍是**闭集**不是关键词筛）
+    # 原钉 7 列闭集 ⇒ 现钉 14 列闭集（W06-FIX 加 6 列；W06-C §5.1 加 1 列 `qa_provenance`，
+    # 仍是**闭集**不是关键词筛——新增列是票面要求，不是放宽）。
     assert cols == {
         "id",
         "question",
@@ -112,26 +143,30 @@ def test_auto_approve_records_machine_source_and_closes_the_link(db, double_embe
         "eligibility",
         "eligibility_version",
         "vector_doc_id",
+        "qa_provenance",
     }, sorted(cols)
 
     # 这条记录**不是**被既有护栏拦着的状态：读侧真判据判它"来源可校验"，两条出口都放行。
     hit = ks.search_qa(q)
     assert hit is not None, "刚写入的记录读不回来 ⇒ 后面的断言全部失去对象"
+    # 双向闭合：向量 metadata 的 qa_candidate_id ⇄ SQL vector_doc_id ⇄ 向量 doc id
+    assert hit.get("qa_candidate_id") == row.id, "向量 metadata 链与候选 ID 不一致"
+    assert hit.doc_id == row.vector_doc_id, f"向量 doc id 与 SQL vector_doc_id 不一致：{hit.doc_id}"
     assert qa_provenance_verifiable(hit) is True
     assert hit["answer"] == ANSWER
 
 
 def test_machine_and_human_approvals_are_distinguishable_by_approval_source(db, double_embeddings):
-    """W06-IMPL 改写（原钉 ③：机器批准与人工批准两份拷贝都长得一样）：
+    """W06-P0 改写（旧契约废除：机器来源不再由 create_candidate 产生 ⇒ 旧式自动行改为**合成直构**）：
 
-    现钉新契约——**metadata 形状**仍对两条逐字相同（都走同一个 `add_qa_pair`，只多了 qa_candidate_id），
-    但 SQL 侧从此分得开：auto→`auto_by_score_inferred`（无 reviewed_at），human→`human`＋reviewed_at。
+    **metadata 形状**仍对两条逐字相同（都走同一个 `add_qa_pair`，只多了 qa_candidate_id），
+    但 SQL 侧仍分得开：auto→`auto_by_score_inferred`（无 reviewed_at），human→`human`＋reviewed_at。
     仍**保留**：两条都 approved、metadata 键集相等、origin 都等于 "qa"、待审控制腿不变。
     """
     q_auto = "机器批准对照甲：试用期包含在劳动合同期限内吗？"
     q_human = "人工批准对照乙：用人单位可以只约定试用期而不签劳动合同吗？"
 
-    auto_row = ks.create_candidate(db, q_auto, ANSWER, 0.95, EVIDENCE)  # ≥0.89：机器直接收录
+    auto_row = _synthetic_auto_row(db, q_auto)  # 旧存量形状（不由 create_candidate 产生）
     human_row = ks.create_candidate(db, q_human, ANSWER, 0.55, EVIDENCE)  # 待审
     assert human_row.status == "pending"
     ks.decide_candidate(db, human_row.id, "approved")  # 人工采纳
@@ -162,10 +197,13 @@ def test_admin_candidate_dto_separates_machine_approval_from_human_approval(db, 
     现钉新契约：审核面 DTO 暴露资格六列，且**机器自动收录与人工采纳可读地分得开**。
     字段名用**闭集相等**钉而不是 `in`/`not in`：将来有人加一个 `approved_by` 别名进来，
     用包含关系的判据照样绿，而闭集会当场响。
+
+    W06-P0 改写：机器来源不再由 create_candidate 产生 ⇒ 旧式自动行改为**合成直构**（旧存量形状）；
+    人工行仍走 create_candidate + decide_candidate。DTO 字段闭集与 reviewed_at/reviewed_by 判据保留。
     """
     q_machine = "DTO 新契约甲：机器自动收录的候选在管理员接口里能看出没人核过吗？"
     q_human = "DTO 新契约乙：人工采纳的候选在管理员接口里能看出是谁采纳的吗？"
-    auto = ks.create_candidate(db, q_machine, ANSWER, 0.95, EVIDENCE)
+    auto = _synthetic_auto_row(db, q_machine)  # 旧存量形状（不由 create_candidate 产生）
     human = ks.create_candidate(db, q_human, ANSWER, 0.55, EVIDENCE)
     ks.decide_candidate(db, human.id, "approved", reviewed_by=7)
 

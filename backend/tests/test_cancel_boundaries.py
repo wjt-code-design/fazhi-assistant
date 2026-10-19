@@ -275,6 +275,50 @@ def _extract(path, names, namespace):
     return namespace
 
 
+def w06b_dependency_stubs():
+    """W06-B 依赖门的**测试替身**：本文件只测取消/所有权/落库边界，不测依赖复核。
+
+    `stream()`/`chat()` 现在引用 `_cache_read_deps_ok` 等依赖门名；被 AST 提取到本命名空间执行时，
+    这些名必须已在场（否则 NameError）。真门的行为由 W06-B 自带用例
+    （`tests/test_qa_cache_read_guard.py`、`tests/test_qa_first_content_guard.py`）覆盖，
+    这里只给"恒放行/恒不失效"的替身，与本文件既有的 `_post`/`_contract_messages` 缝替换同形。
+    """
+
+    async def _read_ok(hit):  # noqa: ARG001
+        return True
+
+    async def _write_ok(deps):  # noqa: ARG001
+        return True
+
+    async def _gen_invalid(deps):  # noqa: ARG001
+        return False
+
+    async def _p_recheck(pre):
+        return pre
+
+    async def _recheck(pre, messages, deps):
+        return pre, messages, deps
+
+    def _drop(pre):
+        out = dict(pre)
+        out["qa_hit"] = None
+        return out
+
+    def _snapshot(pre):  # noqa: ARG001
+        return ()
+
+    return {
+        "head_deps": (),
+        "_cache_read_deps_ok": _read_ok,
+        "_cache_write_deps_ok": _write_ok,
+        "_generation_input_invalid": _gen_invalid,
+        "_p_recheck": _p_recheck,
+        "_recheck_before_model": _recheck,
+        "_drop_tracked_qa": _drop,
+        "_input_qa_dependencies": _snapshot,
+    }
+
+
 class _Response:
     """Provider response shape: async context manager + async iterator of str pieces."""
 
@@ -418,6 +462,7 @@ def _build_stream_namespace(sm):
         "logger": logging.getLogger("rag_chain"),
         "StrOutputParser": StrOutputParser,
     }
+    namespace.update(w06b_dependency_stubs())
     _extract(BACKEND / "llm_guard.py", {"LLMBusyError", "_LLMGuard"}, namespace)
     guard = namespace["_LLMGuard"](1, 0.1)
     namespace["llm_guard"] = guard
@@ -519,7 +564,7 @@ def _stream_namespace_base(namespace, llm):
         registry=SimpleNamespace(get=lambda: llm, variant=lambda disabled: llm),
         _contract_messages=lambda pre, cd: [],
         run_in_threadpool=run_in_threadpool,
-        _post=lambda *args: namespace.setdefault("_post_calls", []).append(args),
+        _post=lambda *args, **kwargs: namespace.setdefault("_post_calls", []).append(args),
     )
 
 
@@ -827,7 +872,7 @@ def _route_namespace(sm, seam, *, image_validator=None):
         AIMessage=AIMessage,
         query_understand=query_understand,
         _clarified={},
-        _post=lambda *args: namespace.setdefault("_post_calls", []).append(args),
+        _post=lambda *args, **kwargs: namespace.setdefault("_post_calls", []).append(args),
     )
     # `_cache_key`/`_cache_scope`/`_cacheable` are deliberately not extracted: their
     # annotations mention `answer_cache.CacheScope`, and with `body.no_cache` true the

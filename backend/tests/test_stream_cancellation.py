@@ -156,6 +156,49 @@ def _chat_ownership_locals(chat):
     return nodes
 
 
+def _w06b_dependency_stubs():
+    """W06-B 依赖门的**测试替身**：本文件只测取消/资源所有权，不测依赖复核。
+
+    `stream()` 现在引用 `_cache_read_deps_ok` 等依赖门名；被 AST 提取到本命名空间执行时，
+    这些名必须已在场（否则 NameError）。真门行为由 W06-B 自带用例
+    （`tests/test_qa_cache_read_guard.py`、`tests/test_qa_first_content_guard.py`）覆盖。
+    """
+
+    async def _read_ok(hit):  # noqa: ARG001
+        return True
+
+    async def _write_ok(deps):  # noqa: ARG001
+        return True
+
+    async def _gen_invalid(deps):  # noqa: ARG001
+        return False
+
+    async def _p_recheck(pre):
+        return pre
+
+    async def _recheck(pre, messages, deps):
+        return pre, messages, deps
+
+    def _drop(pre):
+        out = dict(pre)
+        out["qa_hit"] = None
+        return out
+
+    def _snapshot(pre):  # noqa: ARG001
+        return ()
+
+    return {
+        "head_deps": (),
+        "_cache_read_deps_ok": _read_ok,
+        "_cache_write_deps_ok": _write_ok,
+        "_generation_input_invalid": _gen_invalid,
+        "_p_recheck": _p_recheck,
+        "_recheck_before_model": _recheck,
+        "_drop_tracked_qa": _drop,
+        "_input_qa_dependencies": _snapshot,
+    }
+
+
 def _production():
     namespace = {
         "asyncio": asyncio,
@@ -172,7 +215,10 @@ def _production():
         "StreamingResponse": StreamingResponse,
         "run_in_threadpool": run_in_threadpool,
         "logger": logging.getLogger("rag_chain"),
+        # 默认的 chat() 局部的空 messages（W06-B 后 stream 顶部读它建可变视角）；缺省由用例覆盖。
+        "messages": [],
     }
+    namespace.update(_w06b_dependency_stubs())
     _extract(BACKEND / "llm_guard.py", {"LLMBusyError", "_LLMGuard"}, namespace)
     guard = namespace["_LLMGuard"](1, 0.1)
     namespace["llm_guard"] = guard
@@ -809,7 +855,7 @@ def test_real_main_stream_close_closes_retry_and_keeps_failure_placeholder(contr
             registry=SimpleNamespace(get=lambda: llm, variant=lambda disabled: llm),
             _contract_messages=lambda pre, cd: [],
             _post_placeholder=lambda pre, reason="no_response": (placeholders.append(pre), placeholder.set()),
-            _post=lambda *args: posted.append(args),
+            _post=lambda *args, **kwargs: posted.append(args),
         )
         tree = ast.parse((BACKEND / "main.py").read_text(encoding="utf-8"))
         chat = next(node for node in tree.body if getattr(node, "name", None) == "chat")
@@ -861,7 +907,7 @@ def test_normal_chat_has_single_first_status_and_no_failure_placeholder():
             routing_metrics=SimpleNamespace(record=lambda *args, **kwargs: None),
             log_account=lambda **kwargs: None,
             run_in_threadpool=run_in_threadpool,
-            _post=lambda *args: posted.append(args),
+            _post=lambda *args, **kwargs: posted.append(args),
             _post_placeholder=lambda pre, reason="no_response": placeholders.append(pre),
         )
         tree = ast.parse((BACKEND / "main.py").read_text(encoding="utf-8"))
@@ -926,7 +972,7 @@ def test_asgi_disconnect_during_blocked_content_send_owns_body_cleanup(contract)
             registry=SimpleNamespace(get=lambda: llm, variant=lambda disabled: llm),
             _contract_messages=lambda pre, cd: [],
             _post_placeholder=lambda pre, reason="no_response": (placeholders.append(pre), placeholder_ready.set()),
-            _post=lambda *args: posted.append(args),
+            _post=lambda *args, **kwargs: posted.append(args),
         )
         response = _real_chat_response(namespace)
         content_send_entered = anyio.Event()
@@ -991,7 +1037,7 @@ def test_asgi_normal_completion_preserves_single_status_and_post():
             routing_metrics=SimpleNamespace(record=lambda *args, **kwargs: None),
             log_account=lambda **kwargs: None,
             run_in_threadpool=run_in_threadpool,
-            _post=lambda *args: posted.append(args),
+            _post=lambda *args, **kwargs: posted.append(args),
             _post_placeholder=lambda pre, reason="no_response": placeholders.append(pre),
         )
         response = _real_chat_response(namespace)
@@ -1195,7 +1241,7 @@ def test_buffered_asgi_disconnect_closes_real_sdk_request_before_pool_cleanup(ro
             stream_with_retry=empty_stream,
             _exit_law_as_of=lambda *args: None,
             _post_placeholder=lambda value, reason="no_response": (placeholders.append(value), placeholder_ready.set()),
-            _post=lambda *args: posted.append(args),
+            _post=lambda *args, **kwargs: posted.append(args),
         )
         response = _real_chat_response(namespace)
 

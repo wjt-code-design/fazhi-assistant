@@ -12,6 +12,9 @@
 ④ 写侧非原子：SQL 提交失败 ⇒ 向量记录已经落地且无人知道（孤儿）。
 ⑤ 采纳不幂等：同一候选采纳两次 ⇒ 向量集合里两条。
 
+**W06-P0（2026-10-18）**：上面①②③④⑤是 **W06-P0 之前**的特征化；写侧已改为 `create_candidate`
+一律 `pending`、不写向量（旧式自动批准行只能合成直构），"提交失败仍清缓存"不变量改属 `decide_candidate`。
+
 ⇒ 出口条件里那句「批准/拒绝/撤回后，已写 QA、回答缓存及进程缓存的读取资格一致」现在**不成立**，
    「任何旧出口都不能继续返回已失效条目」也没有任何机制保证。
    要闭这一格必须先有 C03 的口径（审核来源/读取资格/撤回契约三问），所以本文件**只钉现状不改行为**。
@@ -25,6 +28,7 @@ import inspect
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
 
 import pytest
@@ -59,6 +63,31 @@ def _kb_has_article(monkeypatch, docs):
     monkeypatch.setattr(retrieval, "exact_article_lookup", lambda src, art: docs)
 
 
+def _synthetic_auto_row(db, question: str):
+    """合成一条**旧式自动收录行**——代表**旧存量**，**不由 `create_candidate` 产生**。
+
+    W06-P0 后 `create_candidate` 一律 `pending`、不写向量 ⇒ 旧「自动收录」的可服务记录
+    （`status="approved"` + `approval_source="auto_by_score_inferred"` + 显式向量链）只能直接构造：
+    链以 `cand_id`/`doc_id` 写入，与 `vector_doc_id` 双向闭合（照抄 `test_qa_approval_read_eligibility.py`
+    的 `_synthetic_auto_row` 形态）。
+    """
+    doc_id = uuid.uuid4().hex
+    row = ks.QaCandidate(
+        question=question,
+        answer=ANSWER,
+        grounded_score=0.95,
+        evidence=EVIDENCE,
+        status="approved",
+        approval_source="auto_by_score_inferred",
+        vector_doc_id=doc_id,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    ks.add_qa_pair(question, ANSWER, EVIDENCE, cand_id=row.id, doc_id=doc_id)
+    return row
+
+
 def _pre(q: str, hit: dict) -> dict:
     """构造注入出口需要的 `pre`（形状照 `main._build_messages` 的取键，缺一个键就 KeyError）。"""
     return {
@@ -88,7 +117,7 @@ def test_reject_stops_both_read_exits_without_deleting_the_record(db, double_emb
     只置资格、不删数据）。仍**保留**：status=rejected、search_qa 命中、answer 不变（这些今天也成立）。
     """
     q = "撤回生命周期甲：试用期的约定有什么上限？"
-    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)  # 机器自动收录
+    row = _synthetic_auto_row(db, q)  # 旧存量形状：机器自动收录（approved + 链，不由 create_candidate 产生）
     _kb_has_article(monkeypatch, [{"page_content": "第十九条 试用期……"}])
 
     ks.decide_candidate(db, row.id, "rejected")
@@ -132,7 +161,7 @@ def test_revocation_is_visible_in_sql_at_the_moment_of_invalidate(db, double_emb
     import qa_eligibility as qe
 
     q = "撤回并发判据：缓存被清的那一刻，另一个请求读到的是什么资格？"
-    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    row = _synthetic_auto_row(db, q)  # 旧存量形状：可服务带链记录（不由 create_candidate 产生）
     _kb_has_article(monkeypatch, [{"page_content": "第十九条 试用期……"}])
     hit = ks.search_qa(q)
     assert hit is not None and hit["qa_candidate_id"] == row.id, "链没闭合 ⇒ 并发读者无从判状态"
@@ -179,14 +208,22 @@ def test_control_a_rejected_candidate_that_was_never_auto_approved_is_not_served
 
 
 def test_there_is_no_revoked_state_at_all(db, double_embeddings):
-    """② 生命周期只有 pending/approved/rejected：想标"撤回"直接 ValueError，且原状态一字未动。"""
+    """W06-P0 改写（旧「自动收录」契约已合法废除）：现钉**新契约正确行为**＋原判据形状。
+
+    ① 新契约：`create_candidate(0.95)` 只入 `pending`（不再按分数自动批准），那条记录**不进向量**；
+    ② 生命周期仍只有 pending/approved/rejected：想标"撤回"直接 ValueError，且原状态一字未动。
+    保留原判据：`decide_candidate(..., "revoked")` 抛 ValueError（消息含 approved/rejected）、
+    失败后状态不变、行不被删（`revoked` 不是状态，也没有第二个状态生产者）。
+    """
     q = "撤回生命周期丙：已收录的候选能被标成 revoked 吗？"
     row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    assert row.status == "pending", f"高分仍被自动批准 ⇒ W06-P0 写侧未落实：status={row.status}"
     with pytest.raises(ValueError) as e:
         ks.decide_candidate(db, row.id, "revoked")
     assert "approved" in str(e.value) and "rejected" in str(e.value)
-    assert db.query(ks.QaCandidate).filter(ks.QaCandidate.id == row.id).one().status == "approved"
-    assert _hits(q) == 1  # 标不成 revoked，记录照旧在
+    # 「revoked」不是状态：决策被拒后行状态一字未动（仍是 pending），行照旧可查
+    assert db.query(ks.QaCandidate).filter(ks.QaCandidate.id == row.id).one().status == "pending"
+    assert _hits(q) == 0  # 新契约：pending 记录不进向量（旧契约此处为 1；写向量只由人工采纳产生）
 
 
 def test_no_production_path_can_delete_a_written_qa_record():
@@ -240,18 +277,20 @@ def test_no_production_path_can_delete_a_written_qa_record():
 
 
 def test_reject_and_auto_approve_both_invalidate_the_answer_cache(db, double_embeddings, monkeypatch):
-    """W06-IMPL 改写（原钉「拒绝路径不碰回答缓存」的漏口）：
+    """W06-P0 改写（旧「自动收录」契约废除——本条原测它的清缓存行为）：
 
-    票面 :350 点名「已写 QA、**回答缓存**及进程缓存」要一起失效——此前拒绝分支一个都不碰（少一份拷贝）。
-    现钉新契约：`decide_candidate` 拒绝分支也调 `retrieval.invalidate()`，而 invalidate 内部延迟 import
-    `answer_cache` 一起清（retrieval.py:765-781），⇒ 这条问句在 TTL 内已落进回答缓存的那份答案
-    **会因为拒绝而消失**——`main.py:2193` 的 `answer_cache.get(cache_key)` 那道出口随之 miss。
+    票面 :350 点名「已写 QA、**回答缓存**及进程缓存」要一起失效。新契约下**可服务的向量写入只由
+    `decide_candidate` 产生**，所以这条不变量落在那两支上：
+    ① `create_candidate` 一律 pending、**不写向量、不 invalidate**（无任何可服务状态改变）；
+    ② `decide_candidate(approved)`（人工采纳，先写向量再提交）**调 invalidate**；
+    ③ `decide_candidate(rejected)`（置资格撤回）同样**调 invalidate** ⇒ 回答缓存出口一起关。
+    `invalidate` 内部延迟 import `answer_cache` 一起清（retrieval.py:765-781）——下面用**原件**真跑坐实。
     """
     import answer_cache
     import retrieval
 
     # 先取**原件**源码：一旦下面把 `retrieval.invalidate` 换成替身，`inspect.getsource` 读到的就是
-    # 我这条测试里的 lambda（本条第一版就是这么红的）。判据要看的是生产函数，不是我的替身。
+    # 我这条测试里的 lambda。判据要看的是生产函数，不是我的替身。
     invalidate_src = inspect.getsource(retrieval.invalidate)
     assert "answer_cache" in invalidate_src, "invalidate 不再连带清回答缓存 ⇒ 下面那句因果推理失去依据"
 
@@ -261,20 +300,24 @@ def test_reject_and_auto_approve_both_invalidate_the_answer_cache(db, double_emb
 
     q = "撤回生命周期庚：自动收录后又被拒绝，回答缓存会跟着失效吗？"
     row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
-    assert calls == ["invalidate"], "自动收录那一步本来就该清一次缓存；它不清的话本条失去对照基准"
+    # 原钉 `calls == ["invalidate"]`（自动收录就清一次）⇒ 现钉 `[]`：
+    # pending 创建不写向量、无状态变更 ⇒ 没有该清的（W06-P0 写侧未落实时这条立刻红）。
+    assert calls == [], f"pending 创建就清了缓存 ⇒ 自动收录未废除：{calls}"
+
+    calls.clear()
+    ks.decide_candidate(db, row.id, "approved")
+    # 人工采纳（servable 写入支）必须清一次缓存：新增可服务记录 ⇒ 旧读数要失效。
+    assert calls == ["invalidate"], "人工采纳没清缓存 ⇒ 新增的可服务记录没有让旧缓存读数失效"
 
     calls.clear()
     ks.decide_candidate(db, row.id, "rejected")
-    # 原钉 `calls == []`（拒绝不碰回答缓存 = 第三份漏口）⇒ 现钉 `["invalidate"]`：
-    # 拒绝走形状 B，必须调 invalidate 连带清回答缓存（§4 项 1 的第三条出口）。本条原注释就要求这样改写、不删。
+    # 拒绝走形状 B，必须调 invalidate 连带清回答缓存（§4 项 1 的第三条出口）。本条原注释要求改写、不删。
     assert calls == ["invalidate"], "拒绝路径没清缓存 ⇒ §4 项 1 的回答缓存出口仍会命中旧答案"
 
     # 票 W06-FIX F9/V8：**原钉 `assert hasattr(answer_cache, "get")` ⇒ 现钉真判据，理由：恒真**。
-    # `answer_cache` 是个模块对象，`hasattr(..., "get")` 在这个模块存在的任何一秒都是 True
-    # （模块连不上读侧入口的情况本仓没有发生过，也不会由这条断言发现）——
-    # 「回答缓存的读侧入口确实存在」这句话要用**行为**判，不是用**属性名存在**判。
+    # `answer_cache` 是个模块对象，`hasattr(..., "get")` 在这个模块存在的任何一秒都是 True——
+    # 「回答缓存的读侧入口确实存在」要用**行为**判，不是用**属性名存在**判。
     # 现钉：真的写进缓存 ⇒ 真的调**原件** invalidate ⇒ 真的读不回来。
-    # 这半条同时是上面那句因果的依据：invalidate 确实能清到回答缓存（不是只清检索缓存）。
     q_live = "撤回生命周期庚补：invalidate 真的能清掉回答缓存里那一条吗？"
     key = answer_cache.make_key(q_live, "legal_query", "2026-08-23", ["劳动合同法|第十九条"])
     answer_cache.put(key, ANSWER, [])
@@ -285,25 +328,41 @@ def test_reject_and_auto_approve_both_invalidate_the_answer_cache(db, double_emb
 
 
 def test_sql_commit_failure_leaves_an_orphan_vector_record(db, double_embeddings, monkeypatch):
-    """④ 写侧非原子：先写向量、后提交 SQL ⇒ 提交炸了，向量里那条已经活着，而且没人知道它是谁批准的。"""
+    """W06-P0 改写（旧「自动收录」契约废除）：④ 写侧非原子现在只属于 `decide_candidate`。
 
-    def boom():
-        raise RuntimeError("模拟提交失败（连接锁死／唯一约束／进程被杀都算这一类）")
+    新契约：`create_candidate` 一律 pending、**不写向量** ⇒ 提交失败**不会**留下孤儿。
+    孤儿只可能来自 `decide_candidate(approved)`（先 `add_qa_pair` 写向量、后 `db.commit`）。
+    本条两支都钉：① pending 创建提交失败 ⇒ 向量侧零记录；② 人工采纳提交失败 ⇒ 向量已落地（孤儿）。
+    """
+    real_commit = db.commit
+    state = {"boom": False}
 
-    q = "撤回生命周期戊：SQL 提交失败时向量侧会不会留下孤儿记录？"
-    monkeypatch.setattr(db, "commit", boom)
+    def gated_commit():
+        if state["boom"]:
+            raise RuntimeError("模拟提交失败（连接锁死／唯一约束／进程被杀都算这一类）")
+        real_commit()
+
+    monkeypatch.setattr(db, "commit", gated_commit)
+
+    # ── 支 1：pending 创建（不再自动收录）提交失败 ⇒ 没写向量 ⇒ 没有孤儿
+    q = "撤回生命周期戊：待审创建提交失败会不会留下孤儿？"
+    state["boom"] = True
     with pytest.raises(RuntimeError):
         ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
-
-    assert _hits(q) == 1, "孤儿记录没写进去 ⇒ 本条判据的对象消失（改的是写序还是写侧？先查清再动）"
+    assert _hits(q) == 0, "pending 创建提交失败却留下向量记录 ⇒ 自动收录未废除（旧契约此处为 1）"
     db.rollback()
     assert db.query(ks.QaCandidate).filter(ks.QaCandidate.question == q).count() == 0
 
-    # 控制腿：待审路径（阈值以下）根本不写向量 ⇒ 孤儿只可能来自"自动收录"这一支
-    q2 = "撤回生命周期戊补：待审路径提交失败会留下向量记录吗？"
+    # ── 支 2：人工采纳（先写向量再提交）提交失败 ⇒ 向量已落地、SQL 未提交 ⇒ 孤儿
+    state["boom"] = False
+    row = ks.create_candidate(db, "撤回生命周期戊补：人工采纳提交失败会留下孤儿吗？", ANSWER, 0.55, EVIDENCE)
+    q2 = row.question
+    state["boom"] = True
     with pytest.raises(RuntimeError):
-        ks.create_candidate(db, q2, ANSWER, 0.55, EVIDENCE)
-    assert _hits(q2) == 0
+        ks.decide_candidate(db, row.id, "approved")
+    assert _hits(q2) == 1, "人工采纳提交失败没留下孤儿 ⇒ 本条判据的对象消失（先查写序还是写侧）"
+    db.rollback()
+    assert db.query(ks.QaCandidate).filter(ks.QaCandidate.id == row.id).one().status == "pending"
 
 
 def test_r2_commit_failure_still_clears_the_cache_on_both_write_branches(db, double_embeddings, monkeypatch):
@@ -314,7 +373,10 @@ def test_r2_commit_failure_still_clears_the_cache_on_both_write_branches(db, dou
     向量里那条 QA 已经存在（`add_qa_pair` 先写），而进程缓存与回答缓存留着**旧**读数。
     改前无条件清，所以这条洞是本轮新挖的。
 
-    现钉两支（批准/auto-approve 各一）：提交炸 ⇒ 异常照旧上抛，但 `retrieval.invalidate()` **仍被调用**。
+    W06-P0 改写（旧「自动收录」契约废除）：新契约下**可服务的向量写入只由 `decide_candidate` 产生** ⇒
+    「提交失败仍要清缓存」这条不变量现在**只**属于人工采纳支（该支 `try/finally` 语义未改）：
+    ① `create_candidate` 一律 pending、不写向量 ⇒ 提交失败无状态变更、**不该清缓存**（旧契约此处为清一次）；
+    ② `decide_candidate(approved)` 提交炸 ⇒ 异常照旧上抛，但 `retrieval.invalidate()` **仍被调用**。
     用调用计数器判，不用 `hasattr`（本仓已把「属性存在」类恒真判据改写过一次，见上面 V8 那条）。
     """
     import inspect
@@ -347,14 +409,14 @@ def test_r2_commit_failure_still_clears_the_cache_on_both_write_branches(db, dou
             "⇒ 本用例会去加载真实 BGE 权重：暖缓存机器假绿，冷缓存（CI 隔离 HF_HOME）直接红"
         )
 
-    # ── 支 1：`create_candidate` 的自动收录（≥0.89 那一支，先写向量再提交）
-    q1 = "复核R2戊：自动收录提交失败时缓存清不清？"
+    # ── 支 1：`create_candidate` 一律 pending、不写向量 ⇒ 提交失败无状态变更、不该清缓存
+    q1 = "复核R2戊：待审创建提交失败时缓存清不清？"
     state["boom"] = True
     with pytest.raises(RuntimeError):
         ks.create_candidate(db, q1, ANSWER, 0.95, EVIDENCE)
-    assert calls == ["invalidate"], f"自动收录这一支提交失败后没清缓存（向量里已经有 {q1} 那条）：{calls}"
+    assert calls == [], f"pending 创建提交失败却清了缓存 ⇒ 自动收录未废除：{calls}"
 
-    # ── 支 2：`decide_candidate` 的人工采纳（同样先写向量再提交）
+    # ── 支 2：`decide_candidate` 的人工采纳（先写向量再提交）——提交失败仍必须清
     calls.clear()
     state["boom"] = False
     row = ks.create_candidate(db, "复核R2戊补：人工采纳这一支提交失败呢？", ANSWER, 0.55, EVIDENCE)
@@ -381,8 +443,12 @@ def test_r2_successful_commit_still_clears_the_cache_exactly_once(db, double_emb
     ks.create_candidate(db, "复核R2戊再补：待审分支提交成功该不该清缓存？", ANSWER, 0.55, EVIDENCE)
     assert calls == [], f"待审分支不写向量，也不该清缓存：{calls}"
 
-    ks.create_candidate(db, "复核R2戊再补：自动收录提交成功清几次？", ANSWER, 0.95, EVIDENCE)
-    assert calls == ["invalidate"], f"成功路径的清理次数漂了：{calls}"
+    row = ks.create_candidate(db, "复核R2戊再补：自动收录如今是不是也待审了？", ANSWER, 0.95, EVIDENCE)
+    # 新契约（旧契约此处为 ["invalidate"]）：高分创建不再自动收录 ⇒ 提交成功也不清缓存
+    assert calls == [], f"高分创建不再自动收录 ⇒ 提交成功也不该清缓存：{calls}"
+
+    ks.decide_candidate(db, row.id, "approved")
+    assert calls == ["invalidate"], f"人工采纳成功路径的清理次数漂了：{calls}"
 
 
 def test_approving_the_same_candidate_twice_writes_two_vector_records(db, double_embeddings):

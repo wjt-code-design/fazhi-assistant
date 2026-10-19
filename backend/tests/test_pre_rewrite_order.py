@@ -85,7 +85,8 @@ def env(monkeypatch):
     monkeypatch.setattr(main, "is_consumer_fraud_scenario", lambda *a, **k: False)
     monkeypatch.setattr(main, "consumer_fraud_docs", lambda *a, **k: [])
     monkeypatch.setattr(main, "cheating_docs", lambda *a, **k: [])
-    monkeypatch.setattr(main.ks, "search_qa", lambda *a, **k: None)
+    # 票 C21-A：main 快车道现走 search_eligible_qa（有界资格选择适配器）⇒ 打桩点随之改名。
+    monkeypatch.setattr(main.ks, "search_eligible_qa", lambda *a, **k: None)
     return main, conv_id, calls
 
 
@@ -143,7 +144,12 @@ def test_bare_judge_mark_with_history_still_rewrites(env):
 
 
 def test_chitchat_wrapper_matches_frozen_legacy_golden(env):
-    """Independent golden for the legacy wrapper contract; not derived from fast-path implementation."""
+    """Independent golden for the legacy wrapper contract; not derived from fast-path implementation.
+
+    W06-C H07（Owner 已裁，2026-10-19）：这条历史 assistant 是**来源未知**（`qa_provenance=NULL`）⇒
+    模型侧不作为已确认依据交给模型（从模型输入投影剔除）；用户那一轮保留。原文仍在库里（UI 可见）。
+    因此 recent 只剩用户一条——这是策略变更后的新金标，不是放宽断言。
+    """
     main, conv_id, calls = env
 
     pre = main._pre(1, conv_id, "好的，谢谢", None)
@@ -154,11 +160,6 @@ def test_chitchat_wrapper_matches_frozen_legacy_golden(env):
         "summary": "",
         "recent": [
             {"role": "user", "content": "试用期最长多久", "image_desc": ""},
-            {
-                "role": "assistant",
-                "content": "依据《劳动合同法》第十九条，试用期最长六个月。",
-                "image_desc": "",
-            },
         ],
         "context": "",
         "qa_hit": None,

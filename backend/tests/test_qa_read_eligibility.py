@@ -15,6 +15,7 @@ import ast
 import json
 import os
 import sys
+import uuid
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -72,6 +73,31 @@ def _build_pre(q: str, hit) -> dict:
         "has_options": False,
         "contract_data": None,
     }
+
+
+def _synthetic_auto_row(db, question: str):
+    """合成一条**旧式自动批准行**——代表**旧存量**，**不由 `create_candidate` 产生**。
+
+    W06-P0 后 `create_candidate` 一律 `pending`、不写向量 ⇒ 旧「自动收录」的可服务记录
+    （`status="approved"` + `approval_source="auto_by_score_inferred"` + 显式向量链）只能直接构造。
+    链以 `cand_id`/`doc_id` 写入，与 `vector_doc_id` 双向闭合（照抄 `test_qa_approval_read_eligibility.py`
+    的 `_synthetic_auto_row` 形态）。
+    """
+    doc_id = uuid.uuid4().hex
+    row = ks.QaCandidate(
+        question=question,
+        answer=ANSWER,
+        grounded_score=0.95,
+        evidence=EVIDENCE,
+        status="approved",
+        approval_source="auto_by_score_inferred",
+        vector_doc_id=doc_id,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    ks.add_qa_pair(question, ANSWER, EVIDENCE, cand_id=row.id, doc_id=doc_id)
+    return row
 
 
 # ==================== 判据本体（纯函数，成对反例） ====================
@@ -156,7 +182,7 @@ def test_predicate_no_link_defers_to_provenance(monkeypatch):
 def test_reject_stops_all_three_read_exits(db, double_embeddings, monkeypatch):
     """approved 且已进向量的候选被拒绝后：直返／prompt 注入／回答缓存三条出口都 miss。"""
     q = "撤回三出口甲：已自动收录再被拒绝的候选还能被服务吗？"
-    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)  # 自动收录 → 进向量 + SQL approved
+    row = _synthetic_auto_row(db, q)  # 旧存量形状：approved + 显式向量链（不由 create_candidate 产生）
     _kb_has_article(monkeypatch, [{"page_content": "第十九条 试用期……"}])
 
     # 回答缓存里先放一条（模拟该问句此前已产出并被缓存）
@@ -184,7 +210,7 @@ def test_reject_stops_all_three_read_exits(db, double_embeddings, monkeypatch):
 def test_control_reject_leaves_vector_record_in_place(db, double_embeddings):
     """§4 项 1 的控制腿：撤回不删数据（形状 P），向量里那条题干仍在。"""
     q = "撤回三出口乙：拒绝会不会把向量记录一起删掉？"
-    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    row = _synthetic_auto_row(db, q)  # 旧存量形状（不由 create_candidate 产生）
     ks.decide_candidate(db, row.id, "rejected")
     data = ks._qa_store._collection.get(include=["documents"])
     assert q in {str(d).strip() for d in (data.get("documents") or [])}
@@ -196,7 +222,7 @@ def test_control_reject_leaves_vector_record_in_place(db, double_embeddings):
 @pytest.mark.parametrize("break_by", ["returns_none", "raises"])
 def test_unreadable_state_rejects_both_exits_and_logs_only_reason(db, double_embeddings, monkeypatch, break_by, caplog):
     q = "撤回读不到状态丙：SQL 查询挂掉时两出口都 miss 吗？"
-    ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)  # 只为造出带链记录，行对象本身不用
+    _synthetic_auto_row(db, q)  # 只为造出带链记录，行对象本身不用（旧存量形状）
     _kb_has_article(monkeypatch, [{"page_content": "第十九条 试用期……"}])  # 让 citation 通过 ⇒ 拦截归因到 state
     hit = ks.search_qa(q)
     assert hit is not None and hit.get("qa_candidate_id") is not None
@@ -307,7 +333,7 @@ def test_producer_and_direct_return_exit_report_the_same_reason(db, double_embed
     import logging
 
     q = f"同序判据{shape}：这条记录在产生处与出口报的是同一个 reason 吗？"
-    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    row = _synthetic_auto_row(db, q)  # 旧存量形状：可服务（approved + 链），不由 create_candidate 产生
     _kb_has_article(monkeypatch, [{"page_content": "第十九条 试用期……"}])
 
     if shape == "revoked":
@@ -413,7 +439,7 @@ def test_denial_log_carries_reason_and_candidate_id_and_survives_the_formatter(d
     from observability import _JsonFormatter
 
     q = "留痕双键：拒绝日志能不能指到具体那一行？"
-    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    row = _synthetic_auto_row(db, q)  # 旧存量形状（不由 create_candidate 产生）
     _kb_has_article(monkeypatch, [{"page_content": "第十九条"}])
     ks.decide_candidate(db, row.id, "rejected")
     hit = ks.search_qa(q)
@@ -462,7 +488,7 @@ def test_one_sql_state_session_per_qa_bearing_request(db, double_embeddings, mon
     import database
 
     q = "计数判据：一次带语料命中的请求到底开了几条 session？"
-    ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    _synthetic_auto_row(db, q)  # 旧存量形状：造一条可服务记录（不由 create_candidate 产生）
     _kb_has_article(monkeypatch, [{"page_content": "第十九条 试用期……"}])
     hit = ks.search_qa(q)
     assert hit is not None, "语料没命中 ⇒ 本条判据没有对象"
@@ -705,16 +731,27 @@ def test_guard_positive_control_actually_fires():
 
 
 def test_new_auto_curated_qa_has_bidirectional_link(db, double_embeddings, monkeypatch):
-    """新收录：SQL 有 vector_doc_id，向量 metadata 有 qa_candidate_id，两者对得上。"""
-    q = "链闭合甲：自动收录的新 QA 两边能对上吗？"
-    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
-    assert row.approval_source == "auto_by_score_inferred"
-    assert row.vector_doc_id, "SQL 没记下 vector_doc_id ⇒ 链没闭合"
+    """W06-P0 改写（旧「自动收录」契约已合法废除）：现钉**新契约的链闭合时点**。
 
-    data = ks._qa_store._collection.get(ids=[row.vector_doc_id], include=["metadatas"])
+    `create_candidate(0.95)` 只入 `pending`、**不写向量也不建链**（没有任何可服务记录）；
+    可服务的带链记录只由**人工采纳** `decide_candidate(approved)` 产生——那时 SQL 落 `vector_doc_id`、
+    向量 metadata 落 `qa_candidate_id`，两者对得上。原判据（两侧对得上）保留，只把产生链的那一步
+    从「自动收录」改成「人工采纳」，并把「创建当下无不服务链」也钉上。
+    """
+    q = "链闭合甲：新收录的 QA 两边什么时候才对得上？"
+    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    # 新契约：高分不再自动批准、不再写向量 ⇒ 创建当下没有可服务链
+    assert row.status == "pending", f"高分仍被自动批准 ⇒ W06-P0 写侧未落实：status={row.status}"
+    assert row.vector_doc_id is None, f"pending 创建就写了 vector_doc_id ⇒ 自动收录未废除：{row.vector_doc_id}"
+
+    decided = ks.decide_candidate(db, row.id, "approved")
+    assert decided.status == "approved"
+    assert decided.vector_doc_id, "人工采纳没写 vector_doc_id ⇒ 链没闭合"
+
+    data = ks._qa_store._collection.get(ids=[decided.vector_doc_id], include=["metadatas"])
     assert data["ids"], "SQL 记的 vector_doc_id 在向量里找不到那条 ⇒ 两侧对不上"
     meta = (data["metadatas"] or [{}])[0]
-    assert meta.get("qa_candidate_id") == row.id, (meta, row.id)
+    assert meta.get("qa_candidate_id") == decided.id, (meta, decided.id)
 
 
 def test_human_approval_records_source_and_link(db, double_embeddings, monkeypatch):
@@ -735,7 +772,7 @@ def test_human_approval_records_source_and_link(db, double_embeddings, monkeypat
 def test_mismatched_existing_row_is_fail_closed_not_served(db, double_embeddings, monkeypatch):
     """§4 项 5 后半：qa_candidate_id 指向不存在的行 ⇒ fail-closed，不被读成放行。"""
     q = "链闭合丙：指向空行的记录会 fail-closed 吗？"
-    row = ks.create_candidate(db, q, ANSWER, 0.95, EVIDENCE)
+    row = _synthetic_auto_row(db, q)  # 旧存量形状：造一条可服务记录（不由 create_candidate 产生）
     _kb_has_article(monkeypatch, [{"page_content": "第十九条"}])
     hit = ks.search_qa(q)
     assert hit is not None
@@ -917,7 +954,8 @@ def test_unlinked_qa_write_lights_the_registered_key_and_the_count(db, double_em
     ③ 判据不许把它读成「放行」，只许读成「**不可撤回的语料**」。
 
     正对照＝**造一条无链写入**（`add_qa_pair` 不传 cand_id），键必须亮、计数必须 +1；
-    反对照＝带链写入（自动收录那条路径）键不许亮、计数不许动。
+    反对照＝带链写入（W06-P0 后只由**人工采纳** `decide_candidate(approved)` 产生）键不许亮、计数不许动；
+    另钉：`create_candidate` 一律 pending，**不写向量** ⇒ 创建本身既不算带链也不算未链。
     """
     import logging
 
@@ -938,11 +976,14 @@ def test_unlinked_qa_write_lights_the_registered_key_and_the_count(db, double_em
     chat_logger.addHandler(handler)
     chat_logger.setLevel(logging.WARNING)
     try:
-        # ---- 反对照：带链写入（自动收录）不该亮键、不该动计数 ----
-        linked_q = "无链可见甲：自动收录的写入不该算未链。"
+        # ---- 反对照：带链写入不该亮键、不该动计数（W06-P0：带链写入只由**人工采纳**产生） ----
+        linked_q = "无链可见甲：人工采纳的写入不该算未链。"
         before_linked = ks.qa_write_counts()["linked"]
         before_unlinked = ks.qa_write_counts()["unlinked"]
-        ks.create_candidate(db, linked_q, ANSWER, 0.95, EVIDENCE)
+        row = ks.create_candidate(db, linked_q, ANSWER, 0.95, EVIDENCE)  # pending：不写向量、不计带链
+        assert ks.qa_write_counts()["linked"] == before_linked, "pending 创建竟算了带链写入 ⇒ 自动收录未废除"
+        assert ks.qa_write_counts()["unlinked"] == before_unlinked
+        ks.decide_candidate(db, row.id, "approved")  # 人工采纳：这一次才是带链写入
         assert not [r for r in records if getattr(r, "qa_write_unlinked", False)], "带链写入亮了未链键"
         assert ks.qa_write_counts()["linked"] == before_linked + 1
         assert ks.qa_write_counts()["unlinked"] == before_unlinked

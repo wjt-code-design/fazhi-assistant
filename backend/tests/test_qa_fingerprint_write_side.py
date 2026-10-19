@@ -1,8 +1,9 @@
 """票 T6 写侧指纹（先红）：QA 写入路径必须自带 `options_fingerprint`。
 
 **缺口（T6 清点 + 我复核扩大一格）**：全仓只有 `scripts/gen_qa_corpus.py:178` 传指纹；
-其余三处都不传——而其中两处是**生产运行时路径**：
-  · `create_candidate`（有据分 ≥0.89 自动收录）
+其余三处都不传——而其中两处是**生产运行时路径**（W06-P0 后 `create_candidate` 已不写向量，
+下表按 T6 当时列出）：
+  · `create_candidate`（当时：有据分 ≥0.89 自动收录）
   · `decide_candidate`（人工采纳候选）
   · `qa_seeds`（种子导入）
 ⇒ 经它们进来的新语料对 C4「同题干换选项」护栏是**盲的**（`stored_fp` 空 ⇒ 护栏条件
@@ -17,12 +18,11 @@
   ② 控制：无选项的题 ⇒ 存空（**不编造**指纹）；
   ③ 控制：显式传入 ⇒ 原样保留（不覆盖调用方的值）；
   ④ 控制：现算值与读侧函数逐字一致（同一个真源）；
-  ⑤ 生产路径：`create_candidate`（≥阈值自动收录）落库的记录**带**指纹。
+  ⑤ 生产路径：人工采纳 `decide_candidate` 落库的记录**带**指纹（W06-P0：原为 `create_candidate` 自动收录）。
 """
 
 import os
 import sys
-from unittest.mock import MagicMock
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -83,9 +83,14 @@ def test_control_same_single_source_as_read_side(double_embeddings):
     assert _stored_fp(q) == _options_fingerprint(q)
 
 
-def test_auto_curate_path_stores_fingerprint(double_embeddings):
-    """生产路径（T6 指的第一处）：有据分 ≥0.89 自动收录 ⇒ 落库记录必须带指纹。"""
+def test_human_approve_path_stores_fingerprint(db, double_embeddings):
+    """生产路径（T6 指的第一处）：人工采纳 ⇒ 落库记录必须带指纹。
+
+    W06-P0 换契约：create_candidate 一律 pending、不写向量 ⇒ 触发点从「≥0.89 自动收录」改到
+    人工采纳 decide_candidate(approved)，判据逐字保留。
+    """
     q = "关于劳动争议，下列说法正确的是？A.劳动争议需先申请劳动仲裁 B.劳动争议可以直接起诉"
-    ks.create_candidate(MagicMock(), q, "A", grounded_score=0.95, evidence="劳动争议调解仲裁法|第五条")
+    row = ks.create_candidate(db, q, "A", 0.95, "劳动争议调解仲裁法|第五条")
+    ks.decide_candidate(db, row.id, "approved")
     assert _stored_fp(q) == _options_fingerprint(q)
     assert _stored_fp(q) != ""

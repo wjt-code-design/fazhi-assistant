@@ -22,7 +22,7 @@
   ② 控制：显式传入 ⇒ 原样保留（不覆盖调用方给的版本）；
   ③ 控制：写入后按读侧真判据 `qa_provenance_verifiable` 判为**可校验**（端到端，不只验字段）；
   ④ 控制：采纳路径存的是**候选产生日**而不是今天；
-  ⑤ 生产路径：`create_candidate` ≥阈值自动收录 ⇒ 落库记录带 basis 且真判据放行。
+  ⑤ 生产路径：人工采纳 `decide_candidate` ⇒ 落库记录带 basis 且真判据放行（W06-P0：原为 `create_candidate` 自动收录）。
 
 ⚠️ 题面必须各用例唯一：本文件的定位方式是按题干文本取记录（与 T6 同法），同题面写两次会串。
 """
@@ -129,12 +129,23 @@ def test_control_adoption_stores_candidate_date_not_today(double_embeddings):
     assert stored != PINNED_TODAY, "存成了采纳日 ⇒ 答案的法律版本身份被改写"
 
 
-def test_auto_curate_path_stores_basis(double_embeddings):
-    """生产路径：有据分 ≥0.89 自动收录 ⇒ 落库记录带 basis，且过读侧真判据。"""
+def test_human_approve_path_stores_basis(db, double_embeddings):
+    """生产路径（W06-P0 换契约）：人工采纳 ⇒ 落库记录带 basis（采纳用候选 `created_at` 当日口径），过读侧真判据。
+
+    W06-P0 前这里是「有据分 ≥0.89 自动收录」腿；新契约下 create_candidate 一律 pending、不写向量 ⇒
+    触发点改到人工采纳 decide_candidate(approved)，判据逐字保留（basis 仍等于钉住的当日）。
+    """
     q = "写侧自动收录腿：用人单位可以扣工资作为违约金吗？"
-    ks.create_candidate(MagicMock(), q, "一般不可以", grounded_score=0.95, evidence="劳动合同法|第九十条")
+    row = ks.create_candidate(db, q, "一般不可以", 0.95, "劳动合同法|第九十条")
+    # 产生日刻意取 CAND_DATE（≠ PINNED_TODAY）⇒ 本腿**自己能分辨**「取产生日」还是「取今天」，
+    # 不再依赖同文件 109 行控制腿兜底（独立 review 指出原钉法判别力被削弱）。
+    row.created_at = datetime(2026, 9, 1, 1, 0, 0)
+    db.commit()
+    ks.decide_candidate(db, row.id, "approved")
     meta = _stored(q)
-    assert str(meta.get("law_as_of_basis") or "") == PINNED_TODAY
+    stored = str(meta.get("law_as_of_basis") or "")
+    assert stored == CAND_DATE, f"人工采纳应存候选产生日：{stored}"
+    assert stored != PINNED_TODAY, "存成了采纳日/今天 ⇒ 答案的法律版本身份被改写"
     assert (
         qa_provenance_verifiable(
             {

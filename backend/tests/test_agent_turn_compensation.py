@@ -90,6 +90,48 @@ def snapshot(sessions):
         return rows
 
 
+def _w06b_dependency_stubs():
+    """W06-B 依赖门的**测试替身**：本文件只测 Agent 轮次所有权/补偿，不测依赖复核。
+
+    `chat()`/`stream()` 现在引用 `_p_recheck` 等依赖门名；被 AST 提取到本命名空间执行时，
+    这些名必须已在场（否则 NameError）。真门行为由 W06-B 自带用例覆盖。
+    """
+
+    async def _read_ok(hit):  # noqa: ARG001
+        return True
+
+    async def _write_ok(deps):  # noqa: ARG001
+        return True
+
+    async def _gen_invalid(deps):  # noqa: ARG001
+        return False
+
+    async def _p_recheck(pre):
+        return pre
+
+    async def _recheck(pre, messages, deps):
+        return pre, messages, deps
+
+    def _drop(pre):
+        out = dict(pre)
+        out["qa_hit"] = None
+        return out
+
+    def _snapshot(pre):  # noqa: ARG001
+        return ()
+
+    return {
+        "head_deps": (),
+        "_cache_read_deps_ok": _read_ok,
+        "_cache_write_deps_ok": _write_ok,
+        "_generation_input_invalid": _gen_invalid,
+        "_p_recheck": _p_recheck,
+        "_recheck_before_model": _recheck,
+        "_drop_tracked_qa": _drop,
+        "_input_qa_dependencies": _snapshot,
+    }
+
+
 def namespace(sessions, service):
     scope = {
         "asyncio": asyncio,
@@ -134,7 +176,9 @@ def namespace(sessions, service):
         "routing_metrics": routing_metrics,
         "FastPathDependencies": FastPathDependencies,
         "query_understand": SimpleNamespace(is_meta_study=lambda *args: False),
-        "ks": SimpleNamespace(search_qa=lambda *args: []),
+        # 票 C21-A：main 的快车道现绑 `search_eligible_qa`（有界资格选择适配器）⇒ 替身补齐该属性；
+        # 空替身语义与上面的 `search_qa` 一致（都返回"无命中"）。
+        "ks": SimpleNamespace(search_qa=lambda *args: [], search_eligible_qa=lambda *args: None),
         "_build_messages": lambda pre: [],
         "complexity": SimpleNamespace(assess=lambda *args: ("text", "flag")),
         "_stream_with_status_preframe": lambda stream: stream,
@@ -152,6 +196,7 @@ def namespace(sessions, service):
         "aclosing": aclosing,
         "logger": logging.getLogger("test-agent-turn"),
     }
+    scope.update(_w06b_dependency_stubs())
     tree = ast.parse((BACKEND / "main.py").read_text(encoding="utf-8-sig"))
     functions = {
         "_execute_agent_observing_disconnect",

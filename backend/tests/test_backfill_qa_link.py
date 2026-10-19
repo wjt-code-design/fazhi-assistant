@@ -21,6 +21,7 @@ import os
 import sqlite3
 import sys
 import time
+import uuid
 from pathlib import Path
 
 import pytest
@@ -72,6 +73,30 @@ def _add_candidate(db, question, answer, score, *, status="approved", audit_admi
     return row
 
 
+def _old_auto_row(db, question):
+    """合成一条**旧式自动收录行**——代表**旧存量**，**不由 `create_candidate` 产生**。
+
+    W06-P0 后 `create_candidate` 一律 `pending`、不写向量 ⇒ 旧「自动收录」的可服务记录只能直接构造：
+    approved + `approval_source="auto_by_score_inferred"` + 显式向量链（`cand_id`/`doc_id` 双向闭合）。
+    分类仍由 backfill 按**审计行/分数**判定（`classify_row`），与这一列无关 ⇒ 分数仍取 0.95。
+    """
+    doc_id = uuid.uuid4().hex
+    row = models.QaCandidate(
+        question=question,
+        answer=ANSWER,
+        grounded_score=0.95,
+        evidence=EVIDENCE,
+        status="approved",
+        approval_source="auto_by_score_inferred",
+        vector_doc_id=doc_id,
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    ks.add_qa_pair(question, ANSWER, EVIDENCE, cand_id=row.id, doc_id=doc_id)
+    return row
+
+
 def _plan(db_path: Path, chroma_dir: Path, only_doc_ids: set[str] | None = None):
     """在**本用例自己写进去的那些向量记录**上跑计划。
 
@@ -111,7 +136,7 @@ def test_a1_dry_run_changes_no_bytes_on_the_lane(db, double_embeddings, tmp_path
     tag = "甲"
     q_auto = f"A1{tag}：自动收录腿的题面？"
     q_low = f"A1{tag}：低分已批准但没人核订的题面？"
-    ks.create_candidate(db, q_auto, ANSWER, 0.95, EVIDENCE)
+    _old_auto_row(db, q_auto)  # 旧存量形状（含显式向量链；不由 create_candidate 产生）
     _add_candidate(db, q_low, ANSWER, 0.55)
     db_path, chroma_dir = _lane(db)
     assert ks.search_qa(q_auto) is not None, "临时向量集合没落地 ⇒ 后面的对账失去对象"
@@ -388,7 +413,7 @@ def test_a4_two_apply_actually_strips_the_classified_linked_rows(db, double_embe
     q_auto = f"A4②{tag}：自动收录的带链记录？"
     q_hum = f"A4②{tag}：人工采纳但没留审计行的带链记录？"
     _kb_has_article(monkeypatch, [{"page_content": "第十九条 试用期……"}])
-    auto = ks.create_candidate(db, q_auto, ANSWER, 0.95, EVIDENCE)
+    auto = _old_auto_row(db, q_auto)  # 旧存量形状（含显式向量链；不由 create_candidate 产生）
     hum = _add_candidate(db, q_hum, ANSWER, 0.55)
     ks.decide_candidate(db, hum.id, "approved", reviewed_by=7)  # 写向量时带上 cand_id ⇒ 有链
     db_path, chroma_dir = _lane(db)
@@ -452,7 +477,7 @@ def test_a5_restore_from_snapshot_returns_the_same_direct_return_set(db, double_
     q_auto = f"A5{tag}：自动收录腿的候选？"
     q_hum = f"A5{tag}：人工采纳但没留审计行的候选？"
     _kb_has_article(monkeypatch, [{"page_content": "第十九条 试用期……"}])
-    auto = ks.create_candidate(db, q_auto, ANSWER, 0.95, EVIDENCE)
+    auto = _old_auto_row(db, q_auto)  # 旧存量形状（含显式向量链；不由 create_candidate 产生）
     hum = _add_candidate(db, q_hum, ANSWER, 0.55)
     ks.decide_candidate(db, hum.id, "approved", reviewed_by=7)
     db_path, chroma_dir = _lane(db)
