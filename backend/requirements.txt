@@ -10,8 +10,10 @@ langchain-openai==1.7.0
 # 该面只在上面这套实测组合上被证明过 ⇒ 边界不再只写在注释里：本文件里 **langchain-core / langchain-openai /
 # chromadb / sentence-transformers 四行已改成 `==`**，由 `tests/test_dependency_closure.py`
 # 同时核对「声明＝装机」与「私有符号可调用」。
-# ⚠️ 本轮是**部分闭包**：其余包仍是窗声明，已登记为下一轮项（整份精确闭包＝lock 式冻结），
-# 不把它们写成"已支持"。若有人换版本：解析后核对红、或收集期硬炸——**不通过吞 ImportError 或加 skip 让它变绿**。
+# ⚠️（D-45 审计 2026-10-19 勘误）下列「部分闭包」表述已过时：torch==2.13.0 / openai==2.54.0 /
+# numpy==1.26.4 / pillow==12.3.0 相继入册后，本文件已是**整份精确闭包**（全部直接依赖 `==`，
+# 由 `tests/test_dependency_closure.py::test_every_direct_requirement_is_an_exact_pin` 机器强制）。
+# 若将来引入任何窗声明，该判据会当场红——那才是该注释重新生效的时点。
 langchain-chroma==0.2.3
 langchain-huggingface==1.2.3
 langchain-text-splitters==1.1.3
