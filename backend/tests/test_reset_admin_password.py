@@ -228,6 +228,24 @@ def test_empty_and_public_default_password_refused(script, monkeypatch, rejected
     assert _snapshot(name)["password_hash"] == before
 
 
+# C05/W09-E 续（2026-10-20 独立复核主审抓出的 Medium 项）：加宽判据必须同样覆盖**重置路径**。
+@pytest.mark.parametrize("rejected", ["change_me", " Change_Me ", "CHANGEME", "password", "123456"])
+def test_public_placeholder_passwords_refused(script, monkeypatch, rejected):
+    """重置入口与 `seed_admin.py` 共用 `auth.is_public_default_password` 的加宽集合。
+
+    先前实现只比 `auth.PUBLIC_DEFAULT_PASSWORD` 一个值 ⇒ `change_me`/`password`/`123456`
+    仍能被 CLI「重置」回管理员账户，与 `auth.py`/`seed_admin.py` 的单一真源承诺相矛盾。
+    """
+    name = _name("placeholder-user")
+    _create_user(name, OLD_PASSWORD)
+    before = _snapshot(name)["password_hash"]
+
+    code, _ = _invoke(script, ["--username", name, "--write"], [rejected, rejected], monkeypatch)
+
+    assert code != 0
+    assert _snapshot(name)["password_hash"] == before
+
+
 def test_mismatched_confirmation_does_not_write(script, monkeypatch):
     name = _name("typo-user")
     _create_user(name, OLD_PASSWORD)

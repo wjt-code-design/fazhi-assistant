@@ -19,7 +19,7 @@ def seed():
         raise SystemExit(1)
     if is_public_default_password(password):
         # 让代码与上面那句报错文案一致：显式写了 admin12345 同样不许种进库
-        # （判据与 reset_admin_password 共用 auth.PUBLIC_DEFAULT_PASSWORD，不再两份拷贝）
+        # （判据与 reset_admin_password 共用 auth.is_public_default_password，不再两份拷贝）
         print("错误：ADMIN_PASSWORD 是公知默认口令，拒绝创建管理员。")
         raise SystemExit(1)
 

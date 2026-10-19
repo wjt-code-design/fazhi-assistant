@@ -30,14 +30,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from audit import log_audit
-from auth import PUBLIC_DEFAULT_PASSWORD, hash_password
+from auth import hash_password, is_public_default_password
 from database import SessionLocal, init_db
 from models import User
 
 AUDIT_ACTION = "admin.password_reset"
-# 对抗审计 2026-08-07 点名的公知默认口令：不允许被"重置"回去。
-# 值本身不再在本文件里各存一份——`seed_admin.py` 也要用同一判据（见 auth.PUBLIC_DEFAULT_PASSWORD）。
-PUBLIC_DEFAULT = PUBLIC_DEFAULT_PASSWORD
+# 对抗审计 2026-08-07 点名的公知默认口令，以及 C05/W09-E 加宽的模板占位口令集合：不许被"重置"回去。
+# 判据与 `seed_admin.py` **共用** `auth.is_public_default_password`（单一真源，不再各存一份；
+# 也不再只比一个值——否则 change_me / password / 123456 仍能从本重置入口上线）。
 
 
 def _read_new_password() -> str | None:
@@ -49,8 +49,8 @@ def _read_new_password() -> str | None:
     if not first:
         print("空口令被拒绝。", file=sys.stderr)
         return None
-    if first == PUBLIC_DEFAULT:
-        print("公知默认口令被拒绝（见对抗审计 2026-08-07）。", file=sys.stderr)
+    if is_public_default_password(first):
+        print("公知默认口令被拒绝（见对抗审计 2026-08-07 / C05 · W09-E）。", file=sys.stderr)
         return None
     try:
         second = getpass.getpass("再输一次确认：")
