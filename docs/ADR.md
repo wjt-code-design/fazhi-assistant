@@ -139,7 +139,7 @@ cutoff/证据有效性判定消费」三件事，快车道没有 run 对象 ⇒ 
 
 - **背景**：W10 依赖锁落库（`backend/constraints.txt` 冻结 runtime 传递闭包 + `ci.yml` 的 `-c` 接线 + `Dockerfile` 的 `-c` 接线）要在 CI 上实跑才算端到端闭合。本轮逐条核过三重**结构性**阻断，且三者同时成立：
   ① 公共默认分支 `master` 上的 `ci.yml` **没有 `workflow_dispatch`**，无法手动派发；
-  ② `push` 触发只认 `main` / `master`，而本轮工作分支是 `nondeploy-closeout-20261018`（非默认分支），推送不触发；
+  ② `push` 触发只认 `main` / `master`，而本地工作分支 `codex/nondeploy-closeout-20261010` 与推送目标分支 `nondeploy-closeout-20261018` 均非默认分支，推送不触发；
   ③ 本轮工作线与 `origin/master`（`985d53e4`）**无共同祖先**，平台无法建 PR ⇒ 连 `pull_request` 触发也拿不到。
   改默认分支内容属红线、伪造带 `main` 名字的分支属改写发布语义、本机无 `gh` CLI/token。故「跑一次真 CI」在当前状态下**不是排期问题，是结构性不可行**。
 - **决策**：不再把「真 CI 未跑」当悬置项挂着等运气；改以**本地等效真实验证**作为该门的替代证据，并在台账与验收报告里如实登记其等效范围与残余差——**不**宣称「CI 已验证」。
