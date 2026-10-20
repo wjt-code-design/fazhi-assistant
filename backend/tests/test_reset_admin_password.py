@@ -271,7 +271,8 @@ def test_reset_does_not_revoke_already_issued_token(script, monkeypatch):
     try:
         row = db.query(User).filter(User.username == name).one()
         user_id = row.id
-        token = create_token(SimpleNamespace(id=row.id, username=row.username, role=row.role))
+        # R01：令牌主体改用 public_id（随机不可复用身份）⇒ 造令牌的替身对象必须带该属性。
+        token = create_token(SimpleNamespace(id=row.id, public_id=row.public_id, username=row.username, role=row.role))
     finally:
         db.close()
 

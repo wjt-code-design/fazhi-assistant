@@ -68,8 +68,11 @@ def verify_password(password: str, password_hash: str) -> bool:
 
 
 def create_token(user: User) -> str:
+    # R01（2026-10-20）：主体改用 `user.public_id`——随机不可复用身份，而非自增 id。
+    # 自增 id 会被 SQLite 复用（管理员硬删后，下一位注册者可能拿到同一 id），
+    # 令**旧令牌**认证成新用户；换成随机身份后旧令牌（sub 为纯数字）找不到对应行。
     payload = {
-        "sub": str(user.id),
+        "sub": user.public_id,
         "username": user.username,
         "role": user.role,
         "exp": datetime.now(UTC) + timedelta(days=TOKEN_EXPIRE_DAYS),
@@ -87,7 +90,12 @@ def get_current_user(
         payload = jwt.decode(creds.credentials, _jwt_secret(), algorithms=[JWT_ALGORITHM])
     except jwt.PyJWTError:
         raise HTTPException(status_code=401, detail="令牌无效或已过期") from None
-    user = db.get(User, int(payload["sub"]))
+    # R01：按不可复用身份 public_id 取用户。**不再有数字 id 回退**——旧令牌（sub 为纯数字）
+    # 在此找不到对应行 ⇒ fail-closed 401（换了主体口径即等于作废旧令牌，符合票面要求）。
+    public_id = payload.get("sub")
+    if not isinstance(public_id, str) or not public_id:
+        raise HTTPException(status_code=401, detail="令牌无效或已过期")
+    user = db.query(User).filter(User.public_id == public_id).first()
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="用户不存在或已被禁用")
     return user

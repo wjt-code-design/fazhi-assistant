@@ -1,3 +1,4 @@
+import uuid
 from datetime import date, datetime
 
 from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text
@@ -6,10 +7,19 @@ from sqlalchemy.orm import relationship
 from database import Base
 
 
+def _new_public_id() -> str:
+    """用户对外身份（JWT 主体）。随机且不可复用——见 `User.public_id` 注释。"""
+    return uuid.uuid4().hex
+
+
 class User(Base):
     __tablename__ = "users"
 
     id = Column(Integer, primary_key=True, index=True)
+    # R01（2026-10-20）：自增整型主键会被 SQLite 复用——管理员硬删用户后，下一位注册者可能拿到
+    # 同一个 id，于是**旧令牌**（原先 sub=str(id)）会认证成新用户。改以这条随机不可复用身份当
+    # JWT 主体；旧令牌（sub 为纯数字）找不到对应行 ⇒ fail-closed 401。
+    public_id = Column(String(36), unique=True, index=True, default=_new_public_id)
     username = Column(String(64), unique=True, index=True, nullable=False)
     password_hash = Column(String(255), nullable=False)
     # user / admin

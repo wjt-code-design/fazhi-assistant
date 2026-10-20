@@ -86,6 +86,10 @@ def test_legacy_qa_candidates_upgrade_gains_the_eligibility_columns(tmp_path, mo
 # 用它当基线的理由：线上库就是这个样子，任何比它新的列都只能靠 `_COLUMN_MIGRATIONS` 补——
 # 抄成快照而不是猜，是为了让这条判据咬得住"这一轮新加列忘了补清单"这一类事故。
 DEPLOYED_SHAPE_20261017 = {
+    # R01（2026-10-20）补入 `users`：它此前不在快照里 ⇒「模型加了列、清单没补」这把尺子
+    # **照不到 users**。users 从无迁移史，故它的"已部署列"就是改动前的模型列（无 public_id，
+    # 那条列是本次 R01 新加的，靠 `_COLUMN_MIGRATIONS` 补）。
+    "users": {"id", "username", "password_hash", "role", "is_active", "created_at"},
     "conversations": {
         "answer",
         "created_at",

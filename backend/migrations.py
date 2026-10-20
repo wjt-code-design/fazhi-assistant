@@ -10,6 +10,8 @@
   注意 SQLite 的 ADD COLUMN 对默认值有限制，last_active_at 用无默认(NULL)，排序时用 COALESCE 兜底。
 """
 
+import uuid
+
 from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 
@@ -17,6 +19,10 @@ from database import Base, engine
 
 # (table, column, ddl_type, default_sql_or_None)
 _COLUMN_MIGRATIONS = [
+    # R01（2026-10-20）：用户对外身份（JWT 主体）。**无默认** ⇒ 存量行先落 NULL，
+    # 由 `_backfill_user_public_ids` 逐行补随机值（SQL 无法生成 UUID，且 NOT NULL 的
+    # ADD COLUMN 在 SQLite 上要求常量默认值）。
+    ("users", "public_id", "VARCHAR(36)", None),
     ("conversations", "title", "VARCHAR(200)", "''"),
     ("conversations", "summary", "TEXT", "''"),
     ("conversations", "message_count", "INTEGER", "0"),
@@ -41,10 +47,13 @@ _COLUMN_MIGRATIONS = [
     ("qa_candidates", "qa_provenance", "TEXT", None),
 ]
 
-# 补索引清单（表, 列）：名字固定成 `ix_<表>_<列>`，与 SQLAlchemy `index=True` 的默认命名同一个形状，
+# 补索引清单（表, 列, 是否唯一）：名字固定成 `ix_<表>_<列>`，与 SQLAlchemy `index=True` 的默认命名同一个形状，
 # 否则"新建库有的索引"和"升级库有的索引"会长成两副样子，而没人会去比。
+# `users.public_id` 必须**唯一**（R01）：重复身份会让一枚令牌匹配到多行，随机碰撞概率虽低，
+# 但身份唯一性是正确性属性、不该靠概率兜底。
 _INDEX_MIGRATIONS = [
-    ("qa_candidates", "vector_doc_id"),
+    ("qa_candidates", "vector_doc_id", False),
+    ("users", "public_id", True),
 ]
 
 
@@ -87,13 +96,37 @@ def run_migrations(bind=None) -> None:
                     raise
                 print(f"[migrations] skip {table}.{col}: {e}")
 
+    # 2b) 存量用户补对外身份（幂等）：SQLite 的 ALTER 加不了动态默认值，故逐行补随机 UUID。
+    # 先补值再建唯一索引（顺序错了会因 NULL 重复而建索引失败）。空表/新库无行 ⇒ 静默跳过。
+    with target.connect() as conn:
+        _backfill_user_public_ids(conn)
+
     # 3) 补索引（幂等）——**这一步不是可选优化**：`create_all` 只给"它新建的表"建索引，
     # 而现网的 `qa_candidates` 早就存在（列是 ALTER 补上来的）⇒ 模型上写了 index=True 也不会凭空长出索引。
     # 票 C20 形状①让读出口每次命中按 `vector_doc_id` 回查一次，缺索引就是每次命中全表扫。
     with target.connect() as conn:
-        for table, col in _INDEX_MIGRATIONS:
+        for table, col, unique in _INDEX_MIGRATIONS:
             existing = {r[1] for r in conn.execute(text(f"PRAGMA index_list({table})")).fetchall()}
             if f"ix_{table}_{col}" in existing:
                 continue
-            conn.execute(text(f"CREATE INDEX IF NOT EXISTS ix_{table}_{col} ON {table} ({col})"))
+            kind = "UNIQUE INDEX" if unique else "INDEX"
+            conn.execute(text(f"CREATE {kind} IF NOT EXISTS ix_{table}_{col} ON {table} ({col})"))
             conn.commit()
+
+
+def _backfill_user_public_ids(conn) -> None:
+    """给 `users.public_id` 仍为空的存量行补随机身份（幂等，可重复启动）。
+
+    只碰 `public_id IS NULL OR public_id = ''` 的行——已有的值绝不改写（改写等于把该用户
+    在途的合法令牌一起作废）。
+    """
+    if "public_id" not in _existing_columns(conn, "users"):
+        return
+    rows = conn.execute(text("SELECT id FROM users WHERE public_id IS NULL OR public_id = ''")).fetchall()
+    for (user_id,) in rows:
+        conn.execute(
+            text("UPDATE users SET public_id = :pid WHERE id = :uid"),
+            {"pid": uuid.uuid4().hex, "uid": user_id},
+        )
+    if rows:
+        conn.commit()
