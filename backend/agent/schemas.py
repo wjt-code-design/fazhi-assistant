@@ -57,6 +57,10 @@ class Fact(BaseModel):
 class UnknownFact(BaseModel):
     statement: str = Field(min_length=1)
     why_outcome_changes: str = Field(min_length=1)
+    # R02（2026-10-20）：该事实**已被问过**且用户明确表示无法提供（"不知道"）。
+    # 保留而不删除：终稿「尚不确定的事实」仍要列出它参与分情形分析，且它不得被再次追问
+    # （`AgentController._pending_clarification` 据此跳过）。字段默认 False ⇒ 旧 state 直接可解析。
+    user_declined: bool = False
 
 
 class LegalIssue(BaseModel):

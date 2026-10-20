@@ -458,8 +458,11 @@ def resume_with_user_fact(
             raise ResumeRunConflict("pending_anchor_mismatch")
 
         if _is_explicit_unknown(normalized_answer):
-            # 用户确认无法提供该事实：acknowledge 并转入条件化（不写入已确认事实，不 409）
-            issue.unknown_facts.pop(selected_index)
+            # 用户确认无法提供该事实：acknowledge 并转入条件化（不写入已确认事实，不 409）。
+            # R02（2026-10-20）：**保留**该事实并标记「已问过、仍未知」，不再 pop —— 原先删除后
+            # 它既不出现在终稿「尚不确定的事实」里（writer/verifier 的缺失项须属仍存在的 unknown_facts），
+            # 也无法参与分情形分析。标记后由 `_pending_clarification` 保证不会被重复追问。
+            issue.unknown_facts[selected_index] = resume_fact.model_copy(update={"user_declined": True})
         else:
             issue.facts.append(
                 Fact(
@@ -869,7 +872,7 @@ class AgentController:
             return evaluation
         if (
             evaluation.outcome is EvaluationOutcome.MISSING_FACT
-            and self._clarify_budget_exhausted(state)
+            and self._clarification_blocked(state, evaluation)
             and self._every_issue_has_evidence(state)
         ):
             return evaluation
@@ -879,6 +882,34 @@ class AgentController:
     def _clarify_budget_exhausted(state: LegalAgentState) -> bool:
         """澄清预算判定单一真源（与 _handle_evaluation MISSING_FACT 分支一致）。"""
         return state.clarifications >= state.budgets.max_clarifications
+
+    @staticmethod
+    def _pending_clarification(
+        state: LegalAgentState,
+        evaluation: EvaluationDecision,
+    ) -> UnknownFact | None:
+        """R02：评估器指定的 issue 内，挑一条**尚未被用户答复为"不知道"**的未决事实作为下一问。
+
+        评估器（冻结件）只按 (statement, why_outcome_changes) 取最小项、不认 `user_declined`；
+        若直接照用，用户已明确表示无法提供的事实会被**重复追问**。故在 controller 侧重挑：
+        跳过 `user_declined` 的项；无候选时返回 None ⇒ 调用方转确定性条件化分析。
+        """
+        if evaluation.issue_id is None:
+            clarification = evaluation.clarification
+            if clarification is not None and not clarification.user_declined:
+                return clarification
+            return None
+        issue = next((item for item in state.issues if item.issue_id == evaluation.issue_id), None)
+        if issue is None:
+            return None
+        candidates = [item for item in issue.unknown_facts if not item.user_declined]
+        if not candidates:
+            return None
+        return min(candidates, key=lambda item: (item.statement, item.why_outcome_changes))
+
+    def _clarification_blocked(self, state: LegalAgentState, evaluation: EvaluationDecision) -> bool:
+        """是否已不能再发起事实澄清：预算耗尽，**或**已无可问的未决事实（全被用户答过"不知道"）。"""
+        return self._clarify_budget_exhausted(state) or self._pending_clarification(state, evaluation) is None
 
     @staticmethod
     def _every_issue_has_evidence(state: LegalAgentState) -> bool:
@@ -1094,7 +1125,17 @@ class AgentController:
                 return ControllerResult(state=saved.state, evaluation=evaluation)
 
             if evaluation.outcome is EvaluationOutcome.MISSING_FACT:
-                if run.state.clarifications >= run.state.budgets.max_clarifications:
+                clarification = self._pending_clarification(run.state, evaluation)
+                # R02（2026-10-20）：此统一门由「澄清预算耗尽」扩展为「预算耗尽 **或** 已无可问的
+                # 未决事实」。评估器是冻结件：它见 `unknown_facts` 非空即判 MISSING_FACT，不认
+                # `user_declined`；而用户已明确"无法提供"的事实现被**保留**（见 resume 分支），
+                # 若仍只按预算判断，会对同一事实无限重复追问。故在 controller 侧向阻断。
+                if clarification is None or self._clarify_budget_exhausted(run.state):
+                    blocked_reason = (
+                        "CLARIFY_BUDGET_EXHAUSTED"
+                        if self._clarify_budget_exhausted(run.state)
+                        else "CLARIFY_ALL_UNKNOWNS_DECLINED"
+                    )
                     if not self._every_issue_retrieval_attempted(run.state):
                         # 2026-09-10 修复：澄清预算已耗尽、且**仍有 issue 从未发起过检索** →
                         # 绝不能转 DRAFTING（该 issue 在 drafting 时无证据绑定，writer 造不出
@@ -1122,20 +1163,21 @@ class AgentController:
                             state,
                             CheckpointMetadata(
                                 decision="backfill_retrieval",
-                                reason_code="CLARIFY_BUDGET_EXHAUSTED_PENDING_RETRIEVAL",
+                                reason_code=f"{blocked_reason}_PENDING_RETRIEVAL",
                             ),
                         )
-                    # 澄清预算已耗尽但仍有缺失关键事实 → 确定性强制条件化（产品承诺"最多两轮追问，
-                    # 两轮后转入分情形分析"）。无论 Planner 输出 ask_user 还是 finish_research，
-                    # 评估器决定再问时轮数已满都不注册下轮澄清（原行为：register_clarification
-                    # 触发 BudgetExceeded→STOP→静默降级，用户最后回答被丢弃）。
+                    # 澄清已不可再发起（预算耗尽 / 未决事实全被用户答"不知道"）但仍有缺失关键事实
+                    # → 确定性强制条件化（产品承诺"最多两轮追问，两轮后转入分情形分析"）。无论
+                    # Planner 输出 ask_user 还是 finish_research，评估器决定再问时轮数已满都不注册
+                    # 下轮澄清（原行为：register_clarification 触发 BudgetExceeded→STOP→静默降级，
+                    # 用户最后回答被丢弃）。
                     state = transition(run.state, AgentStatus.DRAFTING)
                     saved = self._save(
                         run,
                         state,
                         CheckpointMetadata(
                             decision="conditional_analysis",
-                            reason_code="CLARIFY_BUDGET_EXHAUSTED",
+                            reason_code=blocked_reason,
                         ),
                     )
                     return ControllerResult(state=saved.state, evaluation=evaluation)
@@ -1148,14 +1190,13 @@ class AgentController:
                         decision="clarification",
                         reason_code=evaluation.reason_code,
                         issue_id=evaluation.issue_id,
-                        pending_question=(evaluation.clarification.statement if evaluation.clarification else None),
+                        pending_question=clarification.statement,
                     ),
                 )
-                question = evaluation.clarification.statement if evaluation.clarification else None
                 return ControllerResult(
                     state=saved.state,
                     evaluation=evaluation,
-                    pending_question=question,
+                    pending_question=clarification.statement,
                 )
 
             if evaluation.outcome in {

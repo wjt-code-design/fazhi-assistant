@@ -566,8 +566,10 @@ def test_resume_explicit_unknown_is_acknowledged_not_conflict(store, records):
     assert result.new_state_version == 1
     assert result.state.status is AgentStatus.PLANNING
     issue_a = result.state.issues[0]
-    # 被确认未知的事实从 unknown_facts 移除，且不把"不知道"写入已确认事实
-    assert len(issue_a.unknown_facts) == 1
+    # R02（2026-10-20）：被确认未知的事实**保留**在 unknown_facts（参与终稿"尚不确定"与分情形分析），
+    # 仅标记 user_declined=True 以免被再次追问；且不把"不知道"写入已确认事实。
+    assert len(issue_a.unknown_facts) == 2
+    assert [f.user_declined for f in issue_a.unknown_facts] == [True, False]
     assert all("没有" not in str(f.statement) for f in issue_a.facts)
 
 
