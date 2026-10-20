@@ -553,6 +553,50 @@ def qa_write_counts() -> dict[str, int]:
         return dict(_write_counts)
 
 
+def qa_vector_integrity_counts(db: Session) -> dict[str, int | list[int]]:
+    """QA 向量与 SQL 的**完整性读数**（ADR-020 裁定②落地：隔离不删，但必须**可观测**）。
+
+    只出**计数与候选 id**，不出向量内容（题干 / 答案 / 证据属 AUTH-3 禁项），也**不判资格** ⇒
+    它不是新读出口，只把两件「已记录的权衡」点数出来：
+      ① `orphan_vector_records`＝**孤儿向量**（ADR-020 ④）：**带链写路径**落下的向量记录，其 doc id
+         在 SQL 侧没有任何 `qa_candidates.vector_doc_id` 指回（`decide_candidate` 先写向量后 `commit`，
+         提交失败即典型成因）；
+      ② `duplicate_candidate_ids`＝**重复向量**（ADR-020 ⑤）：同一 `qa_candidate_id` 对应 >1 条向量记录。
+
+    口径细节（不许含糊）：
+      · 「**无链**」**不算孤儿**：种子 / 生成脚本写入的记录本就没有 `qa_candidate_id`（见 `add_qa_pair`），
+        它们的既有读数是日志键 `qa_write_unlinked` 与 `/api/admin/stats` 的 `qa_write_unlinked`——
+        两件事分开计，不合成一个数；
+      · **孤儿＝「SQL 里没有任何一条候选行的 `vector_doc_id` 指回这条向量」**（按 doc id 比）：
+        行不存在、行在但 `vector_doc_id` 为空、或行指回的是**另一条**向量（重复采纳里被顶掉的那条）都算。
+        ⇒ 判定对象是**向量记录本身**，与「它属于哪个候选」无关；被判到的就是**没人指向的垃圾**。
+        这样④⑤两个数各自回答自己的问题（④＝有多少没人指的记录；⑤＝哪些候选被写了多条），
+        重复采纳里那条被顶掉的记录**同时**计入两者——它确实既是垃圾、又属于一条重复链。
+      · 只读两个**既有字段**（向量 metadata 的 `qa_candidate_id`、SQL 的 `vector_doc_id`），不新增列、
+        不新增写路径、不删任何记录（形状 P「隔离不删」一个字没改）；
+      · 会话由调用方传入（本模块不自己开会话）；由 `/api/admin/stats`（admin-only）读它。
+    """
+    data = _qa_store._collection.get(include=["metadatas"])
+    ids = [str(i) for i in (data.get("ids") or [])]
+    metas = list(data.get("metadatas") or [])
+    linked: set[str] = {str(c.vector_doc_id) for c in db.query(QaCandidate).all() if c.vector_doc_id}
+    orphan = 0
+    per_cand: dict[int, int] = {}
+    for idx, doc_id in enumerate(ids):
+        meta = metas[idx] if idx < len(metas) and metas[idx] else {}
+        cand_id = meta.get("qa_candidate_id")
+        if cand_id is None:
+            continue  # 无链写入 ⇒ 归 `qa_write_unlinked`，不算孤儿
+        key = int(cand_id)
+        per_cand[key] = per_cand.get(key, 0) + 1
+        if doc_id not in linked:
+            orphan += 1  # 没有任何候选行指回这条 ⇒ 孤儿（④的doc id口径；重复里被顶掉的那条同理）
+    return {
+        "orphan_vector_records": orphan,
+        "duplicate_candidate_ids": sorted(k for k, n in per_cand.items() if n > 1),
+    }
+
+
 def _record_qa_write(cand_id: int | None) -> None:
     """写侧归因的唯一落点：带链记一笔、无链亮一只键。"""
     with _write_lock:

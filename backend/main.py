@@ -3366,6 +3366,8 @@ def delete_conversation(conv_id: int, user: User = Depends(get_current_user), db
 # ==================== 管理员：统计 ====================
 @app.get("/api/admin/stats")
 def admin_stats(db: Session = Depends(get_db), _admin: User = Depends(require_admin)):
+    # ADR-020 裁定②（2026-10-20）落地：隔离不删**但必须可观测** ⇒ ④孤儿/⑤重复的管理面读数（admin-only）。
+    integrity = ks.qa_vector_integrity_counts(db)
     return {
         "user_count": db.query(User).count(),
         "conversation_count": db.query(Conversation).count(),
@@ -3376,6 +3378,10 @@ def admin_stats(db: Session = Depends(get_db), _admin: User = Depends(require_ad
         # 票 W06-FIX F1/V3：无链（＝撤不回）语料的进程内计数，与日志键 `qa_write_unlinked` 同源。
         # 判据不许把缺链读成放行，但管理面必须读得到它到底有多少条（backfill 之前先有计数）。
         "qa_write_unlinked": ks.qa_write_counts()["unlinked"],
+        # ADR-020 裁定②：④孤儿向量数（统计口径见 `knowledge_service.qa_vector_integrity_counts`）与
+        # ⑤重复向量所在的候选 id 列表。只出计数与候选 id，不出向量内容，也不判资格（非新读出口）。
+        "qa_orphan_vector_records": integrity["orphan_vector_records"],
+        "qa_duplicate_candidate_ids": integrity["duplicate_candidate_ids"],
     }
 
 

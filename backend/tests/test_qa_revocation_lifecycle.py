@@ -554,3 +554,58 @@ def test_revocation_reaches_an_in_flight_request_at_the_fresh_boundary(db, doubl
 
     # 对照腿：fresh 直接判也要拒（否则 ④ 的绿可能只是 `_p_recheck` 没跑判据）
     assert qe.evaluate_revocation_state(hit, fresh=True).allow is False
+
+
+def test_orphan_and_duplicate_vectors_are_observable_now(db, double_embeddings, monkeypatch):
+    """ADR-020 裁定②落地（2026-10-20「按建议裁定」）：④孤儿与⑤重复**不修**（隔离不删），但必须**看得见**。
+
+    上面两条特征化用例的断言**一个字不改**（它们钉的正是「隔离不删」这一被接受的现状）；
+    本条只量**可见性**，并按 R2-F8 那条的口径钉**接线**（防止改了函数却忘了接 DTO、或把两个键接反）：
+      ① 造一条孤儿（人工采纳提交失败 ⇒ 向量落地、SQL 未提交）⇒ `orphan_vector_records` 比造之前 **+1**；
+      ② 同一候选再批准两次（⑤）⇒ 其 `cand_id` 出现在 `duplicate_candidate_ids`；
+      ③ `/api/admin/stats` 的 DTO 与进程读数**同源**（两个键分别对照，接反即红）。
+    变异自证：让 `qa_vector_integrity_counts` 不数孤儿、或在 `main.admin_stats` 删掉/接反任一键 ⇒ 本条转红。
+    """
+    # 本文件的向量集合在**同一个进程**内跨用例共享（conftest 只隔离目录，不清空集合）⇒ 不能断言
+    # 「观察对象本来不在重复列表里」（别的用例可能已写过同一候选）。故只钉**与自身基线的增量**。
+    before = ks.qa_vector_integrity_counts(db)
+    real_commit = db.commit
+    state = {"boom": False}
+
+    def gated_commit():
+        if state["boom"]:
+            raise RuntimeError("模拟提交失败")
+        real_commit()
+
+    monkeypatch.setattr(db, "commit", gated_commit)
+    row = ks.create_candidate(db, "裁定②观察腿：孤儿量与重复量读得到吗？", ANSWER, 0.55, EVIDENCE)
+    state["boom"] = True
+    with pytest.raises(RuntimeError):
+        ks.decide_candidate(db, row.id, "approved")
+    db.rollback()
+    state["boom"] = False
+
+    mid = ks.qa_vector_integrity_counts(db)
+    assert mid["orphan_vector_records"] == before["orphan_vector_records"] + 1, (
+        f"孤儿向量没被读到（{before['orphan_vector_records']} → {mid['orphan_vector_records']}）"
+        " ⇒ 裁定②的『可观测』没落地（④ 仍不可见）"
+    )
+
+    ks.decide_candidate(db, row.id, "approved")
+    ks.decide_candidate(db, row.id, "approved")
+    after = ks.qa_vector_integrity_counts(db)
+
+    # 非空转的**独立探针**：直接数集合里属于本条候选的带链记录（不走被测函数）
+    probe = ks._qa_store._collection.get(include=["metadatas"])
+    mine = [m for m in (probe.get("metadatas") or []) if (m or {}).get("qa_candidate_id") == row.id]
+    assert len(mine) >= 2, f"本条候选在集合里只有 {len(mine)} 条带链记录 ⇒ 「出现在重复列表」这句失去对象"
+    assert row.id in after["duplicate_candidate_ids"], (
+        f"{row.id} 不在重复列表 {after['duplicate_candidate_ids']} ⇒ ⑤ 仍不可见"
+    )
+    assert after["duplicate_candidate_ids"] == sorted(set(after["duplicate_candidate_ids"])), "重复列表形状变了"
+
+    stats = main.admin_stats(db=db, _admin=None)
+    assert stats["qa_orphan_vector_records"] == after["orphan_vector_records"], "管理面 DTO 与进程读数不同源（孤儿键）"
+    assert stats["qa_duplicate_candidate_ids"] == after["duplicate_candidate_ids"], (
+        "管理面 DTO 与进程读数不同源（重复键）"
+    )
