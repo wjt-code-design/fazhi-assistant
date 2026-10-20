@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 
 load_dotenv(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), ".env"))
 
+import answer_cache  # noqa: E402
 import main  # noqa: E402
 from tests._sse_harness import CONTRACT_PARTS, chat_frames, login, sse_client  # noqa: E402
 
@@ -58,11 +59,18 @@ def _objs(frames: list[str]) -> list[dict]:
 
 
 def test_flagship_stream_discards_half_answer_when_retries_are_empty(monkeypatch):
-    """旗舰流式分支：后续尝试全空 ⇒ 半截不得被当答案（必须出现 error 帧）。"""
+    """旗舰流式分支：后续尝试全空 ⇒ 半截不得被当答案（必须出现 error 帧）。
+
+    ⚠️ 独立复核抓出的隔离缺陷（已修）：本条的问句原本与 R20 用例
+    （tests/test_light_escalation_accounting.py）相同，而那条腿会把答案写进**进程级共享**答案缓存
+    ⇒ 本条在别的用例之后跑就命中缓存、链一次都不被调用（`shared.n == 0`），断言只剩空枪。
+    现在：① 本条用**独立问句**；② 请求前 `answer_cache.clear()`。两条一起上，避免再被别的用例污染。
+    """
+    answer_cache.clear()
     shared = _HalfThenEmpty()
     with sse_client(monkeypatch, route="flagship_stream", flagship_parts=()) as c:
         monkeypatch.setattr(main, "make_chain", lambda _llm: shared)
-        frames = chat_frames(c, login(c), "租赁合同押金不退怎么办")
+        frames = chat_frames(c, login(c), "押金不退还能要回来吗")
 
     assert shared.n >= 2, f"链只被调用 {shared.n} 次 ⇒ 根本没触发重答，本条是空枪"
     assert any("error" in o for o in _objs(frames)), f"后续尝试全空、半截却仍被当成答案（没有 error 帧）：{frames}"
@@ -70,6 +78,7 @@ def test_flagship_stream_discards_half_answer_when_retries_are_empty(monkeypatch
 
 def test_contract_stream_discards_half_answer_when_retries_are_empty(monkeypatch):
     """合同报告分支：同形判据——半截不得进 reviewed、不得被当完整报告。"""
+    answer_cache.clear()
     shared = _HalfThenEmpty()
     with sse_client(monkeypatch, route="contract_review", flagship_parts=CONTRACT_PARTS) as c:
         monkeypatch.setattr(main, "make_chain", lambda _llm: shared)

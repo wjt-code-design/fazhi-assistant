@@ -954,6 +954,10 @@ class LLMRegistry:
         整体重置为 `runtime_used = 0`、`initial_used = max(0, total - R)`——**内存与持久两侧
         同时写**（runtime 归零也落库），否则二者分叉。
 
+        ⚠️ 边界：R 被钳到 `[0, total]`——`R > total` 时 `initial_used` 取 0、`quota_left`
+        收敛到 `total`（不是 R）；`R < 0` 时 `quota_left` 收敛到 0。这是"已用量不能为负"
+        的必然结果，调用方（管理端点）应保证 R 落在合法区间。
+
         R19：改前只改 initial_used（`max(0, total - R - runtime_used)`）而保留 runtime_used。
         一旦 runtime_used 已被 `mark_depleted` 记满（runtime_used = total），无论 R 取何值都算出
         initial_used = 0 ⇒ **校准对"已耗尽"的模型完全无效**（quota_left 仍 0）；且内存里的
