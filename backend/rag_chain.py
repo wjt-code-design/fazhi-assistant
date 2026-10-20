@@ -419,8 +419,11 @@ async def stream_with_retry(make_chain_fn, messages, configs, on_model_failure=N
     LLMBusyError → 调用方降级「服务繁忙」。突增时不会无界并发打向供应商。
     """
     async with llm_guard:
-        stripper = _ThinkStripper()
         for i, (disabled, wait) in enumerate(configs):
+            # R16：剥 think 的解析状态**每次尝试独立**。改前 stripper 建在循环外、跨尝试共用：
+            # 首模型若吐了未闭合的 `<think>`（换模型前就断流），`_in_think` 会带进下一次尝试，
+            # 后备模型的正文被判为"仍在 think 块内"而被整段吞掉（用户看到空答或半截）。
+            stripper = _ThinkStripper()
             try:
                 chain = make_chain_fn(i, disabled)
                 chunks = []

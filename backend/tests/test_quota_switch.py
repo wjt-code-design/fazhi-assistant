@@ -124,6 +124,73 @@ def test_stream_all_models_fail_propagates():
         assert "InsufficientBalance" in str(e)
 
 
+class UnclosedThinkChain:
+    """首个模型吐**未闭合**的 `<think>` 块后断流（触发换模型）。"""
+
+    def __init__(self, pieces=("<think>推理中",)):
+        self._pieces = pieces
+
+    async def astream(self, messages):
+        for p in self._pieces:
+            yield p
+        raise RuntimeError("stream broke mid-think")
+
+
+def test_retry_after_unclosed_think_keeps_backup_body():
+    """R16（改前失败）：首模型未闭合 `<think>` 后换模型，后备正文不得被共用的剥 think 状态吞掉。
+
+    改前 `stripper = _ThinkStripper()` 建在 configs 循环**外**跨尝试共用：首模型把
+    `_in_think` 留在 True，后备正文被判为"仍在 think 块内"而整段丢弃 ⇒ 用户看到空答。
+    """
+
+    def make_chain_fn(i, disabled):
+        return UnclosedThinkChain() if i == 0 else OkChain(("答案",))
+
+    async def run():
+        out = []
+        async for piece in stream_with_retry(
+            make_chain_fn,
+            [],
+            [(False, 0.0), (False, 0.0)],
+            on_model_failure=lambda e: None,
+        ):
+            out.append(piece)
+        return "".join(out)
+
+    assert asyncio.run(run()) == "答案", "后备模型正文被上一条未闭合 think 状态吞掉了"
+
+
+def test_each_attempt_strips_think_independently():
+    """对照腿：正常闭合的 think 仍被剥掉，且换模型后新正文照常流出。"""
+
+    class ThinkThenBodyChain:
+        def __init__(self, pieces):
+            self._pieces = pieces
+
+        async def astream(self, messages):
+            for p in self._pieces:
+                yield p
+
+    def make_chain_fn(i, disabled):
+        if i == 0:
+            # 首模型只吐一段完整 think（剥完为空）→ 视为空答 → 走重试
+            return ThinkThenBodyChain(("<think>只有思考</think>",))
+        return ThinkThenBodyChain(("<think>后备思考</think>", "正文甲", "正文乙"))
+
+    async def run():
+        out = []
+        async for piece in stream_with_retry(
+            make_chain_fn,
+            [],
+            [(False, 0.0), (False, 0.0)],
+            on_model_failure=lambda e: None,
+        ):
+            out.append(piece)
+        return "".join(out)
+
+    assert asyncio.run(run()) == "正文甲正文乙"
+
+
 def test_mark_depleted_makes_model_unavailable(monkeypatch):
     """mark_depleted 后该模型 remaining=0 → 立即 unavailable（下一请求自动落后备）。"""
     import json
