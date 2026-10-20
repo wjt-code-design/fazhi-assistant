@@ -29,11 +29,13 @@ export function UploadSection() {
         ok: true,
         text: `已入库「${res.filename}」，切分为 ${res.added_chunks} 个知识片段，稍后即可被检索引用。`,
       });
-      if (fileRef.current) fileRef.current.value = "";
     } catch (e) {
       setUploadMsg({ ok: false, text: e instanceof Error ? e.message : "上传失败" });
     } finally {
       setUploading(false);
+      // R13：**无论成功或失败**都清空 input.value。改前只在成功分支清 ⇒ 失败后保留原选择，
+      // 用户再选同一个文件时 change 不触发（浏览器认为 value 没变），看起来"点了没反应"。
+      if (fileRef.current) fileRef.current.value = "";
     }
   }
 
@@ -53,7 +55,8 @@ export function UploadSection() {
     <div>
       <SectionTitle>上传法律知识文件</SectionTitle>
       <p className="mt-3 max-w-2xl text-sm leading-relaxed text-slate">
-        支持 .txt / .md / .pdf / .docx。文件内容会被切分并加入知识库，此后的提问即可检索并引用其中内容（RAG
+        支持 .txt / .md / .pdf /
+        .docx。文件内容会被切分并加入知识库，此后的提问即可检索并引用其中内容（RAG
         知识库扩充，非模型训练）。
       </p>
       {/* G13：此前是裸 div onClick + 一个 display:none 的 file input（拿不到焦点）
@@ -155,7 +158,9 @@ export function UploadSection() {
             {previewing ? <Spinner /> : "预览切分"}
           </button>
           {preview && (
-            <span className={`text-sm ${preview.mode === "structured" ? "text-jade" : "text-slate"}`}>
+            <span
+              className={`text-sm ${preview.mode === "structured" ? "text-jade" : "text-slate"}`}
+            >
               {preview.mode === "structured"
                 ? `结构化切分：${preview.count} 个片段`
                 : `未识别到条号边界，回退段落切分：${preview.count} 个片段`}
