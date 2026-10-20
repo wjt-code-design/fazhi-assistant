@@ -35,7 +35,16 @@ export function StatsSection({ stats, onStats }: { stats: Stats; onStats: (s: St
             label="累计提问（对话数）"
             value={stats.conversation_count}
             icon={
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <svg
+                width="20"
+                height="20"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
                 <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
               </svg>
             }
@@ -45,7 +54,16 @@ export function StatsSection({ stats, onStats }: { stats: Stats; onStats: (s: St
           label="注册用户"
           value={stats.user_count}
           icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
               <circle cx="9" cy="7" r="4" />
               <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
@@ -57,7 +75,16 @@ export function StatsSection({ stats, onStats }: { stats: Stats; onStats: (s: St
           label="知识库条目"
           value={stats.knowledge_count}
           icon={
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            >
               <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
               <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
             </svg>
@@ -72,7 +99,9 @@ export function StatsSection({ stats, onStats }: { stats: Stats; onStats: (s: St
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div className="stat-label">当前模型（仅管理员可见）</div>
-            <div className="mt-1 font-serif text-base font-semibold text-ink">{stats.llm_model}</div>
+            <div className="mt-1 font-serif text-base font-semibold text-ink">
+              {stats.llm_model}
+            </div>
             <p className="mt-1 text-xs text-slate">
               知识库共 {stats.knowledge_count} 条 · 已废止 {stats.knowledge_expired ?? 0} 条
             </p>

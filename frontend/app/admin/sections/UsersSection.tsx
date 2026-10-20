@@ -27,7 +27,8 @@ export function UsersSection({
   }
 
   async function deleteUser(u: UserRow) {
-    if (!window.confirm(`确定删除账号「${u.username}」？将删除其全部对话与记录，不可恢复。`)) return;
+    if (!window.confirm(`确定删除账号「${u.username}」？将删除其全部对话与记录，不可恢复。`))
+      return;
     try {
       await api.delete(`/api/admin/users/${u.id}`);
       setUsers(users.filter((x) => x.id !== u.id));
@@ -134,12 +135,18 @@ export function UsersSection({
               <td>
                 <div className="flex items-center justify-end gap-1.5">
                   {u.role !== "admin" && (
-                    <button className="btn btn-ghost !px-3 !py-1 text-xs" onClick={() => toggleUser(u)}>
+                    <button
+                      className="btn btn-ghost !px-3 !py-1 text-xs"
+                      onClick={() => toggleUser(u)}
+                    >
                       {u.is_active ? "禁用" : "启用"}
                     </button>
                   )}
                   {u.id !== currentUserId && (
-                    <button className="btn btn-danger !px-3 !py-1 text-xs" onClick={() => deleteUser(u)}>
+                    <button
+                      className="btn btn-danger !px-3 !py-1 text-xs"
+                      onClick={() => deleteUser(u)}
+                    >
                       删除
                     </button>
                   )}
