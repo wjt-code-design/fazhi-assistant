@@ -17,6 +17,13 @@ export function useVoice(opts: { setInput: Dispatch<SetStateAction<string>> }) {
   useEffect(() => {
     return () => {
       if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
+      // R14：卸载时也要停 Web Speech 识别。改前只处理 WAV 录音 ⇒ 走浏览器兜底识别时
+      // 离开页面，识别仍在跑（麦克风与识别会话都没释放）。
+      if (recRef.current) {
+        const rec = recRef.current;
+        recRef.current = null;
+        rec.stop();
+      }
       if (wavRecRef.current) {
         const w = wavRecRef.current;
         wavRecRef.current = null;
@@ -33,6 +40,14 @@ export function useVoice(opts: { setInput: Dispatch<SetStateAction<string>> }) {
       wavRecRef.current = null;
       if (voiceTimeoutRef.current) clearTimeout(voiceTimeoutRef.current);
       setListening(false);
+      // R14：Web Speech 模式（recRef 有值、wavRecRef 为 null）也会走这条 listening 分支——
+      // 改前只停 wavRecRef 就 return，于是 recRef 的识别根本没停，`legacyWebSpeech()` 里
+      // 那个"停止"分支永远到不了。这里统一停两路。
+      if (recRef.current) {
+        const rec = recRef.current;
+        recRef.current = null;
+        rec.stop();
+      }
       if (w) {
         // stop() 会抛（重采样/断开节点在部分浏览器上失败）。此前这里不接 catch ⇒
         // 异常在事件回调里被吞掉，用户按了麦克风却什么都没发生（票 W07 甲的同一口径：
