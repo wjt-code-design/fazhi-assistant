@@ -104,6 +104,41 @@ def test_import_one_end_to_end(mod, tmp_collection, monkeypatch, tmp_path):
     assert arts == {"第一条", "第二条"}
 
 
+def test_seed_fragment_survives_when_new_write_fails(mod, tmp_collection, monkeypatch, tmp_path):
+    """R17（改前失败）：新条文写入失败时，旧 `origin=seed` 碎片不得**已经**被删。
+
+    改前 `import_one` 是"先删旧 seed → 再 add_chunks"：嵌入/写库失败上抛，而旧条文已删、
+    无回滚 ⇒ 静默丢失。修复后先写成功再清旧（同 `knowledge_service.add_text` 口径）。
+    """
+    from langchain_core.documents import Document
+
+    import knowledge_service as ks_mod
+
+    tmp_collection.add_documents(
+        [
+            Document(
+                page_content="第一条 旧种子碎片",
+                metadata={"source": "测试法", "article": "第一条", "origin": "seed"},
+            )
+        ]
+    )
+    clean_dir = tmp_path / "clean"
+    clean_dir.mkdir()
+    (clean_dir / "中华人民共和国测试法_20200101.txt").write_text(FIXTURE_LAW, encoding="utf-8")
+    monkeypatch.setattr(mod, "CLEAN_DIR", str(clean_dir))
+
+    def boom(*_a, **_k):
+        raise RuntimeError("模拟嵌入/写库失败")
+
+    monkeypatch.setattr(ks_mod, "add_chunks", boom)
+
+    with pytest.raises(RuntimeError):
+        mod.import_one("中华人民共和国测试法_20200101.txt", dry_run=False)
+
+    left = tmp_collection._collection.get(where={"$and": [{"source": "测试法"}, {"origin": "seed"}]})["ids"]
+    assert len(left) == 1, "新写失败却已删旧 seed ⇒ 旧条文静默丢失且无回滚"
+
+
 @pytest.mark.slow
 def test_import_one_idempotent_by_hash(mod, tmp_collection, monkeypatch, tmp_path):
     clean_dir = tmp_path / "clean"

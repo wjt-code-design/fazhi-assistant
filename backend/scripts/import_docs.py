@@ -95,8 +95,11 @@ def import_one(fname: str, dry_run: bool, *, clean_dir: str | None = None) -> di
     chunks = chunking.split_law_document(text)
     articles = {c.meta["article"] for c in chunks if c.meta.get("article")}
 
-    # seed 取代：删除本文件覆盖范围内的 origin=seed 碎片
+    # seed 取代：**只查询**本文件覆盖范围内的 origin=seed 碎片 id，写入成功后再删
+    # （R17：改前这里是"先删旧 seed → 再 add_chunks"，一旦嵌入/写库失败，旧条文已删且无回滚
+    #  ⇒ 文档/条文静默丢失；与 knowledge_service.add_text 的「先写成功再清旧」同款）。
     seed_replaced = 0
+    to_del: list = []
     if articles:
         seed_hits = _col().get(where={"$and": [{"source": source}, {"origin": "seed"}]}, include=["metadatas"])
         to_del = [
@@ -105,8 +108,6 @@ def import_one(fname: str, dry_run: bool, *, clean_dir: str | None = None) -> di
         if to_del:
             print(f"  {source}：seed 取代 {len(to_del)} 条碎片{'(dry-run)' if dry_run else ''}")
             seed_replaced = len(to_del)
-            if not dry_run:
-                _col().delete(ids=to_del)
 
     if dry_run:
         return {"source": source, "skipped_hash": False, "chunks": len(chunks), "seed_replaced": seed_replaced}
@@ -115,8 +116,18 @@ def import_one(fname: str, dry_run: bool, *, clean_dir: str | None = None) -> di
         (c.page_content, {"article": c.meta.get("article", ""), "chapter": c.meta.get("chapter", "")}) for c in chunks
     ]
     import knowledge_service as ks
+    import retrieval
 
     n = ks.add_chunks(pairs, source=source, origin="upload", file_hash_value=fh)
+    # 写入成功后再删旧 seed：与 add_text 同口径——删旧失败只导致新旧短暂共存（下次重传仍会清理），
+    # 优于删旧失败丢知识；删旧若真失败，本脚本的 `assert_seed_replaced` 会以非零退出报出来。
+    if n and to_del:
+        try:
+            _col().delete(ids=to_del)
+        except Exception:
+            pass
+        finally:
+            retrieval.invalidate()
     return {"source": source, "skipped_hash": False, "chunks": n, "seed_replaced": seed_replaced}
 
 
