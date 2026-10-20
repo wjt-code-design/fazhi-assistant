@@ -104,6 +104,10 @@ class ScriptedRegistry:
     # 只记 `mark_depleted` 的替身会让"改走冷却通道"这件事被**真 registry 的方法**静默接住
     # （本文件那 3 只 permanent 用例就是这样先漏的：断言读到 `marked == []`，而调用打在了未被打补丁的真对象上）。
     rejected: list[tuple[str, str]] = field(default_factory=list)
+    # R09：成功调用后 transport 会记账 → 替身必须记录（否则断言读到空列表，
+    # 而调用打在**真 registry** 上：key 不在真实 _entries 时真 deduct 早退，
+    # 但那是"碰巧无副作用"，不能拿来当"没调用"的证据）。
+    deducted: list[tuple[str, int]] = field(default_factory=list)
 
     def pick(self, modality: str, tier: str, *, exclude: set[str] | None = None) -> tuple[str, object]:
         skipped = set(exclude or set())
@@ -119,6 +123,9 @@ class ScriptedRegistry:
     def mark_rejected(self, key: str, reason: str, *, status: int | None = None) -> None:
         self.rejected.append((key, reason))
 
+    def deduct(self, key: str, tokens: int) -> None:
+        self.deducted.append((key, tokens))
+
 
 @pytest.fixture
 def install_registry(monkeypatch):
@@ -129,6 +136,7 @@ def install_registry(monkeypatch):
         monkeypatch.setattr(llm_registry.registry, "pick", reg.pick)
         monkeypatch.setattr(llm_registry.registry, "mark_depleted", reg.mark_depleted)
         monkeypatch.setattr(llm_registry.registry, "mark_rejected", reg.mark_rejected)
+        monkeypatch.setattr(llm_registry.registry, "deduct", reg.deduct)
         return reg
 
     return _install
@@ -492,6 +500,34 @@ def test_bind_kwargs_reach_the_selected_model(install_registry):
     assert transport.invoke([{"role": "user", "content": "hi"}]) == "k1#bound"
     assert llm.bind_calls == [{"response_format": {"type": "json_object"}}]
     assert llm.invoke_calls == 1
+
+
+def test_successful_invoke_charges_quota_to_the_selected_model(install_registry):
+    """R09（改前失败）：Agent 主链路成功调用必须记账。
+
+    改前 `RegistryFailoverTransport.invoke` 成功后**直接** `return ...invoke(...)`，
+    没有扣减回调 → Agent 全链路（planner/decomposer/writer）的用量从不进配额账，
+    而普通问答在 main.py 三处显式 `registry.deduct`（合同/流式/轻量）。
+    """
+    reg = install_registry([("k1", _OkTransport("answer"))])
+
+    assert _invoke() == "answer"
+
+    assert len(reg.deducted) == 1, "成功后必须恰好记账一次"
+    key, tokens = reg.deducted[0]
+    assert key == "k1", "必须记到本次实际选中的模型上"
+    assert tokens > 0, "扣减量必须为正（真实 usage 或估算兜底）"
+
+
+def test_failed_invoke_does_not_charge_quota(install_registry):
+    """对照腿：失败路径不得记账（配额不该因失败被扣）。"""
+    exc = _http_status(500)
+    reg = install_registry([("k1", _RaisingTransport(exc))])
+
+    with pytest.raises(httpx.HTTPStatusError):
+        _invoke()
+
+    assert reg.deducted == [], "异常路径不扣配额"
 
 
 def test_bind_is_rebuilt_on_the_model_selected_after_switch(install_registry):

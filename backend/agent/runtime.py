@@ -282,6 +282,32 @@ def _invoke_with_schema_fallback(
         return _invoke(transport, messages)
 
 
+def _message_text(item: object) -> str:
+    """取一条消息的文本内容：真实链路是 langchain 消息对象，测试/桩可能是 dict。"""
+    if isinstance(item, Mapping):
+        return str(item.get("content", "") or "")
+    return str(getattr(item, "content", "") or "")
+
+
+def _response_usage_total(response: object) -> int:
+    """从 langchain 响应读 total_tokens（兼容 usage_metadata / response_metadata）。
+
+    与 main.py `_usage_total` 同口径；读不到（测试桩返回字符串等）回 0，
+    由调用方走 `estimate_tokens` 兜底。**不**在此重写失败分类。
+    """
+    usage_metadata = getattr(response, "usage_metadata", None) or {}
+    total = usage_metadata.get("total_tokens") if isinstance(usage_metadata, Mapping) else None
+    if not total:
+        response_metadata = getattr(response, "response_metadata", None) or {}
+        if isinstance(response_metadata, Mapping):
+            token_usage = response_metadata.get("token_usage") or response_metadata.get("usage") or {}
+            total = token_usage.get("total_tokens") if isinstance(token_usage, Mapping) else None
+    try:
+        return int(total) if total else 0
+    except (TypeError, ValueError):
+        return 0
+
+
 class RegistryFailoverTransport:
     """失败即换模型的 transport 包装（2026-09-14，grilling 确认 F1–F8）。
 
@@ -346,7 +372,7 @@ class RegistryFailoverTransport:
             tried.add(key)
             call_started = time.monotonic()
             try:
-                return self._transport_for(llm).invoke(messages)
+                response = self._transport_for(llm).invoke(messages)
             except Exception as exc:  # noqa: BLE001 逐个模型尝试；分类见下
                 if is_schema_capability_rejection(exc):
                     raise  # F3：先走既有 schema 降级路径（不换模型、不标记）
@@ -370,6 +396,25 @@ class RegistryFailoverTransport:
                     int((time.monotonic() - call_started) * 1000),
                 )
                 continue
+            # R09：调用**成功后**记账（异常路径不记账，与 main.py 三处 deduct 同口径）。
+            # 改前这里直接 `return ...invoke(...)`，Agent 全链路（planner/decomposer/writer）
+            # 的用量从不进配额账——普通问答有 deduct、Agent 没有。
+            self._record_usage(key, messages, response)
+            return response
+
+    def _record_usage(self, key: str, messages: Sequence[object], response: object) -> None:
+        """把本次成功调用计入配额账：真实 usage 优先，否则按 prompt+answer 估算。
+
+        估算仅在无真实 usage 时 ×`thinking_mult`（reasoning_content 不进本地估算，
+        与 main.py 流式/合同分支同款近似）；真实 usage 已含全部 token，不再乘系数。
+        """
+        from llm_registry import estimate_tokens, registry
+
+        total = _response_usage_total(response)
+        if not total:
+            prompt_text = "".join(_message_text(item) for item in messages)
+            total = estimate_tokens(prompt_text + _message_text(response)) * registry.thinking_mult(key)
+        registry.deduct(key, total)
 
 
 def _planner_response_schema() -> dict:

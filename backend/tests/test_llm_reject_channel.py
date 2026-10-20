@@ -202,6 +202,9 @@ class _SpyRegistry:
     tried_exhausted: list[tuple[str, str]] = field(default_factory=list)
     tried_rejected: list[tuple[str, str, object]] = field(default_factory=list)
     picks: list[frozenset[str]] = field(default_factory=list)
+    # R09：成功调用后 transport 会记账 → 替身必须接住（否则调用打到真 registry，
+    # 键不在真实 _entries 时真 deduct 早退；但那是"碰巧无副作用"，不能当"没调用"的证据）。
+    deducted: list[tuple[str, int]] = field(default_factory=list)
 
     def pick(self, modality: str, tier: str, *, exclude: set[str] | None = None):
         skipped = set(exclude or set())
@@ -217,6 +220,9 @@ class _SpyRegistry:
     def mark_rejected(self, key: str, reason: str, *, status: int | None = None) -> None:
         self.tried_rejected.append((key, reason, status))
 
+    def deduct(self, key: str, tokens: int) -> None:
+        self.deducted.append((key, tokens))
+
 
 @pytest.fixture
 def spy(monkeypatch):
@@ -225,6 +231,7 @@ def spy(monkeypatch):
         monkeypatch.setattr(llm_registry.registry, "pick", reg.pick)
         monkeypatch.setattr(llm_registry.registry, "mark_depleted", reg.mark_depleted)
         monkeypatch.setattr(llm_registry.registry, "mark_rejected", reg.mark_rejected)
+        monkeypatch.setattr(llm_registry.registry, "deduct", reg.deduct)
         return reg
 
     return _install
