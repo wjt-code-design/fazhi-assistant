@@ -283,6 +283,11 @@ def execute_agent_request(
     cancelled: CancellationCheck | None = None,
 ) -> AgentPublicResult:
     """Execute or resume one bounded Agent run and persist PASS before returning it."""
+    # R08（2026-10-20）：入口即取消 ⇒ 不做拆解、不建 run、不驱动，直接 fail-closed。
+    # 旧实现的首个 cancelled() 检查在 runtime.controller.run(...) **返回之后**，客户端早断仍会
+    # 白跑一整轮（含一次模型拆解与整条控制器驱动）。
+    if cancelled is not None and cancelled():
+        return _failure_or_fallback("CLIENT_DISCONNECTED", run_id=run_id, conversation_id=bootstrap.conv_id)
     try:
         runtime = build_agent_runtime(
             db=db,
@@ -323,6 +328,14 @@ def execute_agent_request(
         active_run_id = run_id
 
     try:
+        # R08（2026-10-20）：新调用（整条控制器驱动）前再检查一次取消——拆解/建 run 期间客户端
+        # 断线同样不该继续白跑一整轮。
+        if cancelled is not None and cancelled():
+            return _failure_or_fallback(
+                "CLIENT_DISCONNECTED",
+                run_id=active_run_id,
+                conversation_id=bootstrap.conv_id,
+            )
         controller_result: ControllerResult = runtime.controller.run(active_run_id, bootstrap)
     except PermissionError:
         return _failure_or_fallback("OWNERSHIP_FAILURE", run_id=active_run_id, conversation_id=bootstrap.conv_id)

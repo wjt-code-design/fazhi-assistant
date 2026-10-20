@@ -438,6 +438,79 @@ def test_disconnect_after_verification_keeps_checkpoint_and_writes_no_assistant(
     assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
 
 
+def test_real_agent_service_entry_cancel_skips_decomposition_and_run(db):
+    """R08：入口即取消 ⇒ 不拆解、不建 run、不驱动。
+
+    旧实现首个 cancelled() 检查在 runtime.controller.run(...) 返回**之后**：客户端早断仍会
+    白跑一次模型拆解 + 建一条 run + 整条控制器驱动。本用例以「零 LLM 调用、零 run 记录」钉住入口检查。
+    """
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    transport = _AgentTransport(
+        issue_payload=_issue_payload(),
+        planner_payload={"kind": "finish_research", "summary": "交给确定性评估"},
+    )
+
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_law_gateway(),
+        cancelled=lambda: True,
+    )
+
+    assert (result.outcome, result.reason_code) == ("failed", "CLIENT_DISCONNECTED")
+    assert result.run_id is None
+    assert transport.calls == []
+    assert db.query(AgentRun).filter_by(conversation_id=conversation.id).count() == 0
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+
+
+def test_real_agent_service_cancel_between_decomposition_and_drive_stops_run(db):
+    """R08：拆解后、控制器驱动前取消 ⇒ 同样 fail-closed，不再白跑整条控制器。
+
+    取消标志在**首个模型调用（争点拆解）期间**置位：入口检查放行、拆解与建 run 已发生，
+    但驱动前的新检查必须拦住它——判据是「有 run、有拆解调用，但无终稿/无 assistant 写入」。
+    """
+    from agent.service import execute_agent_request
+
+    user, conversation = _owner_conversation(db)
+    transport = _AgentTransport(
+        issue_payload=_issue_payload(),
+        planner_payload={"kind": "finish_research", "summary": "交给确定性评估"},
+    )
+    flag = [False]
+    original = transport.invoke
+
+    def flips(messages):
+        flag[0] = True
+        return original(messages)
+
+    transport.invoke = flips
+    result = execute_agent_request(
+        db=db,
+        user_id=user.id,
+        settings=_settings(),
+        bootstrap=_bootstrap(conversation.id),
+        finalizer=_finalize,
+        llm=transport,
+        gateway=_law_gateway(),
+        cancelled=lambda: flag[0],
+    )
+
+    assert (result.outcome, result.reason_code) == ("failed", "CLIENT_DISCONNECTED")
+    assert transport.calls  # 拆解确实调用过
+    assert result.run_id is not None
+    # 关键判据：run 仍停在 bootstrapping（驱动前的新检查拦住了 controller.run）；
+    # 若退回旧实现，控制器会照常驱动，状态已推进出 bootstrapping。
+    assert db.get(AgentRun, result.run_id).status == "bootstrapping"
+    assert db.query(Message).filter_by(conversation_id=conversation.id, role="assistant").count() == 0
+
+
 def test_real_agent_service_returns_clarification_without_assistant_message(db):
     from agent.service import execute_agent_request
 
