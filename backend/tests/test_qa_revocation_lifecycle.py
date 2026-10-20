@@ -511,3 +511,46 @@ def test_r2_write_branch_tests_never_call_monkeypatch_undo():
         and n.func.value.id == "monkeypatch"
     ]
     assert hits, "monkeypatch.undo() 这个形状没被认出 ⇒ 上面的 not in 是假判据"
+
+
+def test_revocation_reaches_an_in_flight_request_at_the_fresh_boundary(db, double_embeddings):
+    """R22 残余的**动态证据**：请求**在途**时发生的撤回，必须在阶段边界被拦下。
+
+    背景（票 W06-FIX F9/V8）：两条读出口（注入 prompt / QA 直返）用的是**请求内复用**的状态槽
+    ——同一次请求只读一次 SQL；`fresh=True`（清槽新读）刻意只放在**阶段边界**（P/O）与缓存命中后的复核。
+    这条分工的判据是**计数替身**（`test_qa_read_eligibility.py::test_one_sql_state_session_per_qa_bearing_request`：
+    "一次请求只开 1 条状态 session"）——所以"把两处出口也改成 fresh"是**错的**，那会打红那条判据。
+
+    但这条分工的**后果**此前只有静态论证（台账 R22 残余："在途撤回传播缺动态证据"）。本用例把它钉成动态证据：
+
+      ① 在途：先按非 fresh 读一次 ⇒ 槽里是 `allow`（等同"产生处已判过"）；
+      ② 途中撤回提交（`decide_candidate` 拒绝）；
+      ③ 非 fresh 仍读到**旧槽** ⇒ 复用本身不会看见撤回（这正是必须有 fresh 边界的原因，不是缺陷）；
+      ④ **fresh 边界**（生产里 `main._p_recheck` 就在"发起模型调用前"这一格）必须丢弃该 QA。
+
+    变异自证：把 `main._p_recheck` 里的 `fresh=True` 退化成非 fresh ⇒ ④ 红（旧答案会继续进模型上下文）。
+    """
+    import asyncio
+
+    import qa_eligibility as qe
+
+    q = "在途撤回传播判据：出答之前候选被撤掉，这条 QA 还进得了模型上下文吗？"
+    row = _synthetic_auto_row(db, q)
+    hit = ks.search_qa(q)
+    assert hit is not None and hit["qa_candidate_id"] == row.id, "链没闭合 ⇒ 下面判不了状态"
+
+    # ① 在途（非 fresh）：填槽，等同产生处已经判过一次
+    assert qe.evaluate_revocation_state(hit).allow is True
+
+    # ② 途中撤回（另一条会话提交）
+    ks.decide_candidate(db, row.id, "rejected")
+
+    # ③ 复用语义照旧：非 fresh 仍读旧槽（若这里是 False，说明 F9 的复用前提已经变了）
+    assert qe.evaluate_revocation_state(hit).allow is True, "非 fresh 应保留请求内旧读数（F9 复用的前提）"
+
+    # ④ 阶段边界的 fresh 复核必须拦下这个在途请求
+    dropped = asyncio.run(main._p_recheck(_pre(q, hit)))
+    assert dropped["qa_hit"] is None, "在途撤回没有传播到阶段边界 ⇒ 已撤下的答案仍会被注入模型上下文"
+
+    # 对照腿：fresh 直接判也要拒（否则 ④ 的绿可能只是 `_p_recheck` 没跑判据）
+    assert qe.evaluate_revocation_state(hit, fresh=True).allow is False
