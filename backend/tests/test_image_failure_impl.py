@@ -362,6 +362,9 @@ _KNOWN_SWALLOW_SITES = {
         "_record_analysis": 1,
         "finalize_verified_agent_answer": 1,
         "_safe_pick": 1,
+        # R03（2026-10-20）：`ipaddress.ip_address(peer)` 的 `except ValueError` 是**窄口径**守卫——
+        # 对端不是合法 IP（如 TestClient 的 "testclient"）即判为不可信代理并返回 False，不需要 re-raise。
+        "_is_trusted_proxy_peer": 1,
         "_embed_question": 1,
         "_similar_cache_hit": 1,
         "_ainvoke_cancel_safe": 2,

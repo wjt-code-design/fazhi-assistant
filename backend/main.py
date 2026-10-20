@@ -1,5 +1,6 @@
 import asyncio
 import base64
+import ipaddress
 import json
 import logging
 import os
@@ -173,32 +174,58 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 
 
+def _is_trusted_proxy_peer(peer: str | None) -> bool:
+    """直连对端是否为可信代理（私网/环回地址）。
+
+    现役拓扑：公网 → cloudflared → Caddy → backend。backend 的直连对端是 compose 内网的
+    Caddy（私网地址）；`CF-Connecting-IP`（Cloudflare 边缘注入）与 `X-Forwarded-For`
+    （Caddy 追加）只有在这一前提下才可信。反代/直连入口暴露时，对端可能是公网地址，
+    此时这两个头**可被客户端自行设置**（注释旧称"不可伪造"只在经正式入口时成立）。
+    """
+    if not peer:
+        return False
+    try:
+        addr = ipaddress.ip_address(peer)
+    except ValueError:
+        return False
+    return addr.is_private or addr.is_loopback
+
+
 def _rate_key(request) -> str:
     """限流按真实客户端 IP（2026-08-08 公网反代穿透，手机端上线）。
 
     走 Cloudflare Tunnel 后默认取 request.client.host 会全部聚合成代理 IP，限流失效。
-    优先级：CF-Connecting-IP（cloudflared 注入的真实 IP，不可伪造）→ X-Forwarded-For
-    最右段（Caddy 追加的真实客户端 IP；攻击者伪造的中间段被忽略）→ client.host。
+    采信转发头的前提是直连对端为可信代理（见 `_is_trusted_proxy_peer`）：满足时才读
+    CF-Connecting-IP → X-Forwarded-For 最右段；不满足（对端不可信）一律用 socket 对端，
+    防直连入口伪造头部按任意键分桶绕过限流（R03）。
     """
-    cf = request.headers.get("CF-Connecting-IP")
-    if cf and cf.strip():
-        return cf.strip()
-    xff = request.headers.get("X-Forwarded-For")
-    if xff:
-        parts = [p.strip() for p in xff.split(",") if p.strip()]
-        if parts:
-            return parts[-1]
-    client = getattr(request, "client", None)
-    return (client.host if client else None) or "unknown"
+    peer = getattr(getattr(request, "client", None), "host", None)
+    if _is_trusted_proxy_peer(peer):
+        cf = request.headers.get("CF-Connecting-IP")
+        if cf and cf.strip():
+            return cf.strip()
+        xff = request.headers.get("X-Forwarded-For")
+        if xff:
+            parts = [p.strip() for p in xff.split(",") if p.strip()]
+            if parts:
+                return parts[-1]
+    return peer or "unknown"
 
 
 limiter = Limiter(key_func=_rate_key)
 
 # 登录失败锁定（2026-08-08 公网安全）：内存级，单 worker 可靠；重启清零（2 人场景可接受）。
-# username -> [失败次数, 最近失败时间戳]
-_LOGIN_FAILURES: dict[str, list] = {}
+# username -> 窗口内失败时刻列表（滚动窗口）。R04 修正：旧实现只存**首败**时刻且判据
+# `now < ts+300`，窗口过后新失败不再累计 ⇒ 账号永远不再锁定（直到一次成功登录清记录）。
+_LOGIN_FAILURES: dict[str, list[float]] = {}
 _LOGIN_MAX_ATTEMPTS = 5
 _LOGIN_LOCK_SECONDS = 300
+
+
+def _recent_login_failures(times: list[float], now: float) -> list[float]:
+    """只保留锁定窗口内的失败时刻（滚动窗口）。"""
+    cutoff = now - _LOGIN_LOCK_SECONDS
+    return [t for t in times if t > cutoff]
 
 
 async def _read_capped(file: UploadFile, max_bytes: int, detail: str) -> bytes:
@@ -406,14 +433,15 @@ async def login(request: Request, body: LoginIn):
         db = SessionLocal()
         try:
             now = time.time()
-            fail = _LOGIN_FAILURES.get(body.username)
-            if fail and fail[0] >= _LOGIN_MAX_ATTEMPTS and now < fail[1] + _LOGIN_LOCK_SECONDS:
+            recent = _recent_login_failures(_LOGIN_FAILURES.get(body.username, []), now)
+            if len(recent) >= _LOGIN_MAX_ATTEMPTS:
                 raise HTTPException(status_code=429, detail="登录失败次数过多，账号已锁定，请稍后再试")
             user = db.query(User).filter(User.username == body.username).first()
             if not user or not verify_password(body.password, user.password_hash):
                 # 失败累计（2026-08-08 公网安全：爆破防护；内存级，重启清零，2 人场景可接受）
-                cnt, ts = _LOGIN_FAILURES.get(body.username, (0, now))
-                _LOGIN_FAILURES[body.username] = (cnt + 1, ts if cnt > 0 else now)
+                # R04：记入本次失败时刻并回写**窗口内**列表 ⇒ 窗口过期后新失败能重新累计并再次锁定。
+                recent.append(now)
+                _LOGIN_FAILURES[body.username] = recent
                 raise HTTPException(status_code=401, detail="用户名或密码错误")
             if not user.is_active:
                 raise HTTPException(status_code=403, detail="账号已被禁用")
