@@ -16,6 +16,11 @@
 
 前置：后端已启动（manage.py start），API key 已配。用法：
   cd backend && python scripts/smoke_citation_full.py
+
+R25：本门是**真实生成冒烟**（每问都带 `no_cache`，关掉回答缓存与 QA 直返两条零 token 捷径，
+见 `chat_payload`）——它证明"本次确实走了一次模型生成并且引用/拒答判据成立"；
+它**不**证明"轻量答错真的升级了旗舰"（线上没有任何帧暴露档位/升级，那只能读服务端
+`routing_metrics`/`log_account`）。两个层级不要混读。
 """
 
 import json
@@ -66,8 +71,23 @@ def post(url, payload, token=None):
     return urllib.request.urlopen(req, timeout=90)
 
 
+def chat_payload(question: str) -> dict:
+    """`/api/chat` 请求体：**必须带 `no_cache`**。
+
+    R25：改前本门只发 `{"question": q}` ⇒ 候选 main.py 在模型生成**之前**允许"回答缓存命中"
+    与"QA 持久语义缓存直返"两条零 token 捷径，于是门里的"引对了 / 诚实拒答了"可能整条来自直返，
+    既证明不了"本次真的调用了模型"，也证明不了"轻量答错真的升级了旗舰"。带 `no_cache` 后两条捷径
+    都关闭（见 main.py 的 `cache_key = None if body.no_cache else ...` 与 `qa_ans = None if body.no_cache else ...`）
+    ⇒ 每个场景都真的走了一次生成：本门从此是**真实生成冒烟**，不再只是"API 内容冒烟"。
+
+    ⚠️ 诚实边界：线上仍**没有**任何帧暴露档位/是否升级 ⇒ "升级真的发生"这件事本门证明不了，
+    只能读服务端 `routing_metrics` / `log_account`（本条不改那条口径，也不假装能证明）。
+    """
+    return {"question": question, "no_cache": True}
+
+
 def chat(token, q):
-    body = json.dumps({"question": q}).encode()
+    body = json.dumps(chat_payload(q)).encode()
     req = urllib.request.Request(
         BASE + "/api/chat",
         data=body,

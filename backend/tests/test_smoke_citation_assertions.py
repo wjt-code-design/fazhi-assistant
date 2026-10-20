@@ -263,6 +263,32 @@ def test_full_name_normalizer_cannot_drift_from_retrieval(full):
     )
 
 
+def test_full_smoke_sends_no_cache_so_it_proves_a_real_generation(full, monkeypatch):
+    """R25（改前失败）：门必须发 `no_cache`，否则整条结论可能来自缓存/QA 直返。
+
+    改前 `chat()` 只发 `{"question": q}` ⇒ 候选 main.py 在模型生成**之前**允许"回答缓存命中"
+    与"QA 持久语义缓存直返"两条零 token 捷径 ⇒ 门里的"引对了/诚实拒答了"证明不了本次真的调用了模型。
+    这里不打桩业务逻辑，只看脚本**实际发出去的请求体**（把 `urlopen` 换成记录器）。
+    """
+    import json
+
+    sent: dict = {}
+
+    class _Resp:
+        def __iter__(self):
+            return iter([b'data: {"content": "\\u7b54"}\n', b"data: [DONE]\n"])
+
+    def fake_urlopen(req, timeout=0):  # noqa: ARG001
+        sent["body"] = json.loads(req.data.decode())
+        return _Resp()
+
+    monkeypatch.setattr(full.urllib.request, "urlopen", fake_urlopen)
+    full.chat("tok", "劳动合同试用期最长能约定多久？")
+
+    assert sent["body"].get("no_cache") is True, f"请求体没关缓存/直返两条捷径：{sent['body']}"
+    assert sent["body"].get("question") == "劳动合同试用期最长能约定多久？"
+
+
 def test_full_citation_pattern_cannot_drift_from_retrieval(full):
     """full 的条号形状必须仍是 `retrieval._ART_FULL_RE` 里那一截，不许各改各的。"""
     import retrieval
