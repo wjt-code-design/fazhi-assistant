@@ -609,3 +609,57 @@ def test_orphan_and_duplicate_vectors_are_observable_now(db, double_embeddings, 
     assert stats["qa_duplicate_candidate_ids"] == after["duplicate_candidate_ids"], (
         "管理面 DTO 与进程读数不同源（重复键）"
     )
+
+
+def test_orphan_detection_logs_only_when_nonzero(db, double_embeddings, monkeypatch, caplog):
+    """ADR-020 裁定②的**告警口径**（2026-10-20 Owner 定阈）：孤儿向量**非零即异常**，重复只记数不告警。
+
+    阈值不是拍脑袋的数字，而是**天然的 0**：孤儿只由「先写向量、后提交」失败产生，正常流程不该有一条。
+    本条三段，每段都各自可红：
+      ① **反腿**：`_warn_if_orphans(0)` ⇒ **不许**落告警（否则每次打开管理面都刷一条噪声，告警会被忽略）；
+      ② **正腿**：`_warn_if_orphans(3)` ⇒ 必落一条，且归因键为 True、正文含 `count=3`；
+      ③ **端到端**：造一条真孤儿后走 `qa_vector_integrity_counts` ⇒ 必落告警（接线没断才绿）。
+    另钉 AUTH-3：日志正文**不含**题干与答案原文（只含计数）。
+    """
+    import logging
+
+    caplog.set_level(logging.WARNING, logger="legal.chat")
+
+    # ① 反腿：0 条 ⇒ 不许落
+    caplog.clear()
+    ks._warn_if_orphans(0)
+    assert not [r for r in caplog.records if getattr(r, "qa_orphan_vector_detected", None)], (
+        "孤儿为 0 仍落了告警 ⇒ 每次打开管理面都会刷噪声，真告警会被淹没"
+    )
+
+    # ② 正腿：非零 ⇒ 必落，且只带布尔键 + 计数
+    caplog.clear()
+    ks._warn_if_orphans(3)
+    hits = [r for r in caplog.records if getattr(r, "qa_orphan_vector_detected", None)]
+    assert len(hits) == 1, f"孤儿非零却没落告警（实际 {len(hits)} 条）⇒ Owner 定的『非零即告警』没落地"
+    msg = hits[0].getMessage()
+    assert "count=3" in msg, f"正文没带数量（{msg!r}）⇒ 只知有孤儿、不知几条"
+    assert ANSWER not in msg and "试用期" not in msg, "告警正文混入了答案/题干原文 ⇒ 违反 AUTH-3"
+
+    # ③ 端到端：造一条真孤儿后，读一次完整性读数必须落告警（接线断了这条就红）
+    real_commit = db.commit
+    state = {"boom": False}
+
+    def gated_commit():
+        if state["boom"]:
+            raise RuntimeError("模拟提交失败")
+        real_commit()
+
+    monkeypatch.setattr(db, "commit", gated_commit)
+    row = ks.create_candidate(db, "裁定②告警腿：孤儿出现时会不会亮灯？", ANSWER, 0.55, EVIDENCE)
+    state["boom"] = True
+    with pytest.raises(RuntimeError):
+        ks.decide_candidate(db, row.id, "approved")
+    db.rollback()
+    state["boom"] = False
+
+    caplog.clear()
+    ks.qa_vector_integrity_counts(db)
+    assert [r for r in caplog.records if getattr(r, "qa_orphan_vector_detected", None)], (
+        "造出真孤儿后读数没落告警 ⇒ 告警函数没接线（只测了它自己，没测调用点）"
+    )

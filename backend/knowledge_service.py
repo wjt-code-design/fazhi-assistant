@@ -591,10 +591,30 @@ def qa_vector_integrity_counts(db: Session) -> dict[str, int | list[int]]:
         per_cand[key] = per_cand.get(key, 0) + 1
         if doc_id not in linked:
             orphan += 1  # 没有任何候选行指回这条 ⇒ 孤儿（④的doc id口径；重复里被顶掉的那条同理）
+    _warn_if_orphans(orphan)  # 告警口径见 `_warn_if_orphans`：孤儿非零即异常（Owner 定阈）
     return {
         "orphan_vector_records": orphan,
         "duplicate_candidate_ids": sorted(k for k, n in per_cand.items() if n > 1),
     }
+
+
+def _warn_if_orphans(orphan: int) -> None:
+    """ADR-020 裁定②的**告警口径**（2026-10-20 Owner 定阈）：孤儿向量**非零即异常**。
+
+    为什么阈值是"天然的 0"而不是某个数字：孤儿只在「先写向量、后提交」那条路上由提交失败产生
+    （见 `decide_candidate`），正常流程**不该出现**任何一条 ⇒ 一旦非零就说明发生过一次写入失败，
+    无需拍脑袋。重复向量则**没有**观测基线（可能来自不常见的重复采纳运维动作）⇒ 只记数、不告警。
+
+    只落布尔归因键 `qa_orphan_vector_detected`（已登记于 `observability._ACCOUNT_FIELDS`），
+    数量写在日志正文里；题干/答案/证据一律不落（AUTH-3）。由 `/api/admin/stats` 每次取值时触发。
+    """
+    if orphan <= 0:
+        return
+    logging.getLogger("legal.chat").warning(
+        "QA 向量存在孤儿记录（无候选行指回）count=%d ⇒ 曾发生先写向量后提交失败",
+        orphan,
+        extra={"qa_orphan_vector_detected": True},
+    )
 
 
 def _record_qa_write(cand_id: int | None) -> None:

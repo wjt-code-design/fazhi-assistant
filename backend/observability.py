@@ -180,6 +180,13 @@ _ACCOUNT_FIELDS = (
     # 题干与答案一律不落（AUTH-3 日志不落原文）。未登记会被 JSON formatter 静默丢弃 ⇒ 键白写
     # （同一族本仓已被哨兵抓过四次）。
     "qa_write_unlinked",
+    # ADR-020 裁定②（2026-10-20，Owner 定阈值）：**孤儿向量**的非零告警键。
+    # 阈值口径由 Owner 定：孤儿向量**正常应为 0**（它只在"先写向量、后提交"失败时产生），
+    # 故「非零即异常」不需要拍脑袋定数字；重复向量暂无观测基线 ⇒ 只记数、不告警。
+    # 本键只承载布尔（一次检查一次读数），数量走日志正文与 `/api/admin/stats` 的
+    # `qa_orphan_vector_records`；题干/答案/证据一律不落（AUTH-3）。
+    # 未登记会被 JSON formatter 静默丢弃 ⇒ 键白写（本族已被哨兵抓过多次）。
+    "qa_orphan_vector_detected",
     # 票 C21-A（2026-10-18，review J2）：候选**召回层**失败（向量库查询抛错）的专用归因键。
     # 与 `qa_eligibility_reason` 分家：召回故障不是资格状态轴判定，混进 state 会污染
     # "语料被资格拦"的读数。只承载布尔；日志正文不含问句/答案/evidence 原文（AUTH-3）。
