@@ -1709,6 +1709,9 @@ class _LightResult:
     # 轻量产物 + NOTE_QUOTA）。刻意**不含**"轻量即旗舰、无更强者可升"那一支：那是能力上限，不是降级；
     # 也不含自检 FAIL —— 那是 verdict 的归因域。两条必须能同时出现在一张日志里（见调用点的 log_account）。
     degraded: bool = False
+    # R20：**逐调用**的 (key, usage) 记账对。升级旗舰重答时这条答复烧了两个模型（L 与 F），
+    # 必须各记各的账；空元组 ⇒ 调用点按 `(res.key, res.usage)` 单笔扣（历史形状，其余四个出口不变）。
+    charges: tuple[tuple[str, int], ...] = ()
 
 
 def _fast_path_fact_texts(pre: dict) -> list[str]:
@@ -1888,10 +1891,22 @@ async def _light_buffered_locked(
     fraw = clean_answer(fresp.content or "") if fresp else ""
     fusage = _token_charge(fresp, fraw)
     fv = quality.self_check(fraw, ctx_present)
+    # R20：升级旗舰重答**烧了两个模型**——L 的 usage 必须记在 lkey 上、F 的记在 fkey 上。
+    # 改前只带 `key=fkey, usage=usage+fusage` ⇒ 调用点把 L 的用量一并扣在 F 头上，L 的账从不被扣。
+    _charges = ((lkey, usage), (fkey, fusage))
     if fv.ok:
-        return _with_gate(_LightResult(fraw, fkey, modality, "flag", usage + fusage, True, "pass"))
+        return _with_gate(_LightResult(fraw, fkey, modality, "flag", usage + fusage, True, "pass", charges=_charges))
     return _with_gate(
-        _LightResult((fraw + NOTE_COMPLEX) if fraw else "", fkey, modality, "flag", usage + fusage, True, fv.reason)
+        _LightResult(
+            (fraw + NOTE_COMPLEX) if fraw else "",
+            fkey,
+            modality,
+            "flag",
+            usage + fusage,
+            True,
+            fv.reason,
+            charges=_charges,
+        )
     )
 
 
@@ -2856,7 +2871,12 @@ async def chat(
                         scope=cache_scope,
                         generation=cache_generation,
                     )
-                if res.key:
+                if res.charges:
+                    # R20：逐调用按**实际 key** 记账（升级重答 = L、F 两笔各记各的账）。
+                    # 对抗审计 v2 #20：SQLite 扣减同步阻塞事件循环 → 线程池。
+                    for _charge_key, _charge_tokens in res.charges:
+                        await run_in_threadpool(registry.deduct, _charge_key, _charge_tokens)
+                elif res.key:
                     # 对抗审计 v2 #20：SQLite 扣减同步阻塞事件循环 → 线程池
                     await run_in_threadpool(registry.deduct, res.key, res.usage)
                 routing_metrics.record(res.tier, res.escalated, res.verdict, "miss", checked=True)
