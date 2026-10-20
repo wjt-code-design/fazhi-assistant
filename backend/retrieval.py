@@ -924,9 +924,30 @@ def vector_top(
     return out
 
 
+_DOC_ID_SEP = "\x1f"  # 单元分隔符（正文里不会出现；仅作键拼接，不外显）
+
+
 def _doc_id(d: Document) -> str:
-    # 无稳定外部 id 时以内容作融合 key（chunk 内容唯一）
-    return d.page_content
+    """融合/去重键：**必须能区分出处**。
+
+    R18：改前只用 `page_content` 作 key ⇒ 正文相同、来源/条号/版本不同的两条会被
+    `pool.setdefault(did, d)` 融合成一条（后到的那条被静默丢掉），检索结果丢失出处，
+    甚至把不同法源的条文当成同一条。现在把可用的出处字段纳入键；出处字段**全缺**时
+    退回正文键，保持旧行为（对没有 metadata 的裸 Document 不作新假设）。
+
+    同一片段被向量路与 BM25 路同时召回时，两路给出的 metadata 相同 ⇒ 键相同 ⇒ 照常合并。
+    """
+    m = d.metadata or {}
+    parts = (
+        str(m.get("source") or ""),
+        str(m.get("article") or ""),
+        str(m.get("version_id") or ""),
+        str(m.get("effective_from") or ""),
+        str(m.get("effective_to") or ""),
+    )
+    if not any(parts):
+        return d.page_content
+    return _DOC_ID_SEP.join((*parts, d.page_content))
 
 
 # DB-16（2026-10-09，审查报告 B-05）：category 过滤落空的**进程内计数**（同值只 warn 一次，防刷屏）。
