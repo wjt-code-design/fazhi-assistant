@@ -11,9 +11,11 @@ import sqlite3
 import threading
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-# 对抗审计 v2 #22：默认路径统一到 backend/data（与 docker-compose 卷 ./backend/data:/data 一致）。
+# 对抗审计 v2 #22：默认路径统一到 backend/data（与 docker-compose 卷 ./backend/data:/app/data 一致）。
 # 原 "..", "data" 本地解析到项目根 data/、容器内解析到 /data——同一服务两套宿主目录，配额数据不共享。
-# docker 侧由 compose environment 注入 QUOTA_DB=/data/quota_used.sqlite（仍在卷内）。
+# R11：compose 容器挂载点归位到 /app/data（宿主仍是 ./backend/data），使容器内该默认
+#   （/app/data/quota_used.sqlite）与备份脚本 `backup_data.QUOTA_SOURCE` 的固定目标同源；
+#   否则 compose 注入的 /data/... 会让备份 CLI 被守卫在读写前 SystemExit。
 DB_PATH = os.getenv("QUOTA_DB", os.path.join(HERE, "data", "quota_used.sqlite"))
 
 _lock = threading.Lock()

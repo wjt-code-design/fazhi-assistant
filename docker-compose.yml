@@ -40,14 +40,20 @@ services:
       #   若要根治日志噪音：把 posthog 降到 <4（需改 requirements 并重建镜像，约 40 分钟）。
       - ANONYMIZED_TELEMETRY=False
       # SQLite 落在挂载卷内（避免单文件挂载的目录坑）
-      - DATABASE_URL=sqlite:////data/app.db
-      - QUOTA_DB=/data/quota_used.sqlite
+      # R11：容器路径必须与运维脚本的**固定目标**同源——`quota_store.py` 默认落 `backend/data/`
+      #   （容器内 = /app/data），`scripts/backup_data.py` 的 CHROMA_DIR/QUOTA_SOURCE/DATA_DIR/MEDIA_DIR
+      #   也都由 `BACKEND` 起算（容器内 BACKEND=/app）。改前 compose 把数据卷挂到 `/data` 且注入
+      #   `QUOTA_DB=/data/quota_used.sqlite` ⇒ `_check_env_contract()` 在任何读写前 SystemExit，
+      #   容器内 CLI 被守卫拒绝（守卫拒绝是**有意的** fail-closed 契约，见 tests/test_chroma_dir_guard.py）。
+      #   宿主目录不变（仍是 ./backend/data），因此只是容器挂载点归位，无需数据迁移。
+      - DATABASE_URL=sqlite:////app/data/app.db
+      - QUOTA_DB=/app/data/quota_used.sqlite
     volumes:
       # 持久化用户数据（绝不进镜像）
       - ./backend/chroma_db:/app/chroma_db
       - ./backend/media:/app/media
       - ./backend/backups:/app/backups
-      - ./backend/data:/data
+      - ./backend/data:/app/data
     restart: unless-stopped
     mem_limit: 4g
     healthcheck:

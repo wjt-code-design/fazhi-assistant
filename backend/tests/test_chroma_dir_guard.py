@@ -6,8 +6,9 @@
 - 把某个脚本 `__main__` 前的 `_check_env_contract()` 调用删掉、或把它挪进 `main()` 里
   ⇒ 该脚本的接线断言红（接线用源码判定，不 import 脚本本体，见 WIRED 注释）；
 - 把 `backup_data` 那句 `env_name="QUOTA_DB"` 删掉（退回默认 CHROMA_DIR）⇒ 末条 QUOTA_DB 接线断言红。
-  那道门挡的是容器侧形状：compose 注入 `QUOTA_DB=/data/quota_used.sqlite`，而脚本按 `backend/data/`
+  那道门挡的是容器侧形状：compose 曾注入 `QUOTA_DB=/data/quota_used.sqlite`，而脚本按 `backend/data/`
   固定取源 ⇒ 只判 CHROMA_DIR 时三件附属全部"源不存在⇒跳过"，却照样打印"备份完成"。
+  （R11 已把 compose 容器挂载点归位到 `/app/data`，使两边同源；本文件末条防漂移钉子钉住它。）
 """
 
 import os
@@ -15,10 +16,12 @@ import re
 from pathlib import Path
 
 import pytest
+import yaml
 
 from scripts import chroma_dir_guard
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
+COMPOSE = Path(__file__).resolve().parents[2] / "docker-compose.yml"
 
 
 def test_guard_is_silent_when_env_unset(monkeypatch):
@@ -74,3 +77,44 @@ def test_backup_data_wires_the_guard_for_quota_db_too():
         "backup_data 没有拿 QUOTA_DB 去比 QUOTA_SOURCE ⇒ 容器里 QUOTA_DB 指向卷内路径时，"
         '三件附属会全部按 backend/data/ 找不到源而跳过，脚本仍打印"备份完成"'
     )
+
+
+# ---------------------------------------------------------------------------
+# R11 防漂移钉子：部署侧容器路径必须与备份脚本的**固定目标**同源
+# ---------------------------------------------------------------------------
+
+# 期望值**独立写死**（不从 compose 反推）：脚本的四个固定目标全部由 `BACKEND` 起算，
+# 容器内 WORKDIR=/app ⇒ BACKEND=/app ⇒ 目标形态为 /app/{data,chroma_db,media}。
+# 改前 compose 把数据卷挂到 `/data` 并注入 `QUOTA_DB=/data/quota_used.sqlite`：
+# 这与脚本目标分歧 ⇒ `_check_env_contract()` 在**任何读写之前** SystemExit，
+# 容器内 `python scripts/backup_data.py` 根本跑不起来（守卫拒绝是有意的 fail-closed 契约）。
+_EXPECTED_QUOTA_DB = "/app/data/quota_used.sqlite"
+_EXPECTED_DATABASE_URL = "sqlite:////app/data/app.db"
+_MOUNT_DATA = "/app/data"
+_MOUNT_CHROMA = "/app/chroma_db"
+_MOUNT_MEDIA = "/app/media"
+
+
+def _compose_backend() -> dict:
+    return yaml.safe_load(COMPOSE.read_text(encoding="utf-8"))["services"]["backend"]
+
+
+def test_compose_backend_paths_match_backup_script_fixed_targets():
+    backend = _compose_backend()
+    env = dict(item.split("=", 1) for item in backend["environment"] if "=" in item)
+    mounts = dict((src, dst) for entry in backend["volumes"] for src, _, dst in [entry.partition(":")] if dst)
+
+    assert env.get("QUOTA_DB") == _EXPECTED_QUOTA_DB, (
+        "QUOTA_DB 与 backup_data.QUOTA_SOURCE 的容器形态不一致 ⇒ 容器内 _check_env_contract() "
+        "在任何读写前就 SystemExit，备份 CLI 跑不起来"
+    )
+    assert env.get("DATABASE_URL") == _EXPECTED_DATABASE_URL, (
+        "DATABASE_URL 必须落在数据卷的容器路径上，否则主库与 backup_data 的目标再次分叉"
+    )
+    assert mounts.get("./backend/data") == _MOUNT_DATA, (
+        "数据卷挂载点必须归位到 /app/data（宿主仍是 ./backend/data）；"
+        "挂到 /data 会让 QUOTA_DB/QUOTA_SOURCE/DATA_DIR 三方分叉"
+    )
+    assert mounts.get("./backend/chroma_db") == _MOUNT_CHROMA
+    assert mounts.get("./backend/media") == _MOUNT_MEDIA
+    assert "/data" not in mounts.values(), "backend 卷里不能再出现 /data：那是与脚本固定目标分歧的旧容器形态"
