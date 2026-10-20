@@ -1,2 +1,5 @@
 # 构建生成的桥接文件（T1.1）：每次 npm run build 由 scripts/write-build-id.mjs 重写，不入库
 public/build-id.txt
+# R10：service worker 由 scripts/sw.template.js 在构建期嵌入构建号生成，同样不入库
+# （模板仍入库：frontend/scripts/sw.template.js）
+public/sw.js
