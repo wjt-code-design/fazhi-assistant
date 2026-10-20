@@ -211,6 +211,46 @@ def test_get_backward_compat(monkeypatch):
     assert reg.config()["model"]
 
 
+def test_calibrate_writes_a_complete_baseline_on_a_depleted_model(monkeypatch):
+    """R19（改前失败）：校准必须真的把剩余拉回 R，且内存与持久一致。
+
+    改前只改 `initial_used = max(0, total - R - runtime_used)` 而**保留 runtime_used**：
+    runtime 已被 `mark_depleted` 记满（= total）时，无论 R 取何值都算出 initial_used=0
+    ⇒ quota_left 仍 0（校准对"已耗尽"的模型完全无效）；而 initial 已落库 ⇒ 内存与持久分叉。
+    """
+    reg, store = _make_registry(monkeypatch, ROLES)
+    persisted_init: dict[str, int] = {}
+    monkeypatch.setattr(quota_store, "set_used", lambda k, v: store.__setitem__(k, int(v)))
+    monkeypatch.setattr(quota_store, "set_initial", lambda k, v: persisted_init.__setitem__(k, int(v)))
+
+    e = reg._entries["t_light"]
+    e.runtime_used = e.quota_total  # 模拟 mark_depleted 把 runtime 记满
+    assert e.quota_left == 0, "前提：调用前该模型已耗尽"
+
+    res = reg.calibrate("t_light", 500)
+
+    assert e.quota_left == 500, "校准后剩余没回到 500 ⇒ 对已耗尽模型无效"
+    assert res["quota_left"] == 500 and res["initial_used"] == e.quota_total - 500
+    # 内存与持久一致（runtime 归零也落库）
+    assert e.runtime_used == 0
+    assert store["t_light"] == 0
+    assert persisted_init["t_light"] == e.quota_total - 500
+
+
+def test_calibrate_after_mark_depleted_restores_the_model_to_routing(monkeypatch):
+    """端到端语义：`mark_depleted` → 校准回 900 ⇒ 该模型必须重新可被自动路由选中。"""
+    reg, store = _make_registry(monkeypatch, ROLES)
+    monkeypatch.setattr(quota_store, "set_used", lambda k, v: store.__setitem__(k, int(v)))
+    monkeypatch.setattr(quota_store, "set_initial", lambda k, v: None)
+
+    reg.mark_depleted("t_light", "quota_error")
+    assert reg._entries["t_light"].unavailable is True
+
+    reg.calibrate("t_light", 900)
+
+    assert reg._entries["t_light"].unavailable is False, "校准后仍不可用 ⇒ 校准没生效"
+
+
 def test_estimate_tokens():
     assert lr.estimate_tokens("") == 1
     assert lr.estimate_tokens("abc") >= 1

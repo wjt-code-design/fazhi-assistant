@@ -948,18 +948,26 @@ class LLMRegistry:
         )
 
     def calibrate(self, key: str, remaining: int) -> dict[str, Any]:
-        """配额校准（块 3）：按控制台真实剩余值回写 initial_used，看门狗对齐真实值。
+        """配额校准（块 3）：按控制台真实剩余值写入**完整基线**，看门狗对齐真实值。
 
-        quota_left = quota_total - initial_used - runtime_used；设 remaining=R →
-        initial_used = quota_total - R - runtime_used（下限 0）。持久化到 quota_store，
-        重启后 _load 自动应用。"""
+        quota_left = quota_total - initial_used - runtime_used；设 remaining=R ⇒ 把 baseline
+        整体重置为 `runtime_used = 0`、`initial_used = max(0, total - R)`——**内存与持久两侧
+        同时写**（runtime 归零也落库），否则二者分叉。
+
+        R19：改前只改 initial_used（`max(0, total - R - runtime_used)`）而保留 runtime_used。
+        一旦 runtime_used 已被 `mark_depleted` 记满（runtime_used = total），无论 R 取何值都算出
+        initial_used = 0 ⇒ **校准对"已耗尽"的模型完全无效**（quota_left 仍 0）；且内存里的
+        runtime_used 本就不落库 ⇒ 重启后 initial_used 已生效、内存侧不然 —— 内存与持久不一致。
+        """
         with self._lock:
             e = self._entries.get(key)
             if not e:
                 raise KeyError(f"未知模型 key: {key}")
-            new_init = max(0, e.quota_total - int(remaining) - e.runtime_used)
-            e.initial_used = new_init
-        quota_store.set_initial(key, new_init)
+            e.runtime_used = 0
+            e.initial_used = max(0, e.quota_total - int(remaining))
+        # 两侧一起写：runtime 归零 + initial 覆盖（两行不同 key，互不覆盖，顺序无关）。
+        quota_store.set_used(key, 0)
+        quota_store.set_initial(key, e.initial_used)
         return {"key": key, "model": e.model, "quota_left": e.quota_left, "initial_used": e.initial_used}
 
     def set_disabled(self, key: str, disabled: bool) -> None:
