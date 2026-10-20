@@ -2662,7 +2662,7 @@ async def chat(
                     return make_chain(registry.get() if _i == 0 else registry.variant(True))
 
                 def _cfail(_e):
-                    nonlocal _rstart
+                    nonlocal _rstart, chunks
                     if use_router and _ccur["key"]:
                         # F7（2026-09-14）：瞬时故障（429/5xx/连接抖动）**不再标记耗尽** —— 该模型其实
                         # 仍可用（同 1k 修复口径）；改由 _ctried 排除已试过的 key 来推进到下一个模型
@@ -2675,7 +2675,11 @@ async def chat(
                                 registry.mark_rejected(_ccur["key"], "model_failure", status=status_of(_e))
                             else:
                                 registry.mark_depleted(_ccur["key"], "model_failure")
+                    # R15：失败即**立刻作废半截**（不只是置位）。改前只置 `_rstart`，真正的清空要等
+                    # 下一条**非空 piece** 才执行；若后续尝试全部空内容（无异常）该段永远不执行，
+                    # `join(chunks)` 仍得首模型半截 ⇒ 被当作完整报告加进 reviewed 并可能写缓存。
                     _rstart = True
+                    chunks = []
 
                 async with ClosingStream(
                     stream_with_retry(
@@ -2908,7 +2912,7 @@ async def chat(
                 # 失败后切换模型（明细：配额耗尽/模型名错 → mark_depleted；瞬时故障 → 只排除不标记，
                 # F7 2026-09-14：瞬时（429/5xx/连接抖动）标记会把仍可用的模型永久禁用，
                 # 同 1k 修复口径；靠 _tried 排除已试过的 key 推进，避免 pick 选回同一模型 → 死循环）
-                nonlocal _restart_pending
+                nonlocal _restart_pending, chunks
                 if use_router and current["key"]:
                     _tried.add(current["key"])
                     if not is_transient_error(_e):
@@ -2917,7 +2921,10 @@ async def chat(
                             registry.mark_rejected(current["key"], "model_failure", status=status_of(_e))
                         else:
                             registry.mark_depleted(current["key"], "model_failure")
+                # R15：与合同分支同形——失败即作废半截。只置 `_restart_pending` 时，清空要等
+                # 下一条非空 piece；若后续尝试全空（无异常）则永不执行，`join(chunks)` 得首模型半截。
                 _restart_pending = True  # 下一 config 将从零重答：前端需清空半截
+                chunks = []
 
             chunks = []
             _f0 = None
