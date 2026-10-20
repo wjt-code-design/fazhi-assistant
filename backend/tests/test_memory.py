@@ -138,3 +138,40 @@ def test_compress_llm_error_does_not_advance_window(monkeypatch):
     assert mem.compress(None, conv, FakeLlm(exc=RuntimeError())) is False
     assert conv.summary == "旧摘要"
     assert conv.summary_upto == 0
+
+
+# ---------------- R07（2026-10-20）：空/空白响应＝失败信号 ----------------
+def test_extend_summary_empty_response_is_failure_signal():
+    """空/空白/None 的 llm 输出必须等同失败（None），不得回落为 existing 或空串。"""
+    batch = [FakeMsg("user", "x")]
+    assert mem._extend_summary(FakeLlm(content=""), "旧摘要", batch) is None
+    assert mem._extend_summary(FakeLlm(content="   \n\t "), "旧摘要", batch) is None
+    assert mem._extend_summary(FakeLlm(content=None), "", batch) is None
+
+
+def test_extend_summary_returns_trimmed_content():
+    batch = [FakeMsg("user", "x")]
+    assert mem._extend_summary(FakeLlm(content="  新摘要  "), "旧摘要", batch) == "新摘要"
+
+
+def test_compress_empty_llm_response_does_not_advance_window(monkeypatch):
+    """空响应（非 None 异常）在过去会推进 summary_upto 并 commit，使旧消息退出模型上下文；
+    现须与异常同口径 fail-closed：返回 False、不推进、不 commit。"""
+    monkeypatch.setattr(
+        mem,
+        "_gap_messages",
+        lambda db, conv: [FakeMsg("user", "x"), FakeMsg("assistant", "y")],
+    )
+
+    class FakeDb:
+        committed = False
+
+        def commit(self):
+            self.committed = True
+
+    db = FakeDb()
+    conv = FakeConv(message_count=20, summary="旧摘要")
+    assert mem.compress(db, conv, FakeLlm(content="")) is False
+    assert conv.summary == "旧摘要"
+    assert conv.summary_upto == 0
+    assert db.committed is False

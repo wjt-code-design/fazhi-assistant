@@ -224,7 +224,9 @@ def _extend_summary(llm, existing: str, batch: list[Message]) -> str:
     try:
         resp = llm.invoke([SystemMessage(content=sys), HumanMessage(content=user)])
         new = (resp.content or "").strip()
-        return new[:SUMMARY_MAX] if new else (existing or "")
+        if not new:
+            return None  # 空/空白响应＝明确失败信号：不得被当作"已覆盖"而推进窗口
+        return new[:SUMMARY_MAX]
     except Exception:
         return None  # 失败信号：调用方不推进窗口，避免旧消息永久丢失
 
