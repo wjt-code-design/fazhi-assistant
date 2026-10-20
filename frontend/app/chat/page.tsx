@@ -75,8 +75,13 @@ export default function ChatPage() {
     setIsNearBottom,
     clearExpandedLaw,
     resetFeedback: feedback.reset,
+    // R06：切会话/新建时清掉页面级文件附件状态（残留文档否则会串到新会话，并在 send 里压过新输入）
+    clearFile: () => {
+      setFileInfo(null);
+      setFileContent(null);
+    },
   });
-  const { history, activeId, loadHistory, newChat, selectConv, deleteConv } = conversations;
+  const { history, activeId, loadHistory, newChat, selectConv, deleteConv, viewSeq } = conversations;
   const { listening, transcribing, toggleVoice } = useVoice({ setInput });
   useEffect(() => {
     lateRef.current = { sync: conversations.setActiveId, refresh: loadHistory };
@@ -170,12 +175,15 @@ export default function ChatPage() {
       alert(`文件不能超过 ${MAX_FILE_MB}MB`);
       return;
     }
+    const seq = viewSeq.current; // R06：解析期间若切换/新建会话，视图版本会变，结果按过期丢弃
     try {
       const res = await chatFile(file);
+      if (viewSeq.current !== seq) return; // 视图已切换：丢弃过期解析结果，防串台
       setFileInfo({ name: res.file_name, chars: res.chars, truncated: res.truncated });
       setFileContent(res.text);
       setInput(""); // 文件内容作为本轮发送内容，清空手输文本
     } catch (err) {
+      if (viewSeq.current !== seq) return; // 过期视图的失败不必再打扰用户
       alert(`文件解析失败：${err instanceof Error ? err.message : err}`);
     }
   }

@@ -2,7 +2,10 @@
 // T2.3 状态收敛：历史会话列表 + 当前选中 + 切换/新建/删除。
 // 函数体为 chat 页原实现逐行搬移，零行为变更；三个入口重置的状态集合本就不同
 // （执行书 T2.3：保留现有重置逻辑，勿"顺手优化"）——跨切片 setter 全部经 opts 注入。
-import { useEffect, useState, type Dispatch, type SetStateAction } from "react";
+// R05/R06（2026-10-20）：新增视图版本号 viewSeq——切换/新建会话时递增，异步详情/解析
+// 结果落地前比对版本，版本已过期即丢弃，防「旧会话详情串到新会话」；并新增 clearFile
+// 回调，切会话时清掉页面级的文件附件状态（原先只在 pendingImage 上做了重置）。
+import { useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { convApi } from "@/lib/api";
 import { coverageFromMessage } from "@/lib/coverage";
 import type { AuthUser } from "@/lib/auth";
@@ -22,9 +25,13 @@ export function useConversations(opts: {
   setIsNearBottom: Dispatch<SetStateAction<boolean>>;
   clearExpandedLaw: () => void;
   resetFeedback: () => void;
+  // R06：清空页面级文件附件状态（fileInfo/fileContent）。切会话/新建时调用，防残留文档串台。
+  clearFile: () => void;
 }) {
   const [history, setHistory] = useState<ConversationItem[]>([]);
   const [activeId, setActiveId] = useState<number | null>(null);
+  // R05/R06：视图版本号。每次切换/新建可见视图都 +1；异步结果落地前比对，过期即丢弃。
+  const viewSeq = useRef(0);
 
   const loadHistory = () => {
     convApi
@@ -39,6 +46,8 @@ export function useConversations(opts: {
 
   function newChat() {
     if (opts.streaming) return; // 流式期间禁止切会话，防消息污染/conversationId 错位（对抗审计 2026-08-07）
+    viewSeq.current += 1; // R05：新建视图 ⇒ 在途详情请求作废
+    opts.clearFile(); // R06：清掉残留文件附件
     opts.setMessages([]);
     opts.setConversationId(null);
     opts.setPendingAgentRun(null);
@@ -55,6 +64,8 @@ export function useConversations(opts: {
 
   async function selectConv(item: ConversationItem) {
     if (opts.streaming) return; // 流式期间禁止切换会话，防消息污染/conversationId 错位（对抗审计 2026-08-07）
+    const seq = ++viewSeq.current; // R05：切视图 ⇒ 先前在途详情作废
+    opts.clearFile(); // R06：清掉残留文件附件
     setActiveId(item.id);
     opts.setConversationId(item.id);
     opts.setPendingAgentRun(null);
@@ -66,6 +77,7 @@ export function useConversations(opts: {
     opts.resetFeedback();
     try {
       const det = await convApi.detail(item.id);
+      if (viewSeq.current !== seq) return; // R05：视图已切换/新建，丢弃过期详情，防旧会话消息串台
       opts.setMessages(
         (det.messages || []).map((m: HistoryMsg) => ({
           role: m.role === "user" ? "user" : "assistant",
@@ -79,7 +91,8 @@ export function useConversations(opts: {
       );
       opts.setIsNearBottom(true);
     } catch {
-      opts.setMessages([]);
+      // R05：仅当仍是当前视图时才清空；否则会把**新视图**的消息误清成空
+      if (viewSeq.current === seq) opts.setMessages([]);
     }
   }
 
@@ -90,6 +103,7 @@ export function useConversations(opts: {
     try {
       await convApi.remove(id);
       if (activeId === id) {
+        viewSeq.current += 1; // R05：删除当前视图 ⇒ 在途详情/解析请求作废
         opts.setMessages([]);
         opts.setConversationId(null);
         opts.setPendingAgentRun(null);
@@ -105,5 +119,5 @@ export function useConversations(opts: {
     }
   }
 
-  return { history, activeId, setActiveId, loadHistory, newChat, selectConv, deleteConv };
+  return { history, activeId, setActiveId, loadHistory, newChat, selectConv, deleteConv, viewSeq };
 }
