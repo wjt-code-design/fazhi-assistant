@@ -176,18 +176,24 @@ cutoff/证据有效性判定消费」三件事，快车道没有 run 对象 ⇒ 
 - **决策（2026-10-20 按建议裁定，三条建议全部接受）**：
   1. **审核来源**：保留存量、不再新增 `auto_by_score_inferred`；存量按「人工复核后重签 `human`，否则不可服务」处置。
   2. **读取资格**：允许「隔离不删」长期作为策略，但必须**可观测**——孤儿向量数与「同一 `cand_id` 向量条数 >1」做成可查询的运维读数，并定阈值告警。
+     **阈值与责任人（2026-10-20 Owner 定，落地见提交 `7f16b59`）**：孤儿向量**非零即异常**（正常应为 0 —— 它只由「先写向量、后提交」失败产生，不需要拍脑袋定数字）⇒
+     已落为一条告警日志，归因键 `qa_orphan_vector_detected`（登记于 `observability._ACCOUNT_FIELDS`，否则会被 JSON formatter 静默丢弃），
+     正文只带 `count`、不含题干/答案/证据（AUTH-3）；**重复向量只记数、不告警**（当前无观测基线）。
+     观测责任人＝**Owner（暂兼）**；**仍缺**外部监控接收方（本仓只落日志键，不接外部系统）。
   3. **撤回机制**：**默认不删**；仅在合规 / 法定下架这类人工触发场景才允许删除向量，且须「先 `commit` 撤回决策 → 再删 → 删失败不阻塞撤回」。
 - **落地映射（本轮实际改了 / 没改什么；未做项须另一次裁决才可开工）**：
   - **问 1 → 无新增代码**：「不再新增」已成立，且被 `tests/test_qa_pending_only_creation.py` 钉住（高分不再自签机器批准）；
     「存量重签 `human`」属**人工流程**（沿用既有拒绝 / 重签机制），不由本轮代做。
-    **未做**：把读轴收紧到「`auto_by_score_inferred` 一律不可服务」。理由：该收紧会**推翻设计卡 §5「两档必须分得开」的既有决策**，并打红
+    **未做**（Owner 2026-10-20 复裁为「不收紧」，故按不收紧定案）：把读轴收紧到「`auto_by_score_inferred` 一律不可服务」。理由：该收紧会**推翻设计卡 §5「两档必须分得开」的既有决策**，并打红
     `tests/test_backfill_qa_link.py` 中**正面钉住**「auto 行仍须被服务」的那条判据（其原文断言：摘掉 auto 档＝「判据把两档合成了一档」）。
-    ⇒ 若 Owner 意指收紧，须**另起一次裁决**；届时连带改写面：`qa_eligibility` 的来源轴、`tests/test_backfill_qa_link.py`、
+    **2026-10-20 Owner 复裁：不收紧读轴**（维持存量可服务、走人工复核路线）⇒ 该项**按不收紧定案**，本轮**无代码改动**。
+    ⇒ 若日后改主意，须**另起一次裁决**；届时连带改写面：`qa_eligibility` 的来源轴、`tests/test_backfill_qa_link.py`、
     `tests/test_qa_approval_read_eligibility.py`、`tests/test_qa_revocation_lifecycle.py` 的合成行、`tests/test_qa_read_eligibility.py` 的词汇表腿。
   - **问 2 → 已落码**：新增 `knowledge_service.qa_vector_integrity_counts()`（孤儿向量计数 + `cand_id` 维度重复向量列表），
     并由 `/api/admin/stats` 以 `qa_orphan_vector_records` / `qa_duplicate_candidate_ids` 两键暴露；沿用既有 `require_admin`（**admin-only**）。
     读数**只出计数与候选 id**，不出向量内容（不落题干 / 答案原文），也不新增绕过资格检查的读出口。
-    **未做**：**阈值与告警接线**及**观测责任人**（Owner 侧决策），登记在 `docs/handoff/topic-20261020-owner-action-runbook.md` 的 B8 空位。
+    **告警口径已落码**（`7f16b59`）：孤儿 > 0 ⇒ 一条 `qa_orphan_vector_detected` warning（正文只带 count）；
+    重复向量不告警。**仍缺**：外部监控接收方与裁决人姓名（runbook B8 空位）。
   - **问 3 → 无改动**：**本轮不实现任何删除路径**——`_qa_store.delete()` 仍不存在 ⇒ ③ 的 AST 守卫（零删点）**原样有效**，
     不为未发生的删除预先升级（复核发现 F4 的别名盲区继续以「已登记限制」保留）。合规删除路径保留为**规格**，失效条件 3 成立时才落码。
 - **本轮闭合的是「可见性」，不是「消除」**：④孤儿与⑤重复现**可被管理面读到**，但仍**不删**；③ 守卫未升级 ⇒ ④⑤③ 三项**仍未闭合**（见失效条件）。
