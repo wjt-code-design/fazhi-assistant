@@ -1,0 +1,832 @@
+{
+ "run": "gate5-dev-run-17-qwen38-waxis",
+ "targets": [
+  "C01",
+  "C02",
+  "C03",
+  "C04",
+  "C05",
+  "C06",
+  "C07",
+  "C08",
+  "C09",
+  "C10"
+ ],
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "da68da27-38c5-4f4f-ab20-291ece1f2581",
+      "state_version": 4,
+      "conv_id": 2373
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "UNKNOWN_EVIDENCE_ID"
+     ],
+     "clar_meta": {
+      "run_id": "da68da27-38c5-4f4f-ab20-291ece1f2581",
+      "state_version": 8,
+      "conv_id": 2373
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "公司是否在解除当日同时支付了代通知金（一个月工资）"
+    },
+    {
+     "round": 2,
+     "prompt": "公司是否提供了具体、可量化的绩效评估记录及员工签字确认材料"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "公司是否在解除当日同时支付了代通知金（一个月工资）",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "公司是否提供了具体、可量化的绩效评估记录及员工签字确认材料",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "UNKNOWN_EVIDENCE_ID"
+   ],
+   "conv_id": 2373,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 64.4
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "d5b9e8ec-d95e-484d-9f81-bf1797e18aad",
+      "state_version": 4,
+      "conv_id": 2374
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "d5b9e8ec-d95e-484d-9f81-bf1797e18aad",
+      "state_version": 8,
+      "conv_id": 2374
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "双方劳动合同中关于加班费计算基数及支付方式的具体约定"
+    },
+    {
+     "round": 2,
+     "prompt": "是否存在经审批的加班记录或考勤数据证明实际加班时长"
+    }
+   ],
+   "answered_fact_ids": [
+    "C02-r1-f2"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "是否存在经审批的加班记录或考勤数据证明实际加班时长",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2374,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 51.2
+  },
+  "C03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "75668769-6de9-4348-bafa-e693ad11787b",
+      "state_version": 4,
+      "conv_id": 2375
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "75668769-6de9-4348-bafa-e693ad11787b",
+      "state_version": 8,
+      "conv_id": 2375
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "仲裁时效是否已过（通常为一年）"
+    },
+    {
+     "round": 2,
+     "prompt": "入职满一个月后至第十个月期间，用人单位是否曾提出补签合同被拒"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "仲裁时效是否已过（通常为一年）",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "入职满一个月后至第十个月期间，用人单位是否曾提出补签合同被拒",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2375,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 70.8
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "3e377ea0-564c-494c-8047-3932c85b2f1c",
+      "state_version": 4,
+      "conv_id": 2376
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "3e377ea0-564c-494c-8047-3932c85b2f1c",
+      "state_version": 8,
+      "conv_id": 2376
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "双方是否已签订合法有效的房屋买卖合同且未约定解除条件。"
+    },
+    {
+     "round": 2,
+     "prompt": "合同中是否明确约定了“定金”条款并适用定金罚则。"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "双方是否已签订合法有效的房屋买卖合同且未约定解除条件。",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "合同中是否明确约定了“定金”条款并适用定金罚则。",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2376,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 46.8
+  },
+  "C05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "房东没催告",
+      "7日换锁"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "27b7b576-6c43-4f4f-95b0-d72591805f9e",
+      "state_version": 4,
+      "conv_id": 2377
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "合同写每月5日前付款，没有写晚两天就解除"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "27b7b576-6c43-4f4f-95b0-d72591805f9e",
+      "state_version": 8,
+      "conv_id": 2377
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "房东在换锁前是否履行了法定的通知或催告义务"
+    },
+    {
+     "round": 2,
+     "prompt": "租赁合同中是否明确约定逾期支付租金达到何种程度房东有权解除合同并收回房屋（如宽限期、催告程序等）"
+    }
+   ],
+   "answered_fact_ids": [
+    "C05-r1-f2",
+    "C05-r1-f3",
+    "C05-r1-f1"
+   ],
+   "unmatched_questions": [],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2377,
+   "final_chars": 1165,
+   "final_text": "已确认事实：\n- 我晚交两天房租，房东直接换锁\n- 房东没催告；7日换锁\n- 合同写每月5日前付款，没有写晚两天就解除\n- 房东直接换锁并扣押金\n- 我晚交两天房租\n- 房东直接换锁\n\n尚不确定的事实：\n- 押金金额是多少，以及合同中关于押金退还或扣除的具体约定\n- 是否存在其他可抵扣的合法费用（如损坏赔偿、未结清水电费等）\n- 当地司法实践对“轻微逾期”是否认定为根本违约的标准\n- 租客是否有正当理由导致晚交（如银行系统故障、不可抗力等）\n- 换锁时屋内是否有租客个人物品未被妥善处置\n- 租客是否因此被迫搬离或产生额外住宿费用\n\n核心法律争点：\n- 房东因租客晚交两天房租而直接换锁的行为是否合法？\n- 房东扣押金的行为是否合法？\n- 租客晚交两天房租是否构成根本违约，足以支持房东单方解除合同？\n- 房东换锁行为是否侵犯租客的居住权或财产权益？\n\n法律依据：\n- 《民法典》第七百二十二条\n- 《民法典》第七百一十九条\n- 《民法典》第七百一十三条\n- 《民法典》第七百一十七条\n- 《民法典》第七百一十二条\n- 《民法典》第五百七十七条\n- 《电子商务法》第七十八条\n- 《民法典》第四百一十二条\n- 《电子商务法》第二十一条\n- 《民法典》第七百一十一条\n- 《民法典》第七百二十九条\n- 《民法典》第五百八十二条\n- 《民法典》第七百一十五条\n- 《民法典》第三百六十九条\n- 《民法典》第七百四十九条\n- 《民法典》第七百四十五条\n\n分情形分析：\n合同仅约定每月5日前付款,未约定晚交两天即可解除合同。根据《民法典》第五百七十七条,当事人一方不履行合同义务或者履行合同义务不符合约定的,应当承担继续履行、采取补救措施或者赔偿损失等违约责任,而非直接导致合同解除及丧失占有权。\n晚交两天房租属于轻微迟延履行,根据《民法典》第七百二十二条,出租人应先催告承租人在合理期限内支付,仅在承租人逾期仍不支付时方可解除合同。因此,单纯的两天逾期通常不构成根本违约,不足以直接支持单方解除合同。\n\n可执行建议与风险提示：\n根据《民法典》第七百二十二条,承租人无正当理由未支付或者迟延支付租金的,出租人可以请求承租人在合理期限内支付;承租人逾期不支付的,出租人可以解除合同。房东在未催告的情况下直接换锁不符合法定解除程序。\n房东以租客违约为由扣除押金,若该违约行为未达到合同约定或法律规定的解除条件,则缺乏合法依据。根据《民法典》第五百七十七条,违约责任主要体现为继续履行、补救措施或赔偿损失,单方扣押全部押金需有明确法律依据或合同约定支持。\n风险提示：在租赁合同有效存续期间,承租人享有租赁物的占有使用权。房东未经合法解除合同程序直接换锁,阻碍了承租人对房屋的正常使用,可能构成对承租人占有权益的侵害,并需承担相应的违约责任。",
+   "final_excerpt": "已确认事实：\n- 我晚交两天房租，房东直接换锁\n- 房东没催告；7日换锁\n- 合同写每月5日前付款，没有写晚两天就解除\n- 房东直接换锁并扣押金\n- 我晚交两天房租\n- 房东直接换锁\n\n尚不确定的事实：\n- 押金金额是多少，以及合同中关于押",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 113.1
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "e645dd40-125c-41e0-bc1d-286937e5f4fc",
+      "state_version": 4,
+      "conv_id": 2378
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "现在已超过新工期五十天"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "e645dd40-125c-41e0-bc1d-286937e5f4fc",
+      "state_version": 8,
+      "conv_id": 2378
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "业主是否已履行付款等合同义务"
+    },
+    {
+     "round": 2,
+     "prompt": "延期和威胁停工是否达到根本违约程度"
+    }
+   ],
+   "answered_fact_ids": [
+    "C06-r2-f2"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "业主是否已履行付款等合同义务",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2378,
+   "final_chars": 1027,
+   "final_text": "已确认事实：\n- 装修公司延期两个月\n- 又说材料涨价必须加钱\n- 否则停工\n- 装修公司延期两个月\n- 否则停工\n- 现在已超过新工期五十天\n- 材料涨价必须加钱\n- 否则停工\n\n尚不确定的事实：\n- 合同中是否约定了明确的竣工日期及延期违约责任\n- 延期是否由不可抗力或业主原因导致\n- 合同是否为固定总价合同或包含价格调整条款\n- 材料涨价幅度是否达到情势变更的法定标准\n- 合同是否约定停工为装修公司权利或限制其随意停工\n- 停工是否已实际发生并造成损失\n- 合同剩余工程量是否具备继续履行的现实可能性\n- 业主是否愿意配合施工条件\n\n核心法律争点：\n- 装修公司延期两个月是否构成违约？\n- 装修公司以材料涨价为由要求加钱是否合法？\n- 装修公司威胁停工是否构成违法或违约行为？\n- 业主能否因装修公司违约主张解除合同并要求赔偿？\n- 业主能否要求继续履行合同而不接受加价？\n\n法律依据：\n- 《民法典》第八百零一条\n- 《民法典》第八百条\n- 《民法典》第八百零三条\n- 《民法典》第八百五十四条\n- 《民法典》第五百七十七条\n- 《民法典》第五百八十二条\n- 《建筑法》第七十条\n- 《民法典》第八百零五条\n- 《建筑法》第四十九条\n- 《民法典》第七百九十八条\n- 《建筑法》第六十四条\n- 《民法典》第七百一十一条\n- 《民法典》第七百八十七条\n- 《民法典》第五百七十九条\n- 《民法典》第五百三十一条\n- 《民法典》第六百二十九条\n- 《民法典》第五百三十条\n- 《民法典》第六百一十条\n\n分情形分析：\n若装修公司因自身原因致使工程质量不符合约定或造成逾期交付,依据《民法典》第八百零一条,其应承担违约责任;而材料涨价并非法定免责事由,除非合同另有约定或构成情势变更。\n业主有权拒绝装修公司单方面提出的加价要求,并依据《民法典》第五百三十一条关于部分履行的规定,要求对方按原合同约定继续履行剩余工程义务。\n\n可执行建议与风险提示：\n根据《民法典》第五百七十七条,当事人一方不履行合同义务或者履行合同义务不符合约定的,应当承担继续履行、采取补救措施或者赔偿损失等违约责任。\n鉴于装修公司延期两个月且现已超过新工期五十天,构成严重违约,业主有权依据《民法典》第五百七十七条主张解除合同并要求赔偿损失。\n风险提示：装修公司以停工相威胁要求加价,若无合同依据或法定理由,属于不履行合同义务的行为,依据《民法典》第五百七十七条应承担违约责任。",
+   "final_excerpt": "已确认事实：\n- 装修公司延期两个月\n- 又说材料涨价必须加钱\n- 否则停工\n- 装修公司延期两个月\n- 否则停工\n- 现在已超过新工期五十天\n- 材料涨价必须加钱\n- 否则停工\n\n尚不确定的事实：\n- 合同中是否约定了明确的竣工日期及延期",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 51.5
+  },
+  "C07": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "ec7fe7d6-c522-4ac5-96f2-c40ce0f67f7a",
+      "state_version": 4,
+      "conv_id": 2379
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "我2023年5月微信催过",
+      "他回复年底还"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "UNKNOWN_MISSING_INFORMATION"
+     ],
+     "clar_meta": {
+      "run_id": "ec7fe7d6-c522-4ac5-96f2-c40ce0f67f7a",
+      "state_version": 8,
+      "conv_id": 2379
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "双方是否约定了不同的诉讼时效期间或法律适用"
+    },
+    {
+     "round": 2,
+     "prompt": "是否存在导致诉讼时效中断的情形（如催收、对方承诺还款等）"
+    }
+   ],
+   "answered_fact_ids": [
+    "C07-r1-f2",
+    "C07-r1-f3"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "双方是否约定了不同的诉讼时效期间或法律适用",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "UNKNOWN_MISSING_INFORMATION"
+   ],
+   "conv_id": 2379,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 47.4
+  },
+  "C08": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "459f00f8-605c-4926-bd48-ee06ed62df10",
+      "state_version": 4,
+      "conv_id": 2380
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "担保条款只写“承担保证责任”"
+     ],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "459f00f8-605c-4926-bd48-ee06ed62df10",
+      "state_version": 8,
+      "conv_id": 2380
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "是否存在借条、转账记录或收据等证明借款事实发生的证据。"
+    },
+    {
+     "round": 2,
+     "prompt": "担保合同中关于保证方式的条款内容（是否有明确约定为连带责任保证，或未约定/约定不明）。"
+    }
+   ],
+   "answered_fact_ids": [
+    "C08-r1-f2"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "是否存在借条、转账记录或收据等证明借款事实发生的证据。",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2380,
+   "final_chars": 1110,
+   "final_text": "已确认事实：\n- 朋友借款\n- 让我签了担保\n- 合同没写保证期间\n- 债权人现在找我\n- 签了担保\n- 合同没写保证期间\n- 担保条款只写“承担保证责任”\n- 我必须还吗？\n- 债权人现在找我\n\n尚不确定的事实：\n- 用户是否具有完全民事行为能力，且签字行为是否出于真实意思表示（无欺诈、胁迫）。\n- 主债务履行期限届满的具体日期是哪一天。\n- 债权人‘现在’找用户的具体时间是在主债务到期后的六个月内还是之后。\n- 主债务人（朋友）目前的偿债能力状况及是否已被提起诉讼或执行。\n\n核心法律争点：\n- 朋友是否实际向债权人借款？\n- 用户签署的担保文件是否构成合法有效的保证合同？\n- 在未约定保证期间的情况下，债权人是否在法定保证期间内向用户主张权利？\n- 用户承担的是一般保证还是连带责任保证？\n- 用户是否必须向债权人偿还借款？\n\n法律依据：\n- 《民法典》第三百九十二条\n- 《民法典》第三百九十一条\n- 《民法典》第六百七十五条\n- 《民法典》第六百六十九条\n- 《民法典》第六百六十七条\n- 《民法典》第六百七十六条\n- 《民法典》第六百八十条\n- 《民法典》第六百八十五条\n- 《民法典》第六百八十一条\n- 《民法典》第六百八十二条\n- 《民法典》第三百八十八条\n- 《民法典》第六百八十六条\n- 《民法典》第六百九十二条\n- 《民法典》第六百九十三条\n- 《民法典》第六百九十五条\n- 《民法典》第七百条\n- 《民法典》第六百九十一条\n- 《民法典》第六百八十八条\n- 《民法典》第一千一百九十七条\n- 《企业破产法》第五十一条\n- 《企业破产法》第二十六条\n- 《企业破产法》第五十三条\n- 《企业破产法》第五十五条\n\n分情形分析：\n根据《民法典》第六百六十七条,借款合同是借款人向贷款人借款,到期返还借款并支付利息的合同。本案中朋友作为借款人向债权人借款,需按照约定履行还款义务。\n用户签署的担保文件若符合《民法典》第六百八十五条关于保证合同成立的形式要件(如书面订立或单方书面承诺被接受),且主债权债务合同有效,则构成合法有效的保证合同。\n因合同未约定保证期间,依据《民法典》第六百九十二条,保证期间为主债务履行期限届满之日起六个月。债权人是否在保证期间内主张权利,取决于其找用户的时间是否在主债务到期后六个月内。\n\n可执行建议与风险提示：\n担保条款仅写“承担保证责任”而未明确保证方式,依据《民法典》第六百八十六条,应按照一般保证承担保证责任。\n在一般保证下,债权人应先对债务人提起诉讼或仲裁,并在执行不能时方可要求保证人承担责任。因此,除非满足法定条件,否则用户无需直接向债权人偿还全部借款。",
+   "final_excerpt": "已确认事实：\n- 朋友借款\n- 让我签了担保\n- 合同没写保证期间\n- 债权人现在找我\n- 签了担保\n- 合同没写保证期间\n- 担保条款只写“承担保证责任”\n- 我必须还吗？\n- 债权人现在找我\n\n尚不确定的事实：\n- 用户是否具有完全民事",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 101.7
+  },
+  "C09": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "门店已关"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "d067f5cd-c938-403c-aa5a-57032b144db3",
+      "state_version": 4,
+      "conv_id": 2381
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "d067f5cd-c938-403c-aa5a-57032b144db3",
+      "state_version": 8,
+      "conv_id": 2381
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "健身房关门的具体原因及持续时间（是暂时停业还是永久倒闭）"
+    },
+    {
+     "round": 2,
+     "prompt": "合同中关于“关门”、“停业”或“不可抗力”的具体约定条款"
+    }
+   ],
+   "answered_fact_ids": [
+    "C09-r1-f1"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "合同中关于“关门”、“停业”或“不可抗力”的具体约定条款",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2381,
+   "final_chars": 563,
+   "final_text": "已确认事实：\n- 健身房突然关门\n- 门店已关\n- 合同写概不退款\n- 我还有办法要回剩余费用吗？\n\n尚不确定的事实：\n- 该条款是否以显著方式提请消费者注意并进行了说明\n- 该条款是否不合理地免除或者减轻其责任、加重对方责任、限制对方主要权利\n- 消费者已消费的金额与剩余未消费金额的核算依据\n- 健身房是否存在转移资产、恶意跑路等行为\n\n核心法律争点：\n- 健身房突然关门的行为是否构成根本违约？\n- 合同中“概不退款”的条款是否属于无效的格式条款？\n- 消费者是否有权要求返还剩余预付费用？\n\n法律依据：\n- 《未成年人保护法》第一百二十二条\n- 《民法典》第七百一十一条\n- 《民法典》第四百七十八条\n- 《民法典》第七百三十一条\n- 《民法典》第五百七十七条\n- 《民法典》第五百八十二条\n- 《民法典》第四百九十七条\n- 《保险法》第十九条\n- 《民法典》第四百九十六条\n- 《民法典》第五百零七条\n- 《消费者权益保护法》第五十三条\n- 《民法典》第四百六十条\n- 《票据法》第十八条\n- 《民法典》第一百二十一条\n\n分情形分析：\n- （无）\n\n可执行建议与风险提示：\n健身房突然关门且门店已关,导致合同目的无法实现,构成根本违约。\n合同中“概不退款”的条款属于无效的格式条款。\n消费者有权要求返还剩余预付费用。",
+   "final_excerpt": "已确认事实：\n- 健身房突然关门\n- 门店已关\n- 合同写概不退款\n- 我还有办法要回剩余费用吗？\n\n尚不确定的事实：\n- 该条款是否以显著方式提请消费者注意并进行了说明\n- 该条款是否不合理地免除或者减轻其责任、加重对方责任、限制对方主要",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 47.3
+  },
+  "C10": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "b93bb0cd-b9ff-4ffb-bb02-46dcd97cac5d",
+      "state_version": 4,
+      "conv_id": 2382
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "verification",
+      "token",
+      "final"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "b93bb0cd-b9ff-4ffb-bb02-46dcd97cac5d",
+      "state_version": 8,
+      "conv_id": 2382
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "卖家在收款前是否已明知无货仍诱导下单"
+    },
+    {
+     "round": 2,
+     "prompt": "聊天记录是否完整且经过公证或可信存证"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "卖家在收款前是否已明知无货仍诱导下单",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "聊天记录是否完整且经过公证或可信存证",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [],
+   "conv_id": 2382,
+   "final_chars": 757,
+   "final_text": "已确认事实：\n- 卖家收钱后失联\n- 聊天里又承认其实根本没货\n- 我应该报警还是起诉？\n\n尚不确定的事实：\n- 买家支付的具体金额及时间\n- 双方是否存在书面合同或明确的交易约定\n- 涉案金额是否达到当地诈骗罪立案标准\n- 卖家是否具有非法占有目的及其他诈骗手段\n\n核心法律争点：\n- 卖家收钱后失联的行为是否构成违约或侵权？\n- 卖家在聊天中承认根本没货的行为是否构成欺诈？\n- 该案件应当通过报警（刑事途径）还是起诉（民事途径）解决？\n\n法律依据：\n- 《民法典》第六百零八条\n- 《民法典》第六百零五条\n- 《民法典》第六百一十一条\n- 《民法典》第六百零六条\n- 《民法典》第五百七十七条\n- 《民法典》第五百八十二条\n- 《民法典》第六百三十五条\n- 《民法典》第六百三十六条\n- 《消费者权益保护法》第五十五条\n- 《民法典》第六百二十三条\n- 《刑事诉讼法》第一百一十条\n- 《刑事诉讼法》第一百一十二条\n- 《刑事诉讼法》第一百八十条\n- 《刑事诉讼法》第一百七十九条\n\n分情形分析：\n若标的物毁损、灭失的风险由买受人承担,不影响因出卖人履行义务不符合约定,买受人请求其承担违约责任的权利。\n任何单位和个人发现有犯罪事实或者犯罪嫌疑人,有权利也有义务向公安机关、人民检察院或者人民法院报案或者举报。被害人对侵犯其人身、财产权利的犯罪事实或者犯罪嫌疑人,有权向公安机关、人民检察院或者人民法院报案或者控告。\n\n可执行建议与风险提示：\n卖家收钱后失联的行为构成违约,应当承担继续履行、采取补救措施或者赔偿损失等违约责任。\n经营者提供商品或者服务有欺诈行为的,应当按照消费者的要求增加赔偿其受到的损失,增加赔偿的金额为消费者购买商品的价款或者接受服务的费用的三倍;增加赔偿的金额不足五百元的,为五百元。",
+   "final_excerpt": "已确认事实：\n- 卖家收钱后失联\n- 聊天里又承认其实根本没货\n- 我应该报警还是起诉？\n\n尚不确定的事实：\n- 买家支付的具体金额及时间\n- 双方是否存在书面合同或明确的交易约定\n- 涉案金额是否达到当地诈骗罪立案标准\n- 卖家是否具有非",
+   "agent_completed": true,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 60.6
+  }
+ }
+}

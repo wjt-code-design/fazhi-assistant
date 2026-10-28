@@ -1,0 +1,29 @@
+{
+ "schema_version": "legal-agent-agent-audit/v1",
+ "release_manifest_sha256": null,
+ "mode": "agent",
+ "reviewer": {
+  "id": null,
+  "role": "joint-independent-review"
+ },
+ "reviewed_at": "YYYY-MM-DDTHH:MM:SS+08:00",
+ "cases": [
+  {
+   "id": null,
+   "trace_ref": null,
+   "decision": "pass",
+   "findings": []
+  },
+  {
+   "id": null,
+   "trace_ref": null,
+   "decision": "finding",
+   "findings": [
+    {
+     "code": null,
+     "trace_ref": null
+    }
+   ]
+  }
+ ]
+}

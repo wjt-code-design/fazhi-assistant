@@ -1,0 +1,348 @@
+{
+ "run": "gate2-run-12",
+ "targets": [
+  "C01",
+  "C02",
+  "C03",
+  "C04",
+  "C05",
+  "C06",
+  "C07",
+  "C08",
+  "C09",
+  "C10"
+ ],
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "431c9204-bdaa-4461-8623-757d11a0809c",
+      "state_version": 4,
+      "conv_id": 2317
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "工作四年",
+      "月平均工资 12,000 元"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "GENERATOR_FAILURE"
+     ],
+     "clar_meta": {
+      "run_id": "431c9204-bdaa-4461-8623-757d11a0809c",
+      "state_version": 8,
+      "conv_id": 2317
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "员工是否继续履行劳动合同"
+    },
+    {
+     "round": 2,
+     "prompt": "员工的工作年限和月平均工资标准"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r1-f3",
+    "C01-r2-f3"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "员工是否继续履行劳动合同",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "GENERATOR_FAILURE"
+   ],
+   "conv_id": 2317,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 1971.2
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "755c738c-e41c-461f-b8ad-a1415cb86ddd",
+      "state_version": 4,
+      "conv_id": 2321
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "755c738c-e41c-461f-b8ad-a1415cb86ddd",
+      "state_version": 8,
+      "conv_id": 2321
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "加班行为发生的时间距离现在多久"
+    },
+    {
+     "round": 2,
+     "prompt": "是否存在时效中断或中止的情形"
+    }
+   ],
+   "answered_fact_ids": [
+    "C02-r1-f2"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "是否存在时效中断或中止的情形",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2321,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 188.0
+  },
+  "C03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "公司一直拖延（未签合同）"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "209017db-0ec5-490e-8e7d-fe1090731ffa",
+      "state_version": 4,
+      "conv_id": 2322
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "209017db-0ec5-490e-8e7d-fe1090731ffa",
+      "state_version": 8,
+      "conv_id": 2322
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动者是否在入职后一个月内被用人单位书面通知签订合同而拒绝，导致未签合同的原因可归责于劳动者"
+    },
+    {
+     "round": 2,
+     "prompt": "双倍工资差额请求是否在仲裁时效内提出"
+    }
+   ],
+   "answered_fact_ids": [
+    "C03-r1-f1"
+   ],
+   "unmatched_questions": [
+    {
+     "round": 2,
+     "prompt": "双倍工资差额请求是否在仲裁时效内提出",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2322,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 135.3
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "2ba87b17-1c61-4023-8342-ccb9103d7f3b",
+      "state_version": 4,
+      "conv_id": 2323
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 0,
+     "answered_facts": [],
+     "event_types": [
+      "CLIENT_TIMEOUT"
+     ],
+     "error_codes": [
+      "CLIENT_TIMEOUT"
+     ],
+     "clar_meta": {
+      "run_id": "2ba87b17-1c61-4023-8342-ccb9103d7f3b",
+      "state_version": 8,
+      "conv_id": 2323
+     },
+     "raw_tail": "CLIENT_TIMEOUT:ConnectionResetError"
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "双方已签订书面房屋买卖合同"
+    },
+    {
+     "round": 2,
+     "prompt": "双方未签订书面合同，仅有口头约定"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unmatched_questions": [
+    {
+     "round": 1,
+     "prompt": "双方已签订书面房屋买卖合同",
+     "reason": "no_rule_match"
+    },
+    {
+     "round": 2,
+     "prompt": "双方未签订书面合同，仅有口头约定",
+     "reason": "no_rule_match"
+    }
+   ],
+   "manual_review_required": [],
+   "protocol_violations": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "CLIENT_TIMEOUT"
+   ],
+   "conv_id": 2323,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "agent_completed": false,
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 833.0,
+   "unknown_server_state": true
+  }
+ }
+}

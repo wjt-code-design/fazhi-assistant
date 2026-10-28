@@ -1,0 +1,14 @@
+{
+ "ts": "20261026-202658",
+ "dataset": "eval_set.json",
+ "n": 28,
+ "recall_article": {
+  "1": 0.9286,
+  "2": 1.0,
+  "4": 1.0,
+  "6": 1.0
+ },
+ "recall_source_4": 1.0,
+ "mrr_at_6": 0.9643,
+ "keyword_hit": 1.0
+}

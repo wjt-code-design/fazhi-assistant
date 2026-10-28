@@ -1,0 +1,27 @@
+# ===== 前端镜像 · 仅运行阶段（跳过 npm ci / next build）=====
+#
+# 用途：网络受限或构建缓存被清时，用**已在宿主机构建好的** .next 产物直接打包。
+#   1) 宿主机（node_modules 已就绪）：
+#        cd frontend && npm run build
+#   2) 打镜像：
+#        docker build -f frontend/Dockerfile.prebuilt -t fe-prebuilt:tmp frontend/
+#        docker tag fe-prebuilt:tmp ai-legal-helper-frontend:latest
+#
+# 为什么需要它：官方 Dockerfile 的 builder 阶段跑 `npm ci`，需要访问 npm registry。
+#   2026-10-28 实测在容器网络下 npm ci 反复 ECONNRESET（容器内访问不到宿主机代理
+#   127.0.0.1:59863），构建失败。next build 的产物 .next/standalone 自带运行所需依赖，
+#   因此可以完全跳过安装阶段。
+#
+# 基础镜像复用已有的 ai-legal-helper-frontend:latest（已含 node:20-alpine 运行时、
+#   non-root 用户、PORT/HOSTNAME/CMD 等），无需联网拉取任何镜像。
+
+FROM ai-legal-helper-frontend:latest
+
+WORKDIR /app
+
+# standalone 输出：server.js + 运行所需依赖
+COPY --chown=nextjs:nodejs .next/standalone ./
+# 静态资源
+COPY --chown=nextjs:nodejs .next/static ./.next/static
+# public
+COPY --chown=nextjs:nodejs public ./public

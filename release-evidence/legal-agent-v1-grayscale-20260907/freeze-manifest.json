@@ -1,0 +1,66 @@
+{
+ "schema_version": "final-candidate-freeze/v1",
+ "phase": "Phase 5 Final Candidate Freeze",
+ "frozen_at": "2026-09-07",
+ "git_revision": "4e6950a8141010076560befe7846f057a7d9c0b0",
+ "gate_hardening_included": true,
+ "behavioral_dimensions": {
+  "agent_code": {
+   "sha256": "697269a7b7ac71304e7887645c7edcedd3f0d867ce0e72c9c6c72323e11d9116",
+   "file_count": 13,
+   "files": [
+    "backend/agent/__init__.py",
+    "backend/agent/chat_integration.py",
+    "backend/agent/controller.py",
+    "backend/agent/evaluator.py",
+    "backend/agent/gate.py",
+    "backend/agent/planner.py",
+    "backend/agent/repository.py",
+    "backend/agent/runtime.py",
+    "backend/agent/schemas.py",
+    "backend/agent/service.py",
+    "backend/agent/state_machine.py",
+    "backend/agent/verifier.py",
+    "backend/agent/writer.py"
+   ]
+  },
+  "gate": {
+   "sha256": "d40f310e49f6d1cd9bdc165d7b068bd515c7ff6abc14e8c55cddd76e2315f2d9",
+   "files": [
+    "backend/agent/gate.py"
+   ],
+   "note": "含 CRIMINAL_CIVIL_BOUNDARY 加固"
+  },
+  "prompt": {
+   "sha256": "bad76599d4328aa642d1dbaf695adb9c2812f622993a1504c788bc9d59f57ed2"
+  },
+  "tool": {
+   "sha256": "f4e3e93215c0c2fbbaab02cafcfb857e852224f9230f0758f57a8a105e5e9fb9"
+  },
+  "kb": {
+   "sha256": "d76220e7460789382d5bf40ce45a559b1cf017b2b43842d6056a0117d42e9474"
+  },
+  "runtime": {
+   "sha256": "215b2058e636f385bea7e569bf15cf6b23b2dc601694cf01200cb3564e646c14"
+  },
+  "model": {
+   "snapshot": "LongCat-2.0"
+  }
+ },
+ "frozen_baselines": {
+  "evaluator_version": "1.2.0",
+  "rubric_sha256": "089e1a646f13fa49eb24426d940569f0377800730a3cc8e3fa7c3ccb772dcb06",
+  "policy_v2": "788d538f25bf066b24277f0d8fcaa7e15527daaf1b59c8e6abeca85b15d6ccda",
+  "case_set": "86066616d7bba2c7f3699523e8ae3766d7e6c52231136e22f5b9822833f07469"
+ },
+ "invalidation_review": {
+  "gate_change": "gate.py 新增 CRIMINAL_CIVIL_BOUNDARY（加固）→ §⑦ 生效：G-1 重跑（PASS）、G-2/S9 重跑（PASS）、G-3 新候选上已跑（PASS）",
+  "index_differ": "index 物理 DIFFER（corpus 逻辑 MATCH）→ §②.5：S5 引用 reeval 必须基于当前 index 重跑，挂账本 Freeze 后动作",
+  "s4": "11 report（4 类安全项 0）+ 新 routed 澄清题机械判定 0；全量 evaluator 重评挂账（S4=0 且澄清题 0，不构成阻塞，但记录待办）",
+  "prompt_tool_model_runtime": "未变更，对应证据不失效"
+ },
+ "open_items": [
+  "S5 引用 reeval（基于当前 index）——Phase 7 前必须完成",
+  "S4 全量 evaluator 重评（routed corpus 7 题）——Phase 7 前完成或明确引用本判定"
+ ]
+}

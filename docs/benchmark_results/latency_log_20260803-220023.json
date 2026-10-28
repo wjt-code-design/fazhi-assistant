@@ -1,0 +1,14 @@
+{
+ "ts": "20260803-220023",
+ "log": "backend.log",
+ "n_generation": 65,
+ "excluded": {
+  "cache": 297,
+  "rule": 0
+ },
+ "first_ms_p50": 1328.3,
+ "first_ms_p90": 2088.3,
+ "first_ms_p99": 3697.8,
+ "total_ms_p50": 3843.7,
+ "total_ms_p90": 5188.1
+}

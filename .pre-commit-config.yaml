@@ -1,0 +1,26 @@
+# 提交前自动门禁（提交被挡在 git 外，CI 前的第一道关卡）。
+# 前端 lint 由 CI 的 next build（内置 ESLint）把关——本项目未装独立 eslint CLI。
+#
+# ⚠️ 冻结物排除（2026-10-29）：backend/pyproject.toml 的 [tool.ruff] exclude 是相对 **backend/**
+# 解析的；pre-commit 从仓库根调用、且传的是显式文件路径，exclude 匹配不到，导致
+# backend/scripts/gate5_judge.py（冻结物）在提交时被 lint / 补尾换行 —— 等同于修改冻结物，
+# 违反 docs/code-review-standard.md §2 B1。故在 pre-commit 层面按仓库根路径再排一次。
+# ruff-pre-commit 的 ruff hook 已默认带 --force-exclude，不要再重复传参（会报 "cannot be used
+# multiple times"）。将来若解冻，必须同时删掉 backend/pyproject.toml 的 exclude 与本处排除。
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.0
+    hooks:
+      - id: ruff
+        args: [--fix, --exit-non-zero-on-fix]
+        exclude: ^backend/(scripts/gate5_judge\.py|legal_workflow/state_machine\.py)$
+      - id: ruff-format
+        exclude: ^backend/(scripts/gate5_judge\.py|legal_workflow/state_machine\.py)$
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^backend/(scripts/gate5_judge\.py|legal_workflow/state_machine\.py)$
+      - id: end-of-file-fixer
+        exclude: ^backend/(scripts/gate5_judge\.py|legal_workflow/state_machine\.py)$
+      - id: check-yaml

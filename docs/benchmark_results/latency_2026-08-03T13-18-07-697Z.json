@@ -1,0 +1,59 @@
+{
+ "ts": "2026-08-03T13-18-07-697Z",
+ "cold": [
+  {
+   "q": "网购七天无理由退货有法律依据吗？",
+   "status": 429,
+   "first": null,
+   "total": 6.996499999999969,
+   "first_ms": 0,
+   "total_ms": 7
+  },
+  {
+   "q": "高空抛物致人损害，由谁承担责任？",
+   "status": 429,
+   "first": null,
+   "total": 6.413499999999999,
+   "first_ms": 0,
+   "total_ms": 6
+  },
+  {
+   "q": "用人单位违法解除劳动合同要赔多少钱？",
+   "status": 429,
+   "first": null,
+   "total": 4.8337999999999965,
+   "first_ms": 0,
+   "total_ms": 5
+  },
+  {
+   "q": "民事权利的诉讼时效是几年？",
+   "status": 429,
+   "first": null,
+   "total": 11.232400000000041,
+   "first_ms": 0,
+   "total_ms": 11
+  },
+  {
+   "q": "注册商标的有效期是多少年？",
+   "status": 429,
+   "first": null,
+   "total": 16.77260000000001,
+   "first_ms": 0,
+   "total_ms": 17
+  }
+ ],
+ "hot": [
+  {
+   "first_ms": 0,
+   "total_ms": 15
+  },
+  {
+   "first_ms": 0,
+   "total_ms": 15
+  }
+ ],
+ "summary": {
+  "first_p50_ms": 0,
+  "total_p50_ms": 7
+ }
+}

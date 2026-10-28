@@ -1,0 +1,137 @@
+# 一键部署（本地 / Docker Desktop on Windows / Cloudflare Tunnel 公网）
+# 用法：
+#   1. cp backend/.env.example .env && 填好 LLM_API_KEY / JWT_SECRET / ADMIN_PASSWORD 等
+#   2. docker compose up -d --build
+# 访问：http://localhost（Caddy 统一入口 → 前端 3000 / 后端 8000）
+# 公网手机端（可选）：配 DOMAIN=fazhi.你的域名.com + 反代/穿透层，或云服务器场景 Caddy 自动证书
+#
+# 诚实标注：
+#   - 后端镜像约 3.92GB（2026-09-04 实测；早期写的 1.5GB 已过时），首次构建需数十分钟
+#     （下载 CPU torch + 依赖 + BGE 模型；其中 BGE 烘焙一层实测约 24 分钟）。
+#   - 并发模型：单 worker（uvicorn 默认 1 进程）——多 worker 会撞本地 Chroma/SQLite 锁。
+#   - 端口收紧（2026-08-08）：backend/frontend 不再对宿主机暴露，仅 compose 内网互通；
+#     公网只暴露 80/443（Caddy），防绕过反代直打后端。
+
+services:
+  backend:
+    build: ./backend
+    container_name: fazhi-backend
+    environment:
+      # 从宿主 .env 读取（compose 自动加载根目录 .env）
+      - LLM_API_KEY=${LLM_API_KEY}
+      - LLM_BASE_URL=${LLM_BASE_URL}
+      # Optional deployment-specific model registry override (JSON; no secrets).
+      - LLM_MODELS_JSON=${LLM_MODELS_JSON:-}
+      # 向量嵌入（ADR-011）。2026-10-27 部署核查实锤：改前本白名单只含 LLM_* / RERANK_* /
+      # SILICONFLOW_*，**EMBEDDING_* 一个都没有**；而 backend/.dockerignore 排除了 .env
+      # （防密钥入镜像，不可回退），容器内 main.py 的 load_dotenv 无文件可读 ⇒
+      # settings.embedding_provider 回落默认 "local"（settings.py:202）⇒ 容器加载本地 BGE
+      # （+1GB 内存）+ rag_chain.py:115 切到 _LOCAL 集合，与随镜像挂载的云端 1024 维库对不上
+      # ⇒ 问答零召回。宿主 .env 实测为 aliyun / qwen3.7-text-embedding-flash / 1024，
+      # 但容器内拿不到。此处显式注入，值只留在宿主 .env，本文件不写真实值。
+      # ⚠️ KEY 用 `:?` 强制：provider=aliyun 却缺 key 时 compose 直接拒绝启动（带病上线更贵）。
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-aliyun}
+      - EMBEDDING_API_KEY=${EMBEDDING_API_KEY:?provider=aliyun 需 EMBEDDING_API_KEY，请在根 .env 设置}
+      - EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL:?provider=aliyun 需 EMBEDDING_BASE_URL，请在根 .env 设置}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-}
+      - EMBEDDING_DIMENSIONS=${EMBEDDING_DIMENSIONS:-1024}
+      - EMBEDDING_QUOTA_TOTAL=${EMBEDDING_QUOTA_TOTAL:-0}
+      - EMBEDDING_QUOTA_INITIAL=${EMBEDDING_QUOTA_INITIAL:-0}
+      # ADR-021（2026-10-20，Owner 授权）：硅基流动 provider 的凭据必须显式传入容器。
+      # 改前白名单里只有 LLM_API_KEY/LLM_BASE_URL ⇒ 即使根 .env 里配了 SILICONFLOW_API_KEY，
+      # 容器内也读不到（实测 SF_KEY_PRESENT=False），于是 provider: siliconflow 的条目被跳过，
+      # 能力位恒为 false。值只留在宿主 .env，本文件不写真实值。
+      - SILICONFLOW_API_KEY=${SILICONFLOW_API_KEY:-}
+      - SILICONFLOW_BASE_URL=${SILICONFLOW_BASE_URL:-https://api.siliconflow.cn/v1}
+      # Rerank（ADR-011 准度主菜）。改前 compose 未注入任何 RERANK_* ⇒ 容器内 rerank_enabled
+      # 恒为默认 False、key 空、队列回落 dashscope qwen3-rerank —— 线上从未真正 rerank 过
+      # （2026-10-22 复核实测：C04 同 query，开 rerank 时 586/588 进 top-6，关则出局）。
+      # 值只留在宿主 .env，本文件不写真实值。
+      - RERANK_ENABLED=${RERANK_ENABLED:-false}
+      - RERANK_API_KEY=${RERANK_API_KEY:-}
+      - RERANK_BASE_URL=${RERANK_BASE_URL:-https://dashscope.aliyuncs.com/compatible-api/v1}
+      - RERANK_MODELS=${RERANK_MODELS:-qwen3.7-text-rerank}
+      - RERANK_QUOTA_TOTAL=${RERANK_QUOTA_TOTAL:-0}
+      - RERANK_QUOTA_INITIAL=${RERANK_QUOTA_INITIAL:-0}
+      - AGENT_ENABLED=${AGENT_ENABLED:-false}
+      - AGENT_SHADOW_ENABLED=${AGENT_SHADOW_ENABLED:-false}
+      - AGENT_TRAFFIC_PERCENT=${AGENT_TRAFFIC_PERCENT:-0}
+      # 2026-10-28 补：以下两个开关 2026-10-28 之前不在 compose 的 environment 白名单里，
+      # ⇒ 写进 .env 也不进容器（实测：AGENT_PARTIAL_DELIVERY_ENABLED=true 但容器内读到 False）。
+      # 本项目的 compose 用**显式 environment 列表**而非 env_file，所以新增 settings 开关时
+      # 必须同步在这里加一行，否则"改了没生效"。同类坑已发生过一次（RERANK_* / EMBEDDING_*，
+      # 见 2026-10-27 ADR-011 注释）。
+      - AGENT_PARTIAL_DELIVERY_ENABLED=${AGENT_PARTIAL_DELIVERY_ENABLED:-false}
+      - AGENT_WRITER_CORRECTIVE_RETRY_ENABLED=${AGENT_WRITER_CORRECTIVE_RETRY_ENABLED:-false}
+      # F1 覆盖闸门（2026-10-27，预登记 docs/preregistration-coverage-gate-warn-20261027.md）：
+      # off/warn/enforce；warn = 命中 16 主题时补检缺失必备条文 + 日志，不拒答、不改提示词。
+      - COVERAGE_GATE_MODE=${COVERAGE_GATE_MODE:-off}
+      - JWT_SECRET=${JWT_SECRET}
+      # backend 不发布宿主端口，仅信任 compose 内网中的反代；Caddy 重写 XFF。
+      # 将来若直接暴露 backend，必须把 * 改为实际可信代理白名单。
+      - FORWARDED_ALLOW_IPS=*
+      - ADMIN_USERNAME=${ADMIN_USERNAME:-admin}
+      - ADMIN_PASSWORD=${ADMIN_PASSWORD:?请在根 .env 设置 ADMIN_PASSWORD}
+      - HF_ENDPOINT=${HF_ENDPOINT:-https://hf-mirror.com}
+      # 2026-09-04：chromadb 0.4.24 与 posthog 7.45.3 不兼容，访问向量库时抛
+      #   "Failed to send telemetry event ...: capture() takes 1 positional argument but
+      #    3 were given"。异常被 chromadb 自身 try/except 吞掉，不影响功能
+      #   （/healthz 仍 200、vector:true），仅污染日志。
+      #   诚实标注：本开关 **不能消除该报错**。实测 chromadb Settings 确已读到
+      #   anonymized_telemetry=False（内部仅设 posthog.disabled=True），但 TypeError 发生在
+      #   posthog.capture() 的参数绑定阶段，早于 disabled 判断，与是否禁用无关。
+      #   保留理由：它是 chromadb 官方隐私开关，待 posthog 降级后即可生效。
+      #   若要根治日志噪音：把 posthog 降到 <4（需改 requirements 并重建镜像，约 40 分钟）。
+      - ANONYMIZED_TELEMETRY=False
+      # SQLite 落在挂载卷内（避免单文件挂载的目录坑）
+      - DATABASE_URL=sqlite:////data/app.db
+      - QUOTA_DB=/data/quota_used.sqlite
+    volumes:
+      # 持久化用户数据（绝不进镜像）
+      - ./backend/chroma_db:/app/chroma_db
+      - ./backend/media:/app/media
+      - ./backend/backups:/app/backups
+      - ./backend/data:/data
+    restart: unless-stopped
+    # 2026-10-27：改前固定 4g。本机宿主内存充裕时无感，但 2核4G 云主机上 backend 4g +
+    # frontend 512m 的预留已超过整机内存，OS 会被逼到 OOM。默认下调到 2g（云端嵌入、不加载
+    # 本地 BGE 模型时 backend 常驻约 0.8–1.5GB，留有余量）；本机若跑批量评测需要更大内存，
+    # 在根 .env 设 BACKEND_MEM_LIMIT=4g 覆盖（4核8G 云主机建议 3g）。
+    mem_limit: ${BACKEND_MEM_LIMIT:-2g}
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/healthz', timeout=5).close()"]
+      interval: 30s
+      timeout: 5s
+      start_period: 60s
+      retries: 3
+
+  frontend:
+    build: ./frontend
+    container_name: fazhi-frontend
+    restart: unless-stopped
+    mem_limit: 512m
+    # 前端等后端健康后才起（避免启动时依赖后端不可达）
+    depends_on:
+      backend:
+        condition: service_healthy
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: fazhi-caddy
+    restart: unless-stopped
+    # 2026-08-08：宿主 80/443 被 Dify 的 nginx 占用，法智 Caddy 改用独立端口 8088。
+    # 本机 http://localhost:8088；局域网 http://<电脑IP>:8088（当前不经 Tunnel）。
+    # 2026-10-27：端口改为可配（默认 8088 不变，不破坏现有本机环境）；云服务器场景在根 .env
+    # 设 CADDY_HTTP_PORT=8080（80/443 需 ICP 备案，免备案部署走非标准端口）。
+    ports:
+      - "${CADDY_HTTP_PORT:-8088}:80"
+    environment:
+      # 空=HTTP 监听 :80（Cloudflare Tunnel 穿透场景）；设域名=fazhi.example.com → 自动 HTTPS
+      DOMAIN: ${DOMAIN:-}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy_data:/data
+      - ./caddy_config:/config
+    depends_on:
+      - backend
+      - frontend

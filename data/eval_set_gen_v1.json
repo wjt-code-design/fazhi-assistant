@@ -1,0 +1,424 @@
+[
+ {
+  "id": 101,
+  "type": "语义适用",
+  "question": "朋友答应送我的东西还没到手就反悔了，这种情况法律上怎么算？",
+  "expected_sources": [
+   "民法典"
+  ],
+  "expected_articles": [
+   "第六百五十八条"
+  ],
+  "track": "regression",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md"
+ },
+ {
+  "id": 102,
+  "type": "语义适用",
+  "question": "被判了有期徒刑的人，在监狱里要不要参加劳动？",
+  "expected_sources": [
+   "刑法"
+  ],
+  "expected_articles": [
+   "第四十六条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 103,
+  "type": "语义适用",
+  "question": "刑事案件一审的裁定我不服，提起了上诉，二审法院一般会怎么处理？",
+  "expected_sources": [
+   "刑事诉讼法"
+  ],
+  "expected_articles": [
+   "第二百四十条"
+  ],
+  "track": "regression",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md"
+ },
+ {
+  "id": 104,
+  "type": "语义适用",
+  "question": "法院要强制我搬出房子，执行的时候会通知我到场吗？",
+  "expected_sources": [
+   "民事诉讼法"
+  ],
+  "expected_articles": [
+   "第二百六十一条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 105,
+  "type": "语义适用",
+  "question": "股东本人去不了股东会，想让人代为出席投票，需要办什么手续？",
+  "expected_sources": [
+   "公司法"
+  ],
+  "expected_articles": [
+   "第一百一十八条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 106,
+  "type": "语义适用",
+  "question": "上市公司的年度报告最晚要在什么时候对外公告？",
+  "expected_sources": [
+   "证券法"
+  ],
+  "expected_articles": [
+   "第七十九条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 107,
+  "type": "语义适用",
+  "question": "地方上药品安全隐患迟迟没消除，上级会怎么追究责任？",
+  "expected_sources": [
+   "药品管理法"
+  ],
+  "expected_articles": [
+   "第一百零九条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 108,
+  "type": "语义适用",
+  "question": "保险公司违法违规，除了公司被罚，负责人个人会面临什么处理？",
+  "expected_sources": [
+   "保险法"
+  ],
+  "expected_articles": [
+   "第一百七十一条"
+  ],
+  "track": "regression",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md"
+ },
+ {
+  "id": 109,
+  "type": "语义适用",
+  "question": "邻里之间因为纠纷动了手，情节不重，派出所一般会怎么处理？",
+  "expected_sources": [
+   "治安管理处罚法"
+  ],
+  "expected_articles": [
+   "第九条"
+  ],
+  "track": "regression",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md"
+ },
+ {
+  "id": 110,
+  "type": "语义适用",
+  "question": "给孩子报的校外培训机构和托管班，在保护未成年人方面要遵守什么要求？",
+  "expected_sources": [
+   "未成年人保护法"
+  ],
+  "expected_articles": [
+   "第四十一条",
+   "第三十三条",
+   "第三十七条",
+   "第三十八条"
+  ],
+  "track": "regression",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "review_note": "第41条为参照适用条款，本身不列举要求；第三方复核建议补充第33、37、38条"
+ },
+ {
+  "id": 111,
+  "type": "语义适用",
+  "question": "工厂新建项目，安全设施能不能等主体工程投产以后再补？",
+  "expected_sources": [
+   "安全生产法"
+  ],
+  "expected_articles": [
+   "第三十一条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 112,
+  "type": "语义适用",
+  "question": "侵占国家和集体的财产，法律上是什么态度？",
+  "expected_sources": [
+   "宪法（1982年）"
+  ],
+  "expected_articles": [
+   "第十二条"
+  ],
+  "track": "regression",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md"
+ },
+ {
+  "id": 113,
+  "type": "语义适用",
+  "question": "公司进入重整程序后，抵押债权人还能马上处置抵押物吗？",
+  "expected_sources": [
+   "企业破产法"
+  ],
+  "expected_articles": [
+   "第七十五条"
+  ],
+  "track": "regression",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "review_note": "答案将强制批准条件写成第八十七条第一款第一项，实为第二款第一项；金标不受影响"
+ },
+ {
+  "id": 114,
+  "type": "语义适用",
+  "question": "路口没有红绿灯也没有交警指挥，开车应该怎么走？",
+  "expected_sources": [
+   "道路交通安全法"
+  ],
+  "expected_articles": [
+   "第四十四条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 115,
+  "type": "语义适用",
+  "question": "全国人大和全国人大常委会各自能制定哪些法律？",
+  "expected_sources": [
+   "立法法"
+  ],
+  "expected_articles": [
+   "第十条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 116,
+  "type": "语义适用",
+  "question": "政府在保障老百姓健康方面要承担什么责任？",
+  "expected_sources": [
+   "基本医疗卫生与健康促进法"
+  ],
+  "expected_articles": [
+   "第六条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 117,
+  "type": "语义适用",
+  "question": "开庭的时候，当事人能自己向对方的证人提问吗？",
+  "expected_sources": [
+   "民事诉讼证据规定"
+  ],
+  "expected_articles": [
+   "第七十四条"
+  ],
+  "track": "regression",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md"
+ },
+ {
+  "id": 118,
+  "type": "语义适用",
+  "question": "博物馆没按规定配备防火防盗设施，会被怎么处罚？",
+  "expected_sources": [
+   "文物保护法"
+  ],
+  "expected_articles": [
+   "第八十七条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 119,
+  "type": "语义适用",
+  "question": "不服海事法院的裁定，想申请复议的话有时间限制吗？",
+  "expected_sources": [
+   "海事诉讼特别程序法"
+  ],
+  "expected_articles": [
+   "第五十八条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 120,
+  "type": "语义适用",
+  "question": "疫苗在上市销售之前，要经过什么审核检验程序？",
+  "expected_sources": [
+   "疫苗管理法"
+  ],
+  "expected_articles": [
+   "第二十六条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 121,
+  "type": "语义适用",
+  "question": "公务员队伍的综合管理由哪个部门负责？",
+  "expected_sources": [
+   "公务员法"
+  ],
+  "expected_articles": [
+   "第十二条"
+  ],
+  "track": "regression",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md"
+ },
+ {
+  "id": 122,
+  "type": "语义适用",
+  "question": "不配合反恐安全检查，会被怎么处罚？",
+  "expected_sources": [
+   "反恐怖主义法"
+  ],
+  "expected_articles": [
+   "第九十一条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 123,
+  "type": "语义适用",
+  "question": "行政复议申请受理之后，发现不符合受理条件，会怎么处理？",
+  "expected_sources": [
+   "行政复议法"
+  ],
+  "expected_articles": [
+   "第三十三条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 124,
+  "type": "语义适用",
+  "question": "电商平台处罚了违规商家，要不要向其他消费者公示？",
+  "expected_sources": [
+   "电子商务法"
+  ],
+  "expected_articles": [
+   "第三十六条"
+  ],
+  "track": "regression",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md"
+ },
+ {
+  "id": 126,
+  "type": "语义适用",
+  "question": "把专利权转让给别人，除了签合同还要办什么手续才生效？",
+  "expected_sources": [
+   "专利法"
+  ],
+  "expected_articles": [
+   "第十条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 127,
+  "type": "语义适用",
+  "question": "在一家公司工作时间很长了，续签时想签没有固定期限的合同，有什么条件？",
+  "expected_sources": [
+   "劳动合同法"
+  ],
+  "expected_articles": [
+   "第十四条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 128,
+  "type": "语义适用",
+  "question": "农村土地整治、改造中低产田，由谁来组织实施？",
+  "expected_sources": [
+   "土地管理法"
+  ],
+  "expected_articles": [
+   "第四十二条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 129,
+  "type": "语义适用",
+  "question": "行政诉讼立案以后，法院多久之内要作出一审判决？",
+  "expected_sources": [
+   "行政诉讼法"
+  ],
+  "expected_articles": [
+   "第八十一条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ },
+ {
+  "id": 130,
+  "type": "语义适用",
+  "question": "工商联在支持民营经济发展方面起什么作用？",
+  "expected_sources": [
+   "民营经济促进法"
+  ],
+  "expected_articles": [
+   "第七条"
+  ],
+  "track": "regression",
+  "gold_provenance": "corpus_derived"
+ }
+]

@@ -1,0 +1,42 @@
+# 法智同源反代（2026-08-08，手机端上线）：/api/* → backend:8000，其余 → frontend:3000
+# 修复（2026-08-08 服务器部署）：{$DOMAIN::80} 环境变量语法 Caddy 解析失败，改固定 :80
+#（容器内监听 80，由 docker-compose 映射宿主端口）；云服务器 + 域名场景在此行改域名。
+:80 {
+	# 安全响应头（公网暴露防护，2026-08-08）
+	header {
+		-Server
+		X-Content-Type-Options nosniff
+		X-Frame-Options DENY
+		Referrer-Policy strict-origin-when-cross-origin
+	}
+
+	# API/SSE/媒体 → 后端
+	# 【已修复 2026-08-22 SSE 流式】Caddy 的 reverse_proxy 默认会攒批（不认 X-Accel-Buffering），
+	# 导致 SSE 在手机端“一次性输出”。flush_interval -1 = 收到即下发，逐帧流式。
+	handle /api/* {
+		reverse_proxy backend:8000 {
+			flush_interval -1
+			# 当前仅本机/局域网直连：删除来访者伪造的 CF 头，重建唯一客户端地址。
+			header_up -CF-Connecting-IP
+			header_up X-Forwarded-For {remote_host}
+		}
+		header {
+			Cache-Control "no-cache, no-transform"
+			X-Accel-Buffering "no"
+		}
+	}
+
+	# 深度就绪检查 → 后端（2026-10-28 云部署实测修复）。
+	# /healthz 是后端路由但**不在 /api 前缀下**（main.py:420），此前落到下面的兜底 handle
+	# 被转给 frontend → Next.js 返回 404 ⇒ 部署脚本的健康检查永远失败、运维探活也用不了。
+	# 注：/api/health（main.py:388）本来就能通过上面的 /api/* 命中，两者等价，这里补 /healthz
+	# 是为了兼容运维习惯与容器 healthcheck 路径。
+	handle /healthz {
+		reverse_proxy backend:8000
+	}
+
+	# 其余（页面/静态资源）→ 前端
+	handle {
+		reverse_proxy frontend:3000
+	}
+}

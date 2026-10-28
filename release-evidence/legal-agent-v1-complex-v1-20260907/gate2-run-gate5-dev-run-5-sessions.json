@@ -1,0 +1,1008 @@
+{
+ "run": "gate5-dev-run-5",
+ "results": {
+  "C01": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "64ab8c9a-f5b8-415e-a329-81fe93082f5c",
+      "state_version": 4,
+      "conv_id": 2240
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "月平均工资 12,000 元"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "64ab8c9a-f5b8-415e-a329-81fe93082f5c",
+      "state_version": 8,
+      "conv_id": 2240
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动者在公司工作的年限"
+    },
+    {
+     "round": 2,
+     "prompt": "劳动者解除前十二个月的平均工资"
+    }
+   ],
+   "answered_fact_ids": [
+    "C01-r2-f3"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "劳动者在公司工作的年限"
+    }
+   ],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2240,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 32.8
+  },
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "ISSUE_DECOMPOSITION_INVALID"
+     ]
+    }
+   ],
+   "asked": [],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "ISSUE_DECOMPOSITION_INVALID"
+   ],
+   "conv_id": null,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 27.8
+  },
+  "C03": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "d8910e84-89db-4ae5-829a-2190be4575a9",
+      "state_version": 4,
+      "conv_id": 2242
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "CROSS_ISSUE_EVIDENCE"
+     ],
+     "clar_meta": {
+      "run_id": "d8910e84-89db-4ae5-829a-2190be4575a9",
+      "state_version": 8,
+      "conv_id": 2242
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "双方约定的月工资标准及实际发放情况"
+    },
+    {
+     "round": 2,
+     "prompt": "劳动者首次向用人单位主张双倍工资差额的具体时间"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "双方约定的月工资标准及实际发放情况"
+    },
+    {
+     "round": 2,
+     "prompt": "劳动者首次向用人单位主张双倍工资差额的具体时间"
+    }
+   ],
+   "error_codes": [
+    "CROSS_ISSUE_EVIDENCE"
+   ],
+   "conv_id": 2242,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 51.6
+  },
+  "C04": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "30bd4325-229b-4eee-b3b5-d8225d2f629a",
+      "state_version": 4,
+      "conv_id": 2243
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "30bd4325-229b-4eee-b3b5-d8225d2f629a",
+      "state_version": 8,
+      "conv_id": 2243
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "买方实际损失的具体数额"
+    },
+    {
+     "round": 2,
+     "prompt": "合同中是否约定了违约金条款"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "买方实际损失的具体数额"
+    },
+    {
+     "round": 2,
+     "prompt": "合同中是否约定了违约金条款"
+    }
+   ],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2243,
+   "final_chars": 905,
+   "final_text": "① 案情与争议焦点\n基于现有资料，因您未保留合同文本、付款凭证及沟通记录等关键证据，无法对房屋买卖合同的效力、款项性质及违约事实作出确切的事实认定。以下仅依据《民法典》相关条文提供法律适用层面的分析框架：\n1. 房屋买卖合同是否成立并生效？\n2. 十万元款项是定金还是购房款？\n3. 卖方是否存在违约行为及买方的救济途径（双倍返还或赔偿损失）？\n\n② 法律依据\n*   **关于合同效力**：根据《民法典》第五百零二条，“依法成立的合同，自成立时生效”。\n*   **关于定金性质与规则**：根据《民法典》第五百八十六条，“当事人可以约定一方向对方给付定金作为债权的担保。定金合同自实际交付定金时成立……定金的数额不得超过主合同标的额的百分之二十，超过部分不产生定金的效力。”同时，《民法典》第五百八十七条规定：“收受定金的一方不履行债务或者履行债务不符合约定，致使不能实现合同目的的，应当双倍返还定金。”\n*   **关于违约责任**：根据《民法典》第五百七十七条，“当事人一方不履行合同义务或者履行合同义务不符合约定的，应当承担继续履行、采取补救措施或者赔偿损失等违约责任。”\n\n③ 逐项论证\n1. **合同效力**：只要双方具备民事行为能力、意思表示真实且不违反法律强制性规定，房屋买卖合同通常自成立时即生效。\n2. **款项性质**：若双方未明确约定该十万元为“定金”，且卖方已将其计入房款总额，则该款项可能被认定为购房款。即便约定为定金，若金额超过房屋总价的百分之二十，超出部分也不产生定金效力。\n3. **违约与救济**：只有当卖方存在明确表示或以行为表明不履行主要债务（如将房屋卖给他人、拒绝过户），且导致买方无法取得房屋所有权（不能实现合同目的）时，买方才有权主张解除合同并要求双倍返还定金。\n\n④ 结论与风险\n由于缺乏书面合同及具体交易细节，本案存在极大的法律不确定性。\n1. 若您无法证明这十万元是“定金”而非“预付款/购房款”，则无法主张双倍返还，只能要求退还本金。\n2. 建议尽快补充收集微信聊天记录、转账备注、录音等证据以固定“定金”合意。\n3. 本答复仅供参考，不构成正式法律意见。",
+   "final_excerpt": "① 案情与争议焦点\n基于现有资料，因您未保留合同文本、付款凭证及沟通记录等关键证据，无法对房屋买卖合同的效力、款项性质及违约事实作出确切的事实认定。以下仅依据《民法典》相关条文提供法律适用层面的分析框架：\n1. 房屋买卖合同是否成立并生效？",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 53.5
+  },
+  "C05": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "aee7ec13-30ce-457f-abb4-964595c9fe23",
+      "state_version": 4,
+      "conv_id": 2244
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "合同写每月5日前付款，没有写晚两天就解除"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "aee7ec13-30ce-457f-abb4-964595c9fe23",
+      "state_version": 8,
+      "conv_id": 2244
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "当地法律对租金支付逾期的具体规定"
+    },
+    {
+     "round": 2,
+     "prompt": "租赁合同中关于租金支付时间及宽限期的具体约定"
+    }
+   ],
+   "answered_fact_ids": [
+    "C05-r1-f1"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "当地法律对租金支付逾期的具体规定"
+    }
+   ],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2244,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 47.2
+  },
+  "C06": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "约定三个月完工",
+      "现在已超过新工期五十天"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "1e75509b-c07a-4ff3-9170-e2328eeea31d",
+      "state_version": 4,
+      "conv_id": 2245
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "我改过一次柜体尺寸",
+      "柜体变更双方签了加价单并顺延七天",
+      "现在已超过新工期五十天"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "1e75509b-c07a-4ff3-9170-e2328eeea31d",
+      "state_version": 8,
+      "conv_id": 2245
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "合同是否约定具体工期及延期违约金条款"
+    },
+    {
+     "round": 2,
+     "prompt": "延期原因是否属于不可抗力或情势变更"
+    }
+   ],
+   "answered_fact_ids": [
+    "C06-r1-f3",
+    "C06-r2-f2",
+    "C06-r1-f4",
+    "C06-r2-f1",
+    "C06-r2-f2"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2245,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 29.9
+  },
+  "C07": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "2021年6月30日到期"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "db1b3a03-ffb6-4ec4-8a64-b06c403b6e3e",
+      "state_version": 4,
+      "conv_id": 2246
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "status",
+      "restart",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content",
+      "content"
+     ],
+     "error_codes": [
+      "PLANNER_PARSE_ERROR"
+     ],
+     "clar_meta": {
+      "run_id": "db1b3a03-ffb6-4ec4-8a64-b06c403b6e3e",
+      "state_version": 8,
+      "conv_id": 2246
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "借款合同约定的具体还款日期（2021年X月X日）"
+    },
+    {
+     "round": 2,
+     "prompt": "原告起诉的具体时间（“现在”对应的年月日）"
+    }
+   ],
+   "answered_fact_ids": [
+    "C07-r1-f1"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 2,
+     "prompt": "原告起诉的具体时间（“现在”对应的年月日）"
+    }
+   ],
+   "error_codes": [
+    "PLANNER_PARSE_ERROR"
+   ],
+   "conv_id": 2246,
+   "final_chars": 743,
+   "final_text": "1. 案情与争议焦点\n本案核心争议在于借款纠纷的诉讼时效是否届满。因您未保留具体信息（如借款时间、约定还款日、催收记录等），无法直接得出“是”或“否”的结论，需根据以下法定规则进行判断。\n\n2. 法律依据\n根据《民法典》第一百八十八条，向人民法院请求保护民事权利的诉讼时效期间为三年。自权利人知道或者应当知道权利受到损害以及义务人之日起计算。\n根据《民法典》第一百九十五条，有下列情形之一的，诉讼时效中断，从中断、有关程序终结时起，诉讼时效期间重新计算：（一）权利人向义务人提出履行请求；（二）义务人同意履行义务；（三）权利人提起诉讼或者申请仲裁；（四）与提起诉讼或者申请仲裁具有同等效力的其他情形。\n根据《民法典》第一百九十二条，诉讼时效期间届满的，义务人可以提出不履行义务的抗辩。\n\n3. 逐项论证\n首先，确定起算点。若借款合同约定了还款日期，诉讼时效从还款期限届满之次日起算三年；若未约定还款日期，则从债权人要求债务人履行义务的宽限期届满之日起算。\n其次，判断是否中断。在三年期间内，若债权人曾通过书面、短信、微信等方式催款（构成“提出履行请求”），或债务人曾承诺还款、部分还款（构成“同意履行义务”），诉讼时效将中断并重新计算三年。这是延长维权时间的关键。\n最后，判断是否届满。若自权利受损起超过三年，且期间无任何中断事由，也未发生中止情形（如不可抗力），则诉讼时效可能已届满。一旦届满，债务人可主张时效抗辩，法院将不再强制保护该债权，但债务人已自愿履行的除外。\n\n4. 结论与风险\n由于缺乏具体时间线，存在法律不确定性。若您能证明在三年内有过催收或对方承诺还款，则时效未届满；若长期无联系且无证据，则存在败诉风险。建议尽快梳理所有沟通记录、转账凭证及催收证据，以确认时效状态。",
+   "final_excerpt": "1. 案情与争议焦点\n本案核心争议在于借款纠纷的诉讼时效是否届满。因您未保留具体信息（如借款时间、约定还款日、催收记录等），无法直接得出“是”或“否”的结论，需根据以下法定规则进行判断。\n\n2. 法律依据\n根据《民法典》第一百八十八条，向人",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 153.1
+  },
+  "C08": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "主债务2023年8月到期"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "7b94d38f-6865-4bd9-a475-a02536c48841",
+      "state_version": 4,
+      "conv_id": 2247
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "担保条款只写“承担保证责任”",
+      "债权人2024年1月微信找过我",
+      "债权人没有起诉借款人"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "7b94d38f-6865-4bd9-a475-a02536c48841",
+      "state_version": 8,
+      "conv_id": 2247
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "主债务的诉讼时效是否已经届满？"
+    },
+    {
+     "round": 2,
+     "prompt": "债权人是否在保证期间内对债务人提起诉讼或申请仲裁（一般保证）？或是否在保证期间内请求保证人承担保证责任（连带保证）？"
+    }
+   ],
+   "answered_fact_ids": [
+    "C08-r1-f1",
+    "C08-r1-f2",
+    "C08-r1-f3",
+    "C08-r2-f1"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2247,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 52.2
+  },
+  "C09": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [
+      "门店已关"
+     ],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "c134991e-a6de-45dc-928d-c40b76e698a6",
+      "state_version": 4,
+      "conv_id": 2248
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "签约时没人特别说明概不退款"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "c134991e-a6de-45dc-928d-c40b76e698a6",
+      "state_version": 8,
+      "conv_id": 2248
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "健身房突然关门的具体原因及是否还有继续提供服务的意愿和能力"
+    },
+    {
+     "round": 2,
+     "prompt": "该概不退款条款是否属于格式条款，以及健身房是否尽到合理的提示说明义务"
+    }
+   ],
+   "answered_fact_ids": [
+    "C09-r1-f1",
+    "C09-r2-f1"
+   ],
+   "unknown_fact_ids": [],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2248,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 39.4
+  },
+  "C10": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "1ddfc7a2-d80c-4adb-a5f6-c9665f7e4c65",
+      "state_version": 4,
+      "conv_id": 2249
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "1ddfc7a2-d80c-4adb-a5f6-c9665f7e4c65",
+      "state_version": 8,
+      "conv_id": 2249
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "涉案金额是否达到刑事立案标准"
+    },
+    {
+     "round": 2,
+     "prompt": "卖家所在地或合同履行地"
+    }
+   ],
+   "answered_fact_ids": [],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "涉案金额是否达到刑事立案标准"
+    },
+    {
+     "round": 2,
+     "prompt": "卖家所在地或合同履行地"
+    }
+   ],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2249,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 61.8
+  }
+ }
+}

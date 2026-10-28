@@ -1,0 +1,58 @@
+{
+ "manifest_schema_version": "legal-agent-evidence-manifest/v1",
+ "candidate_id": "legal-agent-v1-grayscale-20260907",
+ "git_commit_sha": "4e6950a8141010076560befe7846f057a7d9c0b0",
+ "behavioral_hashes": {
+  "agent_code_sha": "697269a7b7ac71304e7887645c7edcedd3f0d867ce0e72c9c6c72323e11d9116",
+  "gate_routing_sha": "d40f310e49f6d1cd9bdc165d7b068bd515c7ff6abc14e8c55cddd76e2315f2d9",
+  "prompt_sha": "bad76599d4328aa642d1dbaf695adb9c2812f622993a1504c788bc9d59f57ed2",
+  "tool_policy_sha": "f4e3e93215c0c2fbbaab02cafcfb857e852224f9230f0758f57a8a105e5e9fb9",
+  "kb_sha": "d76220e7460789382d5bf40ce45a559b1cf017b2b43842d6056a0117d42e9474",
+  "runtime_config_sha": "215b2058e636f385bea7e569bf15cf6b23b2dc601694cf01200cb3564e646c14",
+  "model_snapshot": "LongCat-2.0"
+ },
+ "frozen_components": {
+  "evaluator_version": "1.2.0",
+  "rubric_sha256": "089e1a646f13fa49eb24426d940569f0377800730a3cc8e3fa7c3ccb772dcb06",
+  "policy_v2_sha256": "788d538f25bf066b24277f0d8fcaa7e15527daaf1b59c8e6abeca85b15d6ccda",
+  "case_set_sha256": "86066616d7bba2c7f3699523e8ae3766d7e6c52231136e22f5b9822833f07469"
+ },
+ "artifacts": {
+  "artifact_G1_sha": "98b872a8e614c9a6d24329496c0b1e6bb001b38dc17454bfeedef3094097fac5",
+  "artifact_G2_sha": "8df279940de4ac086923bda0f299b46f30cc4f0735d1fa4ea316a22a88769382",
+  "artifact_G3_sha": "16eef150938622f34adb5f2d8e1dee7dbeefe35546183d7b659ea0a6debbc7a0",
+  "artifact_G4_validation_sha": "a90ac31d88cc403812be1683950c6609d83081fe726d240a389e7023c4ef1a2f",
+  "artifact_S4_report_sha": "f9390a3a7bb5bf82b445e12de663602b940818c41606df3a1c2e10a5a3b18c03",
+  "artifact_S5_reeval_sha": "de3373f8f7598ce38beab0b88db0e9262b2b5d95e0fabf4136f506ff3cc2d16f",
+  "artifact_R8_disposition_sha": "636f759e2fa011845de3765c15b374f8ab0a97588a9540530fac8417cd6ed0c2",
+  "artifact_owner_authorization_sha": "ac8af129a71b409aba61fd3cdb6477021ba3a60ef3516e0a58de3bf80bc9be3e",
+  "route_mask_sha": "4b22876f962959983c91d01561e893aa5025f716f484ba6ebc4c53e7ed92c59c",
+  "independent_review_artifact_sha": "82f0ebfe0369cbb01c5dba4a7d266c6c9ea6ffb10f48d7677f250ca0264debac",
+  "monitoring_config_sha": "10be096c6a5c2a52d6b0d7a64d054c03b499725d9790e8f1b63164160c1cc542",
+  "runbook_sha": "fc756983f001f8610b63a035722a508103ecb01cd0a0b5801d36b508f0dd720d"
+ },
+ "readiness_checker": {
+  "path": "backend/scripts/safety_readiness_check.py",
+  "version": "v1",
+  "sha256": "0090786417ee9924d4e204b34fb8fc5fe065790d6d95ff08f62d116c9259d075"
+ },
+ "review": {
+  "reviewer": "haimeng",
+  "reviewed_at": "2026-09-07T19:16:57+08:00",
+  "conclusion": "PASS"
+ },
+ "l1_gate_state": {
+  "raw_status": "BLOCKED",
+  "historical_record_untouched": true,
+  "disposition": "OWNER_EXEMPTED",
+  "release_decision_model": "READY_WITH_EXEMPTION"
+ },
+ "owner_decisions": {
+  "ADR_L1_exemption": {
+   "id": "ADR-20260907-L1-EXEMPTION",
+   "path": "docs/ADR-20260907-l1-exemption.json",
+   "sha256": "89c8f10cef92eaddf0d7e371244ebffef76b10d65afe5cf65d7c15c9efa07005",
+   "effect": "L1 v2 质量门对 Agent 单候选灰度豁免为观察项（qualify_gate_only）；v2 文件/评估器不改；真实准入=L2(SSG)+ProdPrereq；流量上限 5%"
+  }
+ }
+}

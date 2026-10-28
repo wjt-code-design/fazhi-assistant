@@ -1,0 +1,67 @@
+{
+  "schema_version": "r15-watershed-v1",
+  "purpose": "R15 跨 2021-01-01 分水岭对照臂（**非冻结集**）：同题面、仅事实发生日跨/不跨分水岭，用于验证 law_as_of 注入通道与版本适用绊线（settings.law_version_tripwire_check）的实际效果。",
+  "status": "NOT_FROZEN",
+  "note": "as_of_date 由 backend/scripts/gate2_runner.py 的 _round1_payload 透传为 HTTP body 的 law_as_of；生产形态用 --no-as-of-date。本文件刻意不进 evals/frozen-cases-v2.json（T0 冻结物，改动须 Owner 决策卡 + candidate-hashes 重锚定）。不被 evals/validate_cases.py 覆盖（该脚本硬编码 V2 路径且断言 20 例）⇒ 结构契约由 backend/tests/test_r15_runner_injection.py::test_watershed_cases_conform_to_case_schema 代跑；文件 sha256 记在收口报告，改内容须换 schema_version。",
+  "cases": [
+    {
+      "id": "W01",
+      "domain": "诉讼时效与保证期间",
+      "as_of_date": "2026-09-18",
+      "initial_question": "2019年3月5日对方向我借款10万元，约定当日归还，此后我一直没催过，也没还过钱。我现在起诉还能胜诉吗？",
+      "round1_facts": "借款发生于2019年3月5日；约定还款日就是当天；此后没有任何催收记录。",
+      "round2_facts": "期间未主张过权利，也无还款、承认等中断事由；我是个人出借，对方也是个人。",
+      "fact_reveal": {
+        "r1": [
+          {
+            "text": "钱是2019年3月5日当面给的，说好当天就还，一直到现在我都没催过。",
+            "keywords": ["2019", "借款", "给的", "当天", "没催"]
+          }
+        ],
+        "r2": [
+          {
+            "text": "这几年我没有主张过权利，对方也没有还过钱或者承认过欠款，没有任何中断事由。",
+            "keywords": ["没有", "主张", "中断", "承认", "还过"]
+          }
+        ]
+      },
+      "required_issues": ["诉讼时效是否经过"],
+      "required_laws": [],
+      "forbidden_articles": [],
+      "critical_failures": [
+        "对2019年事实直接按《民法典》第一百八十八条给出三年时效结论而不作新旧法衔接说明",
+        "把起算日或约定还款日说成2021年1月1日之后"
+      ],
+      "deciding_facts": ["权利受损日/约定还款日是否早于2021-01-01", "有无中断事由"],
+      "scope_trigger": false
+    },
+    {
+      "id": "W02",
+      "domain": "诉讼时效与保证期间",
+      "as_of_date": "2026-09-18",
+      "initial_question": "2023年8月1日对方向我借款10万元，约定当日归还，此后我一直没催过，也没还过钱。我现在起诉还能胜诉吗？",
+      "round1_facts": "借款发生于2023年8月1日；约定还款日就是当天；此后没有任何催收记录。",
+      "round2_facts": "期间未主张过权利，也无还款、承认等中断事由；我是个人出借，对方也是个人。",
+      "fact_reveal": {
+        "r1": [
+          {
+            "text": "钱是2023年8月1日当面给的，说好当天就还，一直到现在我都没催过。",
+            "keywords": ["2023", "借款", "给的", "当天", "没催"]
+          }
+        ],
+        "r2": [
+          {
+            "text": "这几年我没有主张过权利，对方也没有还过钱或者承认过欠款，没有任何中断事由。",
+            "keywords": ["没有", "主张", "中断", "承认", "还过"]
+          }
+        ]
+      },
+      "required_issues": ["诉讼时效是否经过"],
+      "required_laws": [],
+      "forbidden_articles": [],
+      "critical_failures": ["把2023年的事实说成分水岭前情形、按旧法两年口径作答"],
+      "deciding_facts": ["权利受损日晚于2021-01-01", "有无中断事由"],
+      "scope_trigger": false
+    }
+  ]
+}

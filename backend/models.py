@@ -1,0 +1,215 @@
+from datetime import date, datetime
+
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, String, Text
+from sqlalchemy.orm import relationship
+
+from database import Base
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    username = Column(String(64), unique=True, index=True, nullable=False)
+    password_hash = Column(String(255), nullable=False)
+    # user / admin
+    role = Column(String(16), default="user", nullable=False)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
+
+
+class Conversation(Base):
+    __tablename__ = "conversations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    # 旧字段保留：新多轮流程里存"首轮/预览"，兼容旧列表接口
+    question = Column(Text, default="")
+    answer = Column(Text, default="")
+    # 多轮 + 压缩
+    title = Column(String(200), default="")
+    summary = Column(Text, default="")  # 增量滚动摘要
+    message_count = Column(Integer, default=0)
+    summary_upto = Column(Integer, default=0)  # 增量压缩指针：已被摘要覆盖的最旧消息条数
+    last_active_at = Column(DateTime, default=datetime.utcnow)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    user = relationship("User", back_populates="conversations")
+    messages = relationship(
+        "Message",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="Message.created_at",
+    )
+
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False, index=True)
+    # user / assistant / system
+    role = Column(String(16), nullable=False)
+    content = Column(Text, default="")
+    image_ref = Column(String(500), nullable=True)  # 存盘相对路径（相对 backend/）
+    thumb_ref = Column(String(500), nullable=True)
+    image_desc = Column(Text, nullable=True)  # 图片视觉描述，供后续轮次作为多模态上下文
+    # T1（2026-09-16）：Agent 终稿消息关联的 run——历史会话经此读取结构化覆盖信息
+    # （full/partial）。旧消息与普通 RAG 消息为 NULL → 投影为 unknown，不推断 full。
+    agent_run_id = Column(String(36), ForeignKey("agent_runs.id"), nullable=True, index=True)
+    token_est = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    conversation = relationship("Conversation", back_populates="messages")
+
+
+class QaCandidate(Base):
+    """受控沉淀待审：高有据问答先入此表，管理员采纳后才写入 qa_pairs 向量集合。"""
+
+    __tablename__ = "qa_candidates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    question = Column(Text, nullable=False)
+    answer = Column(Text, nullable=False)
+    grounded_score = Column(Float, default=0.0)  # 命中分（top1 相似度等）
+    evidence = Column(Text, default="")  # 命中来源（JSON 串）
+    # pending / approved / rejected
+    status = Column(String(16), default="pending", index=True)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AuditLog(Base):
+    """管理员操作审计日志（best-effort 记录，独立会话写入）。"""
+
+    __tablename__ = "audit_logs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    admin_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    action = Column(String(64), nullable=False)  # e.g. llm.switch / knowledge.upload / qa.approve / user.toggle
+    target = Column(String(255), default="")
+    detail = Column(Text, default="")
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class Feedback(Base):
+    """用户对某条 AI 回答的反馈（点赞/踩 + 可选纠错），用于沉淀与评测。"""
+
+    __tablename__ = "feedbacks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=True, index=True)
+    question = Column(Text, default="")  # 被评价的用户问题快照
+    answer = Column(Text, default="")  # 被评价的 AI 回答快照
+    rating = Column(String(8), nullable=False)  # up / down
+    correction = Column(Text, default="")  # 用户纠错/期望答案（可选）
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AnalysisRun(Base):
+    """合同评估运行记录（ADR-015 二期：条款数/命中法条/风险等级/耗时，审计与评测用）。
+
+    每次合同评估在报告生成后写入一行；失败不阻断主流程（record 是增强不是契约）。
+    source_type：image=多模态转写合同，text=手打/文件上传（文件前端解析后即 text）。
+    """
+
+    __tablename__ = "analysis_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=True, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=True, index=True)
+    source_type = Column(String(16), default="text")
+    clause_count = Column(Integer, default=0)
+    article_count = Column(Integer, default=0)
+    risk_level = Column(String(8), default="")
+    truncated = Column(Boolean, default=False)
+    duration_ms = Column(Integer, default=0)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+
+class AgentRun(Base):
+    """Recoverable, user-scoped execution state for the legal research agent."""
+
+    __tablename__ = "agent_runs"
+
+    id = Column(String(36), primary_key=True)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
+    conversation_id = Column(Integer, ForeignKey("conversations.id"), nullable=False, index=True)
+    goal = Column(Text, default="")
+    task_type = Column(String(64), default="legal_research")
+    status = Column(String(32), nullable=False, index=True)
+    state_version = Column(Integer, nullable=False, default=0)
+    law_as_of = Column(Date, nullable=False, default=date.today)
+    pending_question = Column(Text, nullable=True)
+    state_json = Column(Text, nullable=False)
+    degraded_reason = Column(Text, nullable=True)
+    last_error_code = Column(String(128), nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    steps = relationship("AgentStep", back_populates="run", cascade="all, delete-orphan")
+    evidence = relationship("AgentEvidence", back_populates="run", cascade="all, delete-orphan")
+    claim_checks = relationship("AgentClaimCheck", back_populates="run", cascade="all, delete-orphan")
+
+
+class AgentStep(Base):
+    """Compact state-transition audit row; raw prompts and tool output are excluded."""
+
+    __tablename__ = "agent_steps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    agent_run_id = Column(String(36), ForeignKey("agent_runs.id"), nullable=False, index=True)
+    state_version = Column(Integer, nullable=False)
+    issue_id = Column(String(128), nullable=True, index=True)
+    decision = Column(String(64), default="state_transition")
+    reason_code = Column(String(128), nullable=True)
+    tool_name = Column(String(128), nullable=True)
+    normalized_input = Column(Text, nullable=True)
+    result_summary = Column(Text, nullable=True)
+    status = Column(String(32), nullable=False, index=True)
+    duration_ms = Column(Integer, nullable=True)
+    budget_snapshot = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    run = relationship("AgentRun", back_populates="steps")
+
+
+class AgentEvidence(Base):
+    """Provenance-focused evidence snapshot, without raw tool prompts."""
+
+    __tablename__ = "agent_evidence"
+
+    id = Column(Integer, primary_key=True, index=True)
+    agent_run_id = Column(String(36), ForeignKey("agent_runs.id"), nullable=False, index=True)
+    issue_id = Column(String(128), nullable=True, index=True)
+    source_type = Column(String(32), nullable=False)
+    source_identifier = Column(String(255), nullable=False)
+    provenance = Column(Text, nullable=False)
+    snippet = Column(Text, nullable=True)
+    legal_validity = Column(String(32), nullable=True)
+    law_as_of = Column(Date, nullable=True)
+    acquired_at = Column(DateTime, nullable=True)
+    confidence = Column(Float, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    run = relationship("AgentRun", back_populates="evidence")
+
+
+class AgentClaimCheck(Base):
+    """Claim-to-evidence verification record for later auditing and evaluation."""
+
+    __tablename__ = "agent_claim_checks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    agent_run_id = Column(String(36), ForeignKey("agent_runs.id"), nullable=False, index=True)
+    issue_id = Column(String(128), nullable=True, index=True)
+    claim = Column(Text, nullable=False)
+    evidence_ids = Column(Text, default="")
+    supported = Column(Boolean, nullable=False)
+    verifier_verdict = Column(String(32), nullable=True)
+    rationale = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    run = relationship("AgentRun", back_populates="claim_checks")

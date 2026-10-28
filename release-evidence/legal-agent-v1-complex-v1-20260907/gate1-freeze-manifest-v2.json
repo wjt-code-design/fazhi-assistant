@@ -1,0 +1,53 @@
+{
+ "schema_version": "gate1-freeze/v2",
+ "status": "FROZEN_EXTENDED",
+ "supersedes": "gate1-freeze/v1",
+ "extended_at": "2026-09-08T00:00:00+08:00",
+ "extend_reason": "响应任务4(P1-2/P2-3)：v1 未覆盖 model/prompt/配置/运行代码 hash 且 gate1-lawcheck 条目为别名。v2 以新增版本补充运行基线 hash，题集 corpus 等冻结内容与 v1 完全一致，v1 文件保持不动。",
+ "law_as_of": "2026-08-01",
+ "collections": [
+  "legal_provisions_cos",
+  "qa_pairs"
+ ],
+ "corpus_logical_sha256": "d76220e7460789382d5bf40ce45a559b1cf017b2b43842d6056a0117d42e9474",
+ "corpus_note": "沿用 v1 值；截至 2026-09-08 提交历史无重新导入/重建语料记录，未现场重算。",
+ "file_sha256": {
+  "release-evidence/legal-agent-v1-complex-v1-20260907/frozen-cases-v1.json": "be281ab275024b2c6199c5c218b42dd77650fd36bbcda51226076c00ff82a4e5",
+  "release-evidence/legal-agent-v1-complex-v1-20260907/frozen-round-protocol-v1.json": "89d8d9167262ae8389f1c4ae0e7d93f76e845aa528587e08ea5fde32e5e1961a",
+  "release-evidence/legal-agent-v1-complex-v1-20260907/rubric-v1.json": "790fa4070775ebe5ef28119c28fe655644e2c5bf40ce9d1da6b499c6c4d0d2ac",
+  "release-evidence/legal-agent-v1-complex-v1-20260907/frozen-fact-ids-v1.json": "262456b6fd06d2fbe9670570be7eaedeb0bf7a7473db06dc3e2294df66146a73",
+  "docs/agent-v1-taskbook-gate1-lawcheck-20260907.json": "a45ed0e09ce308eefda2f50adf36b9fedf5e168d3974598dcf690f79b031e0ec"
+ },
+ "runtime_sha256": {
+  "git_head": "88b79379fbac45d6b12cb538e59f35afdb921219",
+  "backend/prompts.py": "65c5211c81109830be1f1033b86d6679b62ff6461ad28d11548075399d639f7f",
+  "backend/agent/runtime.py": "7790d0d6f79ecbd095f7069fa87617eb19beba73b2d160c48831cce1ecfed539",
+  "backend/agent/controller.py": "060c572288413cfeccc7e83bb3ad8e643b801613d3c306a474d6dadb27d58ea7",
+  "backend/agent/writer.py": "71dd2f23a06b07d786ea34166bd439befcc415f3848b31f8c3a5d664ded87947",
+  "backend/agent/verifier.py": "bec2397ab0fc9981804fc05905680e7c83361a7208fc039ae93cce5f16072632",
+  "backend/agent/service.py": "9752d7cfd399659b4f507fef10fcc5a1770e77eb94c913a7791f8614c5625230",
+  "backend/agent/schemas.py": "8b3ec61880738ba030bac7d86c08bc41c4e8d7803a8ef5acfc6555d908cba106",
+  "backend/agent/planner.py": "f62588fe55ceaa23dce58cb5133002014516e0be3c25cfb5561c8bd603eee887",
+  "backend/agent/state_machine.py": "15494e04999f83f8dfc44aabefc16f6608259dc4fa0ec0ebd6db39b909b22121",
+  "backend/agent/chat_integration.py": "89e3a4718c1a45a40b996fe51db3bf523323e7bf03a213d5f6ae80d0af27ae67",
+  "backend/agent/gate.py": "672e59bb05f49ffedaa59cb781c600e0f33ac1b54dc5528e01aa96acb0c071d8",
+  "backend/agent/evaluator.py": "500b63fbe41ec4d81b239a616beb3a4928dc1cd0acf2c104f1e74d57b4f0b767",
+  "backend/agent/repository.py": "f61341ad05751f41413896217a2d96c55e073ee910b9cbb5f3a2c44226f2cf13",
+  "backend/tools/contracts.py": "7855127ab37e643277233f0e6fda14edee90e13299758bfe2f02c8a12c4decd6",
+  "backend/tools/gateway.py": "445065a1262832a1e4b54ee1c587b4dd99ca0a6c2ad7a2a0e40b7863c52c6bdc",
+  "backend/retrieval.py": "713c985fde38de78e641d11c72eb01f9abbb2af5499456afd95e15a38d73dc96",
+  "backend/settings.py": "ab10cb451c3b83001a3a755aa964c1355e9430c656d46b1b1fe16bf09579586f",
+  "backend/llm_registry.py": "a59ef92ea6c8197c8ceebe393e1435b4c760b92b3838a8912c2bd42d73e296c3",
+  "backend/llm_guard.py": "49d758238b91f14724ac2773653b209ee90837f5769a767182a51d566d6cc580",
+  "backend/audit.py": "5fc6f73d2174c92350c8fb9ddaf52a7195d42db0a9f6aa8aa0565eb2a9d0c2eb",
+  "backend/main.py": "a55cfdf33aacc29ee57ccbe77f1ceb037cff38f7864c37417cde2f175001c52c",
+  "backend/request_bootstrap.py": "8ef290837572ed0d47ec3a9d5ec7a40eb24f78c2bc5363fadc799099d5ee6f0b"
+ },
+ "model": {
+  "llm_base_url": "https://api.longcat.chat/openai",
+  "llm_models": ["qwen3.5-omni-plus-2026-03-15", "LongCat-2.0", "qwen3.6-flash"],
+  "note": "仅记录模型标识，不含任何 API key/secret。实际生效模型由 .env 的 LLM_BASE_URL/LLM_MODEL/LLM_MODELS_JSON 决定，.env 全文件 sha256=b3056291ebd498424084fa2bdb65e5edde4e690ec97897db93d7d1eb41ee85ae（hash 不泄露内容）。"
+ },
+ "hash_normalization_note": "runtime_sha256 全部为 git 规范化(CRLF→LF)后的 blob 内容 sha256（git show HEAD:<path> 输出，可复现）；Windows 工作区字节为 CRLF，与 git 语义一致（git status 无上述文件 M）。",
+ "note": "v2 冻结基线：题集/法条核验冻结文件经 2026-09-08 复核与 v1 一致未变；运行代码基线 = git HEAD 88b7937。历史证据复用必须满足：agent_code/gate/prompt/tool/model/KB/index 行为相关 hash 与此处完全匹配。"
+}

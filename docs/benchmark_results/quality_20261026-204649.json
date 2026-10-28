@@ -1,0 +1,367 @@
+{
+ "ts": "20261026-204649",
+ "dataset": "eval_set_gen_all.json",
+ "answer_cache": "bypass",
+ "summary": {
+  "mean_recall_4": 0.9732,
+  "citation_accuracy": 0.9661
+ },
+ "judge": "off",
+ "pipeline": "真实 chat API（_client.chat，与一致性/红队/相关性同口径）",
+ "rows": [
+  {
+   "id": 101,
+   "question": "朋友答应送我的东西还没到手就反悔了，这种情况法律上怎么算？",
+   "recall@4": 0.0,
+   "cite_ok": true
+  },
+  {
+   "id": 102,
+   "question": "被判了有期徒刑的人，在监狱里要不要参加劳动？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 103,
+   "question": "刑事案件一审的裁定我不服，提起了上诉，二审法院一般会怎么处理？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 104,
+   "question": "法院要强制我搬出房子，执行的时候会通知我到场吗？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 105,
+   "question": "股东本人去不了股东会，想让人代为出席投票，需要办什么手续？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 106,
+   "question": "上市公司的年度报告最晚要在什么时候对外公告？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 107,
+   "question": "地方上药品安全隐患迟迟没消除，上级会怎么追究责任？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 108,
+   "question": "保险公司违法违规，除了公司被罚，负责人个人会面临什么处理？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 109,
+   "question": "邻里之间因为纠纷动了手，情节不重，派出所一般会怎么处理？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 110,
+   "question": "给孩子报的校外培训机构和托管班，在保护未成年人方面要遵守什么要求？",
+   "recall@4": 0.75,
+   "cite_ok": true
+  },
+  {
+   "id": 111,
+   "question": "工厂新建项目，安全设施能不能等主体工程投产以后再补？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 112,
+   "question": "侵占国家和集体的财产，法律上是什么态度？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 113,
+   "question": "公司进入重整程序后，抵押债权人还能马上处置抵押物吗？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 114,
+   "question": "路口没有红绿灯也没有交警指挥，开车应该怎么走？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 115,
+   "question": "全国人大和全国人大常委会各自能制定哪些法律？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 116,
+   "question": "政府在保障老百姓健康方面要承担什么责任？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 117,
+   "question": "开庭的时候，当事人能自己向对方的证人提问吗？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 118,
+   "question": "博物馆没按规定配备防火防盗设施，会被怎么处罚？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 119,
+   "question": "不服海事法院的裁定，想申请复议的话有时间限制吗？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 120,
+   "question": "疫苗在上市销售之前，要经过什么审核检验程序？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 121,
+   "question": "公务员队伍的综合管理由哪个部门负责？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 122,
+   "question": "不配合反恐安全检查，会被怎么处罚？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 123,
+   "question": "行政复议申请受理之后，发现不符合受理条件，会怎么处理？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 124,
+   "question": "电商平台处罚了违规商家，要不要向其他消费者公示？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 126,
+   "question": "把专利权转让给别人，除了签合同还要办什么手续才生效？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 127,
+   "question": "在一家公司工作时间很长了，续签时想签没有固定期限的合同，有什么条件？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 128,
+   "question": "农村土地整治、改造中低产田，由谁来组织实施？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 129,
+   "question": "行政诉讼立案以后，法院多久之内要作出一审判决？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 130,
+   "question": "工商联在支持民营经济发展方面起什么作用？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 131,
+   "question": "同一笔应收账款签了好几份保理合同，几家保理公司都来主张，谁的优先？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 132,
+   "question": "绑架别人索要钱财，法律上会怎么处罚？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 133,
+   "question": "取保候审时给别人做保证人，需要承担哪些义务？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 134,
+   "question": "哪些民事纠纷不能走小额诉讼程序？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 135,
+   "question": "公司要办变更登记，需要向登记机关提交什么材料？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 136,
+   "question": "股市出现重大异常波动，交易所可以采取什么措施？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 137,
+   "question": "想生产药品，需要先取得什么许可？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 138,
+   "question": "保险公司拟订条款费率和理赔时，对投保人有哪些义务？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 139,
+   "question": "法院下了禁止令还去违反，会怎么处罚？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 140,
+   "question": "幼儿园或培训机构招人时没查犯罪记录，会怎么处理？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 141,
+   "question": "监管部门上门做安全生产检查，企业需要做什么？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 142,
+   "question": "全国人民代表大会每年什么时候开会、由谁召集？",
+   "recall@4": 1.0,
+   "cite_ok": false
+  },
+  {
+   "id": 143,
+   "question": "公司还不上到期债务，谁可以去法院申请它破产？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 144,
+   "question": "交通违法被交警当场处罚，会当场拿到什么文书？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 145,
+   "question": "立法过程要遵循什么原则、怎么体现人民意志？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 146,
+   "question": "公共场所的卫生由谁监管、信息要不要公开？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 147,
+   "question": "鉴定人拒绝出庭作证，之前的鉴定意见还能作为定案依据吗？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 148,
+   "question": "哪些可移动文物属于国家所有？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 149,
+   "question": "在海事事故调查表里说过的话，开庭时还能反悔改口吗？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 150,
+   "question": "孩子该打的免费疫苗，家长有义务按时带去接种吗？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 151,
+   "question": "公务员想提前退休，需要满足什么条件？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 152,
+   "question": "单位违反反恐规定情节严重，会被怎么处理？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 153,
+   "question": "行政复议机关在方便群众申请方面有什么要求？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 154,
+   "question": "电商平台上的用户信息和个人数据，法律怎么保护？",
+   "recall@4": 0.67,
+   "cite_ok": true
+  },
+  {
+   "id": 155,
+   "question": "税务机关向企业调取涉税信息，企业和纳税人有什么义务？",
+   "recall@4": 1.0,
+   "cite_ok": false
+  },
+  {
+   "id": 156,
+   "question": "几个人共有一个专利，行使权利时要注意什么？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 157,
+   "question": "开一家劳务派遣公司需要具备什么条件？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 158,
+   "question": "在耕地上擅自建房、挖砂，会被怎么处理？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 159,
+   "question": "行政诉讼原告收到传票不去开庭，会有什么后果？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  },
+  {
+   "id": 160,
+   "question": "境外黑社会人员试图入境，出入境和海关部门可以采取什么措施？",
+   "recall@4": 1.0,
+   "cite_ok": true
+  }
+ ]
+}

@@ -1,0 +1,2 @@
+# 构建生成的桥接文件（T1.1）：每次 npm run build 由 scripts/write-build-id.mjs 重写，不入库
+public/build-id.txt

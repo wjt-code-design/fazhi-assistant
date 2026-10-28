@@ -1,0 +1,136 @@
+{
+  "version": "2026-10-27.2",
+  "note": "高频罪名/制度 → 必备条文。首版 16 个主题；只在 coverage_gate_mode != off 时生效。条号须能在知识库精确取到，取不到计入 unresolved。triggers 只放与必备条文同一争点的词；争议大的宽词移入 exclude。",
+  "topics": [
+    {
+      "id": "intentional_injury",
+      "label": "故意伤害",
+      "triggers": ["故意伤害", "打伤", "打成", "打致", "殴打", "被打"],
+      "required": [
+        {"source": "中华人民共和国刑法", "article": "第二百三十四条"},
+        {"source": "中华人民共和国刑法", "article": "第九十五条"}
+      ]
+    },
+    {
+      "id": "instigation_joint_crime",
+      "label": "教唆/共同犯罪",
+      "triggers": ["教唆", "指使他人", "共同犯罪", "主犯", "从犯"],
+      "required": [
+        {"source": "中华人民共和国刑法", "article": "第二十五条"},
+        {"source": "中华人民共和国刑法", "article": "第二十六条"},
+        {"source": "中华人民共和国刑法", "article": "第二十七条"},
+        {"source": "中华人民共和国刑法", "article": "第二十九条"}
+      ]
+    },
+    {
+      "id": "theft",
+      "label": "盗窃",
+      "triggers": ["盗窃", "偷东西", "偷了", "扒窃"],
+      "required": [{"source": "中华人民共和国刑法", "article": "第二百六十四条"}]
+    },
+    {
+      "id": "fraud",
+      "label": "诈骗",
+      "triggers": ["诈骗", "骗钱", "被骗", "电信诈骗"],
+      "exclude": ["合同诈骗", "信用卡诈骗", "集资诈骗", "贷款诈骗"],
+      "required": [{"source": "中华人民共和国刑法", "article": "第二百六十六条"}]
+    },
+    {
+      "id": "traffic_criminal",
+      "label": "交通肇事",
+      "triggers": ["交通肇事"],
+      "required": [{"source": "中华人民共和国刑法", "article": "第一百三十三条"}]
+    },
+    {
+      "id": "traffic_civil",
+      "label": "交通事故赔偿",
+      "triggers": ["交通事故", "车祸"],
+      "exclude": ["交通肇事"],
+      "required": [
+        {"source": "中华人民共和国道路交通安全法", "article": "第七十六条"}
+      ]
+    },
+    {
+      "id": "embezzlement",
+      "label": "职务侵占",
+      "triggers": ["职务侵占", "侵占公司", "侵占单位财物"],
+      "required": [{"source": "中华人民共和国刑法", "article": "第二百七十一条"}]
+    },
+    {
+      "id": "corruption_bribery",
+      "label": "贪污受贿",
+      "triggers": ["贪污", "受贿", "行贿", "私分国有资产"],
+      "required": [
+        {"source": "中华人民共和国刑法", "article": "第三百八十二条"},
+        {"source": "中华人民共和国刑法", "article": "第三百八十五条"}
+      ]
+    },
+    {
+      "id": "labor_dismissal",
+      "label": "解除劳动合同",
+      "triggers": ["解除劳动合同", "被辞退", "裁员"],
+      "required": [
+        {"source": "中华人民共和国劳动合同法", "article": "第三十九条"},
+        {"source": "中华人民共和国劳动合同法", "article": "第四十条"},
+        {"source": "中华人民共和国劳动合同法", "article": "第四十六条"},
+        {"source": "中华人民共和国劳动合同法", "article": "第四十七条"}
+      ]
+    },
+    {
+      "id": "private_lending",
+      "label": "民间借贷",
+      "triggers": ["借钱不还", "欠钱不还", "民间借贷", "借款不还"],
+      "required": [
+        {"source": "中华人民共和国民法典", "article": "第六百六十七条"},
+        {"source": "中华人民共和国民法典", "article": "第六百七十四条"}
+      ]
+    },
+    {
+      "id": "divorce",
+      "label": "离婚",
+      "triggers": ["离婚", "抚养权", "财产分割"],
+      "required": [
+        {"source": "中华人民共和国民法典", "article": "第一千零七十六条"},
+        {"source": "中华人民共和国民法典", "article": "第一千零七十九条"},
+        {"source": "中华人民共和国民法典", "article": "第一千零八十四条"},
+        {"source": "中华人民共和国民法典", "article": "第一千零八十七条"}
+      ]
+    },
+    {
+      "id": "personal_injury_tort",
+      "label": "人身损害赔偿",
+      "triggers": ["人身损害", "残疾赔偿金", "医疗费赔偿"],
+      "required": [
+        {"source": "中华人民共和国民法典", "article": "第一千一百六十五条"},
+        {"source": "中华人民共和国民法典", "article": "第一千一百七十九条"}
+      ]
+    },
+    {
+      "id": "consumer_rights",
+      "label": "消费者权益",
+      "triggers": ["退一赔三", "假货", "消费者权益", "消费欺诈"],
+      "required": [{"source": "中华人民共和国消费者权益保护法", "article": "第五十五条"}]
+    },
+    {
+      "id": "work_injury",
+      "label": "工伤认定",
+      "triggers": ["工伤", "工伤认定", "工伤保险"],
+      "required": [
+        {"source": "工伤保险条例", "article": "第十四条"},
+        {"source": "工伤保险条例", "article": "第十五条"}
+      ]
+    },
+    {
+      "id": "administrative_reconsideration",
+      "label": "行政复议（申请便利）",
+      "triggers": ["申请行政复议", "行政复议申请方式", "行政复议信息化", "复议便民", "方便群众申请"],
+      "required": [{"source": "中华人民共和国行政复议法", "article": "第八条"}]
+    },
+    {
+      "id": "insurance_claim",
+      "label": "保险理赔",
+      "triggers": ["保险理赔", "拒赔", "保险金"],
+      "required": [{"source": "中华人民共和国保险法", "article": "第二十三条"}]
+    }
+  ]
+}

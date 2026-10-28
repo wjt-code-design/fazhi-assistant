@@ -1,0 +1,115 @@
+"""Strict normalization boundary for untrusted Planner structured output."""
+
+from __future__ import annotations
+
+from collections.abc import Mapping
+from typing import Any, Protocol, cast
+
+from pydantic import BaseModel, TypeAdapter, ValidationError
+
+from request_bootstrap import RequestBootstrap
+
+from .schemas import LegalAgentState, PlanDecision, ToolCallDecision
+
+_PLAN_DECISION_ADAPTER: TypeAdapter[PlanDecision] = TypeAdapter(PlanDecision)
+_SERVER_OWNED_FIELDS = frozenset(
+    {
+        "user_id",
+        "conversation_id",
+        "run_id",
+        "law_as_of",
+        "budgets",
+        "max_steps",
+        "max_tool_calls",
+        "max_replans",
+        "max_clarifications",
+        "max_duplicate_attempts_per_issue",
+        "max_verifier_research_returns",
+        "steps",
+        "tool_calls",
+        "replans",
+        "clarifications",
+        "verifier_research_returns",
+        "duplicate_attempts_by_issue",
+        "action_fingerprints",
+    }
+)
+
+
+class Planner(Protocol):
+    # 2026-09-10 mypy 修复：协议原先缺 `feedback`，而 controller 已按
+    # `71e5f23`（错误回喂重试）以关键字传入 ⇒ 协议落后于实现。
+    def decide(self, *, state: LegalAgentState, bootstrap: RequestBootstrap, feedback: str | None = None) -> object: ...
+
+
+class PlannerParseError(ValueError):
+    """Ordinary malformed or unknown Planner output."""
+
+
+class PlannerUnavailable(RuntimeError):
+    """Transport failed; output-repair retries cannot resolve this failure."""
+
+
+class PlannerPolicyViolation(PermissionError):
+    """Planner output attempted to inject a server-owned value."""
+
+
+def _contains_server_owned_field(value: object) -> bool:
+    if isinstance(value, BaseModel):
+        return _contains_server_owned_field(value.model_dump(mode="python"))
+    if isinstance(value, Mapping):
+        return bool(_SERVER_OWNED_FIELDS.intersection(value)) or any(
+            _contains_server_owned_field(item) for item in value.values()
+        )
+    if isinstance(value, (list, tuple)):
+        return any(_contains_server_owned_field(item) for item in value)
+    return False
+
+
+def _as_mapping(raw: object) -> dict[str, Any]:
+    if isinstance(raw, BaseModel):
+        return raw.model_dump(mode="python")
+    if not isinstance(raw, Mapping):
+        raise PlannerParseError("planner decision must be an object")
+    return dict(raw)
+
+
+def parse_plan_decision(
+    raw: object,
+    *,
+    policies: Mapping[str, Any],
+    issue_ids: set[str] | frozenset[str],
+) -> PlanDecision:
+    """Validate raw Planner output before it can mutate state or reach a Gateway."""
+
+    payload = _as_mapping(raw)
+    if _contains_server_owned_field(payload):
+        raise PlannerPolicyViolation("planner decision contains server-owned fields")
+    kind = payload.get("kind")
+    if kind != "tool_call":
+        try:
+            return cast(PlanDecision, _PLAN_DECISION_ADAPTER.validate_python(payload))
+        except ValidationError as exc:
+            raise PlannerParseError("planner decision is malformed or has an unknown kind") from exc
+
+    expected_fields = {"kind", "issue_id", "tool_name", "args"}
+    if set(payload) != expected_fields:
+        raise PlannerParseError("tool decision contains missing or unknown fields")
+    issue_id = payload.get("issue_id")
+    tool_name = payload.get("tool_name")
+    raw_args = payload.get("args")
+    if not isinstance(issue_id, str) or issue_id not in issue_ids:
+        raise PlannerParseError("tool decision references an unknown issue")
+    if not isinstance(tool_name, str) or tool_name == "ask_user" or tool_name not in policies:
+        raise PlannerParseError("tool decision references an unavailable tool")
+    policy = policies[tool_name]
+    try:
+        typed_args = policy.input_model.model_validate(raw_args)
+        return ToolCallDecision(
+            kind="tool_call",
+            issue_id=issue_id,
+            tool_name=tool_name,
+            args=typed_args,
+        )
+    except (TypeError, ValidationError, ValueError) as exc:
+        raise PlannerParseError("planner tool arguments do not match the registered schema") from exc

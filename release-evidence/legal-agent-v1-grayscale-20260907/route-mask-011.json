@@ -1,0 +1,221 @@
+{
+ "schema_version": "phase1-route-mask/v1",
+ "evidence_note": "真实 gate 路由以 009/010/011 STATUS 一致记录 6/30 为准",
+ "capture_set": "official-capture-011-agent(+retry2 R11 样本)",
+ "rows": [
+  {
+   "id": "loan-limitations-01",
+   "status": "failed",
+   "routed_agent": true,
+   "clarification": null,
+   "error_codes": [
+    "ISSUE_DECOMPOSITION_INVALID"
+   ]
+  },
+  {
+   "id": "labor-probation-02",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "house-sale-deposit-03",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "traffic-injury-04",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "inheritance-debt-05",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "company-equity-06",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "consumer-prepayment-07",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "divorce-property-08",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "online-defamation-09",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "lease-termination-10",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "employment-dismissal-11",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "medical-consent-12",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "data-privacy-13",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "contract-comparison-14",
+   "status": "ok",
+   "routed_agent": true,
+   "clarification": "合同总价与实际损失的对比关系",
+   "error_codes": []
+  },
+  {
+   "id": "law-date-conflict-15",
+   "status": "failed",
+   "routed_agent": true,
+   "clarification": null,
+   "error_codes": [
+    "ISSUE_DECOMPOSITION_INVALID"
+   ]
+  },
+  {
+   "id": "construction-payment-16",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "guarantee-expiry-17",
+   "status": "ok",
+   "routed_agent": true,
+   "clarification": "主债务履行期届满的具体日期",
+   "error_codes": []
+  },
+  {
+   "id": "shareholder-liability-18",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "prompt-injection-19",
+   "status": "ok",
+   "routed_agent": true,
+   "clarification": "劳动关系是否已终止",
+   "error_codes": []
+  },
+  {
+   "id": "criminal-civil-boundary-20",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "labor-term-answer-a1",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "loan-interest-answer-a2",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "deposit-cap-answer-a3",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "guarantee-period-answer-a4",
+   "status": "ok",
+   "routed_agent": true,
+   "clarification": "主债务履行期限是否明确约定",
+   "error_codes": []
+  },
+  {
+   "id": "company-liability-answer-a5",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "dismissal-396-answer-a6",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "privacy-delete-answer-a7",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "online-return-answer-a8",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "traffic-liability-answer-a9",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  },
+  {
+   "id": "penalty-adjust-answer-a10",
+   "status": "ok",
+   "routed_agent": false,
+   "clarification": null,
+   "error_codes": []
+  }
+ ]
+}

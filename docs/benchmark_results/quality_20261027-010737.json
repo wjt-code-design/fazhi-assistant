@@ -1,0 +1,21 @@
+{
+ "ts": "20261027-010737",
+ "dataset": "one_case.json",
+ "answer_cache": "bypass",
+ "summary": {
+  "mean_recall_4": 1.0,
+  "citation_accuracy": 1.0,
+  "faithfulness": 1.0
+ },
+ "judge": "qwen3.8-flash text 档 temp=0",
+ "pipeline": "真实 chat API（_client.chat，与一致性/红队/相关性同口径）",
+ "rows": [
+  {
+   "id": 102,
+   "question": "被判了有期徒刑的人，在监狱里要不要参加劳动？",
+   "recall@4": 1.0,
+   "cite_ok": true,
+   "faithful": true
+  }
+ ]
+}

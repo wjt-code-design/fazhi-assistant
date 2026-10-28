@@ -1,0 +1,396 @@
+{
+ "summary": {
+  "n": 59,
+  "faithfulness_k6": 0.4407,
+  "faithfulness_prodctx": 0.8644,
+  "flips": {
+   "k6_false_to_prod_true": [
+    103,
+    109,
+    112,
+    113,
+    115,
+    116,
+    117,
+    119,
+    123,
+    126,
+    128,
+    132,
+    133,
+    138,
+    140,
+    141,
+    142,
+    143,
+    144,
+    146,
+    149,
+    151,
+    154,
+    158,
+    159
+   ],
+   "k6_true_to_prod_false": []
+  },
+  "judge": "qwen3.8-flash text 档 temp=0",
+  "context": "scenario_supplement_docs(q) + retrieve(q,k=10)（未含 consumer clause/fraud 与 QA 注入）",
+  "note": "答案复用 T1 落库原文；只换 judge 上下文。不证答对，只证答案相对该上下文无编造。"
+ },
+ "rows": [
+  {
+   "id": 101,
+   "faithful_k6": false,
+   "faithful_prodctx": false,
+   "ctx_docs": 14
+  },
+  {
+   "id": 102,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 103,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 38
+  },
+  {
+   "id": 104,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 27
+  },
+  {
+   "id": 105,
+   "faithful_k6": false,
+   "faithful_prodctx": false,
+   "ctx_docs": 25
+  },
+  {
+   "id": 106,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 24
+  },
+  {
+   "id": 107,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 108,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 109,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 110,
+   "faithful_k6": false,
+   "faithful_prodctx": false,
+   "ctx_docs": 14
+  },
+  {
+   "id": 111,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 112,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 23
+  },
+  {
+   "id": 113,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 30
+  },
+  {
+   "id": 114,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 115,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 116,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 117,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 118,
+   "faithful_k6": false,
+   "faithful_prodctx": false,
+   "ctx_docs": 14
+  },
+  {
+   "id": 119,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 34
+  },
+  {
+   "id": 120,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 24
+  },
+  {
+   "id": 121,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 122,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 123,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 24
+  },
+  {
+   "id": 124,
+   "faithful_k6": false,
+   "faithful_prodctx": false,
+   "ctx_docs": 36
+  },
+  {
+   "id": 126,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 38
+  },
+  {
+   "id": 127,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 29
+  },
+  {
+   "id": 128,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 129,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 38
+  },
+  {
+   "id": 130,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 131,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 29
+  },
+  {
+   "id": 132,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 16
+  },
+  {
+   "id": 133,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 36
+  },
+  {
+   "id": 134,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 135,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 136,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 137,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 24
+  },
+  {
+   "id": 138,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 24
+  },
+  {
+   "id": 139,
+   "faithful_k6": false,
+   "faithful_prodctx": false,
+   "ctx_docs": 14
+  },
+  {
+   "id": 140,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 141,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 142,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 143,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 24
+  },
+  {
+   "id": 144,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 145,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 146,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 147,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 148,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 149,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 150,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 151,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 152,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 153,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 24
+  },
+  {
+   "id": 154,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 25
+  },
+  {
+   "id": 155,
+   "faithful_k6": false,
+   "faithful_prodctx": false,
+   "ctx_docs": 14
+  },
+  {
+   "id": 156,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 24
+  },
+  {
+   "id": 157,
+   "faithful_k6": false,
+   "faithful_prodctx": false,
+   "ctx_docs": 14
+  },
+  {
+   "id": 158,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  },
+  {
+   "id": 159,
+   "faithful_k6": false,
+   "faithful_prodctx": true,
+   "ctx_docs": 24
+  },
+  {
+   "id": 160,
+   "faithful_k6": true,
+   "faithful_prodctx": true,
+   "ctx_docs": 14
+  }
+ ]
+}

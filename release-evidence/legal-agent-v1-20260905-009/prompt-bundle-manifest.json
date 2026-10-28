@@ -1,0 +1,24 @@
+{
+ "schema_version": "legal-agent-file-boundary/v1",
+ "candidate_git_revision": "30a865f76b371e25b4fe90e82fdbd8b373a77b45",
+ "boundary": "prompt-bundle",
+ "selection": "all Python files in backend/agent plus backend/prompts.py",
+ "canonicalization": "sort unique POSIX-relative paths; concatenate path + NUL + decimal byte size + NUL + lowercase file SHA-256 + LF; hash UTF-8 bytes with SHA-256",
+ "aggregate_sha256": "f2912113d832efceb8e573437bf703c206ee7a5e45f02138d4edc4aa1e3f91cd",
+ "files": [
+  "backend/agent/__init__.py",
+  "backend/agent/chat_integration.py",
+  "backend/agent/controller.py",
+  "backend/agent/evaluator.py",
+  "backend/agent/gate.py",
+  "backend/agent/planner.py",
+  "backend/agent/repository.py",
+  "backend/agent/runtime.py",
+  "backend/agent/schemas.py",
+  "backend/agent/service.py",
+  "backend/agent/state_machine.py",
+  "backend/agent/verifier.py",
+  "backend/agent/writer.py",
+  "backend/prompts.py"
+ ]
+}

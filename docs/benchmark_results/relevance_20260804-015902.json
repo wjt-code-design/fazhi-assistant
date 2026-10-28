@@ -1,0 +1,19 @@
+{
+ "ts": "20260804-015902",
+ "n": 10,
+ "relevance_rate_ge1": 1.0,
+ "full_relevance_rate": 1.0,
+ "note": "单一 judge（qwen3.7-plus，temp=0），无人工金标——相关性主观，仅供参考",
+ "scores": [
+  2,
+  2,
+  2,
+  2,
+  2,
+  2,
+  2,
+  2,
+  2,
+  2
+ ]
+}

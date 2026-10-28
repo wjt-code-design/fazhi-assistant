@@ -1,0 +1,12 @@
+{
+  "allowed": false,
+  "reasons": [
+    "AGENT_AUDIT_INVALID"
+  ],
+  "details": [],
+  "freeze_hash": "f8ca2f2e71250f18a3741132d1024e3865eb21c1fb997a4d4d26c12391f1588d",
+  "existing_report_sha256": "5b941f633e4818ecae933d25e94b0aa49695cf7884a4b914b324b4942e3b755f",
+  "agent_report_sha256": "5576014acc47c04c15623f239bd20f60ee08fc09a0b214bad7bf29d132e34283",
+  "existing_git_revision": "e9b0e17d98bc0990f10dac6ff66ffbdc5fbccaed",
+  "agent_git_revision": "e9b0e17d98bc0990f10dac6ff66ffbdc5fbccaed"
+}

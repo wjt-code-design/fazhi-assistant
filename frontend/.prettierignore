@@ -1,0 +1,19 @@
+# 依赖与构建产物
+node_modules/
+.next/
+out/
+coverage/
+
+# ===== Prettier 债务冻结清单（2026-09-15 引入时既存的 9 个不符合文件）=====
+# 执行书红线：不对既有文件运行 prettier --write（避免海量无关 diff）。
+# 这些文件暂不纳入 format:check；批次 2 拆分产出的新文件必须符合 .prettierrc。
+# 渐进策略详见 README.md。
+app/admin/page.tsx
+app/chat/page.tsx
+app/globals.css
+app/login/page.tsx
+components/LawCard.tsx
+components/ui.tsx
+lib/annotate.ts
+lib/api.ts
+lib/scope.ts

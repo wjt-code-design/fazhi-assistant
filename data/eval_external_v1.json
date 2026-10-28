@@ -1,0 +1,398 @@
+[
+ {
+  "id": 101,
+  "type": "语义适用",
+  "question": "朋友答应送我的东西还没到手就反悔了，这种情况法律上怎么算？",
+  "expected_sources": [
+   "民法典"
+  ],
+  "expected_articles": [
+   "第六百五十八条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "application"
+ },
+ {
+  "id": 103,
+  "type": "语义适用",
+  "question": "刑事案件一审的裁定我不服，提起了上诉，二审法院一般会怎么处理？",
+  "expected_sources": [
+   "刑事诉讼法"
+  ],
+  "expected_articles": [
+   "第二百四十条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "procedure"
+ },
+ {
+  "id": 108,
+  "type": "语义适用",
+  "question": "保险公司违法违规，除了公司被罚，负责人个人会面临什么处理？",
+  "expected_sources": [
+   "保险法"
+  ],
+  "expected_articles": [
+   "第一百七十一条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "application"
+ },
+ {
+  "id": 109,
+  "type": "语义适用",
+  "question": "邻里之间因为纠纷动了手，情节不重，派出所一般会怎么处理？",
+  "expected_sources": [
+   "治安管理处罚法"
+  ],
+  "expected_articles": [
+   "第九条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "application"
+ },
+ {
+  "id": 110,
+  "type": "语义适用",
+  "question": "给孩子报的校外培训机构和托管班，在保护未成年人方面要遵守什么要求？",
+  "expected_sources": [
+   "未成年人保护法"
+  ],
+  "expected_articles": [
+   "第四十一条",
+   "第三十三条",
+   "第三十七条",
+   "第三十八条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "review_note": "第41条为参照适用条款，本身不列举要求；第三方复核建议补充第33、37、38条",
+  "capability": "application"
+ },
+ {
+  "id": 112,
+  "type": "语义适用",
+  "question": "侵占国家和集体的财产，法律上是什么态度？",
+  "expected_sources": [
+   "宪法（1982年）"
+  ],
+  "expected_articles": [
+   "第十二条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "application"
+ },
+ {
+  "id": 113,
+  "type": "语义适用",
+  "question": "公司进入重整程序后，抵押债权人还能马上处置抵押物吗？",
+  "expected_sources": [
+   "企业破产法"
+  ],
+  "expected_articles": [
+   "第七十五条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "review_note": "答案将强制批准条件写成第八十七条第一款第一项，实为第二款第一项；金标不受影响",
+  "capability": "application"
+ },
+ {
+  "id": 117,
+  "type": "语义适用",
+  "question": "开庭的时候，当事人能自己向对方的证人提问吗？",
+  "expected_sources": [
+   "民事诉讼证据规定"
+  ],
+  "expected_articles": [
+   "第七十四条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "procedure"
+ },
+ {
+  "id": 121,
+  "type": "语义适用",
+  "question": "公务员队伍的综合管理由哪个部门负责？",
+  "expected_sources": [
+   "公务员法"
+  ],
+  "expected_articles": [
+   "第十二条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "application"
+ },
+ {
+  "id": 124,
+  "type": "语义适用",
+  "question": "电商平台处罚了违规商家，要不要向其他消费者公示？",
+  "expected_sources": [
+   "电子商务法"
+  ],
+  "expected_articles": [
+   "第三十六条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "application"
+ },
+ {
+  "id": 138,
+  "type": "语义适用",
+  "question": "保险公司拟订条款费率和理赔时，对投保人有哪些义务？",
+  "expected_sources": [
+   "保险法"
+  ],
+  "expected_articles": [
+   "第一百一十四条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "application"
+ },
+ {
+  "id": 140,
+  "type": "语义适用",
+  "question": "幼儿园或培训机构招人时没查犯罪记录，会怎么处理？",
+  "expected_sources": [
+   "未成年人保护法"
+  ],
+  "expected_articles": [
+   "第一百二十六条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "application"
+ },
+ {
+  "id": 142,
+  "type": "语义适用",
+  "question": "全国人民代表大会每年什么时候开会、由谁召集？",
+  "expected_sources": [
+   "宪法（1982年）"
+  ],
+  "expected_articles": [
+   "第六十一条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "procedure"
+ },
+ {
+  "id": 145,
+  "type": "语义适用",
+  "question": "立法过程要遵循什么原则、怎么体现人民意志？",
+  "expected_sources": [
+   "立法法"
+  ],
+  "expected_articles": [
+   "第六条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "application"
+ },
+ {
+  "id": 149,
+  "type": "语义适用",
+  "question": "在海事事故调查表里说过的话，开庭时还能反悔改口吗？",
+  "expected_sources": [
+   "海事诉讼特别程序法"
+  ],
+  "expected_articles": [
+   "第八十五条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "procedure"
+ },
+ {
+  "id": 152,
+  "type": "语义适用",
+  "question": "单位违反反恐规定情节严重，会被怎么处理？",
+  "expected_sources": [
+   "反恐怖主义法"
+  ],
+  "expected_articles": [
+   "第九十三条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "application"
+ },
+ {
+  "id": 153,
+  "type": "语义适用",
+  "question": "行政复议机关在方便群众申请方面有什么要求？",
+  "expected_sources": [
+   "行政复议法"
+  ],
+  "expected_articles": [
+   "第八条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "procedure"
+ },
+ {
+  "id": 154,
+  "type": "语义适用",
+  "question": "电商平台上的用户信息和个人数据，法律怎么保护？",
+  "expected_sources": [
+   "电子商务法"
+  ],
+  "expected_articles": [
+   "第六十九条",
+   "第二十三条",
+   "第二十四条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "review_note": "第69条属促进章政策性宣示，未规定平台经营者义务；第三方复核建议补充第23、24条",
+  "capability": "application"
+ },
+ {
+  "id": 156,
+  "type": "语义适用",
+  "question": "几个人共有一个专利，行使权利时要注意什么？",
+  "expected_sources": [
+   "专利法"
+  ],
+  "expected_articles": [
+   "第十四条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "application"
+ },
+ {
+  "id": 158,
+  "type": "语义适用",
+  "question": "在耕地上擅自建房、挖砂，会被怎么处理？",
+  "expected_sources": [
+   "土地管理法"
+  ],
+  "expected_articles": [
+   "第七十五条"
+  ],
+  "track": "external",
+  "gold_provenance": "expert_annotated",
+  "reviewed_by": "AI-LEX-01",
+  "review_level": "ai_third_party",
+  "review_date": "2026-10-25",
+  "review_ref": "docs/reviews/legal_fact_review_20261025_receipt.md",
+  "capability": "application"
+ },
+ {
+  "id": 159,
+  "type": "多问争点",
+  "question": "甲公司注册资本 1000 万元，股东张三认缴 700 万元、李四认缴 300 万元，章程约定出资期限为 2030 年 12 月 31 日，2024 年 3 月张三实缴 200 万元；2023 年 5 月李四向甲公司出借 300 万元（无担保，2024 年 5 月到期未还）；2024 年 8 月甲公司与乙公司签订设备采购合同，货款 500 万元约定 2025 年 6 月 30 日前付清，到期未付，乙公司 2025 年 7 月起诉胜诉并申请强制执行；执行中查明：甲公司账户仅余 3 万元且无其他可供执行财产，甲公司对丙公司享有 300 万元到期债权、已有生效判决确认但甲公司一直未申请执行，2025 年 8 月张三将所持 30% 股权（对应认缴出资 300 万元）以 100 万元转让给其弟王五并已办理变更登记，2025 年 9 月李四函告甲公司以其对公司的 300 万元借款债权抵销甲公司对其的 280 万元租金债权，另查明张三与李四系夫妻，且甲公司近三年未编制财务会计报告、无独立银行账户、采购款多数直接付至张三个人账户，与张三个人财产混同；2026 年 3 月乙公司提出四项主张：一、张三李四在未出资范围内（张 500 万、李 300 万）对 500 万元货款债务承担补充赔偿责任；二、撤销张三向王五的股权转让行为；三、李四的抵销无效；四、代位甲公司向丙公司主张 300 万元债权并直接受偿。请回答六问：1. 出资期限未届满，乙能否请求张三李四提前缴纳出资并对公司债务承担补充赔偿责任，执行程序中应走哪条路径、追加被执行人是否需另行诉讼；2. 乙能否依债权人撤销权撤销该股权转让，撤销的效果是什么，若不能撤销，王五是否对张三的出资义务承担责任；3. 李四的抵销能否对抗乙公司的执行，应从哪些要件审查，股东债权与公司债务的抵销有无特殊限制；4. 乙能否代位甲公司向丙公司主张债权，构成要件有哪些，代位受偿金额如何确定、甲公司是否因此丧失对丙的债权；5. 乙能否否认甲公司人格并要求张三李四承担连带责任，夫妻股东加财产混同是否足够、举证责任如何分配；6. 撤销权之诉、代位权之诉、执行异议及许可执行之诉三条程序线如何并行，各方当事人的诉讼地位如何安排。考查规范提示：《公司法》（2023 修订）第 23、54 条，《公司法解释三》第 13、18 条，《民法典》第 535、537、538、539、541、568、569 条，《破产法》第 40 条，《变更追加当事人规定》第 17—21、32 条，《民诉法解释》第 501、91、108 条，《执行工作规定》第 45 条以下。",
+  "expected_sources": [
+   "公司法",
+   "民法典"
+  ],
+  "expected_articles": [
+   "第五十四条",
+   "第八十八条",
+   "第五百三十五条",
+   "第五百六十八条"
+  ],
+  "expected_articles_extra": [
+   "第二十三条",
+   "第五百三十八条",
+   "第五百三十九条",
+   "第五百四十一条",
+   "第四十条",
+   "第九十一条"
+  ],
+  "track": "external",
+  "gold_provenance": "ai_self_authored",
+  "review_level": "unreviewed",
+  "review_note": "2026-10-25 复核会话按用户题面构造。核心条号已经 exact_article_lookup 核验在库；expected_articles_extra 不参与 recall 计算。recall@4 受 k=4 与多争点的天然上限影响，本例题的闸门是 cite_ok 与结构断言（backend/scripts/check_issue_structure.py），recall 仅作下限参考。待第三方复核后再改 review_level。",
+  "capability": "multi_issue"
+ }
+]

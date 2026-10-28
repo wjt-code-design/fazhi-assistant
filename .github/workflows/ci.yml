@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  backend:
+    name: Backend · lint/type/test/audit
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      # 先装 CPU 版 torch，避免 PyPI 默认拉取数 GB 的 CUDA 包
+      - name: Install CPU torch
+        run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - name: Install deps
+        run: pip install -r requirements-dev.txt
+      - name: Ruff lint
+        run: ruff check .
+      - name: Ruff format
+        run: ruff format --check .
+      - name: mypy
+        run: mypy .
+      - name: Pytest (skip slow) with coverage
+        env:
+          PYTEST_ADDOPTS: "-m 'not slow'"
+        run: pytest --cov=. --cov-fail-under=70 -q
+      # 预算守卫原在 dispatch-output/agent-quality-20260911（评测宿主目录），不在 backend
+      # 的 lint/format/test 门禁内（testpaths=["tests"]），2026-09-15 代码审查发现该缺陷
+      # （守卫代码曾累积 18 项 lint 违规且无人拦）。2026-10-29 随仓库清理迁入：
+      # budget_guard.py -> backend/、test_budget_guard.py -> backend/tests/，
+      # 自此由上面的 ruff/mypy/pytest 步骤统一覆盖，不再需要独立的目录级步骤。
+
+      - name: pip-audit
+        run: pip-audit -r requirements.txt
+
+  frontend:
+    name: Frontend · build (lint+tsc)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Install deps
+        run: npm ci
+      - name: Build
+        run: npm run build

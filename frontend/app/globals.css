@@ -1,0 +1,1051 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   法智 · 设计系统
+   主题：冷云灰 + 青蓝渐变 · 现代 SaaS 感
+   规则：青蓝渐变只用于填充型元素（主按钮 / 印章 Logo / 顶栏进度条）；
+        细节（左竖线 / 焦点环 / 呼吸点 / 徽章）用单色 --accent。
+   ============================================================ */
+
+:root {
+  /* ========== 色彩：樱花海（Sakura Sea）——海盐蓝底 × 樱花粉点缀 ========== */
+  --ink: #23314f; /* 深墨蓝 · 文字 / 深色气泡 / 深色侧栏 */
+  --ink-2: #35476b; /* 深色面板第二层次 */
+  --parchment: #eff6ff; /* 樱海浅底 · 页面底 */
+  --paper: #ffffff; /* 卡片底 */
+  --slate: #5c7090; /* 冷灰蓝 · 次要文字 */
+  --accent: #e894ac; /* 淡樱粉 · 单色强调（可读文字 / 细节） */
+  --accent-deep: #c8788e; /* 淡樱粉更深（hover / 强调文字） */
+  --accent-tint: rgba(232, 148, 172, 0.14);
+  --jade: #3fb68b; /* 玉绿 · 成功语义 */
+  --jade-tint: #ddf3ec;
+  --mist: #d9e7f7; /* 淡蓝灰 · 边框 / 分割线 */
+  --mist-2: #f0f6ff; /* 更浅 · 表格 hover */
+  --error: #e06060; /* 错误语义 */
+  --error-tint: #fcebeb;
+  --sea: #3d9be9; /* 海盐蓝 · 法条引用 / 辅助点缀 */
+
+  /* 语义标注对比色：蓝=法条权威 / 橙=时限 / 玉绿=金额 / 粉=关键数字 */
+  /* 2026-09-15 T1.4：三对临界色微调约2%达 WCAG AA 4.5（--*-rgb 镜像同步） */
+  --law: #2e79c0;
+  --time: #b56019;
+  --money: #1e8660;
+  --num: #e894ac;
+
+  /* RGB 三元组（Tailwind 透明度类 bg-x/50 用 rgb(var(--x-rgb) / 0.5)，3.4 不支持变量色直接 /alpha） */
+  --ink-rgb: 35 49 79;
+  --ink-2-rgb: 53 71 107;
+  --parchment-rgb: 239 246 255;
+  --paper-rgb: 255 255 255;
+  --slate-rgb: 92 112 144;
+  --accent-rgb: 232 148 172;
+  --accent-deep-rgb: 200 120 142;
+  --jade-rgb: 63 182 139;
+  --mist-rgb: 217 231 247;
+  --error-rgb: 224 96 96;
+  --sea-rgb: 61 155 233;
+  --law-rgb: 46 121 192;
+  --time-rgb: 181 96 25;
+  --money-rgb: 30 134 96;
+  --num-rgb: 232 148 172;
+
+  /* 背景渐变：海盐蓝底 */
+  --bg-start: #d6ecff;
+  --bg-mid: #c3dbff;
+  --bg-end: #eff6ff;
+  --bg-grad: linear-gradient(160deg, #d6ecff 0%, #c3dbff 55%, #eff6ff 100%);
+
+  /* 樱花能量流渐变 · 淡樱粉（主按钮 / 印章 Logo / 流式光标） */
+  --grad: linear-gradient(135deg, #f6c8d5 0%, #eba9bd 100%);
+  --grad-hover: linear-gradient(135deg, #eeb6c8 0%, #df9ab1 100%);
+
+  /* 圆角基元 · 全局统一 6px */
+  --radius: 6px;
+
+  /* 玻璃质感 */
+  --glass: rgba(255, 255, 255, 0.45);
+  --glass-border: rgba(255, 255, 255, 0.7);
+
+  /* ---------- 字体 ---------- */
+  --font-serif: "Songti SC", "STSong", "SimSun", "Noto Serif CJK SC", serif;
+  --font-sans: "PingFang SC", "Microsoft YaHei", "Hiragino Sans GB", "Noto Sans CJK SC", sans-serif;
+
+  /* ---------- 阴影（樱海调，墨蓝而非冷灰） ---------- */
+  --shadow-xs: 0 1px 2px rgba(42, 59, 92, 0.05);
+  --shadow-sm: 0 1px 2px rgba(42, 59, 92, 0.04), 0 2px 8px rgba(42, 59, 92, 0.05);
+  --shadow-md: 0 2px 6px rgba(42, 59, 92, 0.05), 0 10px 24px -8px rgba(42, 59, 92, 0.12);
+  --shadow-lg: 0 4px 12px rgba(42, 59, 92, 0.06), 0 20px 44px -12px rgba(42, 59, 92, 0.18);
+  --shadow-xl: 0 10px 30px rgba(42, 59, 92, 0.08), 0 30px 60px -16px rgba(42, 59, 92, 0.2);
+
+  /* 樱花粉发光（聚焦 / 强调） */
+  --glow: 0 0 20px -4px rgba(255, 143, 169, 0.2);
+
+  /* ---------- 动效曲线 ---------- */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+}
+
+@layer base {
+  html {
+    font-family: var(--font-sans);
+    scroll-behavior: smooth;
+  }
+  body {
+    background-color: var(--parchment);
+    background-image: var(--bg-grad);
+    background-attachment: fixed;
+    color: var(--ink);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    font-feature-settings: "tnum"; /* 数字等宽，表格/统计对齐更整齐 */
+  }
+  /* 氛围光斑：左上樱花粉 + 右下海盐蓝，固定不随滚动 */
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    background:
+      radial-gradient(560px 420px at 8% 0%, rgba(255, 143, 169, 0.14), transparent 70%),
+      radial-gradient(680px 520px at 96% 100%, rgba(107, 179, 240, 0.18), transparent 70%);
+  }
+  /* 噪点纹理：消除大色块塑料感，零请求（SVG data-URI） */
+  body::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0.03;
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='120' height='120'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2'/></filter><rect width='120' height='120' filter='url(%23n)' opacity='0.6'/></svg>");
+  }
+  ::selection {
+    background: rgba(255, 143, 169, 0.18);
+  }
+
+  /* ---------- 统一滚动条（冷灰） ---------- */
+  ::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    background: #cbd5e1;
+    border-radius: var(--radius);
+    border: 3px solid var(--parchment);
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    background: #94a3b8;
+  }
+  /* 浅色樱海侧栏内的滚动条 */
+  aside ::-webkit-scrollbar-thumb {
+    background: rgba(92, 112, 144, 0.28);
+    border-color: transparent;
+  }
+  aside ::-webkit-scrollbar-thumb:hover {
+    background: rgba(92, 112, 144, 0.45);
+  }
+
+  /* ---------- 键盘可达性：青蓝焦点环 ---------- */
+  :focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+    border-radius: var(--radius);
+  }
+
+  /* ---------- 尊重系统减少动效偏好 ---------- */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+}
+
+/* ================= 关键帧（全部 transform/opacity，不触发布局） ================= */
+@keyframes fadeInUp {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes scaleIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+@keyframes shimmer {
+  0%   { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: 0; }
+}
+@keyframes floatY {
+  0%, 100% { transform: translateY(-50%); }
+  50%      { transform: translateY(calc(-50% - 14px)); }
+}
+@keyframes typingDot {
+  0%, 60%, 100% { transform: translateY(0); opacity: 0.35; }
+  30%           { transform: translateY(-4px); opacity: 1; }
+}
+@keyframes pulseDot {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 143, 169, 0.45); }
+  50%      { box-shadow: 0 0 0 6px rgba(255, 143, 169, 0); }
+}
+/* 流式能量流：气泡左竖线 / 底部进度条的樱花渐变位移 */
+@keyframes energyFlow {
+  0%   { background-position: 0 0; }
+  100% { background-position: 40px 0; }
+}
+/* 检索扫描光：自 AI 气泡顶到底扫过 */
+@keyframes scanBeam {
+  0%   { top: -56px; opacity: 0; }
+  12%  { opacity: 1; }
+  88%  { opacity: 1; }
+  100% { top: 100%; opacity: 0; }
+}
+/* 落印确认：印章过冲回弹落下 */
+@keyframes sealStamp {
+  0%   { transform: scale(2.4) rotate(6deg); opacity: 0; }
+  60%  { transform: scale(0.94) rotate(-12deg); opacity: 1; }
+  80%  { transform: scale(1.04) rotate(-12deg); }
+  100% { transform: scale(1) rotate(-12deg); opacity: 1; }
+}
+/* 气泡左竖线生长 */
+@keyframes lineGrow {
+  from { transform: scaleY(0); }
+  to   { transform: scaleY(1); }
+}
+/* 印章下压回弹（钤印门） */
+@keyframes sealPress {
+  0%   { transform: scale(1); }
+  35%  { transform: scale(0.86); }
+  60%  { transform: scale(1.08); }
+  100% { transform: scale(1); }
+}
+/* 呼吸发光（待钤 / 流式） */
+@keyframes glowBreathe {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(255, 143, 169, 0.35), var(--glow); }
+  50%      { box-shadow: 0 0 0 10px rgba(255, 143, 169, 0), 0 0 28px -2px rgba(255, 143, 169, 0.5); }
+}
+/* 表单自墨心凝结浮现 */
+@keyframes condenseIn {
+  0%   { opacity: 0; filter: blur(12px); transform: scale(0.85); }
+  100% { opacity: 1; filter: blur(0); transform: scale(1); }
+}
+/* 法条悬浮浮层弹出 */
+@keyframes popIn {
+  from { opacity: 0; transform: translateY(4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+@layer components {
+  /* ===== 玻璃卡片 / 渐变描边（樱花海：以海盐蓝为底，樱花粉点缀） ===== */
+  .glass-card {
+    --glass-card-bg: linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.64) 0%,
+      rgba(240, 248, 255, 0.58) 50%,
+      rgba(245, 250, 255, 0.62) 100%
+    );
+    background: var(--glass-card-bg);
+    -webkit-backdrop-filter: blur(12px) saturate(130%);
+    backdrop-filter: blur(12px) saturate(130%);
+    border: 1px solid var(--glass-border);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), var(--shadow-xl);
+  }
+  /* 实底玻璃（面板内容更实，适合表格 / 表单类，避免透底影响可读性） */
+  .glass-card-strong {
+    --glass-card-bg: linear-gradient(
+      160deg,
+      rgba(255, 255, 255, 0.9) 0%,
+      rgba(245, 252, 255, 0.86) 55%,
+      rgba(248, 251, 255, 0.88) 100%
+    );
+  }
+  /* 渐变描边（上亮下暗）——浅色玻璃 UI 的勾边质感 */
+  .glow-line {
+    border: 0;
+    padding: 1px;
+    background: linear-gradient(180deg, rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.25));
+    -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+  }
+
+  /* ===== 签名母题：青蓝左竖线（细节，单色） ===== */
+  .law-border-l {
+    border-left: 3px solid var(--accent);
+    padding-left: 1rem;
+  }
+
+  /* ===== 签名母题：大号装饰 § ===== */
+  .section-mark {
+    font-family: var(--font-serif);
+    color: currentColor;
+    opacity: 0.05;
+    line-height: 0.9;
+    user-select: none;
+    pointer-events: none;
+  }
+
+  /* ===== 页面进入 · 支持 --stagger 逐条延迟 ===== */
+  .page-enter {
+    animation: fadeInUp 0.45s var(--ease-out) both;
+    animation-delay: var(--stagger, 0ms);
+  }
+  .fade-in {
+    animation: fadeIn 0.3s var(--ease-out) both;
+  }
+  .scale-in {
+    animation: scaleIn 0.3s var(--ease-spring) both;
+  }
+  /* 法条悬浮浮层（覆盖在正文之上，小弹出动画） */
+  .law-popup {
+    position: absolute;
+    z-index: 50;
+    pointer-events: auto;
+    animation: popIn 0.15s ease-out;
+  }
+  /* 应用整体外壳：定高 + 双向裁切，避免双层滚动条 */
+  .app-shell {
+    height: 100vh;
+    height: 100dvh;
+    overflow: hidden;
+    overflow-x: clip;
+  }
+
+  /* ===== 卡片（主题色玻璃卡变体） ===== */
+  .card {
+    background: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.74) 0%,
+      rgba(242, 250, 255, 0.64) 55%,
+      rgba(247, 251, 255, 0.68) 100%
+    );
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    border: 1px solid var(--glass-border);
+    border-radius: var(--radius);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), var(--shadow-sm);
+  }
+  .card-hover {
+    transition: box-shadow var(--dur-med, 250ms) var(--ease-out),
+      transform var(--dur-med, 250ms) var(--ease-out),
+      border-color var(--dur-med, 250ms) var(--ease-out);
+  }
+  .card-hover:hover {
+    transform: translateY(-2px);
+    border-color: rgb(var(--accent-rgb) / 0.35);
+    box-shadow: var(--shadow-md);
+  }
+
+  /* ===== 按钮（统一基座 + 微交互） ===== */
+  .btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1.5rem;
+    border-radius: var(--radius);
+    font-size: 0.9375rem;
+    font-weight: 500;
+    line-height: 1.25;
+    cursor: pointer;
+    transition: background-color 150ms ease, color 150ms ease,
+      border-color 150ms ease, box-shadow 200ms var(--ease-out),
+      transform 120ms var(--ease-out), opacity 150ms ease;
+    user-select: none;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .btn:hover:not(:disabled) {
+    transform: translateY(-1px);
+  }
+  .btn:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+  .btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+  /* 主按钮 = 填充型 → 青蓝渐变（透明边框，避免 border-image 破圆角） */
+  .btn-primary {
+    background: var(--grad);
+    color: var(--ink);
+    border: 1px solid transparent;
+    box-shadow: 0 1px 2px rgba(255, 143, 169, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+  }
+  .btn-primary:hover:not(:disabled) {
+    background: var(--grad-hover);
+    border-color: transparent;
+    box-shadow: 0 6px 18px -6px rgba(255, 143, 169, 0.55);
+  }
+  .btn-secondary {
+    background-color: transparent;
+    color: var(--ink);
+    border: 1px solid var(--mist);
+  }
+  .btn-secondary:hover:not(:disabled) {
+    background-color: var(--mist);
+  }
+  .btn-danger {
+    background-color: transparent;
+    color: var(--error);
+    border: 1px solid rgba(220, 38, 38, 0.45);
+  }
+  .btn-danger:hover:not(:disabled) {
+    background-color: var(--error);
+    border-color: var(--error);
+    color: #fff;
+    box-shadow: 0 4px 12px -4px rgba(220, 38, 38, 0.4);
+  }
+  .btn-ghost-dark {
+    background-color: rgba(255, 255, 255, 0.05);
+    color: rgba(255, 255, 255, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+  }
+  .btn-ghost-dark:hover:not(:disabled) {
+    background-color: rgba(255, 255, 255, 0.12);
+    border-color: rgba(255, 255, 255, 0.3);
+    color: #fff;
+  }
+  /* 浅色底 ghost / outline 变体（admin 后台在用：启用禁用、分页） */
+  .btn-ghost {
+    background-color: transparent;
+    color: var(--slate);
+    border: 1px solid transparent;
+  }
+  .btn-ghost:hover:not(:disabled) {
+    background-color: var(--mist);
+    color: var(--ink);
+  }
+  .btn-outline {
+    background-color: transparent;
+    color: var(--ink);
+    border: 1px solid var(--mist);
+  }
+  .btn-outline:hover:not(:disabled) {
+    background-color: var(--mist);
+  }
+
+  /* ===== 输入框 ===== */
+  .input {
+    width: 100%;
+    background: #fff;
+    border: 1px solid var(--mist);
+    border-radius: var(--radius);
+    padding: 0.625rem 1rem;
+    font-size: 0.9375rem;
+    color: var(--ink);
+    transition: border-color 150ms ease, box-shadow 200ms var(--ease-out),
+      background-color 150ms ease;
+  }
+  .input:hover:not(:disabled):not(:focus) {
+    border-color: #cbd5e1;
+  }
+  .input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-tint);
+  }
+  .input:disabled {
+    background: var(--parchment);
+    cursor: not-allowed;
+  }
+  .input::placeholder {
+    color: var(--slate);
+    opacity: 0.5;
+  }
+  .field-label {
+    display: block;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--slate);
+    margin-bottom: 0.375rem;
+  }
+
+  /* ===== 标签页（底部划线式，划线滑动过渡） ===== */
+  .tabs {
+    display: flex;
+    border-bottom: 1px solid var(--mist);
+  }
+  .tab {
+    padding: 0.75rem 1.25rem;
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.04em;
+    color: var(--slate);
+    border-bottom: 2px solid transparent;
+    background: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: color 150ms ease, border-color 200ms var(--ease-out);
+  }
+  .tab:hover {
+    color: var(--ink);
+  }
+  .tab.active {
+    color: var(--ink);
+    border-bottom-color: var(--accent);
+  }
+
+  /* ===== 数据表格 ===== */
+  .law-table {
+    width: 100%;
+    border-collapse: collapse;
+  }
+  .law-table th {
+    background: linear-gradient(
+      160deg,
+      rgba(35, 49, 79, 0.86) 0%,
+      rgba(53, 71, 107, 0.82) 100%
+    );
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    color: rgba(255, 255, 255, 0.92);
+    font-size: 0.8125rem;
+    font-weight: 500;
+    letter-spacing: 0.06em;
+    padding: 0.75rem 1rem;
+    text-align: left;
+    white-space: nowrap;
+  }
+  .law-table th:first-child { border-top-left-radius: var(--radius); }
+  .law-table th:last-child { border-top-right-radius: var(--radius); }
+  .law-table td {
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--mist);
+    font-size: 0.9375rem;
+    color: var(--ink);
+  }
+  .law-table tbody tr:nth-child(even) td {
+    background: var(--parchment);
+  }
+  .law-table tbody tr {
+    transition: background-color 150ms ease;
+  }
+  .law-table tbody tr:hover td {
+    background: var(--mist-2);
+  }
+  .law-table tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  /* ===== 统计卡片（樱花海主题色玻璃卡 / 左竖线 = 樱花粉点缀） ===== */
+  .stat-card {
+    background: linear-gradient(
+      155deg,
+      rgba(255, 255, 255, 0.62) 0%,
+      rgba(240, 248, 255, 0.56) 55%,
+      rgba(245, 250, 255, 0.58) 100%
+    );
+    -webkit-backdrop-filter: blur(12px) saturate(130%);
+    backdrop-filter: blur(12px) saturate(130%);
+    border: 1px solid var(--glass-border);
+    border-left: 3px solid var(--accent);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), var(--shadow-md);
+    transition: box-shadow 250ms var(--ease-out), transform 250ms var(--ease-out);
+  }
+  .stat-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+  .stat-value {
+    font-family: var(--font-serif);
+    font-size: 2.125rem;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1.15;
+    letter-spacing: -0.01em;
+  }
+  .stat-label {
+    font-size: 0.8125rem;
+    color: var(--slate);
+    letter-spacing: 0.04em;
+    margin-top: 0.375rem;
+  }
+
+  /* ===== 徽章 ===== */
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-size: 0.75rem;
+    font-weight: 500;
+    padding: 0.15rem 0.6rem;
+    border-radius: 9999px;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+  }
+  .badge-success { background: var(--jade-tint); color: var(--jade); }
+  .badge-error   { background: var(--error-tint); color: var(--error); }
+  .badge-neutral { background: var(--mist); color: var(--slate); }
+  .badge-accent  { background: var(--accent-tint); color: var(--accent-deep); }
+
+  /* ===== 登录页深底品牌区（冷青微光 + 细线网格） ===== */
+  .brand-panel {
+    background-color: var(--ink);
+    background-image:
+      radial-gradient(ellipse 60% 45% at 20% 0%, rgba(34, 211, 238, 0.16), transparent 70%),
+      linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+    background-size: 100% 100%, 40px 40px, 40px 40px;
+  }
+  /* 巨型 § 缓慢漂浮 */
+  .section-mark-float {
+    animation: floatY 9s ease-in-out infinite;
+  }
+
+  /* ===== 骨架屏（冷灰） ===== */
+  .skeleton {
+    background: linear-gradient(90deg, var(--mist) 25%, #eef2f7 50%, var(--mist) 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: var(--radius);
+  }
+
+  /* ===== 流式输出光标 ===== */
+  .streaming-cursor::after {
+    content: "▎";
+    color: var(--accent);
+    animation: blink 0.8s step-end infinite;
+    margin-left: 2px;
+  }
+
+  /* ===== 「正在输入」三点指示 ===== */
+  .typing-dots {
+    display: inline-flex;
+    gap: 4px;
+    margin-left: 8px;
+    vertical-align: middle;
+  }
+  .typing-dots i {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: typingDot 1.2s ease-in-out infinite;
+  }
+  .typing-dots i:nth-child(2) { animation-delay: 0.15s; }
+  .typing-dots i:nth-child(3) { animation-delay: 0.3s; }
+
+  /* ===== 樱花海玻璃侧栏（主题色玻璃卡 / 与主区自然衔接） ===== */
+  .sidebar-glass {
+    background: linear-gradient(
+      165deg,
+      rgba(255, 255, 255, 0.82) 0%,
+      rgba(245, 250, 255, 0.7) 45%,
+      rgba(235, 245, 255, 0.66) 100%
+    );
+    -webkit-backdrop-filter: blur(20px) saturate(150%);
+    backdrop-filter: blur(20px) saturate(150%);
+    border-right: 1px solid rgba(255, 255, 255, 0.85);
+    box-shadow:
+      inset -1px 0 0 rgba(255, 255, 255, 0.9),
+      5px 0 24px -12px rgba(61, 155, 233, 0.18);
+  }
+
+  /* ===== 侧栏对话项（樱花粉撞色强调） ===== */
+  .chat-item {
+    border-left: 3px solid transparent;
+    padding: 0.625rem 0.875rem;
+    border-radius: 0 var(--radius) var(--radius) 0;
+    cursor: pointer;
+    transition: background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease;
+  }
+  .chat-item:hover {
+    background: linear-gradient(90deg, rgb(var(--accent-rgb) / 0.16), rgb(var(--accent-rgb) / 0.06));
+    border-left-color: var(--accent);
+  }
+  .chat-item.active {
+    background: linear-gradient(90deg, rgb(var(--accent-rgb) / 0.28), rgb(var(--accent-rgb) / 0.12));
+    border-left-color: var(--accent);
+    box-shadow: inset 0 0 0 1px rgb(var(--accent-rgb) / 0.2);
+  }
+
+  /* ===== 管理后台侧导航项 ===== */
+  .nav-item {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.625rem 1rem;
+    border-radius: var(--radius);
+    font-size: 0.875rem;
+    font-weight: 500;
+    color: var(--slate);
+    cursor: pointer;
+    border: none;
+    background: none;
+    width: 100%;
+    text-align: left;
+    transition: background-color 150ms ease, color 150ms ease, box-shadow 200ms ease;
+  }
+  .nav-item:hover {
+    background-color: var(--parchment);
+    color: var(--ink);
+  }
+  .nav-item.active {
+    background-color: var(--mist);
+    color: var(--ink);
+    box-shadow: inset 3px 0 0 var(--accent);
+  }
+
+  /* ===== 文件上传区 ===== */
+  .upload-zone {
+    border: 2px dashed #cbd5e1;
+    border-radius: var(--radius);
+    padding: 2.75rem 1.5rem;
+    text-align: center;
+    cursor: pointer;
+    background: var(--paper);
+    transition: border-color 200ms ease, background-color 200ms ease,
+      box-shadow 250ms var(--ease-out), transform 250ms var(--ease-out);
+  }
+  .upload-zone:hover {
+    border-color: var(--accent);
+    background-color: rgba(2, 132, 199, 0.04);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-2px);
+  }
+  /* 键盘可达（配套 UploadSection 的 role="button" + tabIndex）：焦点必须看得见，
+     样式对齐 .input:focus 的 3px 光环，不加 hover 的上浮（避免焦点态抖动）。 */
+  .upload-zone:focus-visible {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-tint);
+  }
+
+  /* ===== 顶栏毛玻璃（樱海玻璃） ===== */
+  .header-blur {
+    background: rgba(255, 255, 255, 0.55);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  /* ===== 顶栏进度条 = 填充型 → 樱花粉渐变 ===== */
+  .grad-bar {
+    background: var(--grad);
+  }
+
+  /* ===== 在线/品牌呼吸点 = 细节 → 单色青蓝 ===== */
+  .pulse-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+    animation: pulseDot 2s ease-in-out infinite;
+  }
+
+  /* ===== 聊天气泡（用户 = 淡樱粉玻璃卡 / AI = 海盐蓝玻璃） ===== */
+  .bubble-user {
+    background: linear-gradient(
+      135deg,
+      rgba(255, 248, 251, 0.85) 0%,
+      rgba(255, 238, 244, 0.72) 55%,
+      rgba(255, 252, 254, 0.82) 100%
+    );
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    color: var(--ink);
+    border: 1px solid rgba(255, 255, 255, 0.85);
+    border-radius: 6px 6px 2px 6px; /* 不对称角母题：以 6px 为基底 */
+    box-shadow:
+      inset 0 1px 0 rgba(255, 255, 255, 0.9),
+      0 2px 8px -3px rgba(232, 148, 172, 0.12),
+      var(--shadow-sm);
+  }
+  .bubble-ai {
+    position: relative;
+    background: rgba(255, 255, 255, 0.55);
+    -webkit-backdrop-filter: blur(8px);
+    backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.7);
+    border-left: 3px solid var(--accent);
+    border-radius: 2px 6px 6px 6px;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.9), -4px 0 16px -6px rgba(255, 143, 169, 0.28), var(--shadow-sm);
+  }
+  /* 流式能量条：气泡左竖线流动 + 底部进度呼吸条（普通问答输出期 / 合同输出期） */
+  .streaming-aura::before {
+    content: "";
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 3px;
+    background: linear-gradient(180deg, #ff8fa9, #f56b8c, #ff8fa9);
+    background-size: 100% 40px;
+    animation: energyFlow 1.2s linear infinite;
+  }
+  .streaming-aura::after {
+    content: "";
+    position: absolute;
+    left: 12px;
+    right: 12px;
+    bottom: 0;
+    height: 2px;
+    border-radius: 2px;
+    background: linear-gradient(90deg, transparent, #ff8fa9, #f56b8c, #ff8fa9, transparent);
+    background-size: 200% 100%;
+    animation: energyFlow 1.6s linear infinite;
+    opacity: 0.7;
+  }
+  /* 检索扫描光：AI 气泡顶到底扫过（普通问答检索期） */
+  .scan-beam {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    top: 0;
+    height: 56px;
+    background: linear-gradient(180deg, transparent, rgba(255, 143, 169, 0.16), transparent);
+    animation: scanBeam 1.6s linear infinite;
+    pointer-events: none;
+  }
+
+  /* ===== 印章式 Logo 方块 = 填充型 → 粉×海盐蓝撞色 ===== */
+  .logo-seal {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--grad);
+    color: var(--ink);
+    border-radius: var(--radius);
+    font-family: var(--font-serif);
+    font-weight: 700;
+    line-height: 1;
+    box-shadow: 0 2px 8px -2px rgba(255, 143, 169, 0.28), inset 0 0 0 1.5px rgba(255, 255, 255, 0.28);
+    transition: transform 200ms var(--ease-spring);
+  }
+  .logo-seal:hover {
+    transform: rotate(-4deg) scale(1.05);
+  }
+
+  /* ===== 滚动容器加固：拦截滚轮在边界处连锁滚动外层 ===== */
+  .scroll-contain {
+    overscroll-behavior: contain;
+  }
+}
+
+/* ===== 移动端适配 =====
+   input ≥16px：iOS Safari 聚焦 <16px 的 input 会自动放大页面（真坑，必须防）。 */
+@media (max-width: 767px) {
+  .input {
+    font-size: 16px;
+  }
+}
+
+/* ===== 批3 · 聊天页升级（樱花海） ===== */
+/* 侧栏右缘渐变描边 + 光效衔接（主区与侧栏交界） */
+.sidebar-glow::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  width: 1px;
+  background: linear-gradient(180deg, rgba(255, 143, 169, 0.28), transparent 65%);
+  box-shadow: 16px 0 32px -18px rgba(255, 143, 169, 0.14);
+}
+/* 移动端底部 Home 条安全距离 */
+.pb-safe {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+/* 语义标注（色相即语义：蓝=法条权威 / 橙=时限 / 玉绿=金额 / 粉=关键数字；对比度按 WCAG 修正值） */
+.law-ref {
+  font-family: var(--font-serif);
+  color: var(--law);
+  border-bottom: 1px solid var(--law);
+  cursor: pointer;
+  font-weight: 400; /* 强制不加粗：避免被外层 <strong> 继承 */
+  transition: color 150ms ease, border-color 150ms ease;
+}
+.law-ref:hover {
+  color: var(--accent-deep);
+  border-color: var(--accent-deep);
+}
+/* 法条内联展开卡：点击法条后出现在下一行（占位、不悬浮） */
+.law-inline-card {
+  display: block;
+  margin-top: 0.75rem;
+  animation: fadeInUp 0.3s var(--ease-out) both;
+}
+
+/* ===== 回答排版（renderAnswer 输出：标题 / 段落 / 列表 / 表格） ===== */
+.answer-p {
+  margin: 0.4rem 0;
+  line-height: 1.75;
+}
+/* annotate.ts:222 的标题正则吃 `#`–`####`（四级），第四级此前无规则 ⇒
+   `<h4 class="answer-h4">` 掉回浏览器默认样式（无衬线、无左竖线），脱离设计系统。 */
+.answer-h4,
+.answer-h3,
+.answer-h2,
+.answer-h1 {
+  font-family: var(--font-serif);
+  font-weight: 600;
+  color: var(--ink);
+  line-height: 1.4;
+  margin: 1.25rem 0 0.5rem;
+  border-left: 3px solid var(--accent);
+  padding-left: 0.625rem;
+}
+.answer-h4 { font-size: 0.95rem; }
+.answer-h3 { font-size: 1.02rem; }
+.answer-h2 { font-size: 1.12rem; }
+.answer-h1 { font-size: 1.25rem; }
+.answer-hr {
+  border: 0;
+  height: 1px;
+  margin: 1rem 0;
+  background: linear-gradient(90deg, transparent, rgba(61, 155, 233, 0.35), transparent);
+}
+.answer-ul,
+.answer-ol {
+  margin: 0.5rem 0 0.75rem;
+  padding-left: 1.375rem;
+  line-height: 1.7;
+}
+.answer-ul { list-style: disc; }
+.answer-ol { list-style: decimal; }
+.answer-table-wrap {
+  overflow-x: auto;
+  margin: 0.75rem 0;
+  border-radius: var(--radius);
+}
+.answer-table {
+  width: 100%;
+  min-width: 480px;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+  line-height: 1.6;
+  background: rgba(255, 255, 255, 0.4);
+}
+.answer-table th {
+  background: linear-gradient(160deg, rgba(35, 49, 79, 0.86), rgba(53, 71, 107, 0.82));
+  color: rgba(255, 255, 255, 0.94);
+  font-weight: 500;
+  letter-spacing: 0.03em;
+  padding: 0.55rem 0.7rem;
+  text-align: left;
+  white-space: nowrap;
+}
+.answer-table th:first-child { border-top-left-radius: var(--radius); }
+.answer-table th:last-child { border-top-right-radius: var(--radius); }
+.answer-table td {
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid var(--mist);
+  vertical-align: top;
+}
+.answer-table tbody tr:nth-child(even) td {
+  background: rgba(240, 248, 255, 0.5);
+}
+.answer-table tbody tr:hover td {
+  background: rgba(242, 84, 124, 0.06);
+}
+.answer-table tbody tr:last-child td {
+  border-bottom: none;
+}
+.answer-table strong {
+  color: var(--ink);
+  font-weight: 600;
+}
+.hl-time {
+  background: rgb(var(--time-rgb) / 0.1);
+  color: var(--time);
+  font-variant-numeric: tabular-nums;
+}
+.hl-num {
+  color: var(--num);
+  font-weight: 600;
+}
+.hl-money {
+  color: var(--money);
+  font-weight: 600;
+}
+/* 法典速查字符翻转（检索期） */
+.codex-char {
+  display: inline-block;
+  font-family: var(--font-serif);
+  animation: scaleIn 0.26s var(--ease-out);
+}
+/* 落印确认（完成期轻量） */
+.done-seal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--font-serif);
+  color: var(--sea);
+  border: 1.5px solid var(--sea);
+  border-radius: 8px;
+  animation: sealStamp 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ===== 批5 · P1 交互 ===== */
+/* 指针光晕（--mx/--my 由 usePointerGlow 写） */
+.pointer-glow {
+  position: relative;
+}
+.pointer-glow::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(400px at var(--mx, 50%) var(--my, 50%), rgba(255, 143, 169, 0.08), transparent 70%);
+}
+
+/* ===== 樱花海玻璃法条卡（悬浮/速查展开共用）：淡海盐蓝玻璃，樱花粉仅点缀 ===== */
+.law-glass {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(
+    160deg,
+    rgba(255, 255, 255, 0.72) 0%,
+    rgba(240, 248, 255, 0.64) 50%,
+    rgba(235, 246, 255, 0.6) 100%
+  );
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid rgba(255, 255, 255, 0.78);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.92),
+    0 0 0 1px rgba(61, 155, 233, 0.1),
+    var(--shadow-xl);
+}
+/* 海盐蓝 → 樱花粉 渐变左竖线（法条权威母题，呼应蓝对比色法条） */
+.law-glass::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: linear-gradient(180deg, #3d9be9, #6bb3f0 50%, #ff8fa9);
+}
+/* 法条卡内条文标题（海盐蓝，呼应蓝对比法条） */
+.law-glass .law-title {
+  color: var(--law);
+}
+/* 移动端（coarse）：隐藏 hover 浮层（法条卡走 inline 展开），禁用光晕 */
+@media (pointer: coarse) {
+  .pointer-glow::before {
+    display: none;
+  }
+}

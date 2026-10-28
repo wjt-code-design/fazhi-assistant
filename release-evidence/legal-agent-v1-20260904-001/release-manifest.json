@@ -1,0 +1,37 @@
+{
+  "schema_version": "legal-agent-release-manifest/v1",
+  "release_id": "legal-agent-v1-20260904-001",
+  "candidate": {
+    "git_revision": "1a8331f5cd3372e50643ce78cb1dfcf47c786406",
+    "build_digest": "sha256:8032564be82d1687f044c7760ca092f551aa827b801ae5432bc08be5f6e7fdcf"
+  },
+  "evaluation": {
+    "case_set_sha256": "f8ca2f2e71250f18a3741132d1024e3865eb21c1fb997a4d4d26c12391f1588d",
+    "evaluator_name": "legal-agent-deterministic-evaluator",
+    "evaluator_version": "1.0.0",
+    "rubric_hash": "7aca52a672df76c2b876a7b524601c7ba36320eb72c5c15a964d660a4e7a69bf",
+    "release_policy_sha256": "b79f4820ff6747672747c12938a51cd6f385c53931b098d83cad9ac9ca991912"
+  },
+  "knowledge": {
+    "corpus_manifest_sha256": "b4f069f41ba188a15de77c8bb648096a97296796c9a7b0ce46b49e3b45ca615f",
+    "index_manifest_sha256": "047c2a3155a2e5f6773c518dbff479081f90574862ca3c95353c10ce272302a7",
+    "jurisdictions": ["CN"],
+    "law_as_of": "YYYY-MM-DD"
+  },
+  "runtime": {
+    "provider": "aliyun-maas-openai-compatible",
+    "model": "qwen3.5-omni-plus-2026-03-15",
+    "model_snapshot": "qwen3.5-omni-plus-2026-03-15",
+    "prompt_bundle_sha256": "7345127fbd36086c5ae59d2123294c9883143fdcde0e5cae1d7ab52f474d5045",
+    "tool_policy_sha256": "449621aa31516b3db75bcb8cf85f02a1f74282d7d3c0a469289f27c1a23a2eb7",
+    "config_sha256": "0d8613dec69d93b3435aed97ab8a97bd618105c3c71a50fd12db863bb3c65fca"
+  },
+  "capture": {
+    "protocol_sha256": "2099e2a481ecb150d1529f28f54c2ea8d8de0e438e34ee4c95db9f05e7065574",
+    "retry_policy_sha256": "2099e2a481ecb150d1529f28f54c2ea8d8de0e438e34ee4c95db9f05e7065574",
+    "timeout_seconds": 90,
+    "concurrency": 1,
+    "cache_policy": "disabled",
+    "network_policy": "frozen-knowledge-only"
+  }
+}

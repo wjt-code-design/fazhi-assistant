@@ -1,0 +1,82 @@
+{
+ "run": "forensic-c02",
+ "results": {
+  "C02": {
+   "rounds": [
+    {
+     "request": "initial",
+     "status": 200,
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": []
+    },
+    {
+     "request": "round1",
+     "status": 200,
+     "answered_facts": [],
+     "event_types": [
+      "agent_status",
+      "clarification"
+     ],
+     "error_codes": [],
+     "clar_meta": {
+      "run_id": "1aa79e4c-ae01-43ef-9316-b1548ef11dc2",
+      "state_version": 4,
+      "conv_id": 2188
+     },
+     "raw_tail": null
+    },
+    {
+     "request": "round2",
+     "status": 200,
+     "answered_facts": [
+      "过去一年几乎每周六工作，公司群里有排班"
+     ],
+     "event_types": [
+      "agent_status",
+      "error"
+     ],
+     "error_codes": [
+      "EVIDENCE_COVERAGE_DEFICIENT"
+     ],
+     "clar_meta": {
+      "run_id": "1aa79e4c-ae01-43ef-9316-b1548ef11dc2",
+      "state_version": 8,
+      "conv_id": 2188
+     },
+     "raw_tail": null
+    }
+   ],
+   "asked": [
+    {
+     "round": 1,
+     "prompt": "劳动者是否在时效内主张过权利或存在时效中断、中止事由。"
+    },
+    {
+     "round": 2,
+     "prompt": "最近一次加班行为发生的具体日期。"
+    }
+   ],
+   "answered_fact_ids": [
+    "C02-r1-f2"
+   ],
+   "unknown_fact_ids": [
+    {
+     "round": 1,
+     "prompt": "劳动者是否在时效内主张过权利或存在时效中断、中止事由。"
+    }
+   ],
+   "error_codes": [
+    "EVIDENCE_COVERAGE_DEFICIENT"
+   ],
+   "conv_id": 2188,
+   "final_chars": 0,
+   "final_text": "",
+   "final_excerpt": "",
+   "redline_candidate_over_2_rounds": false,
+   "elapsed_s": 149.4
+  }
+ }
+}
